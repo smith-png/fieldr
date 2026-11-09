@@ -19,7 +19,7 @@ export const BrandMark: React.FC<BrandMarkProps> = ({
       className={`group relative flex items-center gap-3.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#047554] rounded-2xl transition-transform active:scale-95 ${className}`}
     >
       {/* 52px organic tile with feathered edges and rotating blobs */}
-      <div className="relative w-[52px] h-[52px] rounded-[22%] overflow-hidden bg-[#0A0D0A] shadow-[0_0_24px_rgba(4,117,84,0.18)] p-0.5 filter">
+      <div className="relative w-[52px] h-[52px] rounded-[22%] overflow-hidden bg-[#0A0D0A] shadow-[0_0_24px_rgba(4,117,84,0.18)] p-0.5 transform-gpu">
         {/* Slow rotating blob container (14s) */}
         <div className="absolute inset-0 animate-blob-rotate origin-center pointer-events-none opacity-85">
           {/* Sage Dark blob */}
