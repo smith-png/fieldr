@@ -1,0 +1,6 @@
+{
+  "name": "Fieldr",
+  "description": "Live sports player auction platform for DRGMC college tournaments with admin command center and synchronized big-screen projector display.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,107 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --bg-canvas: #0B0B0B;
+    --text-primary: #F0F2EE;
+    --text-muted: #8E928C;
+    --sage-dark: #395F3D;
+    --sage-mid: #047554;
+    --sage-light: #CBD1CB;
+    --amber-points: #C88B0F;
+    --error: #B91C1C;
+  }
+
+  body {
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+}
+
+.font-syne {
+  font-family: 'Syne', sans-serif;
+}
+
+.font-dot {
+  font-family: 'DotGothic16', monospace;
+}
+
+.font-serif-accent {
+  font-family: 'Instrument Serif', Georgia, serif;
+}
+
+@keyframes blobRotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes blobDriftA {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(8px, -10px) scale(1.15);
+  }
+}
+
+@keyframes blobDriftB {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-10px, 8px) scale(1.1);
+  }
+}
+
+.animate-blob-rotate {
+  animation: blobRotate 14s linear infinite;
+}
+
+.animate-blob-drift-a {
+  animation: blobDriftA 6s ease-in-out infinite;
+}
+
+.animate-blob-drift-b {
+  animation: blobDriftB 7s ease-in-out infinite alternate;
+}
+
+@keyframes tickerMarquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-ticker {
+  display: flex;
+  width: max-content;
+  animation: tickerMarquee 36s linear infinite;
+}
+
+.animate-ticker:hover {
+  animation-play-state: paused;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0B0B0B;
+}
+::-webkit-scrollbar-thumb {
+  background: #232323;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #395F3D;
+}
