@@ -1,38 +1,54 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useReducedMotion } from 'motion/react'
+import { FALLBACK_CAROUSEL_TEXTS } from '../lib/data'
 
 interface TickerStripProps {
-  items?: string[]
+  items?: string[] | null
 }
 
 export const TickerStrip: React.FC<TickerStripProps> = ({ items }) => {
   const shouldReduceMotion = useReducedMotion()
   const containerRef = useRef<HTMLDivElement>(null)
   const singleCycleRef = useRef<HTMLDivElement>(null)
-  const group1Ref = useRef<HTMLDivElement>(null)
+
+  // Track previous measured values to prevent unnecessary setState inside ResizeObserver
+  const prevDimensionsRef = useRef({
+    containerWidth: 0,
+    baseCycleWidth: 0
+  })
 
   const [containerWidth, setContainerWidth] = useState<number>(0)
   const [baseCycleWidth, setBaseCycleWidth] = useState<number>(0)
-  const [groupWidth, setGroupWidth] = useState<number>(0)
 
-  // Requirement C3: If fetch succeeds with zero items or no items provided, hide the strip completely
-  if (!items || items.length === 0) {
-    return null
-  }
+  // Treat a null, undefined or non-array result as "use fallback items"
+  const safeItems = useMemo(() => {
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return FALLBACK_CAROUSEL_TEXTS
+    }
+    const clean = items
+      .filter((i) => typeof i === 'string' && i.trim().length > 0)
+      .map((i) => i.trim())
+    return clean.length > 0 ? clean : FALLBACK_CAROUSEL_TEXTS
+  }, [items])
 
-  // Measure container and cycle widths with ResizeObserver
+  // ResizeObserver with change detection and proper cleanup
   useEffect(() => {
-    if (!containerRef.current) return
+    if (!containerRef.current || !singleCycleRef.current) return
 
     const updateDimensions = () => {
-      if (containerRef.current) {
-        setContainerWidth(containerRef.current.offsetWidth)
+      if (!containerRef.current || !singleCycleRef.current) return
+      const curContainer = Math.round(containerRef.current.offsetWidth || 0)
+      const curBase = Math.round(singleCycleRef.current.offsetWidth || 0)
+
+      const prev = prevDimensionsRef.current
+      // Never set state inside ResizeObserver unless computed value actually changed (>= 2px)
+      if (Math.abs(curContainer - prev.containerWidth) >= 2) {
+        prev.containerWidth = curContainer
+        setContainerWidth(curContainer)
       }
-      if (singleCycleRef.current) {
-        setBaseCycleWidth(singleCycleRef.current.offsetWidth)
-      }
-      if (group1Ref.current) {
-        setGroupWidth(group1Ref.current.offsetWidth)
+      if (Math.abs(curBase - prev.baseCycleWidth) >= 2) {
+        prev.baseCycleWidth = curBase
+        setBaseCycleWidth(curBase)
       }
     }
 
@@ -44,7 +60,6 @@ export const TickerStrip: React.FC<TickerStripProps> = ({ items }) => {
 
     if (containerRef.current) observer.observe(containerRef.current)
     if (singleCycleRef.current) observer.observe(singleCycleRef.current)
-    if (group1Ref.current) observer.observe(group1Ref.current)
 
     window.addEventListener('resize', updateDimensions)
 
@@ -52,44 +67,49 @@ export const TickerStrip: React.FC<TickerStripProps> = ({ items }) => {
       observer.disconnect()
       window.removeEventListener('resize', updateDimensions)
     }
-  }, [items])
+  }, [safeItems])
 
-  // Requirement A2: Repeat items until one group is at least 1.5x container width
+  // Guard: If measured width is 0, undefined or NaN, render items twice and do not loop
+  const isWidthInvalid =
+    !baseCycleWidth ||
+    isNaN(baseCycleWidth) ||
+    baseCycleWidth <= 0 ||
+    !containerWidth ||
+    isNaN(containerWidth) ||
+    containerWidth <= 0
+
+  // Cap number of repeats at 12
   const repeatCount = useMemo(() => {
-    if (containerWidth <= 0 || baseCycleWidth <= 0) {
+    if (isWidthInvalid) {
       return 2
     }
-    const needed = (containerWidth * 1.5) / baseCycleWidth
-    return Math.max(1, Math.ceil(needed))
-  }, [containerWidth, baseCycleWidth])
+    const needed = Math.ceil((containerWidth * 1.5) / baseCycleWidth)
+    if (isNaN(needed) || needed < 1) return 2
+    return Math.min(12, needed)
+  }, [containerWidth, baseCycleWidth, isWidthInvalid])
 
-  // Flattened items for one group
   const repeatedItems = useMemo(() => {
     const list: string[] = []
     for (let r = 0; r < repeatCount; r++) {
-      for (const item of items) {
+      for (const item of safeItems) {
         list.push(item)
       }
     }
     return list
-  }, [items, repeatCount])
+  }, [safeItems, repeatCount])
 
-  // Requirement A3: Speed is constant at ~60 px per second (groupWidth / 60)
+  // Do not loop if width is invalid or prefers-reduced-motion is on
+  const shouldLoop = !shouldReduceMotion && !isWidthInvalid
+
   const animationDuration = useMemo(() => {
-    const effectiveWidth =
-      groupWidth > 0
-        ? groupWidth
-        : baseCycleWidth > 0
-        ? baseCycleWidth * repeatCount
-        : 1200
-    const duration = effectiveWidth / 60
+    if (!shouldLoop || isWidthInvalid) return 0
+    const groupWidth = baseCycleWidth * repeatCount
+    const duration = groupWidth / 60
     return Math.max(6, duration)
-  }, [groupWidth, baseCycleWidth, repeatCount])
+  }, [shouldLoop, isWidthInvalid, baseCycleWidth, repeatCount])
 
-  // Render a copy group with " / " separator after EVERY item, including the last (Requirement A1)
   const renderItemGroup = (isDuplicate = false) => (
     <div
-      ref={!isDuplicate ? group1Ref : undefined}
       aria-hidden={isDuplicate ? 'true' : undefined}
       className="flex shrink-0 items-center whitespace-nowrap font-dot text-[16px] md:text-[18.5px] leading-normal tracking-[0.16em] text-[#CBD1CB]"
     >
@@ -114,13 +134,13 @@ export const TickerStrip: React.FC<TickerStripProps> = ({ items }) => {
       aria-label="Live season statistics ticker"
       className="w-full bg-[#111411] border-y border-[#395F3D]/30 py-3.5 overflow-hidden select-none relative"
     >
-      {/* Hidden single cycle element to measure base item cycle width */}
+      {/* Hidden single cycle element to measure base cycle width */}
       <div
         ref={singleCycleRef}
         aria-hidden="true"
         className="absolute left-0 top-0 invisible pointer-events-none flex items-center whitespace-nowrap font-dot text-[16px] md:text-[18.5px] leading-normal tracking-[0.16em]"
       >
-        {items.map((text, idx) => (
+        {safeItems.map((text, idx) => (
           <span key={`measure-${text}-${idx}`} className="inline-flex items-center">
             <span className="break-all">{text}</span>
             <span className="mx-4 md:mx-6 select-none">/</span>
@@ -129,13 +149,13 @@ export const TickerStrip: React.FC<TickerStripProps> = ({ items }) => {
       </div>
 
       {/* Render track */}
-      {shouldReduceMotion ? (
-        // Prefers reduced motion: static single group without animation (Requirement A5)
-        <div className="flex justify-center overflow-x-auto py-0.5">
+      {!shouldLoop ? (
+        // When width invalid or reduced motion: render static without looping
+        <div className="flex justify-center overflow-x-hidden py-0.5">
           {renderItemGroup(false)}
         </div>
       ) : (
-        // Requirement A2 & A5: 2 groups animated 0 to -50% translateX with pause-on-hover
+        // Looping marquee: render 2 groups with translate3d animation
         <div
           className="flex will-change-transform animate-ticker"
           style={{

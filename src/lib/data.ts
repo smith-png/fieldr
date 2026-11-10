@@ -323,23 +323,38 @@ export async function signOut(): Promise<void> {
 // ==================== SEASONS ====================
 
 export async function getSeasons(): Promise<Season[]> {
-  if (isDemoMode) {
-    return getLocal<Season[]>(STORAGE_KEYS.SEASONS, [])
+  try {
+    if (isDemoMode) {
+      const stored = getLocal<Season[]>(STORAGE_KEYS.SEASONS, [])
+      return Array.isArray(stored) ? stored : []
+    }
+
+    if (!supabase) return []
+    const { data, error } = await supabase
+      .from('seasons')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('getSeasons error from Supabase:', error)
+      return []
+    }
+    return Array.isArray(data) ? data : []
+  } catch (err) {
+    console.error('getSeasons caught error:', err)
+    return []
   }
-
-  if (!supabase) return []
-  const { data, error } = await supabase
-    .from('seasons')
-    .select('*')
-    .order('created_at', { ascending: false })
-
-  if (error) throw new Error(error.message)
-  return data || []
 }
 
 export async function getActiveSeason(): Promise<Season | null> {
-  const seasons = await getSeasons()
-  return seasons.find((s) => s.is_active) || null
+  try {
+    const seasons = await getSeasons()
+    if (!Array.isArray(seasons)) return null
+    return seasons.find((s) => s && s.is_active) || null
+  } catch (err) {
+    console.error('getActiveSeason caught error:', err)
+    return null
+  }
 }
 
 export async function createSeason(name: string, startDate?: string, endDate?: string): Promise<Season> {
@@ -644,20 +659,29 @@ export async function deleteTeam(id: string): Promise<void> {
 // ==================== PLAYERS ====================
 
 export async function getPlayers(seasonId: string): Promise<Player[]> {
-  if (isDemoMode) {
-    const allPlayers = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, [])
-    return allPlayers.filter((p) => p.season_id === seasonId)
+  try {
+    if (!seasonId) return []
+    if (isDemoMode) {
+      const allPlayers = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, [])
+      return Array.isArray(allPlayers) ? allPlayers.filter((p) => p && p.season_id === seasonId) : []
+    }
+
+    if (!supabase) return []
+    const { data, error } = await supabase
+      .from('players')
+      .select('*')
+      .eq('season_id', seasonId)
+      .order('name', { ascending: true })
+
+    if (error) {
+      console.error('getPlayers error from Supabase:', error)
+      return []
+    }
+    return Array.isArray(data) ? data : []
+  } catch (err) {
+    console.error('getPlayers caught error:', err)
+    return []
   }
-
-  if (!supabase) return []
-  const { data, error } = await supabase
-    .from('players')
-    .select('*')
-    .eq('season_id', seasonId)
-    .order('name', { ascending: true })
-
-  if (error) throw new Error(error.message)
-  return data || []
 }
 
 // Paginated admin players query
@@ -1728,45 +1752,55 @@ export function invalidateCarouselCache(): void {
 }
 
 export async function getCarouselItems(activeOnly = false): Promise<CarouselItem[]> {
-  // If active-only requested, check 60s cache first
-  if (activeOnly && activeCarouselCache && Date.now() < activeCarouselCache.expiresAt) {
-    return activeCarouselCache.data
-  }
+  try {
+    // If active-only requested, check 60s cache first
+    if (activeOnly && activeCarouselCache && Date.now() < activeCarouselCache.expiresAt) {
+      return activeCarouselCache.data
+    }
 
-  if (isDemoMode) {
-    const all = getLocal<CarouselItem[]>(STORAGE_KEYS.CAROUSEL, DEFAULT_CAROUSEL)
-    const sorted = [...all].sort(
-      (a, b) => a.sort_order - b.sort_order || (a.created_at || '').localeCompare(b.created_at || '')
-    )
-    const result = activeOnly ? sorted.filter((item) => item.active) : sorted
+    if (isDemoMode) {
+      const all = getLocal<CarouselItem[]>(STORAGE_KEYS.CAROUSEL, DEFAULT_CAROUSEL)
+      if (!Array.isArray(all) || all.length === 0) {
+        return DEFAULT_CAROUSEL
+      }
+      const sorted = [...all].sort(
+        (a, b) => a.sort_order - b.sort_order || (a.created_at || '').localeCompare(b.created_at || '')
+      )
+      const result = activeOnly ? sorted.filter((item) => item.active) : sorted
+      const safeResult = result.length > 0 ? result : DEFAULT_CAROUSEL
+      if (activeOnly) {
+        activeCarouselCache = { data: safeResult, expiresAt: Date.now() + 60_000 }
+      }
+      return safeResult
+    }
+
+    if (!supabase) return activeOnly ? DEFAULT_CAROUSEL.filter((i) => i.active) : DEFAULT_CAROUSEL
+
+    let query = supabase
+      .from('carousel_items')
+      .select('*')
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true })
+
+    if (activeOnly) {
+      query = query.eq('active', true)
+    }
+
+    const { data, error } = await query
+    if (error || !data || !Array.isArray(data) || data.length === 0) {
+      if (error) console.error('getCarouselItems error from Supabase:', error)
+      return activeOnly ? DEFAULT_CAROUSEL.filter((i) => i.active) : DEFAULT_CAROUSEL
+    }
+
+    const result: CarouselItem[] = data
     if (activeOnly) {
       activeCarouselCache = { data: result, expiresAt: Date.now() + 60_000 }
     }
     return result
+  } catch (err) {
+    console.error('getCarouselItems caught unexpected error:', err)
+    return activeOnly ? DEFAULT_CAROUSEL.filter((i) => i.active) : DEFAULT_CAROUSEL
   }
-
-  if (!supabase) return activeOnly ? DEFAULT_CAROUSEL.filter((i) => i.active) : DEFAULT_CAROUSEL
-
-  let query = supabase
-    .from('carousel_items')
-    .select('*')
-    .order('sort_order', { ascending: true })
-    .order('created_at', { ascending: true })
-
-  if (activeOnly) {
-    query = query.eq('active', true)
-  }
-
-  const { data, error } = await query
-  if (error) {
-    throw new Error(error.message)
-  }
-
-  const result: CarouselItem[] = data || []
-  if (activeOnly) {
-    activeCarouselCache = { data: result, expiresAt: Date.now() + 60_000 }
-  }
-  return result
 }
 
 export async function createCarouselItem(text: string, sort_order: number, seasonId?: string): Promise<CarouselItem> {
