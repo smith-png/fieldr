@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
 import {
+  CheckCircle,
+  DownloadSimple,
   PencilSimple,
   Plus,
   ShieldCheck,
@@ -9,9 +11,10 @@ import {
   WarningCircle,
   X
 } from '@phosphor-icons/react'
-import type { Season, Sport, Team } from '../../lib/types'
-import { createTeam, deleteTeam, updateTeam, uploadAsset } from '../../lib/data'
+import type { Season, Sport, Team } from '../../types'
+import { bulkCreateTeams, createTeam, deleteTeam, updateTeam, uploadAsset } from '../../lib/data'
 import { useToast } from '../../lib/ToastContext'
+import { Button, Dialog } from '../../components/ui'
 
 interface AdminTeamsProps {
   activeSeason: Season | null
@@ -42,6 +45,91 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
   const [logoUrl, setLogoUrl] = useState('')
   const [isUploading, setIsUploading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // CSV Import state
+  const [isCsvModalOpen, setIsCsvModalOpen] = useState(false)
+  const [csvRows, setCsvRows] = useState<Array<Omit<Team, 'id' | 'current_purse' | 'created_at'> & { valid: boolean; error?: string }>>([])
+  const [isImporting, setIsImporting] = useState(false)
+
+  const downloadTeamsTemplate = () => {
+    const header = 'sport,name,short_code,color,starting_purse,owner_display_name\n'
+    const example = 'Cricket,Stallions CC,SCC,#2F5233,10000,Marcus Vance\n'
+    const blob = new Blob([header + example], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `teams_template_${activeSeason?.name || 'season'}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !activeSeason) return
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const content = event.target?.result as string
+      if (!content) return
+
+      const lines = content.split('\n').map((l) => l.trim()).filter(Boolean)
+      if (lines.length <= 1) {
+        error('CSV is empty or missing headers')
+        return
+      }
+
+      const rows: Array<Omit<Team, 'id' | 'current_purse' | 'created_at'> & { valid: boolean; error?: string }> = []
+      const existingCodes = new Set(teams.map((t) => t.short_code.toUpperCase()))
+
+      for (let i = 1; i < lines.length; i++) {
+        const parts = lines[i].split(',').map((p) => p.trim())
+        if (parts.length < 3) continue
+
+        const [sportVal, nameVal, codeVal, colorVal, purseVal, ownerVal] = parts
+        const codeClean = (codeVal || '').toUpperCase()
+
+        let rowError: string | undefined
+        if (!nameVal) rowError = 'Name is required'
+        else if (!codeClean || codeClean.length > 3) rowError = 'Short code must be 1-3 characters'
+        else if (existingCodes.has(codeClean)) rowError = `Code "${codeClean}" already in use`
+
+        rows.push({
+          season_id: activeSeason.id,
+          sport: sportVal || sports[0]?.name || 'Cricket',
+          name: nameVal || 'Unnamed Team',
+          short_code: codeClean,
+          color: colorVal || '#047554',
+          starting_purse: parseInt(purseVal, 10) || 1000,
+          owner_display_name: ownerVal || undefined,
+          valid: !rowError,
+          error: rowError
+        })
+      }
+
+      setCsvRows(rows)
+      setIsCsvModalOpen(true)
+    }
+    reader.readAsText(file)
+  }
+
+  const confirmBulkImport = async () => {
+    const validRows = csvRows.filter((r) => r.valid)
+    if (validRows.length === 0) return
+
+    try {
+      setIsImporting(true)
+      await bulkCreateTeams(validRows)
+      success(`Imported ${validRows.length} teams successfully`)
+      setIsCsvModalOpen(false)
+      setCsvRows([])
+      await onRefresh()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Import failed'
+      error(msg)
+    } finally {
+      setIsImporting(false)
+    }
+  }
 
   const openCreateModal = () => {
     setEditingTeam(null)
@@ -165,14 +253,26 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={openCreateModal}
-          className="min-h-[44px] px-6 py-2.5 rounded-full bg-btn-bg text-btn-fg font-medium text-xs sm:text-sm hover:opacity-90 transition-all flex items-center justify-center gap-2 self-start sm:self-auto"
-        >
-          <Plus size={18} weight="bold" />
-          <span>Create Team</span>
-        </button>
+        <div className="flex items-center gap-2.5 self-start sm:self-auto">
+          <label className="min-h-[44px] px-4 py-2.5 rounded-full border border-border bg-surface hover:bg-surface-2 text-xs font-medium text-text cursor-pointer transition-colors flex items-center gap-2">
+            <UploadSimple size={16} />
+            <span>Import CSV</span>
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleCsvUpload}
+              className="hidden"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={openCreateModal}
+            className="min-h-[44px] px-6 py-2.5 rounded-full bg-btn-bg text-btn-fg font-medium text-xs sm:text-sm hover:opacity-90 transition-all flex items-center justify-center gap-2"
+          >
+            <Plus size={18} weight="bold" />
+            <span>Create Team</span>
+          </button>
+        </div>
       </div>
 
       {/* Teams Grid */}
@@ -490,6 +590,86 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* CSV Bulk Import Modal */}
+      {isCsvModalOpen && (
+        <Dialog
+          isOpen={true}
+          onClose={() => !isImporting && setIsCsvModalOpen(false)}
+          title="CSV Franchise Teams Import"
+          description={`Previewing ${csvRows.length} team entries.`}
+          size="lg"
+        >
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted">
+                Valid teams: <strong className="text-text">{csvRows.filter((r) => r.valid).length}</strong> / {csvRows.length}
+              </span>
+              <button
+                type="button"
+                onClick={downloadTeamsTemplate}
+                className="text-accent-bright hover:underline flex items-center gap-1"
+              >
+                <DownloadSimple size={14} />
+                <span>Download Sample Template</span>
+              </button>
+            </div>
+
+            <div className="max-h-60 overflow-y-auto border border-border rounded-xl">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-surface-2 text-muted font-mono uppercase text-[10px] sticky top-0">
+                  <tr>
+                    <th className="p-2.5">Sport</th>
+                    <th className="p-2.5">Team Name</th>
+                    <th className="p-2.5">Code</th>
+                    <th className="p-2.5">Starting Purse</th>
+                    <th className="p-2.5">Validation</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {csvRows.map((r, i) => (
+                    <tr key={i} className={r.valid ? '' : 'bg-error/5'}>
+                      <td className="p-2.5 font-medium">{r.sport}</td>
+                      <td className="p-2.5">{r.name}</td>
+                      <td className="p-2.5 font-mono">{r.short_code}</td>
+                      <td className="p-2.5 font-mono text-points">{r.starting_purse} PTS</td>
+                      <td className="p-2.5">
+                        {r.valid ? (
+                          <span className="text-accent-bright flex items-center gap-1 text-[11px]">
+                            <CheckCircle size={14} /> Ready
+                          </span>
+                        ) : (
+                          <span className="text-error flex items-center gap-1 text-[11px]">
+                            <WarningCircle size={14} /> {r.error}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border">
+              <Button
+                variant="secondary"
+                onClick={() => setIsCsvModalOpen(false)}
+                disabled={isImporting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={confirmBulkImport}
+                disabled={isImporting || csvRows.filter((r) => r.valid).length === 0}
+                isLoading={isImporting}
+              >
+                <span>Import {csvRows.filter((r) => r.valid).length} Teams</span>
+              </Button>
+            </div>
+          </div>
+        </Dialog>
       )}
     </div>
   )

@@ -9,7 +9,7 @@ import {
   WarningCircle,
   X
 } from '@phosphor-icons/react'
-import type { PurseTransaction, PurseTransactionType, Season, Team } from '../../lib/types'
+import type { PurseTransaction, PurseTransactionType, Season, Team } from '../../types'
 import { executePurseTransaction, resetAllPurses } from '../../lib/data'
 import { useToast } from '../../lib/ToastContext'
 

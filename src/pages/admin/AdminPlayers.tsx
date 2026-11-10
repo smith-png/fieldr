@@ -1,11 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   ArrowsLeftRight,
   CaretLeft,
   CaretRight,
+  CheckCircle,
   DownloadSimple,
   FileCsv,
   Funnel,
+  IdentificationBadge,
   MagnifyingGlass,
   PencilSimple,
   Plus,
@@ -14,22 +17,29 @@ import {
   User,
   UserMinus,
   UserPlus,
+  WarningCircle,
   X
 } from '@phosphor-icons/react'
-import type { AcademicYear, Player, PlayerStatus, Season, Sport, Team } from '../../lib/types'
+import type { AcademicYear, Athlete, Player, PlayerStatus, Season, Sport, Team } from '../../types'
 import {
   assignPlayerToTeam,
+  bulkCreatePlayers,
   createPlayer,
   deletePlayer,
   exportPlayersForSport,
+  formatAthleteCode,
   getPlayersPaged,
   getRolesForSport,
+  searchAthletes,
   unassignPlayerFromTeam,
   updatePlayer,
   uploadPlayerPhotos
 } from '../../lib/data'
 import { validateImageFile } from '../../lib/imageCompression'
 import { useToast } from '../../lib/ToastContext'
+import { ACADEMIC_YEAR_VALUES } from '../../lib/academicYears'
+import { getErrorMessage } from '../../lib/errors'
+import { Button, Dialog, Pagination } from '../../components/ui'
 
 interface AdminPlayersProps {
   activeSeason: Season | null
@@ -39,7 +49,7 @@ interface AdminPlayersProps {
   onRefresh: () => Promise<void>
 }
 
-const ACADEMIC_YEARS: AcademicYear[] = ['1st', '2nd', '3rd', 'Final']
+const ACADEMIC_YEARS = ACADEMIC_YEAR_VALUES
 
 export const AdminPlayers: React.FC<AdminPlayersProps> = ({
   activeSeason,
@@ -89,6 +99,140 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Athlete linking state
+  const [selectedAthlete, setSelectedAthlete] = useState<Athlete | null>(null)
+  const [isAthleteModalOpen, setIsAthleteModalOpen] = useState(false)
+  const [athleteQuery, setAthleteQuery] = useState('')
+  const [athleteResults, setAthleteResults] = useState<Athlete[]>([])
+  const [isSearchingAthletes, setIsSearchingAthletes] = useState(false)
+  const [similarAthleteWarning, setSimilarAthleteWarning] = useState<Athlete | null>(null)
+
+  // CSV Import state
+  const [isCsvModalOpen, setIsCsvModalOpen] = useState(false)
+  const [csvRows, setCsvRows] = useState<Array<Omit<Player, 'id' | 'player_code' | 'created_at'> & { valid: boolean; error?: string }>>([])
+  const [isImporting, setIsImporting] = useState(false)
+
+  const downloadPlayersTemplate = () => {
+    const header = 'name,sport,playing_role,academic_year,base_points,athlete_code,notes\n'
+    const example = 'Aiden Reed,Cricket,Batter,3rd,500,1,Top-order aggressive stroke maker\n'
+    const blob = new Blob([header + example], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `players_template_${activeSeason?.name || 'season'}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !activeSeason) return
+
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const content = event.target?.result as string
+      if (!content) return
+
+      const lines = content.split('\n').map((l) => l.trim()).filter(Boolean)
+      if (lines.length <= 1) {
+        showToast('CSV is empty or missing headers', 'error')
+        return
+      }
+
+      const rows: Array<Omit<Player, 'id' | 'player_code' | 'created_at'> & { valid: boolean; error?: string }> = []
+
+      for (let i = 1; i < lines.length; i++) {
+        const parts = lines[i].split(',').map((p) => p.trim())
+        if (parts.length < 3) continue
+
+        const [nameVal, sportVal, roleVal, yearVal, pointsVal, codeVal, notesVal] = parts
+
+        let rowError: string | undefined
+        if (!nameVal) rowError = 'Name is required'
+        else if (!sportVal) rowError = 'Sport is required'
+
+        const parsedCode = codeVal ? parseInt(codeVal.replace(/^FLD-?/i, ''), 10) : undefined
+
+        rows.push({
+          season_id: activeSeason.id,
+          name: nameVal || 'Unnamed Player',
+          sport: sportVal || 'Cricket',
+          playing_role: roleVal || 'Player',
+          academic_year: (yearVal as AcademicYear) || '1st',
+          base_points: parseInt(pointsVal, 10) || 100,
+          athlete_code: parsedCode && !isNaN(parsedCode) ? parsedCode : undefined,
+          notes: notesVal || undefined,
+          status: 'available',
+          valid: !rowError,
+          error: rowError
+        })
+      }
+
+      setCsvRows(rows)
+      setIsCsvModalOpen(true)
+    }
+    reader.readAsText(file)
+  }
+
+  const confirmBulkImport = async () => {
+    const validRows = csvRows.filter((r) => r.valid)
+    if (validRows.length === 0) return
+
+    try {
+      setIsImporting(true)
+      await bulkCreatePlayers(validRows)
+      showToast(`Imported ${validRows.length} players successfully`, 'success')
+      setIsCsvModalOpen(false)
+      setCsvRows([])
+      await loadPagedPlayers()
+      await onRefresh()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Import failed'
+      showToast(msg, 'error')
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
+  const handleNameChange = async (newName: string) => {
+    setName(newName)
+    if (selectedAthlete || !newName.trim() || newName.length < 3) {
+      setSimilarAthleteWarning(null)
+      return
+    }
+    try {
+      const found = await searchAthletes(newName.trim())
+      const match = found.find(
+        (a) => a.name.toLowerCase() === newName.trim().toLowerCase()
+      )
+      setSimilarAthleteWarning(match || null)
+    } catch {
+      setSimilarAthleteWarning(null)
+    }
+  }
+
+  const handleSearchAthletes = async (q: string) => {
+    setAthleteQuery(q)
+    try {
+      setIsSearchingAthletes(true)
+      const res = await searchAthletes(q)
+      setAthleteResults(res)
+    } catch {
+      setAthleteResults([])
+    } finally {
+      setIsSearchingAthletes(false)
+    }
+  }
+
+  const handleSelectAthlete = (athlete: Athlete) => {
+    setSelectedAthlete(athlete)
+    setName(athlete.name)
+    setPhotoUrl(athlete.photo_url || '')
+    setPhotoThumbUrl(athlete.photo_thumb_url || '')
+    setSimilarAthleteWarning(null)
+    setIsAthleteModalOpen(false)
+  }
 
   // Debounce search query by 300ms
   useEffect(() => {
@@ -154,6 +298,8 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
 
   const openCreateDrawer = async () => {
     setEditingPlayer(null)
+    setSelectedAthlete(null)
+    setSimilarAthleteWarning(null)
     setName('')
     const initialSport = sports[0]?.name || 'Cricket'
     setSport(initialSport)
@@ -250,6 +396,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
       } else {
         await createPlayer({
           season_id: activeSeason.id,
+          athlete_id: selectedAthlete?.id,
           name: name.trim(),
           sport,
           playing_role: playingRole,
@@ -405,6 +552,17 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface-2 border border-border text-text text-xs font-medium hover:border-accent-bright transition-colors cursor-pointer">
+            <UploadSimple size={16} weight="bold" />
+            <span>Import CSV</span>
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleCsvUpload}
+              className="hidden"
+            />
+          </label>
+
           <button
             type="button"
             onClick={() => setIsExportModalOpen(true)}
@@ -437,7 +595,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by name or code (e.g. FLD-0001)..."
+            placeholder="Search by name or code (e.g. 0001, 1)..."
             className="w-full bg-bg border border-border rounded-xl pl-10 pr-4 py-2 text-xs text-text placeholder-muted/60 focus:outline-none focus:border-accent-bright"
           />
         </div>
@@ -476,13 +634,13 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
         </div>
       </div>
 
-      {/* Players Table (Columns: Code, Name, Sport, Role, Year, Status, Team, Actions) */}
+      {/* Players Table (Columns: ID, Name, Sport, Role, Year, Status, Team, Actions) */}
       <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-lg">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="border-b border-border bg-surface-2 text-muted font-mono uppercase tracking-wider text-[11px]">
-                <th className="py-3 px-4">Code</th>
+                <th className="py-3 px-4">ID</th>
                 <th className="py-3 px-4">Name</th>
                 <th className="py-3 px-4">Sport</th>
                 <th className="py-3 px-4">Role</th>
@@ -513,9 +671,16 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                       key={player.id}
                       className="hover:bg-surface-2/50 transition-colors font-sans"
                     >
-                      {/* Code */}
+                      {/* ID / Code */}
                       <td className="py-3.5 px-4 font-mono text-[11px] text-accent-bright font-semibold">
-                        {player.player_code}
+                        <Link
+                          to={`/players/${player.athlete_code || formatAthleteCode(player.player_code)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline"
+                        >
+                          {formatAthleteCode(player.athlete_code || player.player_code)}
+                        </Link>
                       </td>
 
                       {/* Name */}
@@ -615,39 +780,15 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
         </div>
 
         {/* Server-Side Pagination Bar */}
-        <div className="py-3.5 px-4 border-t border-border bg-surface-2 flex items-center justify-between text-xs text-muted">
-          <div className="font-mono">
-            Showing <span className="text-text font-semibold">{pagedPlayers.length}</span> of{' '}
-            <span className="text-text font-semibold">{totalCount}</span> athletes
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-[11px]">
-              Page <span className="text-text font-bold">{currentPage}</span> of{' '}
-              <span className="text-text font-bold">{totalPages || 1}</span>
-            </span>
-
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                disabled={currentPage <= 1 || isLoading}
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                aria-label="Previous page"
-                className="p-1.5 rounded-lg border border-border text-text disabled:opacity-30 disabled:pointer-events-none hover:bg-surface transition-colors"
-              >
-                <CaretLeft size={14} weight="bold" />
-              </button>
-              <button
-                type="button"
-                disabled={currentPage >= totalPages || isLoading}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                aria-label="Next page"
-                className="p-1.5 rounded-lg border border-border text-text disabled:opacity-30 disabled:pointer-events-none hover:bg-surface transition-colors"
-              >
-                <CaretRight size={14} weight="bold" />
-              </button>
-            </div>
-          </div>
+        <div className="py-3 px-4 border-t border-border bg-surface-2">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalCount={totalCount}
+            pageSize={pageSize}
+            onPageChange={(page) => setCurrentPage(page)}
+            isLoading={isLoading}
+          />
         </div>
       </div>
 
@@ -679,6 +820,43 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
               </div>
 
               <form onSubmit={handleSavePlayer} className="space-y-4">
+                {/* Search / Link Existing Profile Button */}
+                {!editingPlayer && (
+                  <div>
+                    {selectedAthlete ? (
+                      <div className="p-3 rounded-xl bg-accent/15 border border-accent-bright text-xs flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-text font-medium">
+                          <IdentificationBadge size={18} className="text-accent-bright" />
+                          <span>Linked Profile: #{formatAthleteCode(selectedAthlete.athlete_code)} ({selectedAthlete.name})</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedAthlete(null)
+                            setName('')
+                          }}
+                          className="text-[11px] text-muted hover:text-error font-medium"
+                        >
+                          Unlink
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAthleteQuery('')
+                          handleSearchAthletes('')
+                          setIsAthleteModalOpen(true)
+                        }}
+                        className="w-full py-2.5 px-4 rounded-xl border border-dashed border-border hover:border-accent-bright bg-surface-2 text-xs font-semibold text-accent-bright flex items-center justify-center gap-2 transition-colors"
+                      >
+                        <IdentificationBadge size={18} />
+                        <span>Add existing profile...</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {/* Read-Only Player Code */}
                 <div>
                   <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5">
@@ -687,7 +865,13 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                   <input
                     type="text"
                     disabled
-                    value={editingPlayer?.player_code || 'Auto-generated on save (e.g. FLD-0001)'}
+                    value={
+                      selectedAthlete
+                        ? formatAthleteCode(selectedAthlete.athlete_code)
+                        : editingPlayer
+                        ? formatAthleteCode(editingPlayer.athlete_code || editingPlayer.player_code)
+                        : 'Assigned automatically'
+                    }
                     className="w-full bg-surface-2 border border-border rounded-xl px-3.5 py-2 text-xs font-mono text-accent-bright font-semibold cursor-not-allowed"
                   />
                 </div>
@@ -701,10 +885,26 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                     type="text"
                     required
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(e) => handleNameChange(e.target.value)}
                     placeholder="e.g. Liam Henderson"
                     className="w-full bg-bg border border-border rounded-xl px-3.5 py-2 text-xs text-text focus:outline-none focus:border-accent-bright"
                   />
+
+                  {similarAthleteWarning && !selectedAthlete && (
+                    <div className="mt-2 p-3 rounded-xl bg-points/10 border border-points/30 text-xs text-text flex items-center justify-between gap-2">
+                      <div>
+                        <span className="font-semibold text-points">Similar profile found:</span>{' '}
+                        {similarAthleteWarning.name} (#{formatAthleteCode(similarAthleteWarning.athlete_code)})
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectAthlete(similarAthleteWarning)}
+                        className="text-xs text-accent-bright font-semibold hover:underline shrink-0"
+                      >
+                        Link Profile
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Sport & Playing Role */}
@@ -1079,6 +1279,137 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Add Existing Athlete Modal */}
+      {isAthleteModalOpen && (
+        <Dialog
+          isOpen={true}
+          onClose={() => setIsAthleteModalOpen(false)}
+          title="Search Universal Athlete Profiles"
+          description="Search by name, roll number, or numeric ID (e.g. 1, 0001, or FLD-0001)."
+          size="md"
+        >
+          <div className="flex flex-col gap-4">
+            <div className="relative">
+              <MagnifyingGlass size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
+              <input
+                type="text"
+                value={athleteQuery}
+                onChange={(e) => handleSearchAthletes(e.target.value)}
+                placeholder="Type name, roll number, or code..."
+                className="w-full bg-bg border border-border rounded-xl pl-10 pr-4 py-2.5 text-xs text-text focus:outline-none focus:border-accent-bright font-mono"
+              />
+            </div>
+
+            <div className="max-h-60 overflow-y-auto flex flex-col gap-2">
+              {isSearchingAthletes ? (
+                <div className="py-6 text-center text-xs font-mono text-muted">Searching athletes...</div>
+              ) : athleteResults.length === 0 ? (
+                <div className="py-6 text-center text-xs text-muted">No matching profiles found.</div>
+              ) : (
+                athleteResults.map((ath) => (
+                  <div
+                    key={ath.id}
+                    onClick={() => handleSelectAthlete(ath)}
+                    className="p-3 rounded-xl bg-surface-2 hover:bg-surface border border-border hover:border-accent-bright cursor-pointer transition-colors flex items-center justify-between text-xs"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-surface border border-border flex items-center justify-center font-mono text-accent-bright font-bold text-xs shrink-0">
+                        #{formatAthleteCode(ath.athlete_code)}
+                      </div>
+                      <div>
+                        <span className="font-semibold text-text block">{ath.name}</span>
+                        {ath.roll_no && <span className="text-[11px] text-muted">Roll: {ath.roll_no}</span>}
+                      </div>
+                    </div>
+                    <span className="text-xs text-accent-bright font-medium">Select Profile</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </Dialog>
+      )}
+
+      {/* CSV Bulk Import Modal */}
+      {isCsvModalOpen && (
+        <Dialog
+          isOpen={true}
+          onClose={() => !isImporting && setIsCsvModalOpen(false)}
+          title="CSV Roster Players Import"
+          description={`Previewing ${csvRows.length} player entries.`}
+          size="lg"
+        >
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted">
+                Valid entries: <strong className="text-text">{csvRows.filter((r) => r.valid).length}</strong> / {csvRows.length}
+              </span>
+              <button
+                type="button"
+                onClick={downloadPlayersTemplate}
+                className="text-accent-bright hover:underline flex items-center gap-1"
+              >
+                <DownloadSimple size={14} />
+                <span>Download Sample Template</span>
+              </button>
+            </div>
+
+            <div className="max-h-60 overflow-y-auto border border-border rounded-xl">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-surface-2 text-muted font-mono uppercase text-[10px] sticky top-0">
+                  <tr>
+                    <th className="p-2.5">Athlete Code</th>
+                    <th className="p-2.5">Name</th>
+                    <th className="p-2.5">Sport</th>
+                    <th className="p-2.5">Role</th>
+                    <th className="p-2.5">Validation</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {csvRows.map((r, i) => (
+                    <tr key={i} className={r.valid ? '' : 'bg-error/5'}>
+                      <td className="p-2.5 font-mono">{r.athlete_code ? formatAthleteCode(r.athlete_code) : 'New Profile'}</td>
+                      <td className="p-2.5 font-medium">{r.name}</td>
+                      <td className="p-2.5">{r.sport}</td>
+                      <td className="p-2.5">{r.playing_role}</td>
+                      <td className="p-2.5">
+                        {r.valid ? (
+                          <span className="text-accent-bright flex items-center gap-1 text-[11px]">
+                            <CheckCircle size={14} /> Ready
+                          </span>
+                        ) : (
+                          <span className="text-error flex items-center gap-1 text-[11px]">
+                            <WarningCircle size={14} /> {r.error}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border">
+              <Button
+                variant="secondary"
+                onClick={() => setIsCsvModalOpen(false)}
+                disabled={isImporting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={confirmBulkImport}
+                disabled={isImporting || csvRows.filter((r) => r.valid).length === 0}
+                isLoading={isImporting}
+              >
+                <span>Import {csvRows.filter((r) => r.valid).length} Players</span>
+              </Button>
+            </div>
+          </div>
+        </Dialog>
       )}
     </div>
   )

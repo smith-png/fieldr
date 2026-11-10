@@ -8,7 +8,7 @@ import {
   User,
   Users
 } from '@phosphor-icons/react'
-import { AnimatedCounter } from '../components/AnimatedCounter'
+import { AnimatedCounter } from '../../components/home/AnimatedCounter'
 import {
   getPlayers,
   getProjectorState,
@@ -17,9 +17,9 @@ import {
   subscribeToPlayers,
   subscribeToProjector,
   subscribeToTeams
-} from '../lib/data'
-import { useForceDarkTheme } from '../lib/theme'
-import type { Player, ProjectorState, Season, Team } from '../lib/types'
+} from '../../lib/data'
+import { useForceDarkTheme } from '../../hooks/useTheme'
+import type { Player, ProjectorState, Season, Team } from '../../types'
 
 export const ProjectorPage: React.FC = () => {
   useForceDarkTheme()

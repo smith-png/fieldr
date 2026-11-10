@@ -2,9 +2,9 @@ import React, { useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ArrowRight, Monitor, Moon, Sun, X, type Icon } from '@phosphor-icons/react'
-import { useAuth } from '../lib/AuthContext'
-import { type ThemePreference, useTheme } from '../lib/theme'
-import type { Season } from '../lib/types'
+import { useAuth } from '../../lib/AuthContext'
+import { type ThemePreference, useTheme } from '../../lib/theme'
+import type { Season } from '../../types'
 
 interface NavigationMenuProps {
   isOpen: boolean

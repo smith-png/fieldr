@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Shield, Users, Wallet } from '@phosphor-icons/react'
-import { HeaderBar } from '../components/HeaderBar'
-import { NavigationMenu } from '../components/NavigationMenu'
-import { SiteFooter } from '../components/SiteFooter'
-import { getActiveSeason, getPlayers, getTeams } from '../lib/data'
-import type { Player, Season, Team } from '../lib/types'
+import { HeaderBar } from '../../components/layout/HeaderBar'
+import { NavigationMenu } from '../../components/layout/NavigationMenu'
+import { SiteFooter } from '../../components/layout/SiteFooter'
+import { getActiveSeason, getPlayers, getTeams } from '../../lib/data'
+import type { Player, Season, Team } from '../../types'
 
 export const TeamsPage: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)

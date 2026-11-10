@@ -1,25 +1,26 @@
 import React, { useEffect, useState } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
-import { HeaderBar } from '../components/HeaderBar'
-import { NavigationMenu } from '../components/NavigationMenu'
-import { TickerStrip } from '../components/TickerStrip'
-import { SportCardsGrid } from '../components/SportCardsGrid'
-import { SiteFooter } from '../components/SiteFooter'
-import { ErrorBoundary } from '../components/ErrorBoundary'
+import { HeaderBar } from '../../components/layout/HeaderBar'
+import { NavigationMenu } from '../../components/layout/NavigationMenu'
+import { TickerStrip } from '../../components/home/TickerStrip'
+import { SportCardsGrid } from '../../components/home/SportCardsGrid'
+import { SiteFooter } from '../../components/layout/SiteFooter'
+import { ErrorBoundary } from '../../components/layout/ErrorBoundary'
 import {
   FALLBACK_CAROUSEL_TEXTS,
   getActiveSeason,
   getCarouselItems,
   getPlayers,
   subscribeToCarouselItems
-} from '../lib/data'
-import type { CarouselItem, Season } from '../lib/types'
+} from '../../lib/data'
+import type { CarouselItem, Season } from '../../types'
+import type { SportSlug } from '../../lib/sports'
 
 export const HomePage: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [activeSeason, setActiveSeason] = useState<Season | null>(null)
   const [carouselItems, setCarouselItems] = useState<string[] | null>(FALLBACK_CAROUSEL_TEXTS)
-  const [playerCounts, setPlayerCounts] = useState({
+  const [playerCounts, setPlayerCounts] = useState<Record<SportSlug, number>>({
     cricket: 0,
     futsal: 0,
     volleyball: 0

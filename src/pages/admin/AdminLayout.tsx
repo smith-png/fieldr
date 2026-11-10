@@ -13,21 +13,15 @@ import {
   ShieldCheck,
   SignOut,
   Television,
+  Trophy,
   Users,
   X
 } from '@phosphor-icons/react'
-import { BrandMark } from '../../components/BrandMark'
+import { BrandMark } from '../../components/layout/BrandMark'
 import { useAuth } from '../../lib/AuthContext'
-import type { Season } from '../../lib/types'
+import type { AdminTab, Season } from '../../types'
 
-export type AdminTab =
-  | 'dashboard'
-  | 'seasons'
-  | 'teams'
-  | 'players'
-  | 'purses'
-  | 'projector'
-  | 'setup'
+export type { AdminTab }
 
 interface AdminLayoutProps {
   currentTab: AdminTab
@@ -76,6 +70,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     { id: 'dashboard', label: 'Dashboard', icon: <ChartPieSlice size={20} weight="bold" /> },
     { id: 'players', label: 'Players', icon: <Users size={20} weight="bold" /> },
     { id: 'teams', label: 'Teams', icon: <ShieldCheck size={20} weight="bold" /> },
+    { id: 'matches', label: 'Matches', icon: <Trophy size={20} weight="bold" /> },
     { id: 'purses', label: 'Purses', icon: <Coins size={20} weight="bold" /> },
     { id: 'seasons', label: 'Seasons', icon: <Calendar size={20} weight="bold" /> },
     { id: 'projector', label: 'Projector', icon: <ProjectorScreen size={20} weight="bold" /> },
@@ -156,7 +151,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               >
                 {seasons.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name} {s.is_active ? '(Active)' : ''}
+                    {s.name} {s.is_active ? '(Active)' : s.is_archived ? '[Archived]' : ''}
                   </option>
                 ))}
               </select>
@@ -313,7 +308,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 >
                   {seasons.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name}
+                      {s.name} {s.is_active ? '(Active)' : s.is_archived ? '[Archived]' : ''}
                     </option>
                   ))}
                 </select>

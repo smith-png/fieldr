@@ -8,17 +8,20 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './lib/AuthContext'
 import { ToastProvider } from './lib/ToastContext'
 import { ThemeProvider } from './lib/theme'
-import { RouteGuard } from './components/RouteGuard'
-import { ErrorBoundary } from './components/ErrorBoundary'
-import { HomePage } from './pages/HomePage'
-import { LoginPage } from './pages/LoginPage'
+import { RouteGuard } from './components/layout/RouteGuard'
+import { ErrorBoundary } from './components/layout/ErrorBoundary'
+import { HomePage } from './pages/public/HomePage'
+import { LoginPage } from './pages/public/LoginPage'
 import { AdminPage } from './pages/admin/AdminPage'
-import { ProjectorPage } from './pages/ProjectorPage'
-import { TeamsPage } from './pages/TeamsPage'
-import { SeasonPage } from './pages/SeasonPage'
-import { RostersPage } from './pages/RostersPage'
-import { RosterSportPage } from './pages/RosterSportPage'
-import { ContentPage } from './pages/ContentPage'
+import { ProjectorPage } from './pages/public/ProjectorPage'
+import { TeamsPage } from './pages/public/TeamsPage'
+import { SeasonPage } from './pages/public/SeasonPage'
+import { SeasonDetailPage } from './pages/public/SeasonDetailPage'
+import { SeasonTeamDetailPage } from './pages/public/SeasonTeamDetailPage'
+import { PlayerProfilePage } from './pages/public/PlayerProfilePage'
+import { RostersPage } from './pages/public/RostersPage'
+import { RosterSportPage } from './pages/public/RosterSportPage'
+import { ContentPage } from './pages/public/ContentPage'
 
 export default function App() {
   return (
@@ -47,44 +50,46 @@ export default function App() {
         <BrowserRouter>
           <AuthProvider>
             <ToastProvider>
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/teams" element={<TeamsPage />} />
-              <Route path="/season" element={<SeasonPage />} />
-              <Route path="/rosters" element={<RostersPage />} />
-              <Route path="/rosters/:sport" element={<RosterSportPage />} />
-              <Route
-                path="/help"
-                element={<ContentPage pageKey="help_page" fallbackTitle="Help & Instructions" />}
-              />
-              <Route
-                path="/about"
-                element={<ContentPage pageKey="about_page" fallbackTitle="About Fieldr" />}
-              />
-              <Route path="/login" element={<LoginPage />} />
-              <Route
-                path="/admin"
-                element={
-                  <RouteGuard allowedRoles={['admin']}>
-                    <AdminPage />
-                  </RouteGuard>
-                }
-              />
-              <Route
-                path="/projector"
-                element={
-                  <RouteGuard allowedRoles={['admin', 'projector']}>
-                    <ProjectorPage />
-                  </RouteGuard>
-                }
-              />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </ToastProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </ThemeProvider>
-  </ErrorBoundary>
-)
+              <Routes>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/teams" element={<TeamsPage />} />
+                <Route path="/season" element={<SeasonPage />} />
+                <Route path="/season/:id" element={<SeasonDetailPage />} />
+                <Route path="/season/:id/teams/:teamId" element={<SeasonTeamDetailPage />} />
+                <Route path="/players/:code" element={<PlayerProfilePage />} />
+                <Route path="/rosters" element={<RostersPage />} />
+                <Route path="/rosters/:sport" element={<RosterSportPage />} />
+                <Route
+                  path="/help"
+                  element={<ContentPage pageKey="help_page" fallbackTitle="Help & Instructions" />}
+                />
+                <Route
+                  path="/about"
+                  element={<ContentPage pageKey="about_page" fallbackTitle="About Fieldr" />}
+                />
+                <Route path="/login" element={<LoginPage />} />
+                <Route
+                  path="/admin"
+                  element={
+                    <RouteGuard allowedRoles={['admin']}>
+                      <AdminPage />
+                    </RouteGuard>
+                  }
+                />
+                <Route
+                  path="/projector"
+                  element={
+                    <RouteGuard allowedRoles={['admin', 'projector']}>
+                      <ProjectorPage />
+                    </RouteGuard>
+                  }
+                />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </ToastProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </ThemeProvider>
+    </ErrorBoundary>
+  )
 }
-

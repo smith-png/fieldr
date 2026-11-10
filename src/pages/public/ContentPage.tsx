@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft } from '@phosphor-icons/react'
-import { HeaderBar } from '../components/HeaderBar'
-import { NavigationMenu } from '../components/NavigationMenu'
-import { SiteFooter } from '../components/SiteFooter'
-import { getActiveSeason, getSiteSettings } from '../lib/data'
-import type { PageContentSetting, Season } from '../lib/types'
+import { HeaderBar } from '../../components/layout/HeaderBar'
+import { NavigationMenu } from '../../components/layout/NavigationMenu'
+import { SiteFooter } from '../../components/layout/SiteFooter'
+import { getActiveSeason, getSiteSettings } from '../../lib/data'
+import type { PageContentSetting, Season } from '../../types'
 
 interface ContentPageProps {
   pageKey: 'help_page' | 'about_page'

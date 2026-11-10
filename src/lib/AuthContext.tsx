@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import type { AuthUser, UserRole } from './types'
+import type { AuthUser, UserRole } from '../types'
 import {
   demoSignIn,
   getCurrentUser,

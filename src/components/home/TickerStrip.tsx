@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useReducedMotion } from 'motion/react'
-import { FALLBACK_CAROUSEL_TEXTS } from '../lib/data'
+import { FALLBACK_CAROUSEL_TEXTS } from '../../lib/data'
 
 interface TickerStripProps {
   items?: string[] | null

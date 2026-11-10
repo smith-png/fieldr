@@ -2,9 +2,10 @@ import React, { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'motion/react'
 import { ArrowLeft, LockKey, SignIn, User, WarningCircle } from '@phosphor-icons/react'
-import { BrandMark } from '../components/BrandMark'
-import { useAuth } from '../lib/AuthContext'
-import type { UserRole } from '../lib/types'
+import { BrandMark } from '../../components/layout/BrandMark'
+import { useAuth } from '../../lib/AuthContext'
+import type { UserRole } from '../../types'
+import { Button } from '../../components/ui'
 
 export const LoginPage: React.FC = () => {
   const [searchParams] = useSearchParams()

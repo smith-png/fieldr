@@ -8,14 +8,14 @@ import {
   ArrowDownRight,
   ArrowsLeftRight
 } from '@phosphor-icons/react'
-import type { Player, PurseTransaction, Season, Team } from '../../lib/types'
+import type { AdminTab, Player, PurseTransaction, Season, Team } from '../../types'
 
 interface AdminDashboardProps {
   activeSeason: Season | null
   teams: Team[]
   players: Player[]
   transactions: PurseTransaction[]
-  onGoToTab: (tab: any) => void
+  onGoToTab: (tab: AdminTab) => void
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({

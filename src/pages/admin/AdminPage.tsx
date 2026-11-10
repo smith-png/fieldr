@@ -4,6 +4,7 @@ import { AdminDashboard } from './AdminDashboard'
 import { AdminSeasons } from './AdminSeasons'
 import { AdminTeams } from './AdminTeams'
 import { AdminPlayers } from './AdminPlayers'
+import { AdminMatches } from './AdminMatches'
 import { AdminPurses } from './AdminPurses'
 import { AdminProjectorControl } from './AdminProjectorControl'
 import { AdminSetup } from './AdminSetup'
@@ -16,7 +17,7 @@ import {
   getTeams,
   setActiveSeason as apiSetActiveSeason
 } from '../../lib/data'
-import type { Player, ProjectorState, PurseTransaction, Season, Sport, Team } from '../../lib/types'
+import type { Player, ProjectorState, PurseTransaction, Season, Sport, Team } from '../../types'
 
 export const AdminPage: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<AdminTab>('dashboard')
@@ -156,6 +157,15 @@ export const AdminPage: React.FC = () => {
           projectorState={projectorState}
           teams={teams}
           players={players}
+          onRefresh={loadAllData}
+        />
+      )}
+
+      {currentTab === 'matches' && (
+        <AdminMatches
+          season={activeSeason}
+          teams={teams}
+          sports={sports}
           onRefresh={loadAllData}
         />
       )}

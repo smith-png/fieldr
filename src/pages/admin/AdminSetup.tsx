@@ -11,6 +11,7 @@ import {
   X
 } from '@phosphor-icons/react'
 import { useToast } from '../../lib/ToastContext'
+import { getErrorMessage } from '../../lib/errors'
 import {
   createCarouselItem,
   deleteCarouselItem,
@@ -21,7 +22,7 @@ import {
   updateCarouselItem,
   updateSiteSetting
 } from '../../lib/data'
-import type { CarouselItem, PageContentSetting, SiteSettings } from '../../lib/types'
+import type { CarouselItem, PageContentSetting, SiteSettings } from '../../types'
 
 type SetupTab = 'carousel' | 'pages' | 'auction'
 
@@ -52,9 +53,9 @@ export const AdminSetup: React.FC = () => {
       setCarouselError(null)
       const items = await getCarouselItems(false)
       setCarouselItems(items)
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load carousel items:', err)
-      const msg = err?.message || 'Failed to load carousel items'
+      const msg = getErrorMessage(err, 'Failed to load carousel items')
       setCarouselError(msg)
       showToast(`Failed to load carousel items: ${msg}`, 'error')
     } finally {
@@ -72,9 +73,9 @@ export const AdminSetup: React.FC = () => {
         setPageTitle(initialPage.title || '')
         setPageBody(initialPage.body || '')
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load site settings:', err)
-      showToast(`Failed to load site settings: ${err?.message || 'Unknown error'}`, 'error')
+      showToast(`Failed to load site settings: ${getErrorMessage(err)}`, 'error')
     }
   }
 
@@ -126,9 +127,9 @@ export const AdminSetup: React.FC = () => {
       setEditingItem(null)
       setItemText('')
       await loadCarousel()
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to save carousel item:', err)
-      showToast(`Failed to save carousel item: ${err?.message || 'Unknown error'}`, 'error')
+      showToast(`Failed to save carousel item: ${getErrorMessage(err)}`, 'error')
     } finally {
       setIsSavingCarousel(false)
     }
@@ -155,10 +156,10 @@ export const AdminSetup: React.FC = () => {
       await updateCarouselItem(item.id, { active: !item.active })
       showToast(item.active ? 'Ticker item disabled' : 'Ticker item activated', 'success')
       await loadCarousel()
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to update carousel item:', err)
       setCarouselItems(prevItems)
-      showToast(`Failed to update carousel item: ${err?.message || 'Unknown error'}`, 'error')
+      showToast(`Failed to update carousel item: ${getErrorMessage(err)}`, 'error')
     }
   }
 
@@ -183,10 +184,10 @@ export const AdminSetup: React.FC = () => {
       await deleteCarouselItem(item.id)
       showToast('Item deleted', 'success')
       await loadCarousel()
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to delete carousel item:', err)
       setCarouselItems(prevItems)
-      showToast(`Failed to delete carousel item: ${err?.message || 'Unknown error'}`, 'error')
+      showToast(`Failed to delete carousel item: ${getErrorMessage(err)}`, 'error')
     }
   }
 
@@ -214,10 +215,10 @@ export const AdminSetup: React.FC = () => {
         { id: itemB.id, sort_order: orderA }
       )
       await loadCarousel()
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to reorder carousel items:', err)
       setCarouselItems(prevItems)
-      showToast(`Failed to reorder carousel items: ${err?.message || 'Unknown error'}`, 'error')
+      showToast(`Failed to reorder carousel items: ${getErrorMessage(err)}`, 'error')
     }
   }
 

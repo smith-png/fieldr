@@ -1,15 +1,16 @@
 import React, { useEffect, useState } from 'react'
-import { HeaderBar } from '../components/HeaderBar'
-import { NavigationMenu } from '../components/NavigationMenu'
-import { SportCardsGrid } from '../components/SportCardsGrid'
-import { SiteFooter } from '../components/SiteFooter'
-import { getActiveSeason, getPlayers } from '../lib/data'
-import type { Season } from '../lib/types'
+import { HeaderBar } from '../../components/layout/HeaderBar'
+import { NavigationMenu } from '../../components/layout/NavigationMenu'
+import { SportCardsGrid } from '../../components/home/SportCardsGrid'
+import { SiteFooter } from '../../components/layout/SiteFooter'
+import { getActiveSeason, getPlayers } from '../../lib/data'
+import type { Season } from '../../types'
+import type { SportSlug } from '../../lib/sports'
 
 export const RostersPage: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [activeSeason, setActiveSeason] = useState<Season | null>(null)
-  const [playerCounts, setPlayerCounts] = useState({
+  const [playerCounts, setPlayerCounts] = useState<Record<SportSlug, number>>({
     cricket: 0,
     futsal: 0,
     volleyball: 0

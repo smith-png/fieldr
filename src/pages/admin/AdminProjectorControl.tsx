@@ -9,7 +9,7 @@ import {
   User,
   Users
 } from '@phosphor-icons/react'
-import type { Player, ProjectorMode, ProjectorState, Season, Team } from '../../lib/types'
+import type { Player, ProjectorMode, ProjectorState, Season, Team } from '../../types'
 import { setProjectorState } from '../../lib/data'
 import { useToast } from '../../lib/ToastContext'
 

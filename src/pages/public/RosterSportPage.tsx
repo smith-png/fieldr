@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Funnel, User, X } from '@phosphor-icons/react'
-import { HeaderBar } from '../components/HeaderBar'
-import { NavigationMenu } from '../components/NavigationMenu'
-import { SiteFooter } from '../components/SiteFooter'
-import { getActiveSeason, getPublicPlayersPaged, getRolesForSport, getSports } from '../lib/data'
-import type { PublicPlayer, Season } from '../lib/types'
+import { ArrowLeft, Funnel } from '@phosphor-icons/react'
+import { HeaderBar } from '../../components/layout/HeaderBar'
+import { NavigationMenu } from '../../components/layout/NavigationMenu'
+import { SiteFooter } from '../../components/layout/SiteFooter'
+import { RosterPlayerCard, RosterScoutModal } from '../../components/roster'
+import { getActiveSeason, getPublicPlayersPaged, getRolesForSport, getSports } from '../../lib/data'
+import { ACADEMIC_YEAR_VALUES } from '../../lib/academicYears'
+import type { PublicPlayer, Season } from '../../types'
 
-const ACADEMIC_YEARS = ['All', '1st', '2nd', '3rd', 'Final'] as const
+const ACADEMIC_YEAR_FILTER_OPTIONS = ['All', ...ACADEMIC_YEAR_VALUES] as const
 
 export const RosterSportPage: React.FC = () => {
   const { sport = '' } = useParams<{ sport: string }>()
@@ -32,7 +34,6 @@ export const RosterSportPage: React.FC = () => {
 
   // Expanded modal player
   const [expandedPlayer, setExpandedPlayer] = useState<PublicPlayer | null>(null)
-  const modalRef = useRef<HTMLDivElement>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
 
   // Load initial season data
@@ -154,27 +155,7 @@ export const RosterSportPage: React.FC = () => {
     return () => observer.disconnect()
   }, [hasMore, isLoading, isLoadingMore, players.length, fetchPlayers])
 
-  // Body scroll lock and Escape key listener for modal
-  useEffect(() => {
-    if (expandedPlayer) {
-      document.body.style.overflow = 'hidden'
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') setExpandedPlayer(null)
-      }
-      window.addEventListener('keydown', handleKeyDown)
-      return () => {
-        document.body.style.overflow = ''
-        window.removeEventListener('keydown', handleKeyDown)
-      }
-    }
-  }, [expandedPlayer])
 
-  // Trap focus in modal
-  useEffect(() => {
-    if (expandedPlayer && modalRef.current) {
-      modalRef.current.focus()
-    }
-  }, [expandedPlayer])
 
   if (isSportChecked && !isSportValid) {
     return (
@@ -258,7 +239,7 @@ export const RosterSportPage: React.FC = () => {
               Academic Year:
             </span>
             <div className="flex flex-wrap items-center gap-1.5">
-              {ACADEMIC_YEARS.map((yr) => (
+              {ACADEMIC_YEAR_FILTER_OPTIONS.map((yr) => (
                 <button
                   key={yr}
                   type="button"
@@ -321,52 +302,11 @@ export const RosterSportPage: React.FC = () => {
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
               {players.map((player) => (
-                <button
+                <RosterPlayerCard
                   key={player.id}
-                  type="button"
+                  player={player}
                   onClick={() => setExpandedPlayer(player)}
-                  className="group bg-surface border border-border hover:border-accent-bright rounded-xl p-5 text-left transition-colors flex flex-col justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
-                >
-                  <div className="flex items-start gap-3.5 mb-4">
-                    {/* Small thumbnail or initials */}
-                    {player.photo_thumb_url || player.photo_url ? (
-                      <img
-                        src={player.photo_thumb_url || player.photo_url}
-                        alt={player.name}
-                        referrerPolicy="no-referrer"
-                        className="w-12 h-12 rounded-lg object-cover bg-surface-2 border border-border shrink-0"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 rounded-lg bg-surface-2 border border-border flex items-center justify-center text-muted font-mono text-sm font-bold shrink-0">
-                        {player.name
-                          .split(' ')
-                          .map((n) => n[0])
-                          .slice(0, 2)
-                          .join('')
-                          .toUpperCase()}
-                      </div>
-                    )}
-
-                    <div className="overflow-hidden">
-                      <span className="font-mono text-[10px] tracking-wider text-accent-bright block uppercase">
-                        {player.player_code}
-                      </span>
-                      <h3 className="font-syne font-bold text-base text-text group-hover:text-accent-bright truncate">
-                        {player.name}
-                      </h3>
-                      <span className="text-xs text-muted block truncate">
-                        {player.playing_role}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="pt-3 border-t border-border flex items-center justify-between text-xs text-muted">
-                    <span className="text-text font-medium">{player.academic_year} Year</span>
-                    <span className="text-[11px] font-mono text-accent-bright group-hover:underline">
-                      Scout profile
-                    </span>
-                  </div>
-                </button>
+                />
               ))}
             </div>
 
@@ -383,87 +323,10 @@ export const RosterSportPage: React.FC = () => {
       </main>
 
       {/* Expanded Player Floating Modal */}
-      {expandedPlayer && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Athlete card for ${expandedPlayer.name}`}
-          onClick={() => setExpandedPlayer(null)}
-          className="fixed inset-0 z-50 bg-scrim flex items-center justify-center p-4 sm:p-6"
-        >
-          <div
-            ref={modalRef}
-            tabIndex={-1}
-            onClick={(e) => e.stopPropagation()}
-            className="bg-surface border border-border rounded-2xl max-w-md w-full overflow-hidden shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 outline-none"
-          >
-            {/* Close Button */}
-            <button
-              type="button"
-              onClick={() => setExpandedPlayer(null)}
-              aria-label="Close modal"
-              className="absolute top-4 right-4 z-20 w-8 h-8 rounded-full bg-black/60 border border-white/20 flex items-center justify-center text-white/80 hover:text-white transition-colors"
-            >
-              <X size={18} weight="bold" />
-            </button>
-
-            {/* Player Photo */}
-            <div className="relative w-full h-72 bg-surface-2 flex items-center justify-center overflow-hidden border-b border-border">
-              {expandedPlayer.photo_url || expandedPlayer.photo_thumb_url ? (
-                <img
-                  src={expandedPlayer.photo_url || expandedPlayer.photo_thumb_url}
-                  alt={expandedPlayer.name}
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="flex flex-col items-center justify-center text-muted">
-                  <User size={64} weight="thin" />
-                  <span className="text-xs font-mono uppercase tracking-wider mt-2">
-                    Official Photo Pending
-                  </span>
-                </div>
-              )}
-              <div className="absolute top-4 left-4 bg-black/75 border border-white/20 rounded-md px-2.5 py-1 text-xs font-mono text-white font-bold">
-                {expandedPlayer.player_code}
-              </div>
-            </div>
-
-            {/* Content Details */}
-            <div className="p-6">
-              <div className="mb-4">
-                <span className="text-xs font-mono uppercase tracking-widest text-accent-bright block mb-1">
-                  {expandedPlayer.sport} · {expandedPlayer.playing_role}
-                </span>
-                <h2 className="font-syne font-extrabold text-2xl text-text tracking-tight">
-                  {expandedPlayer.name}
-                </h2>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 py-4 border-y border-border text-xs">
-                <div>
-                  <span className="text-muted block mb-0.5">Academic Standing</span>
-                  <span className="text-text font-medium">{expandedPlayer.academic_year} Year Student</span>
-                </div>
-                <div>
-                  <span className="text-muted block mb-0.5">Primary Discipline</span>
-                  <span className="text-text font-medium">{expandedPlayer.sport}</span>
-                </div>
-              </div>
-
-              <div className="mt-6 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setExpandedPlayer(null)}
-                  className="px-6 py-2.5 rounded-full bg-btn-bg text-btn-fg font-medium text-xs hover:opacity-90 transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <RosterScoutModal
+        player={expandedPlayer}
+        onClose={() => setExpandedPlayer(null)}
+      />
 
       <SiteFooter />
     </div>
