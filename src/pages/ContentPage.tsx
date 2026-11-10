@@ -51,7 +51,7 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
         activeSeason={activeSeason}
       />
 
-      <main className="flex-1 max-w-4xl mx-auto w-full px-6 md:px-16 lg:px-24 pt-32 sm:pt-40 pb-20">
+      <main className="flex-1 max-w-4xl mx-auto w-full px-6 md:px-16 lg:px-24 pt-36 sm:pt-44 md:pt-48 pb-20">
         <div className="mb-6">
           <Link
             to="/"

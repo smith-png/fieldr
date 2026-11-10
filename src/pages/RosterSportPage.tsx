@@ -4,39 +4,25 @@ import { ArrowLeft, Funnel, User, X } from '@phosphor-icons/react'
 import { HeaderBar } from '../components/HeaderBar'
 import { NavigationMenu } from '../components/NavigationMenu'
 import { SiteFooter } from '../components/SiteFooter'
-import { getActiveSeason, getPublicPlayersPaged, getSports } from '../lib/data'
+import { getActiveSeason, getPublicPlayersPaged, getRolesForSport, getSports } from '../lib/data'
 import type { PublicPlayer, Season } from '../lib/types'
-
-const SPORT_CONFIGS: Record<
-  string,
-  { name: string; roles: string[] }
-> = {
-  cricket: {
-    name: 'Cricket',
-    roles: ['Batsman', 'Bowler', 'All-rounder', 'Wicket-keeper']
-  },
-  futsal: {
-    name: 'Futsal',
-    roles: ['Goalkeeper', 'Defender', 'Midfielder', 'Forward']
-  },
-  volleyball: {
-    name: 'Volleyball',
-    roles: ['Setter', 'Outside hitter', 'Middle blocker', 'Opposite', 'Libero']
-  }
-}
 
 const ACADEMIC_YEARS = ['All', '1st', '2nd', '3rd', 'Final'] as const
 
 export const RosterSportPage: React.FC = () => {
   const { sport = '' } = useParams<{ sport: string }>()
   const normalizedSport = sport.toLowerCase().trim()
-  const isSportValid = normalizedSport in SPORT_CONFIGS
-  const sportConfig = isSportValid ? SPORT_CONFIGS[normalizedSport] : null
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [activeSeason, setActiveSeason] = useState<Season | null>(null)
   const [selectedYear, setSelectedYear] = useState<string>('All')
   const [selectedRole, setSelectedRole] = useState<string>('All')
+
+  // Dynamic sport & roles loaded from the sports table in database
+  const [sportName, setSportName] = useState<string>('')
+  const [roles, setRoles] = useState<string[]>([])
+  const [isSportChecked, setIsSportChecked] = useState<boolean>(false)
+  const [isSportValid, setIsSportValid] = useState<boolean>(true)
 
   const [players, setPlayers] = useState<PublicPlayer[]>([])
   const [totalCount, setTotalCount] = useState<number>(0)
@@ -49,7 +35,7 @@ export const RosterSportPage: React.FC = () => {
   const modalRef = useRef<HTMLDivElement>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
 
-  // Load initial data
+  // Load initial season data
   useEffect(() => {
     let mounted = true
     async function init() {
@@ -66,10 +52,54 @@ export const RosterSportPage: React.FC = () => {
     }
   }, [])
 
+  // Load sport definition and roles dynamically from the database
+  useEffect(() => {
+    let mounted = true
+    async function loadSportInfo() {
+      try {
+        const allSports = await getSports()
+        const found = allSports.find(
+          (s) =>
+            s.id.toLowerCase() === normalizedSport ||
+            s.name.toLowerCase() === normalizedSport
+        )
+        if (mounted) {
+          if (found) {
+            setIsSportValid(true)
+            setSportName(found.name)
+            // Use shared helper getRolesForSport
+            const sportRoles = await getRolesForSport(found.id)
+            if (mounted) {
+              setRoles(sportRoles)
+            }
+          } else {
+            setIsSportValid(false)
+          }
+          setIsSportChecked(true)
+        }
+      } catch {
+        if (mounted) {
+          setIsSportChecked(true)
+          setIsSportValid(false)
+        }
+      }
+    }
+    loadSportInfo()
+    return () => {
+      mounted = false
+    }
+  }, [normalizedSport])
+
+  // Reset selected role when sport changes
+  useEffect(() => {
+    setSelectedRole('All')
+    setSelectedYear('All')
+  }, [normalizedSport])
+
   // Fetch players on filter change
   const fetchPlayers = useCallback(
     async (offset: number, append = false) => {
-      if (!isSportValid) return
+      if (!isSportValid || !isSportChecked) return
 
       try {
         if (!append) setIsLoading(true)
@@ -97,13 +127,15 @@ export const RosterSportPage: React.FC = () => {
         setIsLoadingMore(false)
       }
     },
-    [isSportValid, normalizedSport, selectedYear, selectedRole]
+    [isSportValid, isSportChecked, normalizedSport, selectedYear, selectedRole]
   )
 
   // Reset & refetch when filters change
   useEffect(() => {
-    fetchPlayers(0, false)
-  }, [fetchPlayers])
+    if (isSportChecked && isSportValid) {
+      fetchPlayers(0, false)
+    }
+  }, [fetchPlayers, isSportChecked, isSportValid])
 
   // Endless scroll observer
   useEffect(() => {
@@ -144,7 +176,7 @@ export const RosterSportPage: React.FC = () => {
     }
   }, [expandedPlayer])
 
-  if (!isSportValid || !sportConfig) {
+  if (isSportChecked && !isSportValid) {
     return (
       <div className="min-h-screen bg-[#0B0B0B] text-[#F0F2EE] flex flex-col justify-between">
         <HeaderBar onOpenMenu={() => setIsMenuOpen(true)} />
@@ -154,7 +186,7 @@ export const RosterSportPage: React.FC = () => {
           activeSeason={activeSeason}
         />
 
-        <main className="flex-1 flex flex-col items-center justify-center px-6 py-32 text-center max-w-xl mx-auto">
+        <main className="flex-1 flex flex-col items-center justify-center px-6 pt-36 sm:pt-44 md:pt-48 pb-20 text-center max-w-xl mx-auto">
           <span className="text-xs font-mono uppercase tracking-widest text-[#047554] block mb-3">
             ROSTER NOT FOUND
           </span>
@@ -178,7 +210,7 @@ export const RosterSportPage: React.FC = () => {
     )
   }
 
-  const roleOptions = ['All', ...sportConfig.roles]
+  const roleOptions = ['All', ...roles]
 
   return (
     <div className="min-h-screen bg-[#0B0B0B] text-[#F0F2EE] flex flex-col justify-between selection:bg-[#047554] selection:text-white relative">
@@ -189,7 +221,8 @@ export const RosterSportPage: React.FC = () => {
         activeSeason={activeSeason}
       />
 
-      <main className="flex-1 max-w-7xl mx-auto w-full px-6 md:px-16 lg:px-24 pt-32 sm:pt-40 pb-20">
+      {/* Top padding clears the fixed logo tile completely plus 16px buffer */}
+      <main className="flex-1 max-w-7xl mx-auto w-full px-6 md:px-16 lg:px-24 pt-36 sm:pt-44 md:pt-48 pb-20">
         {/* Navigation Breadcrumb */}
         <div className="mb-6">
           <Link
@@ -208,7 +241,7 @@ export const RosterSportPage: React.FC = () => {
               ATHLETIC ROSTER · {activeSeason?.name || 'ACTIVE SEASON'}
             </span>
             <h1 className="font-syne font-extrabold text-4xl sm:text-5xl text-[#F0F2EE] tracking-tight">
-              {sportConfig.name} Squad
+              {sportName || normalizedSport} Squad
             </h1>
           </div>
           <div className="text-sm font-mono text-[#8E928C]">
@@ -242,7 +275,7 @@ export const RosterSportPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Playing Role Filter */}
+          {/* Playing Role Filter - Loaded from sports table */}
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <span className="text-xs font-mono uppercase tracking-wider text-[#8E928C] shrink-0">
               Role:

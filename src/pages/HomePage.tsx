@@ -6,16 +6,18 @@ import { TickerStrip } from '../components/TickerStrip'
 import { SportCardsGrid } from '../components/SportCardsGrid'
 import { SiteFooter } from '../components/SiteFooter'
 import {
+  FALLBACK_CAROUSEL_TEXTS,
   getActiveSeason,
   getCarouselItems,
-  getPlayers
+  getPlayers,
+  subscribeToCarouselItems
 } from '../lib/data'
 import type { CarouselItem, Season } from '../lib/types'
 
 export const HomePage: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [activeSeason, setActiveSeason] = useState<Season | null>(null)
-  const [carouselItems, setCarouselItems] = useState<string[]>([])
+  const [carouselItems, setCarouselItems] = useState<string[] | null>(null)
   const [playerCounts, setPlayerCounts] = useState({
     cricket: 0,
     futsal: 0,
@@ -26,15 +28,11 @@ export const HomePage: React.FC = () => {
 
   useEffect(() => {
     let mounted = true
+
     async function loadData() {
       try {
         const active = await getActiveSeason()
         if (mounted) setActiveSeason(active)
-
-        const items = await getCarouselItems(true)
-        if (mounted && items.length > 0) {
-          setCarouselItems(items.map((i: CarouselItem) => i.text))
-        }
 
         if (active) {
           const players = await getPlayers(active.id)
@@ -46,13 +44,36 @@ export const HomePage: React.FC = () => {
             })
           }
         }
-      } catch {
-        // demo fallback
+      } catch (err) {
+        console.error('Home page data load error:', err)
+      }
+
+      // Load carousel items with fallback on failure
+      try {
+        const items = await getCarouselItems(true)
+        if (mounted) {
+          setCarouselItems(items.map((i: CarouselItem) => i.text))
+        }
+      } catch (err) {
+        console.error('Home page ticker load error, applying fallback:', err)
+        if (mounted) {
+          setCarouselItems(FALLBACK_CAROUSEL_TEXTS)
+        }
       }
     }
+
     loadData()
+
+    // Subscribe to realtime changes so ticker updates instantly without page refresh
+    const unsubscribeCarousel = subscribeToCarouselItems((items) => {
+      if (mounted) {
+        setCarouselItems(items.map((i: CarouselItem) => i.text))
+      }
+    })
+
     return () => {
       mounted = false
+      unsubscribeCarousel()
     }
   }, [])
 
@@ -143,7 +164,7 @@ export const HomePage: React.FC = () => {
       </main>
 
       {/* Stadium Dot-Matrix Ticker fed from database with +15% font */}
-      <TickerStrip items={carouselItems} />
+      <TickerStrip items={carouselItems ?? undefined} />
 
       {/* Rosters Section with 3 sport cards */}
       <SportCardsGrid playerCounts={playerCounts} />

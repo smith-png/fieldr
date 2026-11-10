@@ -137,8 +137,8 @@ insert into public.carousel_items (text, sort_order, active)
 select t.text, t.sort_order, t.active
 from (
   values
-    ('LIVE PLAYER AUCTIONS - OFFICIAL TOURNAMENT SYSTEM', 0, true),
-    ('DRAFT. BID. WIN. - REAL-TIME BIG SCREEN DISPLAY', 1, true),
+    ('LIVE PLAYER AUCTIONS', 0, true),
+    ('DRAFT. BID. WIN.', 1, true),
     ('CRICKET / FUTSAL / VOLLEYBALL SQUADS', 2, true)
 ) as t(text, sort_order, active)
 where not exists (select 1 from public.carousel_items limit 1);

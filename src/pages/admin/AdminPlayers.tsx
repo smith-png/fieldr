@@ -23,6 +23,7 @@ import {
   deletePlayer,
   exportPlayersForSport,
   getPlayersPaged,
+  getRolesForSport,
   unassignPlayerFromTeam,
   updatePlayer,
   uploadPlayerPhotos
@@ -130,19 +131,35 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
     loadPagedPlayers()
   }, [loadPagedPlayers])
 
-  // Available roles for currently selected form sport
-  const currentSportConfig = sports.find(
-    (s) => s.name.toLowerCase() === (sport || sports[0]?.name || '').toLowerCase()
-  )
-  const availableRoles = currentSportConfig?.roles || []
+  // Available roles for currently selected form sport loaded from shared helper
+  const [availableRoles, setAvailableRoles] = useState<string[]>([])
 
-  const openCreateDrawer = () => {
+  useEffect(() => {
+    let mounted = true
+    async function loadRoles() {
+      if (!sport) return
+      const roles = await getRolesForSport(sport)
+      if (mounted) {
+        setAvailableRoles(roles)
+        if (roles.length > 0 && (!playingRole || !roles.includes(playingRole))) {
+          setPlayingRole(roles[0])
+        }
+      }
+    }
+    loadRoles()
+    return () => {
+      mounted = false
+    }
+  }, [sport])
+
+  const openCreateDrawer = async () => {
     setEditingPlayer(null)
     setName('')
     const initialSport = sports[0]?.name || 'Cricket'
     setSport(initialSport)
-    const sportCfg = sports.find((s) => s.name === initialSport)
-    setPlayingRole(sportCfg?.roles[0] || 'Batsman')
+    const initialRoles = await getRolesForSport(initialSport)
+    setAvailableRoles(initialRoles)
+    setPlayingRole(initialRoles[0] || '')
     setAcademicYear('1st')
     setBasePoints('100')
     setPhotoUrl('')
@@ -151,10 +168,12 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
     setIsDrawerOpen(true)
   }
 
-  const openEditDrawer = (p: Player) => {
+  const openEditDrawer = async (p: Player) => {
     setEditingPlayer(p)
     setName(p.name)
     setSport(p.sport)
+    const roles = await getRolesForSport(p.sport)
+    setAvailableRoles(roles)
     setPlayingRole(p.playing_role)
     setAcademicYear(p.academic_year || '1st')
     setBasePoints(String(p.base_points || 100))
@@ -164,11 +183,12 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
     setIsDrawerOpen(true)
   }
 
-  const handleSportChange = (newSport: string) => {
+  const handleSportChange = async (newSport: string) => {
     setSport(newSport)
-    const cfg = sports.find((s) => s.name.toLowerCase() === newSport.toLowerCase())
-    if (cfg && cfg.roles.length > 0) {
-      setPlayingRole(cfg.roles[0])
+    const roles = await getRolesForSport(newSport)
+    setAvailableRoles(roles)
+    if (roles.length > 0) {
+      setPlayingRole(roles[0])
     }
   }
 

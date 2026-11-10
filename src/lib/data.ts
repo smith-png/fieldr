@@ -57,12 +57,12 @@ const DEFAULT_SPORTS: Sport[] = [
   {
     id: 'cricket',
     name: 'Cricket',
-    roles: ['Batsman', 'Bowler', 'All-rounder', 'Wicket-keeper']
+    roles: ['Batter', 'Bowler', 'All-rounder', 'Wicketkeeper']
   },
   {
     id: 'futsal',
     name: 'Futsal',
-    roles: ['Goalkeeper', 'Defender', 'Midfielder', 'Forward']
+    roles: ['Goalkeeper', 'Defender', 'Winger', 'Pivot']
   },
   {
     id: 'volleyball',
@@ -71,16 +71,22 @@ const DEFAULT_SPORTS: Sport[] = [
   }
 ]
 
+export const FALLBACK_CAROUSEL_TEXTS: string[] = [
+  'LIVE PLAYER AUCTIONS',
+  'DRAFT. BID. WIN.',
+  'CRICKET / FUTSAL / VOLLEYBALL SQUADS'
+]
+
 const DEFAULT_CAROUSEL: CarouselItem[] = [
   {
     id: 'car-1',
-    text: 'LIVE PLAYER AUCTIONS - OFFICIAL TOURNAMENT SYSTEM',
+    text: 'LIVE PLAYER AUCTIONS',
     sort_order: 0,
     active: true
   },
   {
     id: 'car-2',
-    text: 'DRAFT. BID. WIN. - REAL-TIME BIG SCREEN DISPLAY',
+    text: 'DRAFT. BID. WIN.',
     sort_order: 1,
     active: true
   },
@@ -145,8 +151,38 @@ function getNextPlayerCode(seasonId: string, currentPlayers: Player[]): string {
 function initializeDemoStore() {
   if (typeof window === 'undefined') return
 
-  if (!localStorage.getItem(STORAGE_KEYS.SPORTS)) {
+  const storedSports = getLocal<Sport[]>(STORAGE_KEYS.SPORTS, [])
+  if (!storedSports || storedSports.length === 0) {
     setLocal(STORAGE_KEYS.SPORTS, DEFAULT_SPORTS)
+  } else {
+    // Ensure roles in localStorage match the exact database specification
+    const updated = DEFAULT_SPORTS.map((ds) => {
+      const existing = storedSports.find((s) => s.id === ds.id)
+      return existing ? { ...existing, roles: ds.roles } : ds
+    })
+    setLocal(STORAGE_KEYS.SPORTS, updated)
+  }
+
+  // Migrate any demo players with legacy role variants to exact role values
+  const storedPlayers = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, [])
+  if (storedPlayers.length > 0) {
+    let changed = false
+    const updatedPlayers = storedPlayers.map((p) => {
+      if (p.sport.toLowerCase() === 'cricket') {
+        if (p.playing_role === 'Batsman') {
+          changed = true
+          return { ...p, playing_role: 'Batter' }
+        }
+        if (p.playing_role === 'Wicket-keeper') {
+          changed = true
+          return { ...p, playing_role: 'Wicketkeeper' }
+        }
+      }
+      return p
+    })
+    if (changed) {
+      setLocal(STORAGE_KEYS.PLAYERS, updatedPlayers)
+    }
   }
 
   let seasons = getLocal<Season[]>(STORAGE_KEYS.SEASONS, [])
@@ -413,6 +449,17 @@ export async function getSports(): Promise<Sport[]> {
   const { data, error } = await supabase.from('sports').select('*')
   if (error || !data || data.length === 0) return DEFAULT_SPORTS
   return data
+}
+
+// Shared helper to load exact role names for a sport from the database
+export async function getRolesForSport(sportNameOrId: string): Promise<string[]> {
+  const sports = await getSports()
+  const found = sports.find(
+    (s) =>
+      s.id.toLowerCase() === sportNameOrId.toLowerCase() ||
+      s.name.toLowerCase() === sportNameOrId.toLowerCase()
+  )
+  return found?.roles || []
 }
 
 // ==================== TEAMS ====================
@@ -725,8 +772,8 @@ export async function getPublicPlayersPaged(params: {
       list = list.filter((p) => p.academic_year === academicYear)
     }
 
-    if (playingRole && playingRole !== 'all') {
-      list = list.filter((p) => p.playing_role.toLowerCase() === playingRole.toLowerCase())
+    if (playingRole && playingRole.toLowerCase() !== 'all') {
+      list = list.filter((p) => p.playing_role === playingRole)
     }
 
     list.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
@@ -770,8 +817,8 @@ export async function getPublicPlayersPaged(params: {
     query = query.eq('academic_year', academicYear)
   }
 
-  if (playingRole && playingRole !== 'all') {
-    query = query.ilike('playing_role', playingRole)
+  if (playingRole && playingRole.toLowerCase() !== 'all') {
+    query = query.eq('playing_role', playingRole)
   }
 
   query = query
@@ -1673,29 +1720,53 @@ export async function uploadAsset(file: File, folder = 'assets'): Promise<string
 
 // ==================== CAROUSEL ITEMS ====================
 
+// In-memory 60-second cache for active carousel items
+let activeCarouselCache: { data: CarouselItem[]; expiresAt: number } | null = null
+
+export function invalidateCarouselCache(): void {
+  activeCarouselCache = null
+}
+
 export async function getCarouselItems(activeOnly = false): Promise<CarouselItem[]> {
-  if (isDemoMode) {
-    const all = getLocal<CarouselItem[]>(STORAGE_KEYS.CAROUSEL, DEFAULT_CAROUSEL)
-    const filtered = activeOnly ? all.filter((item) => item.active) : all
-    return filtered.sort((a, b) => a.sort_order - b.sort_order)
+  // If active-only requested, check 60s cache first
+  if (activeOnly && activeCarouselCache && Date.now() < activeCarouselCache.expiresAt) {
+    return activeCarouselCache.data
   }
 
-  if (!supabase) return DEFAULT_CAROUSEL
+  if (isDemoMode) {
+    const all = getLocal<CarouselItem[]>(STORAGE_KEYS.CAROUSEL, DEFAULT_CAROUSEL)
+    const sorted = [...all].sort(
+      (a, b) => a.sort_order - b.sort_order || (a.created_at || '').localeCompare(b.created_at || '')
+    )
+    const result = activeOnly ? sorted.filter((item) => item.active) : sorted
+    if (activeOnly) {
+      activeCarouselCache = { data: result, expiresAt: Date.now() + 60_000 }
+    }
+    return result
+  }
+
+  if (!supabase) return activeOnly ? DEFAULT_CAROUSEL.filter((i) => i.active) : DEFAULT_CAROUSEL
 
   let query = supabase
     .from('carousel_items')
     .select('*')
     .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true })
 
   if (activeOnly) {
     query = query.eq('active', true)
   }
 
   const { data, error } = await query
-  if (error || !data || data.length === 0) {
-    return activeOnly ? DEFAULT_CAROUSEL.filter((i) => i.active) : DEFAULT_CAROUSEL
+  if (error) {
+    throw new Error(error.message)
   }
-  return data
+
+  const result: CarouselItem[] = data || []
+  if (activeOnly) {
+    activeCarouselCache = { data: result, expiresAt: Date.now() + 60_000 }
+  }
+  return result
 }
 
 export async function createCarouselItem(text: string, sort_order: number, seasonId?: string): Promise<CarouselItem> {
@@ -1703,6 +1774,8 @@ export async function createCarouselItem(text: string, sort_order: number, seaso
   if (!trimmed || trimmed.length > 80) {
     throw new Error('Carousel item must be between 1 and 80 characters.')
   }
+
+  invalidateCarouselCache()
 
   if (isDemoMode) {
     const all = getLocal<CarouselItem[]>(STORAGE_KEYS.CAROUSEL, DEFAULT_CAROUSEL)
@@ -1741,10 +1814,20 @@ export async function updateCarouselItem(id: string, updates: Partial<CarouselIt
     updates.text = trimmed
   }
 
+  invalidateCarouselCache()
+
   if (isDemoMode) {
     const all = getLocal<CarouselItem[]>(STORAGE_KEYS.CAROUSEL, DEFAULT_CAROUSEL)
     const idx = all.findIndex((i) => i.id === id)
     if (idx === -1) throw new Error('Carousel item not found')
+
+    // Guard: at least 1 active item must remain
+    if (updates.active === false && all[idx].active) {
+      const activeRemaining = all.filter((i) => i.id !== id && i.active)
+      if (activeRemaining.length === 0) {
+        throw new Error('At least 1 active ticker item is required.')
+      }
+    }
 
     const updated = { ...all[idx], ...updates }
     all[idx] = updated
@@ -1754,6 +1837,18 @@ export async function updateCarouselItem(id: string, updates: Partial<CarouselIt
   }
 
   if (!supabase) throw new Error('Supabase not configured')
+
+  // Guard: if deactivating, check active count in DB
+  if (updates.active === false) {
+    const { data: activeItems } = await supabase
+      .from('carousel_items')
+      .select('id')
+      .eq('active', true)
+
+    if (activeItems && activeItems.filter((i) => i.id !== id).length === 0) {
+      throw new Error('At least 1 active ticker item is required.')
+    }
+  }
 
   const { data, error } = await supabase
     .from('carousel_items')
@@ -1767,11 +1862,16 @@ export async function updateCarouselItem(id: string, updates: Partial<CarouselIt
 }
 
 export async function deleteCarouselItem(id: string): Promise<void> {
+  invalidateCarouselCache()
+
   if (isDemoMode) {
     const all = getLocal<CarouselItem[]>(STORAGE_KEYS.CAROUSEL, DEFAULT_CAROUSEL)
-    const activeRemaining = all.filter((i) => i.id !== id && i.active)
-    if (activeRemaining.length === 0) {
-      throw new Error('At least 1 active carousel item is required.')
+    const target = all.find((i) => i.id === id)
+    if (target?.active) {
+      const activeRemaining = all.filter((i) => i.id !== id && i.active)
+      if (activeRemaining.length === 0) {
+        throw new Error('At least 1 active ticker item is required.')
+      }
     }
     setLocal(STORAGE_KEYS.CAROUSEL, all.filter((i) => i.id !== id))
     notifyChange('carousel_change')
@@ -1780,21 +1880,57 @@ export async function deleteCarouselItem(id: string): Promise<void> {
 
   if (!supabase) throw new Error('Supabase not configured')
 
-  // Check remaining active
+  // Check remaining active in DB
   const { data: activeItems } = await supabase
     .from('carousel_items')
     .select('id')
     .eq('active', true)
 
   if (activeItems && activeItems.length <= 1 && activeItems[0]?.id === id) {
-    throw new Error('At least 1 active carousel item is required.')
+    throw new Error('At least 1 active ticker item is required.')
   }
 
   const { error } = await supabase.from('carousel_items').delete().eq('id', id)
   if (error) throw new Error(error.message)
 }
 
+export async function swapCarouselItems(
+  item1: { id: string; sort_order: number },
+  item2: { id: string; sort_order: number }
+): Promise<void> {
+  invalidateCarouselCache()
+
+  if (isDemoMode) {
+    const all = getLocal<CarouselItem[]>(STORAGE_KEYS.CAROUSEL, DEFAULT_CAROUSEL)
+    const match1 = all.find((i) => i.id === item1.id)
+    const match2 = all.find((i) => i.id === item2.id)
+    if (match1) match1.sort_order = item1.sort_order
+    if (match2) match2.sort_order = item2.sort_order
+    setLocal(STORAGE_KEYS.CAROUSEL, all)
+    notifyChange('carousel_change')
+    return
+  }
+
+  if (!supabase) return
+
+  const { error: err1 } = await supabase
+    .from('carousel_items')
+    .update({ sort_order: item1.sort_order })
+    .eq('id', item1.id)
+
+  if (err1) throw new Error(err1.message)
+
+  const { error: err2 } = await supabase
+    .from('carousel_items')
+    .update({ sort_order: item2.sort_order })
+    .eq('id', item2.id)
+
+  if (err2) throw new Error(err2.message)
+}
+
 export async function reorderCarouselItems(orderedItems: { id: string; sort_order: number }[]): Promise<void> {
+  invalidateCarouselCache()
+
   if (isDemoMode) {
     const all = getLocal<CarouselItem[]>(STORAGE_KEYS.CAROUSEL, DEFAULT_CAROUSEL)
     for (const item of orderedItems) {
@@ -1809,7 +1945,66 @@ export async function reorderCarouselItems(orderedItems: { id: string; sort_orde
   if (!supabase) return
 
   for (const item of orderedItems) {
-    await supabase.from('carousel_items').update({ sort_order: item.sort_order }).eq('id', item.id)
+    const { error } = await supabase.from('carousel_items').update({ sort_order: item.sort_order }).eq('id', item.id)
+    if (error) throw new Error(error.message)
+  }
+}
+
+export function subscribeToCarouselItems(callback: (items: CarouselItem[]) => void): () => void {
+  let isUnsubscribed = false
+
+  const refresh = async () => {
+    try {
+      invalidateCarouselCache()
+      const items = await getCarouselItems(true)
+      if (!isUnsubscribed) {
+        callback(items)
+      }
+    } catch {
+      // ignore background refresh failure
+    }
+  }
+
+  if (isDemoMode) {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEYS.CAROUSEL) {
+        refresh()
+      }
+    }
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data?.event === 'carousel_change') {
+        refresh()
+      }
+    }
+    window.addEventListener('storage', handleStorage)
+    if (channel) {
+      channel.addEventListener('message', handleMessage)
+    }
+    return () => {
+      isUnsubscribed = true
+      window.removeEventListener('storage', handleStorage)
+      if (channel) {
+        channel.removeEventListener('message', handleMessage)
+      }
+    }
+  }
+
+  if (!supabase) return () => {}
+
+  const realtimeChannel = supabase
+    .channel('fieldr-carousel-realtime')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'carousel_items' },
+      () => {
+        refresh()
+      }
+    )
+    .subscribe()
+
+  return () => {
+    isUnsubscribed = true
+    supabase.removeChannel(realtimeChannel)
   }
 }
 

@@ -17,6 +17,7 @@ import {
   getCarouselItems,
   getSiteSettings,
   reorderCarouselItems,
+  swapCarouselItems,
   updateCarouselItem,
   updateSiteSetting
 } from '../../lib/data'
@@ -31,9 +32,11 @@ export const AdminSetup: React.FC = () => {
   // Carousel State
   const [carouselItems, setCarouselItems] = useState<CarouselItem[]>([])
   const [isLoadingCarousel, setIsLoadingCarousel] = useState(false)
+  const [carouselError, setCarouselError] = useState<string | null>(null)
   const [editingItem, setEditingItem] = useState<CarouselItem | null>(null)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [itemText, setItemText] = useState('')
+  const [isSavingCarousel, setIsSavingCarousel] = useState(false)
 
   // Pages State
   const [siteSettings, setSiteSettings] = useState<SiteSettings>({})
@@ -46,10 +49,14 @@ export const AdminSetup: React.FC = () => {
   const loadCarousel = async () => {
     try {
       setIsLoadingCarousel(true)
+      setCarouselError(null)
       const items = await getCarouselItems(false)
       setCarouselItems(items)
-    } catch {
-      showToast('Failed to load carousel items', 'error')
+    } catch (err: any) {
+      console.error('Failed to load carousel items:', err)
+      const msg = err?.message || 'Failed to load carousel items'
+      setCarouselError(msg)
+      showToast(`Failed to load carousel items: ${msg}`, 'error')
     } finally {
       setIsLoadingCarousel(false)
     }
@@ -65,8 +72,9 @@ export const AdminSetup: React.FC = () => {
         setPageTitle(initialPage.title || '')
         setPageBody(initialPage.body || '')
       }
-    } catch {
-      showToast('Failed to load site settings', 'error')
+    } catch (err: any) {
+      console.error('Failed to load site settings:', err)
+      showToast(`Failed to load site settings: ${err?.message || 'Unknown error'}`, 'error')
     }
   }
 
@@ -90,6 +98,8 @@ export const AdminSetup: React.FC = () => {
   // Handle Carousel Save
   const handleSaveCarouselItem = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSavingCarousel) return
+
     const trimmed = itemText.trim()
     if (!trimmed) {
       showToast('Text cannot be empty', 'error')
@@ -101,66 +111,113 @@ export const AdminSetup: React.FC = () => {
     }
 
     try {
+      setIsSavingCarousel(true)
       if (editingItem) {
         await updateCarouselItem(editingItem.id, { text: trimmed })
         showToast('Carousel item updated', 'success')
       } else {
-        await createCarouselItem(trimmed, carouselItems.length)
+        const maxOrder = carouselItems.length > 0
+          ? Math.max(...carouselItems.map((i) => i.sort_order ?? 0))
+          : -1
+        await createCarouselItem(trimmed, maxOrder + 1)
         showToast('Carousel item created', 'success')
       }
       setIsAddModalOpen(false)
       setEditingItem(null)
       setItemText('')
-      loadCarousel()
-    } catch {
-      showToast('Failed to save carousel item', 'error')
+      await loadCarousel()
+    } catch (err: any) {
+      console.error('Failed to save carousel item:', err)
+      showToast(`Failed to save carousel item: ${err?.message || 'Unknown error'}`, 'error')
+    } finally {
+      setIsSavingCarousel(false)
     }
   }
 
   // Handle Toggle Active
   const handleToggleActive = async (item: CarouselItem) => {
+    // Guard: at least 1 active item must remain
+    if (item.active) {
+      const activeCount = carouselItems.filter((i) => i.active).length
+      if (activeCount <= 1) {
+        showToast('At least 1 active ticker item is required.', 'error')
+        return
+      }
+    }
+
+    const prevItems = [...carouselItems]
+    // Optimistic update
+    setCarouselItems((prev) =>
+      prev.map((i) => (i.id === item.id ? { ...i, active: !i.active } : i))
+    )
+
     try {
       await updateCarouselItem(item.id, { active: !item.active })
-      setCarouselItems((prev) =>
-        prev.map((i) => (i.id === item.id ? { ...i, active: !i.active } : i))
-      )
       showToast(item.active ? 'Ticker item disabled' : 'Ticker item activated', 'success')
-    } catch {
-      showToast('Failed to toggle status', 'error')
+      await loadCarousel()
+    } catch (err: any) {
+      console.error('Failed to update carousel item:', err)
+      setCarouselItems(prevItems)
+      showToast(`Failed to update carousel item: ${err?.message || 'Unknown error'}`, 'error')
     }
   }
 
   // Handle Delete
-  const handleDeleteCarouselItem = async (id: string) => {
+  const handleDeleteCarouselItem = async (item: CarouselItem) => {
+    // Guard: at least 1 active item must remain
+    if (item.active) {
+      const activeCount = carouselItems.filter((i) => i.active).length
+      if (activeCount <= 1) {
+        showToast('At least 1 active ticker item is required.', 'error')
+        return
+      }
+    }
+
     if (!window.confirm('Delete this carousel item?')) return
+
+    const prevItems = [...carouselItems]
+    // Optimistic delete
+    setCarouselItems((prev) => prev.filter((i) => i.id !== item.id))
+
     try {
-      await deleteCarouselItem(id)
-      setCarouselItems((prev) => prev.filter((i) => i.id !== id))
+      await deleteCarouselItem(item.id)
       showToast('Item deleted', 'success')
-    } catch {
-      showToast('Failed to delete item', 'error')
+      await loadCarousel()
+    } catch (err: any) {
+      console.error('Failed to delete carousel item:', err)
+      setCarouselItems(prevItems)
+      showToast(`Failed to delete carousel item: ${err?.message || 'Unknown error'}`, 'error')
     }
   }
 
-  // Handle Move Up / Down
+  // Handle Move Up / Down with single neighbor swap and rollback
   const handleMove = async (index: number, direction: 'up' | 'down') => {
     const targetIndex = direction === 'up' ? index - 1 : index + 1
     if (targetIndex < 0 || targetIndex >= carouselItems.length) return
 
-    const newItems = [...carouselItems]
-    const temp = newItems[index]
-    newItems[index] = newItems[targetIndex]
-    newItems[targetIndex] = temp
+    const prevItems = [...carouselItems]
+    const itemA = carouselItems[index]
+    const itemB = carouselItems[targetIndex]
 
-    // Update sort_order
-    const ordered = newItems.map((item, idx) => ({ id: item.id, sort_order: idx }))
-    setCarouselItems(newItems.map((item, idx) => ({ ...item, sort_order: idx })))
+    const orderA = itemA.sort_order ?? index
+    const orderB = itemB.sort_order ?? targetIndex
+
+    // Optimistic swap
+    const swapped = [...carouselItems]
+    swapped[index] = { ...itemB, sort_order: orderA }
+    swapped[targetIndex] = { ...itemA, sort_order: orderB }
+    setCarouselItems(swapped)
 
     try {
-      await reorderCarouselItems(ordered)
-    } catch {
-      showToast('Failed to persist order', 'error')
-      loadCarousel()
+      await swapCarouselItems(
+        { id: itemA.id, sort_order: orderB },
+        { id: itemB.id, sort_order: orderA }
+      )
+      await loadCarousel()
+    } catch (err: any) {
+      console.error('Failed to reorder carousel items:', err)
+      setCarouselItems(prevItems)
+      showToast(`Failed to reorder carousel items: ${err?.message || 'Unknown error'}`, 'error')
     }
   }
 
@@ -258,6 +315,23 @@ export const AdminSetup: React.FC = () => {
             </button>
           </div>
 
+          {/* Offline/Error Retry Banner */}
+          {carouselError && (
+            <div className="bg-[#B91C1C]/10 border border-[#B91C1C]/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 text-xs text-[#F0F2EE]">
+                <span className="w-2 h-2 rounded-full bg-[#B91C1C] shrink-0" />
+                <span className="break-all">{carouselError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={loadCarousel}
+                className="px-3.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-semibold text-white transition-colors shrink-0 self-start sm:self-auto"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
           {isLoadingCarousel ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
@@ -280,7 +354,7 @@ export const AdminSetup: React.FC = () => {
                       {String(index + 1).padStart(2, '0')}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-white truncate font-sans">
+                      <p className="text-sm font-medium text-white break-all font-sans">
                         {item.text}
                       </p>
                       <span className="text-[10px] font-mono text-[#8E928C]">
@@ -340,7 +414,7 @@ export const AdminSetup: React.FC = () => {
                     {/* Delete */}
                     <button
                       type="button"
-                      onClick={() => handleDeleteCarouselItem(item.id)}
+                      onClick={() => handleDeleteCarouselItem(item)}
                       title="Delete item"
                       className="p-2 rounded-lg border border-white/10 text-[#8E928C] hover:text-[#B91C1C] transition-colors"
                     >
@@ -494,26 +568,29 @@ export const AdminSetup: React.FC = () => {
                   placeholder="e.g. SQUAD REGISTRATIONS CLOSING SOON"
                   required
                   autoFocus
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#047554]"
+                  disabled={isSavingCarousel}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#047554] disabled:opacity-50"
                 />
               </div>
 
               <div className="flex justify-end gap-3 pt-3">
                 <button
                   type="button"
+                  disabled={isSavingCarousel}
                   onClick={() => {
                     setIsAddModalOpen(false)
                     setEditingItem(null)
                   }}
-                  className="px-4 py-2 rounded-xl text-xs text-[#8E928C] hover:text-white"
+                  className="px-4 py-2 rounded-xl text-xs text-[#8E928C] hover:text-white disabled:opacity-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-white text-[#0B0B0B] text-xs font-semibold hover:bg-[#F0F2EE]"
+                  disabled={isSavingCarousel}
+                  className="px-5 py-2 rounded-xl bg-white text-[#0B0B0B] text-xs font-semibold hover:bg-[#F0F2EE] disabled:opacity-50 disabled:pointer-events-none transition-colors"
                 >
-                  Save Item
+                  {isSavingCarousel ? 'Saving...' : 'Save Item'}
                 </button>
               </div>
             </form>

@@ -73,21 +73,31 @@
 
 @keyframes tickerMarquee {
   0% {
-    transform: translateX(0%);
+    transform: translate3d(0, 0, 0);
   }
   100% {
-    transform: translateX(-50%);
+    transform: translate3d(-50%, 0, 0);
   }
 }
 
 .animate-ticker {
   display: flex;
   width: max-content;
-  animation: tickerMarquee 36s linear infinite;
+  animation-name: tickerMarquee;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
 }
 
-.animate-ticker:hover {
-  animation-play-state: paused;
+@media (hover: hover) and (pointer: fine) {
+  .animate-ticker:hover {
+    animation-play-state: paused;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-ticker {
+    animation: none !important;
+  }
 }
 
 /* Custom scrollbars */
