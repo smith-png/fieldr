@@ -1,6 +1,6 @@
-# Fieldr - Live Sports Player Auction Platform for DRGMC
+# Fieldr - Live Sports Player Auction Platform
 
-Fieldr is a specialized, dark-editorial auction administration and big-screen projector display platform engineered for DRGMC college athletic auctions (Cricket, Futsal, Volleyball).
+Fieldr is a specialized, dark-editorial auction administration and big-screen projector display platform engineered for athletic auctions (Cricket, Futsal, Volleyball).
 
 ## System Architecture
 

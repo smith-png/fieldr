@@ -1,4 +1,4 @@
--- Fieldr - DRGMC College Live Sports Player Auction Database Schema
+-- Fieldr - Live Sports Player Auction Database Schema
 -- No emoji in this file as per specification.
 
 create extension if not exists "uuid-ossp";

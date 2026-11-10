@@ -198,7 +198,7 @@ export const LoginPage: React.FC = () => {
 
       {/* Footer */}
       <div className="text-center text-xs text-[#8E928C] max-w-5xl mx-auto w-full">
-        DRGMC Live Sports Auction Platform
+        Fieldr Live Sports Auction Platform
       </div>
     </div>
   )

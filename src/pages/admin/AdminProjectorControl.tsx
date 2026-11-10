@@ -426,7 +426,7 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
 
             {/* Miniature Footer */}
             <div className="flex items-center justify-between text-[8px] text-[#8E928C] pt-2 border-t border-white/10">
-              <span>DRGMC Auditorium</span>
+              <span>Main Auditorium</span>
               <span>1920x1080 Stage</span>
             </div>
           </div>

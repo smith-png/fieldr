@@ -1,50 +1,53 @@
 import React, { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'motion/react'
-import { ArrowRight, Coins, ShieldCheck, Television, Users } from '@phosphor-icons/react'
-import { BrandMark } from '../components/BrandMark'
+import { HeaderBar } from '../components/HeaderBar'
 import { NavigationMenu } from '../components/NavigationMenu'
 import { TickerStrip } from '../components/TickerStrip'
-import { useAuth } from '../lib/AuthContext'
-import { getPlayers, getSeasons, getSports, getTeams } from '../lib/data'
-import type { Season, Sport, Team } from '../lib/types'
+import { SportCardsGrid } from '../components/SportCardsGrid'
+import { SiteFooter } from '../components/SiteFooter'
+import {
+  getActiveSeason,
+  getCarouselItems,
+  getPlayers
+} from '../lib/data'
+import type { CarouselItem, Season } from '../lib/types'
 
 export const HomePage: React.FC = () => {
-  const { user } = useAuth()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [activeSeason, setActiveSeason] = useState<Season | null>(null)
-  const [sports, setSports] = useState<Sport[]>([])
-  const [teams, setTeams] = useState<Team[]>([])
-  const [playerStats, setPlayerStats] = useState({ total: 0, available: 0, sold: 0 })
+  const [carouselItems, setCarouselItems] = useState<string[]>([])
+  const [playerCounts, setPlayerCounts] = useState({
+    cricket: 0,
+    futsal: 0,
+    volleyball: 0
+  })
   const shouldReduceMotion = useReducedMotion()
-
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
 
   useEffect(() => {
     let mounted = true
     async function loadData() {
       try {
-        const seasonsList = await getSeasons()
-        const active = seasonsList.find((s) => s.is_active) || seasonsList[0] || null
+        const active = await getActiveSeason()
         if (mounted) setActiveSeason(active)
 
-        const sportsList = await getSports()
-        if (mounted) setSports(sportsList)
+        const items = await getCarouselItems(true)
+        if (mounted && items.length > 0) {
+          setCarouselItems(items.map((i: CarouselItem) => i.text))
+        }
 
         if (active) {
-          const teamsList = await getTeams(active.id)
-          const playersList = await getPlayers(active.id)
+          const players = await getPlayers(active.id)
           if (mounted) {
-            setTeams(teamsList)
-            setPlayerStats({
-              total: playersList.length,
-              available: playersList.filter((p) => p.status === 'available').length,
-              sold: playersList.filter((p) => p.status === 'sold').length
+            setPlayerCounts({
+              cricket: players.filter((p) => p.sport.toLowerCase() === 'cricket').length,
+              futsal: players.filter((p) => p.sport.toLowerCase() === 'futsal').length,
+              volleyball: players.filter((p) => p.sport.toLowerCase() === 'volleyball').length
             })
           }
         }
       } catch {
-        // demo data fallback
+        // demo fallback
       }
     }
     loadData()
@@ -68,10 +71,8 @@ export const HomePage: React.FC = () => {
       onMouseMove={handleMouseMove}
       className="min-h-screen bg-[#0B0B0B] text-[#F0F2EE] flex flex-col justify-between selection:bg-[#047554] selection:text-white relative overflow-x-hidden"
     >
-      {/* Top Left Menu Anchor */}
-      <div className="absolute top-6 left-6 md:top-10 md:left-10 z-40">
-        <BrandMark onClick={() => setIsMenuOpen(true)} />
-      </div>
+      {/* Scroll-aware fixed Header tile */}
+      <HeaderBar onOpenMenu={() => setIsMenuOpen(true)} />
 
       {/* Fullscreen Circular Menu */}
       <NavigationMenu
@@ -81,7 +82,7 @@ export const HomePage: React.FC = () => {
       />
 
       {/* Main Hero Container */}
-      <main className="flex-1 flex flex-col justify-center px-6 md:px-16 lg:px-24 pt-32 pb-16 max-w-7xl mx-auto w-full">
+      <main className="flex-1 flex flex-col justify-center px-6 md:px-16 lg:px-24 pt-32 sm:pt-40 pb-16 max-w-7xl mx-auto w-full">
         {/* Eyebrow */}
         <motion.div
           initial={{ opacity: 0, y: 15 }}
@@ -90,7 +91,7 @@ export const HomePage: React.FC = () => {
           className="flex items-center gap-3 text-xs md:text-sm font-medium tracking-widest text-[#8E928C] uppercase mb-4"
         >
           <span className="w-1.5 h-1.5 rounded-full bg-[#047554]" />
-          <span>Live player auctions for DRGMC</span>
+          <span>Live sports player auction platform</span>
           {activeSeason && (
             <>
               <span className="text-white/20">·</span>
@@ -139,157 +140,16 @@ export const HomePage: React.FC = () => {
         >
           Teams, purses and players, run from one control room and shown live on the big screen.
         </motion.p>
-
-        {/* Action Buttons */}
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          className="flex flex-wrap items-center gap-4 sm:gap-6 mt-10"
-        >
-          {user ? (
-            <>
-              {user.role === 'admin' && (
-                <Link
-                  to="/admin"
-                  className="px-8 py-3.5 rounded-full bg-white text-[#0B0B0B] font-medium text-sm sm:text-base hover:bg-[#F0F2EE] transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#047554]"
-                >
-                  Admin dashboard
-                </Link>
-              )}
-              <Link
-                to="/projector"
-                className="group flex items-center gap-2.5 text-sm sm:text-base font-medium text-[#CBD1CB] hover:text-white px-4 py-3.5 transition-colors"
-              >
-                <span>Open projector</span>
-                <ArrowRight
-                  size={18}
-                  weight="bold"
-                  className="group-hover:translate-x-1 transition-transform text-[#047554]"
-                />
-              </Link>
-            </>
-          ) : (
-            <>
-              <Link
-                to="/login"
-                className="px-8 py-3.5 rounded-full bg-white text-[#0B0B0B] font-medium text-sm sm:text-base hover:bg-[#F0F2EE] transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#047554]"
-              >
-                Admin sign in
-              </Link>
-              <Link
-                to="/login?as=projector"
-                className="group flex items-center gap-2.5 text-sm sm:text-base font-medium text-[#CBD1CB] hover:text-white px-4 py-3.5 transition-colors"
-              >
-                <span>Open projector</span>
-                <ArrowRight
-                  size={18}
-                  weight="bold"
-                  className="group-hover:translate-x-1 transition-transform text-[#047554]"
-                />
-              </Link>
-            </>
-          )}
-        </motion.div>
       </main>
 
-      {/* Stadium Dot-Matrix Ticker */}
-      <TickerStrip
-        season={activeSeason}
-        sports={sports}
-        teams={teams}
-        players={playerStats}
-      />
+      {/* Stadium Dot-Matrix Ticker fed from database with +15% font */}
+      <TickerStrip items={carouselItems} />
 
-      {/* Three Architectural Value Pillars */}
-      <section className="px-6 md:px-16 lg:px-24 py-20 max-w-7xl mx-auto w-full">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-12">
-          {/* Pillar 1 */}
-          <motion.div
-            initial={{ opacity: 0, y: 25 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="flex flex-col pt-6 border-t border-white/10"
-          >
-            <div className="flex items-center gap-3 mb-4 text-[#047554]">
-              <Users size={26} weight="bold" />
-              <span className="text-xs font-mono uppercase tracking-widest text-[#8E928C]">
-                Step 01
-              </span>
-            </div>
-            <h3 className="font-syne font-bold text-2xl text-[#F0F2EE] mb-2 tracking-tight">
-              Register players
-            </h3>
-            <p className="text-sm text-[#8E928C] leading-relaxed">
-              Capture student rosters with photos, sport roles across Cricket, Futsal, and Volleyball, base points, and batch numbers.
-            </p>
-          </motion.div>
+      {/* Rosters Section with 3 sport cards */}
+      <SportCardsGrid playerCounts={playerCounts} />
 
-          {/* Pillar 2 */}
-          <motion.div
-            initial={{ opacity: 0, y: 25 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="flex flex-col pt-6 border-t border-white/10"
-          >
-            <div className="flex items-center gap-3 mb-4 text-[#047554]">
-              <ShieldCheck size={26} weight="bold" />
-              <span className="text-xs font-mono uppercase tracking-widest text-[#8E928C]">
-                Step 02
-              </span>
-            </div>
-            <h3 className="font-syne font-bold text-2xl text-[#F0F2EE] mb-2 tracking-tight">
-              Build teams
-            </h3>
-            <p className="text-sm text-[#8E928C] leading-relaxed">
-              Establish franchises with team crests, custom colors, owners, and starting budgets tailored to college athletic leagues.
-            </p>
-          </motion.div>
-
-          {/* Pillar 3 */}
-          <motion.div
-            initial={{ opacity: 0, y: 25 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="flex flex-col pt-6 border-t border-white/10"
-          >
-            <div className="flex items-center gap-3 mb-4 text-[#C88B0F]">
-              <Coins size={26} weight="bold" />
-              <span className="text-xs font-mono uppercase tracking-widest text-[#8E928C]">
-                Step 03
-              </span>
-            </div>
-            <h3 className="font-syne font-bold text-2xl text-[#F0F2EE] mb-2 tracking-tight">
-              Fund purses
-            </h3>
-            <p className="text-sm text-[#8E928C] leading-relaxed">
-              Debit auction prices with atomic ledger precision, prevent negative balances, and broadcast live standings to the hall.
-            </p>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Editorial DRGMC Footer */}
-      <footer className="border-t border-white/5 py-12 px-6 md:px-16 lg:px-24">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div>
-            <div className="font-syne font-bold text-lg text-white">Fieldr</div>
-            <div className="text-xs text-[#8E928C] mt-0.5">
-              Built for DRGMC college athletic tournaments.
-            </div>
-          </div>
-          <div className="text-xs text-[#8E928C] flex items-center gap-6">
-            <span>Cricket</span>
-            <span>·</span>
-            <span>Futsal</span>
-            <span>·</span>
-            <span>Volleyball</span>
-          </div>
-        </div>
-      </footer>
+      {/* Calm, unpinned site footer */}
+      <SiteFooter />
     </div>
   )
 }

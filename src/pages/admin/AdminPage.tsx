@@ -6,6 +6,7 @@ import { AdminTeams } from './AdminTeams'
 import { AdminPlayers } from './AdminPlayers'
 import { AdminPurses } from './AdminPurses'
 import { AdminProjectorControl } from './AdminProjectorControl'
+import { AdminSetup } from './AdminSetup'
 import {
   getPlayers,
   getProjectorState,
@@ -158,6 +159,8 @@ export const AdminPage: React.FC = () => {
           onRefresh={loadAllData}
         />
       )}
+
+      {currentTab === 'setup' && <AdminSetup />}
     </AdminLayout>
   )
 }

@@ -155,7 +155,7 @@ export const ProjectorPage: React.FC = () => {
           <span className="w-2 h-2 rounded-full bg-[#047554] animate-pulse" />
           <span className="font-syne font-bold tracking-tight text-white">Fieldr Stage</span>
           <span className="text-white/30">·</span>
-          <span className="text-[#CBD1CB]">{activeSeason?.name || 'DRGMC 2026'}</span>
+          <span className="text-[#CBD1CB]">{activeSeason?.name || 'Tournament 2026'}</span>
         </div>
 
         <button
@@ -184,7 +184,7 @@ export const ProjectorPage: React.FC = () => {
             >
               {/* College Tournament Eyebrow */}
               <div className="font-mono text-sm sm:text-base md:text-lg tracking-[0.35em] text-[#8E928C] uppercase mb-4">
-                DRGMC Athletic Auctions
+                Fieldr Athletic Auctions
               </div>
 
               {/* Monumental Wordmark */}
@@ -550,7 +550,7 @@ export const ProjectorPage: React.FC = () => {
 
       {/* Auditorium Footer Bar */}
       <footer className="p-6 flex items-center justify-between text-xs font-mono text-[#8E928C] border-t border-white/5 relative z-10">
-        <div>DRGMC College Sports Auction Arena</div>
+        <div>Fieldr Sports Auction Arena</div>
         <div className="flex items-center gap-4">
           <span>Realtime Stage Synchronization</span>
           <span className="w-1.5 h-1.5 rounded-full bg-[#047554]" />

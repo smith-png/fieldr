@@ -38,7 +38,9 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
 
   const links = [
     { title: 'Home', path: '/', visible: true },
-    { title: 'Admin', path: '/admin', visible: user?.role === 'admin' },
+    { title: 'Teams', path: '/teams', visible: true },
+    { title: 'Season', path: '/season', visible: true },
+    { title: 'Dashboard', path: '/admin', visible: !!user },
     { title: 'Projector', path: '/projector', visible: user?.role === 'admin' || user?.role === 'projector' }
   ]
 
@@ -193,7 +195,7 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-6 border-t border-white/10 text-xs text-[#8E928C]">
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-[#CBD1CB]">
-                  {activeSeason?.name || 'DRGMC Sports'}
+                  {activeSeason?.name || 'Fieldr Tournaments'}
                 </span>
                 <span>·</span>
                 <span>Tournament Console</span>

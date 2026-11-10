@@ -73,7 +73,7 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
             type="text"
             value={newSeasonName}
             onChange={(e) => setNewSeasonName(e.target.value)}
-            placeholder="e.g. DRGMC Annual Sports 2027"
+            placeholder="e.g. Annual Athletic Championship 2027"
             required
             className="flex-1 px-4 py-3 bg-[#0B0B0B] border border-white/10 rounded-xl text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#047554]"
           />

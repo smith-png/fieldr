@@ -46,7 +46,7 @@ export const BrandMark: React.FC<BrandMarkProps> = ({
             Fieldr
           </span>
           <span className="text-[11px] font-medium tracking-wider text-[#8E928C] uppercase mt-1">
-            DRGMC
+            Auctions
           </span>
         </div>
       )}
