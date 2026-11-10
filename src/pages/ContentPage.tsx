@@ -43,7 +43,7 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
   }, [pageKey])
 
   return (
-    <div className="min-h-screen bg-[#0B0B0B] text-[#F0F2EE] flex flex-col justify-between selection:bg-[#047554] selection:text-white relative">
+    <div className="min-h-screen bg-bg text-text flex flex-col justify-between selection:bg-accent-bright selection:text-on-accent relative">
       <HeaderBar onOpenMenu={() => setIsMenuOpen(true)} />
       <NavigationMenu
         isOpen={isMenuOpen}
@@ -55,33 +55,33 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
         <div className="mb-6">
           <Link
             to="/"
-            className="inline-flex items-center gap-2 text-xs font-medium text-[#8E928C] hover:text-white transition-colors"
+            className="inline-flex items-center gap-2 text-xs font-medium text-muted hover:text-text transition-colors"
           >
             <ArrowLeft size={14} weight="bold" />
             <span>Return Home</span>
           </Link>
         </div>
 
-        <div className="bg-[#111411] border border-white/10 rounded-2xl p-8 sm:p-12">
-          <span className="text-xs font-mono uppercase tracking-widest text-[#047554] block mb-2">
+        <div className="bg-surface border border-border rounded-2xl p-8 sm:p-12">
+          <span className="text-xs font-mono uppercase tracking-widest text-accent-bright block mb-2">
             INFORMATION
           </span>
-          <h1 className="font-syne font-extrabold text-3xl sm:text-5xl text-white tracking-tight mb-6">
+          <h1 className="font-syne font-extrabold text-3xl sm:text-5xl text-text tracking-tight mb-6">
             {content?.title || fallbackTitle}
           </h1>
 
           {isLoading ? (
             <div className="space-y-4 animate-pulse">
-              <div className="h-4 bg-white/10 rounded w-3/4" />
-              <div className="h-4 bg-white/10 rounded w-1/2" />
+              <div className="h-4 bg-surface-2 rounded w-3/4" />
+              <div className="h-4 bg-surface-2 rounded w-1/2" />
             </div>
           ) : content?.body ? (
-            <div className="text-base text-[#CBD1CB] leading-relaxed whitespace-pre-wrap font-sans">
+            <div className="text-base text-text/85 leading-relaxed whitespace-pre-wrap font-sans">
               {content.body}
             </div>
           ) : (
             <div className="py-8">
-              <p className="text-xl text-[#8E928C] font-syne font-semibold">
+              <p className="text-xl text-muted font-syne font-semibold">
                 Coming soon
               </p>
             </div>

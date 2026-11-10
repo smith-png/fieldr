@@ -152,15 +152,15 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
   return (
     <div className="flex flex-col gap-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/10">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
         <div>
-          <span className="text-xs font-mono uppercase tracking-widest text-[#047554] block mb-1">
+          <span className="text-xs font-mono uppercase tracking-widest text-accent-bright block mb-1">
             Franchise Directory
           </span>
-          <h1 className="font-syne font-bold text-3xl sm:text-4xl text-white tracking-tight">
+          <h1 className="font-syne font-bold text-3xl sm:text-4xl text-text tracking-tight">
             Teams & Franchises
           </h1>
-          <p className="text-xs sm:text-sm text-[#8E928C] mt-1">
+          <p className="text-xs sm:text-sm text-muted mt-1">
             Configure teams per sport, franchise colours, owners, and starting point budgets.
           </p>
         </div>
@@ -168,7 +168,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
         <button
           type="button"
           onClick={openCreateModal}
-          className="min-h-[44px] px-6 py-2.5 rounded-full bg-white text-[#0B0B0B] font-medium text-xs sm:text-sm hover:bg-[#F0F2EE] transition-all flex items-center justify-center gap-2 self-start sm:self-auto"
+          className="min-h-[44px] px-6 py-2.5 rounded-full bg-btn-bg text-btn-fg font-medium text-xs sm:text-sm hover:opacity-90 transition-all flex items-center justify-center gap-2 self-start sm:self-auto"
         >
           <Plus size={18} weight="bold" />
           <span>Create Team</span>
@@ -177,16 +177,16 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
 
       {/* Teams Grid */}
       {teams.length === 0 ? (
-        <div className="py-20 text-center rounded-3xl bg-[#141414] border border-white/10 flex flex-col items-center justify-center gap-3">
-          <ShieldCheck size={40} className="text-[#8E928C]" />
-          <div className="text-base font-syne font-bold text-white">No teams created yet</div>
-          <p className="text-xs text-[#8E928C] max-w-sm">
+        <div className="py-20 text-center rounded-3xl bg-surface border border-border flex flex-col items-center justify-center gap-3">
+          <ShieldCheck size={40} className="text-muted" />
+          <div className="text-base font-syne font-bold text-text">No teams created yet</div>
+          <p className="text-xs text-muted max-w-sm">
             Create your first college franchise team to start registering players and allocating purses.
           </p>
           <button
             type="button"
             onClick={openCreateModal}
-            className="mt-2 min-h-[44px] px-5 py-2 rounded-xl bg-white text-[#0B0B0B] text-xs font-medium hover:bg-[#F0F2EE]"
+            className="mt-2 min-h-[44px] px-5 py-2 rounded-xl bg-btn-bg text-btn-fg text-xs font-medium hover:opacity-90"
           >
             Create first team
           </button>
@@ -196,7 +196,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
           {teams.map((team) => (
             <div
               key={team.id}
-              className="p-5 rounded-3xl bg-[#141414] border border-white/10 hover:border-white/20 transition-all flex flex-col justify-between gap-5 relative overflow-hidden"
+              className="p-5 rounded-3xl bg-surface border border-border hover:border-border/80 transition-all flex flex-col justify-between gap-5 relative overflow-hidden"
             >
               {/* Colored Top Accent Stripe */}
               <div
@@ -208,7 +208,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                 <div className="flex items-center gap-3">
                   {/* Team Logo or Initial Badge */}
                   <div
-                    className="w-12 h-12 rounded-2xl flex items-center justify-center overflow-hidden border border-white/10 shrink-0 font-syne font-extrabold text-base text-white"
+                    className="w-12 h-12 rounded-2xl flex items-center justify-center overflow-hidden border border-border shrink-0 font-syne font-extrabold text-base text-white"
                     style={{ backgroundColor: team.color }}
                   >
                     {team.logo_url ? (
@@ -223,15 +223,15 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-syne font-bold text-lg text-white">
+                      <span className="font-syne font-bold text-lg text-text">
                         {team.name}
                       </span>
-                      <span className="font-mono text-xs px-2 py-0.5 rounded bg-white/10 text-[#CBD1CB]">
+                      <span className="font-mono text-xs px-2 py-0.5 rounded bg-surface-2 text-text border border-border">
                         {team.short_code}
                       </span>
                     </div>
-                    <div className="text-xs text-[#8E928C] mt-0.5">
-                      Sport: <span className="text-[#CBD1CB]">{team.sport}</span>
+                    <div className="text-xs text-muted mt-0.5">
+                      Sport: <span className="text-text font-medium">{team.sport}</span>
                     </div>
                   </div>
                 </div>
@@ -242,7 +242,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                     type="button"
                     onClick={() => openEditModal(team)}
                     aria-label={`Edit ${team.name}`}
-                    className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-[#8E928C] hover:text-white hover:bg-white/5 transition-colors"
+                    className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-muted hover:text-text hover:bg-surface-2 transition-colors"
                   >
                     <PencilSimple size={18} />
                   </button>
@@ -250,7 +250,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                     type="button"
                     onClick={() => setDeleteConfirmTeam(team)}
                     aria-label={`Delete ${team.name}`}
-                    className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-[#8E928C] hover:text-[#B91C1C] hover:bg-[#B91C1C]/10 transition-colors"
+                    className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-muted hover:text-error hover:bg-error/10 transition-colors"
                   >
                     <Trash size={18} />
                   </button>
@@ -258,20 +258,20 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
               </div>
 
               {/* Owner & Purse Metrics */}
-              <div className="pt-4 border-t border-white/5 grid grid-cols-2 gap-3 text-xs">
+              <div className="pt-4 border-t border-border grid grid-cols-2 gap-3 text-xs">
                 <div>
-                  <span className="text-[#8E928C] block text-[10px] uppercase font-mono tracking-wider">
+                  <span className="text-muted block text-[10px] uppercase font-mono tracking-wider">
                     Owner
                   </span>
-                  <span className="font-medium text-white truncate block mt-0.5">
+                  <span className="font-medium text-text truncate block mt-0.5">
                     {team.owner_display_name || 'Unassigned'}
                   </span>
                 </div>
                 <div>
-                  <span className="text-[#8E928C] block text-[10px] uppercase font-mono tracking-wider">
+                  <span className="text-muted block text-[10px] uppercase font-mono tracking-wider">
                     Current Purse
                   </span>
-                  <span className="font-mono font-bold text-sm text-[#C88B0F] tabular-nums mt-0.5 block">
+                  <span className="font-mono font-bold text-sm text-points tabular-nums mt-0.5 block">
                     {team.current_purse.toLocaleString()} PTS
                   </span>
                 </div>
@@ -283,16 +283,16 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
 
       {/* Create / Edit Team Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="max-w-lg w-full bg-[#141414] border border-white/10 rounded-3xl p-6 sm:p-8 flex flex-col gap-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-4 border-b border-white/10">
-              <h2 className="font-syne font-bold text-xl text-white">
+        <div className="fixed inset-0 z-50 bg-scrim flex items-center justify-center p-4">
+          <div className="max-w-lg w-full bg-surface border border-border rounded-3xl p-6 sm:p-8 flex flex-col gap-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-4 border-b border-border">
+              <h2 className="font-syne font-bold text-xl text-text">
                 {editingTeam ? 'Edit Team Details' : 'Create Franchise Team'}
               </h2>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="text-[#8E928C] hover:text-white p-1"
+                className="text-muted hover:text-text p-1"
               >
                 <X size={20} />
               </button>
@@ -300,7 +300,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
 
             <form onSubmit={handleSaveTeam} className="flex flex-col gap-4 text-xs">
               <div>
-                <label className="block text-[#CBD1CB] uppercase tracking-wider mb-1.5 font-medium">
+                <label className="block text-muted uppercase tracking-wider mb-1.5 font-medium">
                   Team Name *
                 </label>
                 <input
@@ -309,13 +309,13 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Royal Strikers"
                   required
-                  className="w-full px-4 py-2.5 bg-[#0B0B0B] border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-[#047554]"
+                  className="w-full px-4 py-2.5 bg-bg border border-border rounded-xl text-sm text-text focus:outline-none focus:border-accent-bright"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[#CBD1CB] uppercase tracking-wider mb-1.5 font-medium">
+                  <label className="block text-muted uppercase tracking-wider mb-1.5 font-medium">
                     Short Code (3 letters) *
                   </label>
                   <input
@@ -325,18 +325,18 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                     onChange={(e) => setShortCode(e.target.value.toUpperCase())}
                     placeholder="RST"
                     required
-                    className="w-full px-4 py-2.5 bg-[#0B0B0B] border border-white/10 rounded-xl text-sm font-mono text-white focus:outline-none focus:border-[#047554]"
+                    className="w-full px-4 py-2.5 bg-bg border border-border rounded-xl text-sm font-mono text-text focus:outline-none focus:border-accent-bright"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[#CBD1CB] uppercase tracking-wider mb-1.5 font-medium">
+                  <label className="block text-muted uppercase tracking-wider mb-1.5 font-medium">
                     Sport *
                   </label>
                   <select
                     value={sport}
                     onChange={(e) => setSport(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-[#0B0B0B] border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-[#047554]"
+                    className="w-full px-4 py-2.5 bg-bg border border-border rounded-xl text-sm text-text focus:outline-none focus:border-accent-bright"
                   >
                     {sports.map((s) => (
                       <option key={s.id} value={s.name}>
@@ -349,7 +349,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[#CBD1CB] uppercase tracking-wider mb-1.5 font-medium">
+                  <label className="block text-muted uppercase tracking-wider mb-1.5 font-medium">
                     Theme Color *
                   </label>
                   <div className="flex items-center gap-2">
@@ -363,14 +363,14 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                       type="text"
                       value={color}
                       onChange={(e) => setColor(e.target.value)}
-                      className="flex-1 px-3 py-2 bg-[#0B0B0B] border border-white/10 rounded-xl font-mono text-xs text-white"
+                      className="flex-1 px-3 py-2 bg-bg border border-border rounded-xl font-mono text-xs text-text"
                     />
                   </div>
                 </div>
 
                 {!editingTeam && (
                   <div>
-                    <label className="block text-[#CBD1CB] uppercase tracking-wider mb-1.5 font-medium">
+                    <label className="block text-muted uppercase tracking-wider mb-1.5 font-medium">
                       Starting Purse Points
                     </label>
                     <input
@@ -378,14 +378,14 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                       min={0}
                       value={startingPurse}
                       onChange={(e) => setStartingPurse(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-[#0B0B0B] border border-white/10 rounded-xl text-sm font-mono text-[#C88B0F] focus:outline-none focus:border-[#047554]"
+                      className="w-full px-4 py-2.5 bg-bg border border-border rounded-xl text-sm font-mono text-points focus:outline-none focus:border-accent-bright"
                     />
                   </div>
                 )}
               </div>
 
               <div>
-                <label className="block text-[#CBD1CB] uppercase tracking-wider mb-1.5 font-medium">
+                <label className="block text-muted uppercase tracking-wider mb-1.5 font-medium">
                   Team Owner Name
                 </label>
                 <div className="relative">
@@ -394,20 +394,20 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                     value={ownerDisplayName}
                     onChange={(e) => setOwnerDisplayName(e.target.value)}
                     placeholder="e.g. Dr. Rajesh Sharma"
-                    className="w-full px-4 py-2.5 bg-[#0B0B0B] border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-[#047554]"
+                    className="w-full px-4 py-2.5 bg-bg border border-border rounded-xl text-sm text-text focus:outline-none focus:border-accent-bright"
                   />
-                  <User size={18} className="absolute right-3.5 top-2.5 text-[#8E928C]" />
+                  <User size={18} className="absolute right-3.5 top-2.5 text-muted" />
                 </div>
               </div>
 
               {/* Logo Upload with Preview */}
               <div>
-                <label className="block text-[#CBD1CB] uppercase tracking-wider mb-1.5 font-medium">
+                <label className="block text-muted uppercase tracking-wider mb-1.5 font-medium">
                   Team Crest / Logo
                 </label>
                 <div className="flex items-center gap-4">
                   {logoUrl ? (
-                    <div className="w-14 h-14 rounded-2xl overflow-hidden border border-white/10 shrink-0">
+                    <div className="w-14 h-14 rounded-2xl overflow-hidden border border-border shrink-0">
                       <img src={logoUrl} alt="Logo preview" className="w-full h-full object-cover" />
                     </div>
                   ) : (
@@ -419,7 +419,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                     </div>
                   )}
 
-                  <label className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl border border-dashed border-white/20 hover:border-[#047554] text-center cursor-pointer flex items-center justify-center gap-2 text-xs text-[#CBD1CB] transition-colors">
+                  <label className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl border border-dashed border-border hover:border-accent-bright text-center cursor-pointer flex items-center justify-center gap-2 text-xs text-muted hover:text-text transition-colors">
                     <UploadSimple size={16} />
                     <span>{isUploading ? 'Compressing...' : 'Upload crest image'}</span>
                     <input
@@ -433,18 +433,18 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10 mt-2">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-border mt-2">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-medium text-[#8E928C] hover:text-white"
+                  className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-medium text-muted hover:text-text"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting || isUploading}
-                  className="min-h-[44px] px-6 py-2.5 rounded-xl bg-white text-[#0B0B0B] font-medium text-xs hover:bg-[#F0F2EE] disabled:opacity-50"
+                  className="min-h-[44px] px-6 py-2.5 rounded-xl bg-btn-bg text-btn-fg font-medium text-xs hover:opacity-90 disabled:opacity-50"
                 >
                   {isSubmitting ? 'Saving...' : editingTeam ? 'Update Team' : 'Create Team'}
                 </button>
@@ -456,17 +456,17 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmTeam && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="max-w-md w-full bg-[#141414] border border-[#B91C1C]/40 rounded-3xl p-6 sm:p-8 flex flex-col gap-5 shadow-2xl">
-            <div className="w-12 h-12 rounded-2xl bg-[#B91C1C]/20 border border-[#B91C1C]/40 flex items-center justify-center text-[#B91C1C]">
+        <div className="fixed inset-0 z-50 bg-scrim flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-surface border border-error/40 rounded-3xl p-6 sm:p-8 flex flex-col gap-5 shadow-2xl">
+            <div className="w-12 h-12 rounded-2xl bg-error/15 border border-error/40 flex items-center justify-center text-error">
               <WarningCircle size={28} weight="bold" />
             </div>
 
             <div>
-              <h2 className="font-syne font-bold text-xl text-white">
+              <h2 className="font-syne font-bold text-xl text-text">
                 Delete Team "{deleteConfirmTeam.name}"?
               </h2>
-              <p className="text-xs text-[#8E928C] mt-2 leading-relaxed">
+              <p className="text-xs text-muted mt-2 leading-relaxed">
                 This action cannot be undone. All players currently assigned to this team will automatically be released back to the available pool.
               </p>
             </div>
@@ -475,7 +475,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
               <button
                 type="button"
                 onClick={() => setDeleteConfirmTeam(null)}
-                className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-medium text-[#8E928C] hover:text-white"
+                className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-medium text-muted hover:text-text"
               >
                 Cancel
               </button>
@@ -483,7 +483,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                 type="button"
                 onClick={handleDeleteTeam}
                 disabled={isSubmitting}
-                className="min-h-[44px] px-6 py-2 rounded-xl bg-[#B91C1C] text-white font-medium text-xs hover:bg-[#991B1B] transition-colors disabled:opacity-50"
+                className="min-h-[44px] px-6 py-2 rounded-xl bg-error text-white font-medium text-xs hover:opacity-90 transition-colors disabled:opacity-50"
               >
                 {isSubmitting ? 'Deleting...' : 'Confirm Delete & Release Players'}
               </button>

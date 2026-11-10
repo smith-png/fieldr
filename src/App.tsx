@@ -7,6 +7,7 @@ import React from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './lib/AuthContext'
 import { ToastProvider } from './lib/ToastContext'
+import { ThemeProvider } from './lib/theme'
 import { RouteGuard } from './components/RouteGuard'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { HomePage } from './pages/HomePage'
@@ -24,17 +25,17 @@ export default function App() {
     <ErrorBoundary
       name="GlobalApp"
       fallback={
-        <div className="min-h-screen bg-[#0B0B0B] text-[#F0F2EE] flex items-center justify-center p-6">
-          <div className="max-w-md w-full bg-[#111411] border border-white/10 rounded-2xl p-8 text-center space-y-4">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#047554] inline-block" />
-            <h1 className="font-syne font-bold text-xl text-white">Something went wrong</h1>
-            <p className="text-xs text-[#8E928C]">
+        <div className="min-h-screen bg-bg text-text flex items-center justify-center p-6">
+          <div className="max-w-md w-full bg-surface border border-border rounded-2xl p-8 text-center space-y-4 shadow-xl">
+            <span className="w-2.5 h-2.5 rounded-full bg-accent-bright inline-block" />
+            <h1 className="font-syne font-bold text-xl text-text">Something went wrong</h1>
+            <p className="text-xs text-muted">
               Fieldr encountered an unexpected error. You can refresh the page to continue.
             </p>
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="px-4 py-2 rounded-xl bg-white text-[#0B0B0B] text-xs font-semibold hover:bg-[#F0F2EE] transition-colors"
+              className="px-4 py-2 rounded-xl bg-btn-bg text-btn-fg text-xs font-semibold hover:opacity-90 transition-opacity"
             >
               Reload page
             </button>
@@ -42,9 +43,10 @@ export default function App() {
         </div>
       }
     >
-      <BrowserRouter>
-        <AuthProvider>
-          <ToastProvider>
+      <ThemeProvider>
+        <BrowserRouter>
+          <AuthProvider>
+            <ToastProvider>
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/teams" element={<TeamsPage />} />
@@ -81,7 +83,8 @@ export default function App() {
           </ToastProvider>
         </AuthProvider>
       </BrowserRouter>
-    </ErrorBoundary>
-  )
+    </ThemeProvider>
+  </ErrorBoundary>
+)
 }
 

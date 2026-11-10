@@ -111,13 +111,13 @@ export const TickerStrip: React.FC<TickerStripProps> = ({ items }) => {
   const renderItemGroup = (isDuplicate = false) => (
     <div
       aria-hidden={isDuplicate ? 'true' : undefined}
-      className="flex shrink-0 items-center whitespace-nowrap font-dot text-[16px] md:text-[18.5px] leading-normal tracking-[0.16em] text-[#CBD1CB]"
+      className="flex shrink-0 items-center whitespace-nowrap font-dot text-[16px] md:text-[18.5px] leading-normal tracking-[0.16em] text-text"
     >
       {repeatedItems.map((text, idx) => (
         <span key={`${text}-${idx}`} className="inline-flex items-center">
           <span className="break-all">{text}</span>
           <span
-            className="mx-4 md:mx-6 text-[#395F3D] select-none"
+            className="mx-4 md:mx-6 text-accent select-none"
             aria-hidden="true"
           >
             /
@@ -132,7 +132,7 @@ export const TickerStrip: React.FC<TickerStripProps> = ({ items }) => {
       ref={containerRef}
       role="region"
       aria-label="Live season statistics ticker"
-      className="w-full bg-[#111411] border-y border-[#395F3D]/30 py-3.5 overflow-hidden select-none relative"
+      className="w-full bg-surface border-y border-border py-3.5 overflow-hidden select-none relative"
     >
       {/* Hidden single cycle element to measure base cycle width */}
       <div

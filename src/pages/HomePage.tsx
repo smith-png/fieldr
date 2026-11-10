@@ -125,7 +125,7 @@ export const HomePage: React.FC = () => {
   return (
     <div
       onMouseMove={handleMouseMove}
-      className="min-h-screen bg-[#0B0B0B] text-[#F0F2EE] flex flex-col justify-between selection:bg-[#047554] selection:text-white relative overflow-x-hidden"
+      className="min-h-screen bg-bg text-text flex flex-col justify-between selection:bg-accent-bright selection:text-white relative overflow-x-hidden"
     >
       {/* Scroll-aware fixed Header tile */}
       <HeaderBar onOpenMenu={() => setIsMenuOpen(true)} />
@@ -145,19 +145,19 @@ export const HomePage: React.FC = () => {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            className="flex items-center gap-3 text-xs md:text-sm font-medium tracking-widest text-[#8E928C] uppercase mb-4"
+            className="flex items-center gap-3 text-xs md:text-sm font-medium tracking-widest text-muted uppercase mb-4"
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-[#047554]" />
+            <span className="w-1.5 h-1.5 rounded-full bg-accent-bright" />
             <span>Live sports player auction platform</span>
             {activeSeason && (
               <>
-                <span className="text-white/20">·</span>
-                <span className="text-[#CBD1CB]">{activeSeason.name}</span>
+                <span className="text-border">·</span>
+                <span className="text-text font-semibold">{activeSeason.name}</span>
               </>
             )}
           </motion.div>
 
-          {/* 3-Line Massive Headline */}
+          {/* 3-Line Massive Headline with light/dark tonal hierarchy */}
           <motion.div
             style={
               !shouldReduceMotion
@@ -179,7 +179,11 @@ export const HomePage: React.FC = () => {
                     ease: [0.22, 1, 0.36, 1]
                   }}
                   className={`font-syne font-extrabold text-6xl sm:text-8xl md:text-9xl lg:text-[10.5rem] tracking-tighter leading-[0.88] ${
-                    index === 1 ? 'text-[#CBD1CB]' : index === 2 ? 'text-white' : 'text-[#8E928C]'
+                    index === 2
+                      ? 'text-text'
+                      : index === 1
+                      ? 'text-text/70'
+                      : 'text-muted'
                   }`}
                 >
                   {line}
@@ -193,7 +197,7 @@ export const HomePage: React.FC = () => {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            className="text-base sm:text-lg md:text-xl text-[#8E928C] max-w-xl mt-6 leading-relaxed"
+            className="text-base sm:text-lg md:text-xl text-muted max-w-xl mt-6 leading-relaxed"
           >
             Teams, purses and players, run from one control room and shown live on the big screen.
           </motion.p>

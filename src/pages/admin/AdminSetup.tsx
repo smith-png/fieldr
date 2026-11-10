@@ -248,20 +248,20 @@ export const AdminSetup: React.FC = () => {
           <span className="text-xs font-mono uppercase tracking-widest text-[#047554] block mb-1">
             SITE CONFIGURATION
           </span>
-          <h1 className="font-syne font-extrabold text-3xl sm:text-4xl text-white tracking-tight">
+          <h1 className="font-syne font-extrabold text-3xl sm:text-4xl text-text tracking-tight">
             System Setup
           </h1>
         </div>
 
         {/* Setup Navigation Tabs */}
-        <div className="flex items-center gap-1.5 p-1 bg-black/40 border border-white/10 rounded-xl">
+        <div className="flex items-center gap-1.5 p-1 bg-surface-2 border border-border rounded-xl">
           <button
             type="button"
             onClick={() => setActiveTab('carousel')}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               activeTab === 'carousel'
-                ? 'bg-white text-[#0B0B0B] font-semibold'
-                : 'text-[#8E928C] hover:text-white'
+                ? 'bg-btn-bg text-btn-fg font-semibold'
+                : 'text-muted hover:text-text'
             }`}
           >
             Carousel
@@ -271,8 +271,8 @@ export const AdminSetup: React.FC = () => {
             onClick={() => setActiveTab('pages')}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               activeTab === 'pages'
-                ? 'bg-white text-[#0B0B0B] font-semibold'
-                : 'text-[#8E928C] hover:text-white'
+                ? 'bg-btn-bg text-btn-fg font-semibold'
+                : 'text-muted hover:text-text'
             }`}
           >
             Pages
@@ -282,8 +282,8 @@ export const AdminSetup: React.FC = () => {
             onClick={() => setActiveTab('auction')}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
               activeTab === 'auction'
-                ? 'bg-white text-[#0B0B0B] font-semibold'
-                : 'text-[#8E928C] hover:text-white'
+                ? 'bg-btn-bg text-btn-fg font-semibold'
+                : 'text-muted hover:text-text'
             }`}
           >
             Auction
@@ -294,10 +294,10 @@ export const AdminSetup: React.FC = () => {
       {/* Tab 1: Carousel Items */}
       {activeTab === 'carousel' && (
         <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#111411] border border-white/10 rounded-2xl p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface border border-border rounded-2xl p-6">
             <div>
-              <h2 className="font-syne font-bold text-xl text-white">Homepage Ticker Strip</h2>
-              <p className="text-xs text-[#8E928C] mt-1">
+              <h2 className="font-syne font-bold text-xl text-text">Homepage Ticker Strip</h2>
+              <p className="text-xs text-muted mt-1">
                 Manage ticker announcements shown in the home page stadium ribbon. Max 80 characters per item.
               </p>
             </div>
@@ -308,7 +308,7 @@ export const AdminSetup: React.FC = () => {
                 setItemText('')
                 setIsAddModalOpen(true)
               }}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-[#0B0B0B] text-xs font-semibold hover:bg-[#F0F2EE] transition-colors shrink-0"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-btn-bg text-btn-fg text-xs font-semibold hover:opacity-90 transition-colors shrink-0"
             >
               <Plus size={16} weight="bold" />
               <span>Add item</span>
@@ -317,15 +317,15 @@ export const AdminSetup: React.FC = () => {
 
           {/* Offline/Error Retry Banner */}
           {carouselError && (
-            <div className="bg-[#B91C1C]/10 border border-[#B91C1C]/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5 text-xs text-[#F0F2EE]">
-                <span className="w-2 h-2 rounded-full bg-[#B91C1C] shrink-0" />
+            <div className="bg-error/10 border border-error/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 text-xs text-text">
+                <span className="w-2 h-2 rounded-full bg-error shrink-0" />
                 <span className="break-all">{carouselError}</span>
               </div>
               <button
                 type="button"
                 onClick={loadCarousel}
-                className="px-3.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-semibold text-white transition-colors shrink-0 self-start sm:self-auto"
+                className="px-3.5 py-1.5 rounded-lg bg-surface-2 hover:bg-surface text-xs font-semibold text-text transition-colors shrink-0 self-start sm:self-auto"
               >
                 Retry
               </button>
@@ -335,29 +335,29 @@ export const AdminSetup: React.FC = () => {
           {isLoadingCarousel ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-16 bg-[#111411] border border-white/5 rounded-xl animate-pulse" />
+                <div key={i} className="h-16 bg-surface border border-border/40 rounded-xl animate-pulse" />
               ))}
             </div>
           ) : carouselItems.length === 0 ? (
-            <div className="bg-[#111411] border border-white/10 rounded-2xl p-12 text-center text-[#8E928C]">
+            <div className="bg-surface border border-border rounded-2xl p-12 text-center text-muted">
               No carousel items configured. Click &ldquo;Add item&rdquo; to introduce ticker strings.
             </div>
           ) : (
-            <div className="bg-[#111411] border border-white/10 rounded-2xl overflow-hidden divide-y divide-white/5">
+            <div className="bg-surface border border-border rounded-2xl overflow-hidden divide-y divide-border">
               {carouselItems.map((item, index) => (
                 <div
                   key={item.id}
-                  className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-white/[0.02] transition-colors"
+                  className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-surface-2/50 transition-colors"
                 >
                   <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <span className="font-mono text-xs text-[#8E928C] w-6 shrink-0">
+                    <span className="font-mono text-xs text-muted w-6 shrink-0">
                       {String(index + 1).padStart(2, '0')}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-white break-all font-sans">
+                      <p className="text-sm font-medium text-text break-all font-sans">
                         {item.text}
                       </p>
-                      <span className="text-[10px] font-mono text-[#8E928C]">
+                      <span className="text-[10px] font-mono text-muted">
                         {item.text.length} / 80 chars
                       </span>
                     </div>
@@ -370,7 +370,7 @@ export const AdminSetup: React.FC = () => {
                       disabled={index === 0}
                       onClick={() => handleMove(index, 'up')}
                       title="Move up"
-                      className="p-2 rounded-lg border border-white/10 text-[#8E928C] hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                      className="p-2 rounded-lg border border-border text-muted hover:text-text disabled:opacity-30 disabled:pointer-events-none transition-colors"
                     >
                       <ArrowUp size={14} weight="bold" />
                     </button>
@@ -379,7 +379,7 @@ export const AdminSetup: React.FC = () => {
                       disabled={index === carouselItems.length - 1}
                       onClick={() => handleMove(index, 'down')}
                       title="Move down"
-                      className="p-2 rounded-lg border border-white/10 text-[#8E928C] hover:text-white disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                      className="p-2 rounded-lg border border-border text-muted hover:text-text disabled:opacity-30 disabled:pointer-events-none transition-colors"
                     >
                       <ArrowDown size={14} weight="bold" />
                     </button>
@@ -390,8 +390,8 @@ export const AdminSetup: React.FC = () => {
                       onClick={() => handleToggleActive(item)}
                       className={`px-2.5 py-1.5 rounded-lg text-xs font-mono transition-colors ${
                         item.active
-                          ? 'bg-[#047554]/20 border border-[#047554] text-[#CBD1CB]'
-                          : 'bg-white/5 border border-white/10 text-[#8E928C]'
+                          ? 'bg-accent-bright/15 border border-accent-bright text-accent-bright'
+                          : 'bg-surface-2 border border-border text-muted'
                       }`}
                     >
                       {item.active ? 'Active' : 'Inactive'}
@@ -406,7 +406,7 @@ export const AdminSetup: React.FC = () => {
                         setIsAddModalOpen(true)
                       }}
                       title="Edit text"
-                      className="p-2 rounded-lg border border-white/10 text-[#8E928C] hover:text-white transition-colors"
+                      className="p-2 rounded-lg border border-border text-muted hover:text-text transition-colors"
                     >
                       <PencilSimple size={14} />
                     </button>
@@ -416,7 +416,7 @@ export const AdminSetup: React.FC = () => {
                       type="button"
                       onClick={() => handleDeleteCarouselItem(item)}
                       title="Delete item"
-                      className="p-2 rounded-lg border border-white/10 text-[#8E928C] hover:text-[#B91C1C] transition-colors"
+                      className="p-2 rounded-lg border border-border text-muted hover:text-error transition-colors"
                     >
                       <Trash size={14} />
                     </button>
@@ -430,11 +430,11 @@ export const AdminSetup: React.FC = () => {
 
       {/* Tab 2: Pages Content Editor */}
       {activeTab === 'pages' && (
-        <div className="bg-[#111411] border border-white/10 rounded-2xl p-6 sm:p-8 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/10">
+        <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
             <div>
-              <h2 className="font-syne font-bold text-xl text-white">Public Pages Editor</h2>
-              <p className="text-xs text-[#8E928C] mt-1">
+              <h2 className="font-syne font-bold text-xl text-text">Public Pages Editor</h2>
+              <p className="text-xs text-muted mt-1">
                 Customize content for public Help and About pages stored in the site database.
               </p>
             </div>
@@ -445,8 +445,8 @@ export const AdminSetup: React.FC = () => {
                 onClick={() => setSelectedPageKey('help_page')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                   selectedPageKey === 'help_page'
-                    ? 'bg-white text-[#0B0B0B] font-semibold'
-                    : 'bg-white/5 text-[#8E928C] hover:text-white'
+                    ? 'bg-btn-bg text-btn-fg font-semibold'
+                    : 'bg-surface-2 text-muted hover:text-text'
                 }`}
               >
                 Help Page
@@ -456,8 +456,8 @@ export const AdminSetup: React.FC = () => {
                 onClick={() => setSelectedPageKey('about_page')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                   selectedPageKey === 'about_page'
-                    ? 'bg-white text-[#0B0B0B] font-semibold'
-                    : 'bg-white/5 text-[#8E928C] hover:text-white'
+                    ? 'bg-btn-bg text-btn-fg font-semibold'
+                    : 'bg-surface-2 text-muted hover:text-text'
                 }`}
               >
                 About Page
@@ -467,7 +467,7 @@ export const AdminSetup: React.FC = () => {
 
           <form onSubmit={handleSavePage} className="space-y-5">
             <div>
-              <label className="block text-xs font-mono uppercase tracking-wider text-[#8E928C] mb-2">
+              <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-2">
                 Page Title
               </label>
               <input
@@ -475,12 +475,12 @@ export const AdminSetup: React.FC = () => {
                 value={pageTitle}
                 onChange={(e) => setPageTitle(e.target.value)}
                 required
-                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#047554]"
+                className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent-bright"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-mono uppercase tracking-wider text-[#8E928C] mb-2">
+              <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-2">
                 Page Body Content
               </label>
               <textarea
@@ -488,7 +488,7 @@ export const AdminSetup: React.FC = () => {
                 onChange={(e) => setPageBody(e.target.value)}
                 rows={8}
                 placeholder="Enter markdown or plain text for this page..."
-                className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-sm text-white focus:outline-none focus:border-[#047554] leading-relaxed resize-y font-sans"
+                className="w-full bg-bg border border-border rounded-xl p-4 text-sm text-text focus:outline-none focus:border-accent-bright leading-relaxed resize-y font-sans"
               />
             </div>
 
@@ -496,7 +496,7 @@ export const AdminSetup: React.FC = () => {
               <button
                 type="submit"
                 disabled={isSavingPage}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-white text-[#0B0B0B] text-xs font-semibold hover:bg-[#F0F2EE] disabled:opacity-50 transition-colors"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-btn-bg text-btn-fg text-xs font-semibold hover:opacity-90 disabled:opacity-50 transition-colors"
               >
                 <FloppyDisk size={16} weight="bold" />
                 <span>{isSavingPage ? 'Saving...' : 'Save Page Content'}</span>
@@ -508,15 +508,15 @@ export const AdminSetup: React.FC = () => {
 
       {/* Tab 3: Auction Placeholder Card */}
       {activeTab === 'auction' && (
-        <div className="bg-[#111411] border border-white/10 rounded-2xl p-12 text-center max-w-2xl mx-auto space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-[#8E928C]">
+        <div className="bg-surface border border-border rounded-2xl p-12 text-center max-w-2xl mx-auto space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-surface-2 border border-border flex items-center justify-center mx-auto text-muted">
             <Hourglass size={24} weight="duotone" />
           </div>
-          <h2 className="font-syne font-bold text-2xl text-white">Auction Rules & Timing</h2>
-          <p className="text-sm text-[#8E928C] max-w-md mx-auto leading-relaxed">
+          <h2 className="font-syne font-bold text-2xl text-text">Auction Rules & Timing</h2>
+          <p className="text-sm text-muted max-w-md mx-auto leading-relaxed">
             Live auction timing and settings will be configurable in a future release.
           </p>
-          <div className="inline-block px-3 py-1 rounded-full bg-white/5 border border-white/10 font-mono text-[11px] text-[#8E928C]">
+          <div className="inline-block px-3 py-1 rounded-full bg-surface-2 border border-border font-mono text-[11px] text-muted">
             Drafting Engine: Manual Control Mode Active
           </div>
         </div>
@@ -527,11 +527,11 @@ export const AdminSetup: React.FC = () => {
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-scrim flex items-center justify-center p-4"
         >
-          <div className="bg-[#111411] border border-white/15 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
-            <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-5">
-              <h3 className="font-syne font-bold text-lg text-white">
+          <div className="bg-surface border border-border rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
+            <div className="flex items-center justify-between pb-4 border-b border-border mb-5">
+              <h3 className="font-syne font-bold text-lg text-text">
                 {editingItem ? 'Edit Ticker Item' : 'New Ticker Item'}
               </h3>
               <button
@@ -540,7 +540,7 @@ export const AdminSetup: React.FC = () => {
                   setIsAddModalOpen(false)
                   setEditingItem(null)
                 }}
-                className="p-1 rounded-lg text-[#8E928C] hover:text-white"
+                className="p-1 rounded-lg text-muted hover:text-text"
               >
                 <X size={18} weight="bold" />
               </button>
@@ -549,12 +549,12 @@ export const AdminSetup: React.FC = () => {
             <form onSubmit={handleSaveCarouselItem} className="space-y-4">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-mono uppercase tracking-wider text-[#8E928C]">
+                  <label className="text-xs font-mono uppercase tracking-wider text-muted">
                     Ticker Text
                   </label>
                   <span
                     className={`font-mono text-xs ${
-                      itemText.length > 80 ? 'text-[#B91C1C]' : 'text-[#8E928C]'
+                      itemText.length > 80 ? 'text-error' : 'text-muted'
                     }`}
                   >
                     {itemText.length} / 80
@@ -569,7 +569,7 @@ export const AdminSetup: React.FC = () => {
                   required
                   autoFocus
                   disabled={isSavingCarousel}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#047554] disabled:opacity-50"
+                  className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent-bright disabled:opacity-50"
                 />
               </div>
 
@@ -581,14 +581,14 @@ export const AdminSetup: React.FC = () => {
                     setIsAddModalOpen(false)
                     setEditingItem(null)
                   }}
-                  className="px-4 py-2 rounded-xl text-xs text-[#8E928C] hover:text-white disabled:opacity-50 transition-colors"
+                  className="px-4 py-2 rounded-xl text-xs text-muted hover:text-text disabled:opacity-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSavingCarousel}
-                  className="px-5 py-2 rounded-xl bg-white text-[#0B0B0B] text-xs font-semibold hover:bg-[#F0F2EE] disabled:opacity-50 disabled:pointer-events-none transition-colors"
+                  className="px-5 py-2 rounded-xl bg-btn-bg text-btn-fg text-xs font-semibold hover:opacity-90 disabled:opacity-50 disabled:pointer-events-none transition-colors"
                 >
                   {isSavingCarousel ? 'Saving...' : 'Save Item'}
                 </button>

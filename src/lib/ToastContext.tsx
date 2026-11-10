@@ -55,18 +55,18 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               transition={{ duration: 0.25 }}
               className={`pointer-events-auto flex items-center justify-between gap-3 px-4 py-3 rounded-xl border shadow-xl text-sm ${
                 t.type === 'success'
-                  ? 'bg-[#0E1B13] border-[#047554]/50 text-[#F0F2EE]'
+                  ? 'bg-surface border-accent-bright/50 text-text'
                   : t.type === 'error'
-                  ? 'bg-[#1D0E0E] border-[#B91C1C]/50 text-[#F0F2EE]'
-                  : 'bg-[#141414] border-white/10 text-[#F0F2EE]'
+                  ? 'bg-surface border-error/50 text-text'
+                  : 'bg-surface border-border text-text'
               }`}
             >
               <div className="flex items-center gap-2.5 min-w-0">
                 {t.type === 'success' && (
-                  <CheckCircle size={18} weight="fill" className="text-[#047554] shrink-0" />
+                  <CheckCircle size={18} weight="fill" className="text-accent-bright shrink-0" />
                 )}
                 {t.type === 'error' && (
-                  <WarningCircle size={18} weight="fill" className="text-[#B91C1C] shrink-0" />
+                  <WarningCircle size={18} weight="fill" className="text-error shrink-0" />
                 )}
                 <span className="truncate">{t.text}</span>
               </div>
@@ -74,7 +74,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 type="button"
                 onClick={() => removeToast(t.id)}
                 aria-label="Dismiss notification"
-                className="text-[#8E928C] hover:text-white shrink-0 p-1"
+                className="text-muted hover:text-text shrink-0 p-1"
               >
                 <X size={14} weight="bold" />
               </button>

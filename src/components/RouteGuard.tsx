@@ -14,7 +14,7 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({ children, allowedRoles }
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#0B0B0B] text-[#CBD1CB] flex items-center justify-center font-mono text-xs tracking-widest">
+      <div className="min-h-screen bg-bg text-muted flex items-center justify-center font-mono text-xs tracking-widest">
         <span>LOADING FIELDR CONSOLE...</span>
       </div>
     )

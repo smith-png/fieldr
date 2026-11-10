@@ -18,9 +18,11 @@ import {
   subscribeToProjector,
   subscribeToTeams
 } from '../lib/data'
+import { useForceDarkTheme } from '../lib/theme'
 import type { Player, ProjectorState, Season, Team } from '../lib/types'
 
 export const ProjectorPage: React.FC = () => {
+  useForceDarkTheme()
   const shouldReduceMotion = useReducedMotion()
 
   const [activeSeason, setActiveSeason] = useState<Season | null>(null)

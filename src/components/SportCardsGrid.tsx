@@ -48,16 +48,16 @@ export const SportCardsGrid: React.FC<SportCardsGridProps> = ({ playerCounts }) 
 
   return (
     <section className="w-full max-w-7xl mx-auto px-6 md:px-16 lg:px-24 py-16 md:py-24">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-10 pb-6 border-b border-white/10">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-10 pb-6 border-b border-border">
         <div>
-          <span className="text-xs font-mono uppercase tracking-widest text-[#047554] block mb-2">
+          <span className="text-xs font-mono uppercase tracking-widest text-accent-bright block mb-2">
             TOURNAMENT SQUADS
           </span>
-          <h2 className="font-syne font-extrabold text-3xl sm:text-4xl text-[#F0F2EE] tracking-tight">
+          <h2 className="font-syne font-extrabold text-3xl sm:text-4xl text-text tracking-tight">
             Explore rosters by sport
           </h2>
         </div>
-        <p className="text-sm text-[#8E928C] max-w-md">
+        <p className="text-sm text-muted max-w-md">
           Review scout profiles, academic batches, and playing roles across all active disciplines.
         </p>
       </div>
@@ -69,20 +69,20 @@ export const SportCardsGrid: React.FC<SportCardsGridProps> = ({ playerCounts }) 
             <Link
               key={sport.id}
               to={sport.path}
-              className="group relative flex flex-col justify-between bg-[#111411] border border-white/10 rounded-2xl p-7 hover:border-[#047554] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#047554] overflow-hidden"
+              className="group relative flex flex-col justify-between bg-surface border border-border rounded-2xl p-7 hover:border-accent-bright transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright overflow-hidden shadow-sm"
             >
               {/* Card Header */}
               <div className="flex items-start justify-between gap-4 z-10">
                 <div>
-                  <h3 className="font-syne font-bold text-2xl text-[#F0F2EE] group-hover:text-white transition-colors">
+                  <h3 className="font-syne font-bold text-2xl text-text group-hover:text-accent-bright transition-colors">
                     {sport.name}
                   </h3>
-                  <div className="text-xs text-[#8E928C] mt-1 font-mono">
-                    <span className="text-[#CBD1CB] font-semibold">{sport.count}</span>{' '}
+                  <div className="text-xs text-muted mt-1 font-mono">
+                    <span className="text-text font-semibold">{sport.count}</span>{' '}
                     {sport.count === 1 ? 'player' : 'players'} registered
                   </div>
                 </div>
-                <div className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[#8E928C] group-hover:text-white group-hover:border-[#047554] transition-colors shrink-0">
+                <div className="w-9 h-9 rounded-full bg-surface-2 border border-border flex items-center justify-center text-muted group-hover:text-text group-hover:border-accent-bright transition-colors shrink-0">
                   <ArrowUpRight size={18} weight="bold" />
                 </div>
               </div>
@@ -102,9 +102,9 @@ export const SportCardsGrid: React.FC<SportCardsGridProps> = ({ playerCounts }) 
               </div>
 
               {/* Card Footer */}
-              <div className="pt-4 border-t border-white/5 flex items-center justify-between text-xs text-[#8E928C] z-10">
+              <div className="pt-4 border-t border-border flex items-center justify-between text-xs text-muted z-10">
                 <span className="truncate pr-2">{sport.description}</span>
-                <span className="text-[#047554] font-medium shrink-0 group-hover:underline">
+                <span className="text-accent-bright font-medium shrink-0 group-hover:underline">
                   View roster
                 </span>
               </div>

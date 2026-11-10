@@ -88,16 +88,16 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-[#0B0B0B] text-[#F0F2EE] font-sans flex flex-col md:flex-row antialiased selection:bg-[#047554] selection:text-white">
+    <div className="min-h-screen bg-bg text-text font-sans flex flex-col md:flex-row antialiased selection:bg-accent-bright selection:text-on-accent">
       {/* Desktop Sidebar (Collapsible, persisted in localStorage) */}
       <aside
-        className={`hidden md:flex flex-col justify-between bg-[#111411] border-r border-white/10 shrink-0 transition-all duration-300 ease-in-out ${
+        className={`hidden md:flex flex-col justify-between bg-surface border-r border-border shrink-0 transition-all duration-300 ease-in-out ${
           isCollapsed ? 'w-20 p-3' : 'w-64 lg:w-72 p-5'
         }`}
       >
         <div className="flex flex-col gap-6">
           {/* Header Lockup & Toggle */}
-          <div className="pb-4 border-b border-white/10 flex items-center justify-between">
+          <div className="pb-4 border-b border-border flex items-center justify-between">
             {!isCollapsed ? (
               <>
                 <BrandMark showWordmark={true} />
@@ -106,7 +106,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     to="/"
                     title="Return to Home"
                     aria-label="Return to Home"
-                    className="p-2 rounded-xl border border-white/10 text-[#8E928C] hover:text-white hover:border-[#047554] transition-colors"
+                    className="p-2 rounded-xl border border-border text-muted hover:text-text hover:border-accent-bright transition-colors"
                   >
                     <House size={16} />
                   </Link>
@@ -115,7 +115,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     onClick={() => setIsCollapsed(true)}
                     title="Collapse sidebar"
                     aria-label="Collapse sidebar"
-                    className="p-2 rounded-xl border border-white/10 text-[#8E928C] hover:text-white hover:border-[#047554] transition-colors"
+                    className="p-2 rounded-xl border border-border text-muted hover:text-text hover:border-accent-bright transition-colors"
                   >
                     <CaretLeft size={16} weight="bold" />
                   </button>
@@ -129,7 +129,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                   onClick={() => setIsCollapsed(false)}
                   title="Expand sidebar"
                   aria-label="Expand sidebar"
-                  className="p-2 rounded-xl border border-white/10 text-[#8E928C] hover:text-white hover:border-[#047554] transition-colors"
+                  className="p-2 rounded-xl border border-border text-muted hover:text-text hover:border-accent-bright transition-colors"
                 >
                   <CaretRight size={16} weight="bold" />
                 </button>
@@ -139,11 +139,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
           {/* Active Tournament Selector (only when expanded) */}
           {!isCollapsed && (
-            <div className="p-3.5 rounded-xl bg-black/40 border border-white/10 flex flex-col gap-2">
-              <div className="flex items-center justify-between text-[11px] font-mono uppercase tracking-wider text-[#8E928C]">
+            <div className="p-3.5 rounded-xl bg-surface-2 border border-border flex flex-col gap-2">
+              <div className="flex items-center justify-between text-[11px] font-mono uppercase tracking-wider text-muted">
                 <span>Tournament</span>
                 {isDemo && (
-                  <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[#CBD1CB] font-mono text-[9px]">
+                  <span className="px-2 py-0.5 rounded-full bg-surface border border-border text-text font-mono text-[9px]">
                     Demo mode
                   </span>
                 )}
@@ -152,7 +152,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 value={activeSeason?.id || ''}
                 onChange={(e) => onSwitchSeason(e.target.value)}
                 aria-label="Select Active Season"
-                className="w-full bg-[#111411] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white focus:outline-none focus:border-[#047554]"
+                className="w-full bg-surface border border-border rounded-lg px-2.5 py-1.5 text-xs font-semibold text-text focus:outline-none focus:border-accent-bright"
               >
                 {seasons.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -177,11 +177,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     isCollapsed ? 'justify-center' : 'gap-3'
                   } ${
                     isActive
-                      ? 'bg-white/10 border border-[#047554] text-white font-semibold'
-                      : 'text-[#8E928C] hover:text-white hover:bg-white/5 border border-transparent'
+                      ? 'bg-accent/15 border border-accent-bright text-text font-semibold'
+                      : 'text-muted hover:text-text hover:bg-surface-2 border border-transparent'
                   }`}
                 >
-                  <span className={isActive ? 'text-[#047554]' : 'text-[#8E928C]'}>
+                  <span className={isActive ? 'text-accent-bright' : 'text-muted'}>
                     {tab.icon}
                   </span>
                   {!isCollapsed && <span>{tab.label}</span>}
@@ -192,22 +192,22 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="pt-4 border-t border-white/10 flex flex-col gap-2">
+        <div className="pt-4 border-t border-border flex flex-col gap-2">
           <Link
             to="/projector"
             target="_blank"
             rel="noopener noreferrer"
             title={isCollapsed ? 'Launch Projector' : undefined}
-            className={`min-h-[44px] px-3.5 py-2 rounded-xl bg-black/40 border border-white/10 text-xs font-medium text-[#CBD1CB] hover:text-white hover:border-[#047554] transition-colors flex items-center ${
+            className={`min-h-[44px] px-3.5 py-2 rounded-xl bg-surface-2 border border-border text-xs font-medium text-text hover:text-accent-bright hover:border-accent-bright transition-colors flex items-center ${
               isCollapsed ? 'justify-center' : 'justify-between'
             }`}
           >
             <div className="flex items-center gap-2.5">
-              <Television size={18} className="text-[#047554]" />
+              <Television size={18} className="text-accent-bright" />
               {!isCollapsed && <span>Launch Projector</span>}
             </div>
             {!isCollapsed && (
-              <span className="text-[10px] uppercase font-mono text-[#8E928C]">Stage</span>
+              <span className="text-[10px] uppercase font-mono text-muted">Stage</span>
             )}
           </Link>
 
@@ -215,7 +215,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             type="button"
             onClick={handleSignOut}
             title={isCollapsed ? `Sign out (${user?.email})` : undefined}
-            className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-medium text-[#8E928C] hover:text-[#B91C1C] hover:bg-[#B91C1C]/10 transition-colors flex items-center ${
+            className={`min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-medium text-muted hover:text-error hover:bg-error/10 transition-colors flex items-center ${
               isCollapsed ? 'justify-center' : 'gap-2.5'
             }`}
           >
@@ -226,14 +226,14 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       </aside>
 
       {/* Mobile Top Header */}
-      <div className="md:hidden flex flex-col bg-[#111411] border-b border-white/10 sticky top-0 z-30">
+      <div className="md:hidden flex flex-col bg-surface border-b border-border sticky top-0 z-30">
         <div className="p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => setIsMobileDrawerOpen(true)}
               aria-label="Open navigation drawer"
-              className="p-2 rounded-xl bg-white/5 border border-white/10 text-white"
+              className="p-2 rounded-xl bg-surface-2 border border-border text-text"
             >
               <List size={20} weight="bold" />
             </button>
@@ -242,7 +242,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
           <div className="flex items-center gap-2">
             {isDemo && (
-              <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[#CBD1CB] font-mono text-[10px]">
+              <span className="px-2 py-0.5 rounded-full bg-surface-2 border border-border text-muted font-mono text-[10px]">
                 Demo mode
               </span>
             )}
@@ -251,9 +251,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Launch Projector"
-              className="p-2 rounded-xl bg-white/5 border border-white/10 text-white"
+              className="p-2 rounded-xl bg-surface-2 border border-border text-text"
             >
-              <Television size={18} className="text-[#047554]" />
+              <Television size={18} className="text-accent-bright" />
             </Link>
           </div>
         </div>
@@ -269,8 +269,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 onClick={() => onSelectTab(tab.id)}
                 className={`min-h-[38px] px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap flex items-center gap-2 shrink-0 ${
                   isActive
-                    ? 'bg-white/10 border border-[#047554] text-white font-semibold'
-                    : 'bg-black/30 border border-white/10 text-[#8E928C]'
+                    ? 'bg-accent/15 border border-accent-bright text-text font-semibold'
+                    : 'bg-surface-2 border border-border text-muted'
                 }`}
               >
                 <span>{tab.icon}</span>
@@ -285,31 +285,31 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       {isMobileDrawerOpen && (
         <div className="fixed inset-0 z-50 md:hidden flex">
           <div
-            className="fixed inset-0 bg-black/80"
+            className="fixed inset-0 bg-scrim"
             onClick={() => setIsMobileDrawerOpen(false)}
           />
-          <div className="relative w-72 max-w-[80vw] bg-[#111411] border-r border-white/10 h-full p-6 flex flex-col justify-between z-10">
+          <div className="relative w-72 max-w-[80vw] bg-surface border-r border-border h-full p-6 flex flex-col justify-between z-10">
             <div>
-              <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-6">
+              <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
                 <BrandMark showWordmark={true} />
                 <button
                   type="button"
                   onClick={() => setIsMobileDrawerOpen(false)}
                   aria-label="Close drawer"
-                  className="p-2 rounded-xl border border-white/10 text-[#8E928C] hover:text-white"
+                  className="p-2 rounded-xl border border-border text-muted hover:text-text"
                 >
                   <X size={18} weight="bold" />
                 </button>
               </div>
 
-              <div className="mb-6 p-3 rounded-xl bg-black/40 border border-white/10">
-                <span className="text-[10px] font-mono uppercase tracking-wider text-[#8E928C] block mb-1">
+              <div className="mb-6 p-3 rounded-xl bg-surface-2 border border-border">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-muted block mb-1">
                   Active Season
                 </span>
                 <select
                   value={activeSeason?.id || ''}
                   onChange={(e) => onSwitchSeason(e.target.value)}
-                  className="w-full bg-[#111411] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                  className="w-full bg-surface border border-border rounded-lg px-2.5 py-1.5 text-xs text-text"
                 >
                   {seasons.map((s) => (
                     <option key={s.id} value={s.id}>
@@ -332,11 +332,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                       }}
                       className={`min-h-[44px] px-3.5 py-2.5 rounded-xl text-xs font-medium flex items-center gap-3 ${
                         isActive
-                          ? 'bg-white/10 border border-[#047554] text-white font-semibold'
-                          : 'text-[#8E928C] hover:text-white'
+                          ? 'bg-accent/15 border border-accent-bright text-text font-semibold'
+                          : 'text-muted hover:text-text'
                       }`}
                     >
-                      <span className={isActive ? 'text-[#047554]' : 'text-[#8E928C]'}>
+                      <span className={isActive ? 'text-accent-bright' : 'text-muted'}>
                         {tab.icon}
                       </span>
                       <span>{tab.label}</span>
@@ -346,10 +346,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               </nav>
             </div>
 
-            <div className="pt-4 border-t border-white/10 flex flex-col gap-2">
+            <div className="pt-4 border-t border-border flex flex-col gap-2">
               <Link
                 to="/"
-                className="text-xs text-[#8E928C] hover:text-white flex items-center gap-2 py-2"
+                className="text-xs text-muted hover:text-text flex items-center gap-2 py-2"
               >
                 <House size={16} />
                 <span>Return to Home</span>
@@ -357,7 +357,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="text-xs text-[#8E928C] hover:text-[#B91C1C] flex items-center gap-2 py-2"
+                className="text-xs text-muted hover:text-error flex items-center gap-2 py-2"
               >
                 <SignOut size={16} />
                 <span>Sign out</span>

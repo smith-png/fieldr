@@ -16,9 +16,9 @@ export const BrandMark: React.FC<BrandMarkProps> = ({
       type="button"
       onClick={onClick}
       aria-label="Open menu"
-      className={`group relative flex items-center gap-3.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#047554] rounded-2xl transition-transform active:scale-95 ${className}`}
+      className={`group relative flex items-center gap-3.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright rounded-2xl transition-transform active:scale-95 ${className}`}
     >
-      {/* 52px organic tile with feathered edges and rotating blobs */}
+      {/* 52px organic tile with feathered edges and rotating blobs - identical in both themes */}
       <div className="relative w-[52px] h-[52px] rounded-[22%] overflow-hidden bg-[#0A0D0A] shadow-[0_0_24px_rgba(4,117,84,0.18)] p-0.5 transform-gpu">
         {/* Slow rotating blob container (14s) */}
         <div className="absolute inset-0 animate-blob-rotate origin-center pointer-events-none opacity-85">
@@ -42,10 +42,10 @@ export const BrandMark: React.FC<BrandMarkProps> = ({
 
       {showWordmark && (
         <div className="flex flex-col">
-          <span className="font-syne font-extrabold text-[21px] tracking-tight text-[#F0F2EE] leading-none group-hover:text-white transition-colors">
+          <span className="font-syne font-extrabold text-[21px] tracking-tight text-text leading-none group-hover:text-accent-bright transition-colors">
             Fieldr
           </span>
-          <span className="text-[11px] font-medium tracking-wider text-[#8E928C] uppercase mt-1">
+          <span className="text-[11px] font-medium tracking-wider text-muted uppercase mt-1">
             Auctions
           </span>
         </div>

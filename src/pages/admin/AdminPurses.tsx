@@ -116,15 +116,15 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
   return (
     <div className="flex flex-col gap-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/10">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
         <div>
-          <span className="text-xs font-mono uppercase tracking-widest text-[#047554] block mb-1">
+          <span className="text-xs font-mono uppercase tracking-widest text-accent-bright block mb-1">
             Financial Ledger
           </span>
-          <h1 className="font-syne font-bold text-3xl sm:text-4xl text-white tracking-tight">
+          <h1 className="font-syne font-bold text-3xl sm:text-4xl text-text tracking-tight">
             Purses & Balances
           </h1>
-          <p className="text-xs sm:text-sm text-[#8E928C] mt-1">
+          <p className="text-xs sm:text-sm text-muted mt-1">
             Manage franchise points, credit/debit balances with audit logs, and enforce strict zero-deficit rules.
           </p>
         </div>
@@ -132,7 +132,7 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
         <button
           type="button"
           onClick={() => setIsResetModalOpen(true)}
-          className="min-h-[44px] px-6 py-2.5 rounded-full border border-white/20 hover:border-[#047554] text-[#CBD1CB] hover:text-white font-medium text-xs sm:text-sm transition-all flex items-center justify-center gap-2 self-start sm:self-auto"
+          className="min-h-[44px] px-6 py-2.5 rounded-full border border-border hover:border-accent-bright text-text font-medium text-xs sm:text-sm transition-all flex items-center justify-center gap-2 self-start sm:self-auto"
         >
           <ArrowsClockwise size={18} />
           <span>Reset All Purses</span>
@@ -141,19 +141,19 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
 
       {/* Purses Table */}
       {teams.length === 0 ? (
-        <div className="py-20 text-center rounded-3xl bg-[#141414] border border-white/10 flex flex-col items-center justify-center gap-3">
-          <ShieldCheck size={40} className="text-[#8E928C]" />
-          <div className="text-base font-syne font-bold text-white">No teams available</div>
-          <p className="text-xs text-[#8E928C] max-w-sm">
+        <div className="py-20 text-center rounded-3xl bg-surface border border-border flex flex-col items-center justify-center gap-3">
+          <ShieldCheck size={40} className="text-muted" />
+          <div className="text-base font-syne font-bold text-text">No teams available</div>
+          <p className="text-xs text-muted max-w-sm">
             Please register franchise teams in the Teams tab before allocating purse points.
           </p>
         </div>
       ) : (
-        <div className="rounded-3xl bg-[#141414] border border-white/10 overflow-hidden">
+        <div className="rounded-3xl bg-surface border border-border overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-white/10 text-[#8E928C] font-mono uppercase tracking-wider bg-white/[0.02]">
+                <tr className="border-b border-border text-muted font-mono uppercase tracking-wider bg-surface-2/50">
                   <th className="py-3.5 px-4 font-medium">Team</th>
                   <th className="py-3.5 px-3 font-medium">Sport</th>
                   <th className="py-3.5 px-3 font-medium text-right">Starting Purse</th>
@@ -161,9 +161,9 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
                   <th className="py-3.5 px-4 font-medium text-right">Purse Controls</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-border">
                 {teams.map((team) => (
-                  <tr key={team.id} className="hover:bg-white/5 transition-colors">
+                  <tr key={team.id} className="hover:bg-surface-2 transition-colors">
                     {/* Team */}
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-3">
@@ -172,10 +172,10 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
                           style={{ backgroundColor: team.color }}
                         />
                         <div>
-                          <span className="font-syne font-bold text-sm text-white">
+                          <span className="font-syne font-bold text-sm text-text">
                             {team.name}
                           </span>
-                          <span className="text-[11px] font-mono text-[#8E928C] ml-2">
+                          <span className="text-[11px] font-mono text-muted ml-2">
                             ({team.short_code})
                           </span>
                         </div>
@@ -183,18 +183,18 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
                     </td>
 
                     {/* Sport */}
-                    <td className="py-3.5 px-3 text-[#CBD1CB] font-medium">
+                    <td className="py-3.5 px-3 text-text font-medium">
                       {team.sport}
                     </td>
 
                     {/* Starting Purse */}
-                    <td className="py-3.5 px-3 text-right font-mono tabular-nums text-[#8E928C]">
+                    <td className="py-3.5 px-3 text-right font-mono tabular-nums text-muted">
                       {team.starting_purse.toLocaleString()} PTS
                     </td>
 
                     {/* Current Balance */}
                     <td className="py-3.5 px-3 text-right">
-                      <span className="font-syne font-bold text-base text-[#C88B0F] font-mono tabular-nums">
+                      <span className="font-syne font-bold text-base text-points font-mono tabular-nums">
                         {team.current_purse.toLocaleString()} PTS
                       </span>
                     </td>
@@ -205,7 +205,7 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
                         <button
                           type="button"
                           onClick={() => openTxModal(team, 'add')}
-                          className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-[#047554]/20 border border-[#047554]/40 text-[#047554] hover:bg-[#047554] hover:text-white transition-colors flex items-center gap-1 font-medium text-[11px]"
+                          className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-accent-bright/15 border border-accent-bright/40 text-accent-bright hover:bg-accent-bright hover:text-on-accent transition-colors flex items-center gap-1 font-medium text-[11px]"
                         >
                           <Plus size={14} weight="bold" />
                           <span>Add</span>
@@ -214,7 +214,7 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
                         <button
                           type="button"
                           onClick={() => openTxModal(team, 'deduct')}
-                          className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-[#B91C1C]/20 border border-[#B91C1C]/40 text-[#B91C1C] hover:bg-[#B91C1C] hover:text-white transition-colors flex items-center gap-1 font-medium text-[11px]"
+                          className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-error/15 border border-error/40 text-error hover:bg-error hover:text-white transition-colors flex items-center gap-1 font-medium text-[11px]"
                         >
                           <Minus size={14} weight="bold" />
                           <span>Deduct</span>
@@ -223,7 +223,7 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
                         <button
                           type="button"
                           onClick={() => openTxModal(team, 'set')}
-                          className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[#CBD1CB] hover:text-white hover:border-[#047554] transition-colors flex items-center gap-1 font-medium text-[11px]"
+                          className="min-h-[38px] px-2.5 py-1.5 rounded-xl bg-surface-2 border border-border text-text hover:border-accent-bright transition-colors flex items-center gap-1 font-medium text-[11px]"
                         >
                           <PencilSimple size={14} />
                           <span>Set</span>
@@ -232,7 +232,7 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
                         <button
                           type="button"
                           onClick={() => setHistoryTeam(team)}
-                          className="min-h-[38px] px-2.5 py-1.5 rounded-xl text-[#8E928C] hover:text-white hover:underline transition-colors text-[11px]"
+                          className="min-h-[38px] px-2.5 py-1.5 rounded-xl text-muted hover:text-text hover:underline transition-colors text-[11px]"
                         >
                           History
                         </button>
@@ -248,36 +248,36 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
 
       {/* Add / Deduct / Set Modal */}
       {selectedTeam && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="max-w-md w-full bg-[#141414] border border-white/10 rounded-3xl p-6 sm:p-8 flex flex-col gap-6 shadow-2xl">
-            <div className="flex items-center justify-between pb-4 border-b border-white/10">
+        <div className="fixed inset-0 z-50 bg-scrim flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-surface border border-border rounded-3xl p-6 sm:p-8 flex flex-col gap-6 shadow-2xl">
+            <div className="flex items-center justify-between pb-4 border-b border-border">
               <div>
-                <span className="text-[10px] font-mono uppercase tracking-wider text-[#047554]">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-accent-bright">
                   Ledger Modification
                 </span>
-                <h2 className="font-syne font-bold text-xl text-white capitalize">
+                <h2 className="font-syne font-bold text-xl text-text capitalize">
                   {txType} Points · {selectedTeam.name}
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedTeam(null)}
-                className="text-[#8E928C] hover:text-white p-1"
+                className="text-muted hover:text-text p-1"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-[#0B0B0B] border border-white/10 flex items-center justify-between text-xs">
-              <span className="text-[#8E928C]">Current Available Purse</span>
-              <span className="font-mono font-bold text-sm text-[#C88B0F] tabular-nums">
+            <div className="p-3.5 rounded-2xl bg-surface-2 border border-border flex items-center justify-between text-xs">
+              <span className="text-muted">Current Available Purse</span>
+              <span className="font-mono font-bold text-sm text-points tabular-nums">
                 {selectedTeam.current_purse.toLocaleString()} PTS
               </span>
             </div>
 
             <form onSubmit={handleExecuteTransaction} className="flex flex-col gap-4 text-xs">
               <div>
-                <label className="block text-[#CBD1CB] uppercase tracking-wider mb-1.5 font-medium">
+                <label className="block text-muted uppercase tracking-wider mb-1.5 font-medium">
                   {txType === 'set' ? 'New Target Balance *' : 'Points Amount *'}
                 </label>
                 <input
@@ -287,12 +287,12 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
                   onChange={(e) => setTxAmount(e.target.value)}
                   placeholder="e.g. 150"
                   required
-                  className="w-full px-4 py-2.5 bg-[#0B0B0B] border border-white/10 rounded-xl text-sm font-mono text-white focus:outline-none focus:border-[#047554]"
+                  className="w-full px-4 py-2.5 bg-bg border border-border rounded-xl text-sm font-mono text-text focus:outline-none focus:border-accent-bright"
                 />
               </div>
 
               <div>
-                <label className="block text-[#CBD1CB] uppercase tracking-wider mb-1.5 font-medium">
+                <label className="block text-muted uppercase tracking-wider mb-1.5 font-medium">
                   Reason for Adjustment (Optional)
                 </label>
                 <input
@@ -300,22 +300,22 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
                   value={txReason}
                   onChange={(e) => setTxReason(e.target.value)}
                   placeholder="e.g. Penalty deduction, Sponsor bonus, Auction correction"
-                  className="w-full px-4 py-2.5 bg-[#0B0B0B] border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-[#047554]"
+                  className="w-full px-4 py-2.5 bg-bg border border-border rounded-xl text-sm text-text focus:outline-none focus:border-accent-bright"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
                 <button
                   type="button"
                   onClick={() => setSelectedTeam(null)}
-                  className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-medium text-[#8E928C] hover:text-white"
+                  className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-medium text-muted hover:text-text"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting || !txAmount}
-                  className="min-h-[44px] px-6 py-2.5 rounded-xl bg-white text-[#0B0B0B] font-medium text-xs hover:bg-[#F0F2EE] disabled:opacity-50"
+                  className="min-h-[44px] px-6 py-2.5 rounded-xl bg-btn-bg text-btn-fg font-medium text-xs hover:opacity-90 disabled:opacity-50"
                 >
                   {isSubmitting ? 'Recording...' : `Execute ${txType}`}
                 </button>
@@ -327,28 +327,28 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
 
       {/* Global Starting Purse Reset Modal */}
       {isResetModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="max-w-md w-full bg-[#141414] border border-white/10 rounded-3xl p-6 sm:p-8 flex flex-col gap-6 shadow-2xl">
-            <div className="flex items-center justify-between pb-4 border-b border-white/10">
-              <h2 className="font-syne font-bold text-xl text-white">
+        <div className="fixed inset-0 z-50 bg-scrim flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-surface border border-border rounded-3xl p-6 sm:p-8 flex flex-col gap-6 shadow-2xl">
+            <div className="flex items-center justify-between pb-4 border-b border-border">
+              <h2 className="font-syne font-bold text-xl text-text">
                 Reset All Team Purses
               </h2>
               <button
                 type="button"
                 onClick={() => setIsResetModalOpen(false)}
-                className="text-[#8E928C] hover:text-white p-1"
+                className="text-muted hover:text-text p-1"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <p className="text-xs text-[#8E928C] leading-relaxed">
+            <p className="text-xs text-muted leading-relaxed">
               This will update the starting purse and current purse for <strong>all {teams.length} teams</strong> in this season to the specified uniform value. Every change will be recorded in the audit ledger.
             </p>
 
             <form onSubmit={handleGlobalReset} className="flex flex-col gap-4 text-xs">
               <div>
-                <label className="block text-[#CBD1CB] uppercase tracking-wider mb-1.5 font-medium">
+                <label className="block text-muted uppercase tracking-wider mb-1.5 font-medium">
                   Uniform Purse Points *
                 </label>
                 <input
@@ -357,22 +357,22 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
                   value={globalStartingAmount}
                   onChange={(e) => setGlobalStartingAmount(e.target.value)}
                   required
-                  className="w-full px-4 py-2.5 bg-[#0B0B0B] border border-white/10 rounded-xl text-sm font-mono text-white focus:outline-none focus:border-[#047554]"
+                  className="w-full px-4 py-2.5 bg-bg border border-border rounded-xl text-sm font-mono text-text focus:outline-none focus:border-accent-bright"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-border">
                 <button
                   type="button"
                   onClick={() => setIsResetModalOpen(false)}
-                  className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-medium text-[#8E928C] hover:text-white"
+                  className="min-h-[44px] px-4 py-2 rounded-xl text-xs font-medium text-muted hover:text-text"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting || !globalStartingAmount}
-                  className="min-h-[44px] px-6 py-2.5 rounded-xl bg-white text-[#0B0B0B] font-medium text-xs hover:bg-[#F0F2EE] disabled:opacity-50"
+                  className="min-h-[44px] px-6 py-2.5 rounded-xl bg-btn-bg text-btn-fg font-medium text-xs hover:opacity-90 disabled:opacity-50"
                 >
                   {isSubmitting ? 'Resetting...' : 'Apply Global Reset'}
                 </button>
@@ -384,32 +384,32 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
 
       {/* Team Transaction History Drawer */}
       {historyTeam && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="max-w-xl w-full bg-[#141414] border border-white/10 rounded-3xl p-6 sm:p-8 flex flex-col gap-5 shadow-2xl max-h-[85vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-4 border-b border-white/10">
+        <div className="fixed inset-0 z-50 bg-scrim flex items-center justify-center p-4">
+          <div className="max-w-xl w-full bg-surface border border-border rounded-3xl p-6 sm:p-8 flex flex-col gap-5 shadow-2xl max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-4 border-b border-border">
               <div>
-                <span className="text-[10px] font-mono uppercase tracking-wider text-[#047554]">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-accent-bright">
                   Audit Ledger
                 </span>
-                <h2 className="font-syne font-bold text-xl text-white">
+                <h2 className="font-syne font-bold text-xl text-text">
                   Purse History · {historyTeam.name}
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={() => setHistoryTeam(null)}
-                className="text-[#8E928C] hover:text-white p-1"
+                className="text-muted hover:text-text p-1"
               >
                 <X size={20} />
               </button>
             </div>
 
             {teamTransactions.length === 0 ? (
-              <div className="py-12 text-center text-xs text-[#8E928C]">
+              <div className="py-12 text-center text-xs text-muted">
                 No recorded transactions for this franchise yet.
               </div>
             ) : (
-              <div className="flex flex-col divide-y divide-white/5">
+              <div className="flex flex-col divide-y divide-border">
                 {teamTransactions.map((tx) => (
                   <div key={tx.id} className="py-3 flex items-center justify-between gap-3 text-xs">
                     <div>
@@ -417,27 +417,27 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
                         <span
                           className={`px-1.5 py-0.5 rounded text-[10px] font-mono uppercase ${
                             tx.type === 'deduct'
-                              ? 'bg-[#B91C1C]/20 text-[#B91C1C]'
+                              ? 'bg-error/15 text-error'
                               : tx.type === 'add'
-                              ? 'bg-[#047554]/20 text-[#047554]'
-                              : 'bg-white/10 text-[#CBD1CB]'
+                              ? 'bg-accent-bright/15 text-accent-bright'
+                              : 'bg-surface-2 text-muted'
                           }`}
                         >
                           {tx.type}
                         </span>
-                        <span className="font-medium text-white">{tx.reason || 'Ledger adjustment'}</span>
+                        <span className="font-medium text-text">{tx.reason || 'Ledger adjustment'}</span>
                       </div>
-                      <span className="text-[10px] text-[#8E928C] mt-0.5 block">
+                      <span className="text-[10px] text-muted mt-0.5 block">
                         {new Date(tx.created_at).toLocaleString()}
                       </span>
                     </div>
 
                     <div className="text-right">
-                      <span className="font-mono font-semibold tabular-nums text-white text-sm block">
+                      <span className="font-mono font-semibold tabular-nums text-text text-sm block">
                         {tx.type === 'deduct' ? '-' : '+'}
                         {tx.amount.toLocaleString()} PTS
                       </span>
-                      <span className="text-[10px] font-mono tabular-nums text-[#C88B0F]">
+                      <span className="text-[10px] font-mono tabular-nums text-points">
                         Bal: {tx.balance_after.toLocaleString()} PTS
                       </span>
                     </div>
@@ -446,11 +446,11 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
               </div>
             )}
 
-            <div className="pt-4 border-t border-white/10 flex justify-end">
+            <div className="pt-4 border-t border-border flex justify-end">
               <button
                 type="button"
                 onClick={() => setHistoryTeam(null)}
-                className="min-h-[44px] px-5 py-2 rounded-xl bg-white/10 text-white text-xs font-medium hover:bg-white/15"
+                className="min-h-[44px] px-5 py-2 rounded-xl bg-surface-2 text-text text-xs font-medium hover:bg-border/40"
               >
                 Close History
               </button>
