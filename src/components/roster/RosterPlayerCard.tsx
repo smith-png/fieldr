@@ -1,10 +1,10 @@
 import React from 'react'
-import type { PublicPlayer, Team, PublicTeam } from '../../types'
+import type { PublicPlayer, PublicTeam } from '../../types'
 import { formatAthleteCode } from '../../lib/data'
 
 export interface RosterPlayerCardProps {
   player: PublicPlayer
-  team?: Team | PublicTeam | null
+  team?: PublicTeam | null
   otherSports?: string[]
   onClick?: () => void
 }

@@ -8,9 +8,10 @@ import {
   Trash,
   UploadSimple,
   User,
+  UserPlus,
   X
 } from '@phosphor-icons/react'
-import type { AcademicYear, Athlete, AthleteCareerEntry } from '../../types'
+import type { AcademicYear, Athlete, AthleteCareerEntry, Season, Sport } from '../../types'
 import {
   createAthlete,
   deleteAthlete,
@@ -26,12 +27,19 @@ import { validateImageFile } from '../../lib/imageCompression'
 import { useToast } from '../../lib/ToastContext'
 import { getErrorMessage } from '../../lib/errors'
 import { Button, Dialog, EmptyState, PageHeader, Pagination } from '../../components/ui'
+import { BulkRegisterPanel } from '../../components/admin'
 
 interface AdminAthletesProps {
+  activeSeason: Season | null
+  sports: Sport[]
   onRefresh: () => Promise<void>
 }
 
-export const AdminAthletes: React.FC<AdminAthletesProps> = ({ onRefresh }) => {
+export const AdminAthletes: React.FC<AdminAthletesProps> = ({
+  activeSeason,
+  sports,
+  onRefresh
+}) => {
   const { showToast } = useToast()
 
   // Pagination & Search state
@@ -66,6 +74,9 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({ onRefresh }) => {
   // Delete confirmation modal state
   const [deleteTarget, setDeleteTarget] = useState<Athlete | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  // Register to sport panel state (single-athlete case of BulkRegisterPanel)
+  const [isRegisterToSportOpen, setIsRegisterToSportOpen] = useState(false)
 
   // Debounce search input by 300ms
   useEffect(() => {
@@ -260,6 +271,14 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({ onRefresh }) => {
             }
             actions={
               <>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  leftIcon={UserPlus}
+                  onClick={() => setIsRegisterToSportOpen(true)}
+                >
+                  Register to sport
+                </Button>
                 <Button
                   variant="primary"
                   size="sm"
@@ -795,6 +814,27 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({ onRefresh }) => {
           </Button>
         </div>
       </Dialog>
+
+      {/* Register to Sport Panel (Single-Athlete Case of Bulk Register Flow) */}
+      <BulkRegisterPanel
+        isOpen={isRegisterToSportOpen}
+        onClose={() => setIsRegisterToSportOpen(false)}
+        activeSeason={activeSeason}
+        sports={sports}
+        initialAthlete={selectedAthlete}
+        onSuccess={async () => {
+          if (selectedAthlete) {
+            await openAthleteDetail(selectedAthlete)
+          }
+          await loadAthletes()
+          await onRefresh()
+        }}
+        onCreateNewAthlete={() => {
+          setIsRegisterToSportOpen(false)
+          setSelectedAthlete(null)
+          openCreateForm()
+        }}
+      />
     </div>
   )
 }

@@ -30,8 +30,12 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
         if (mounted && settings[pageKey]) {
           setContent(settings[pageKey] as PageContentSetting)
         }
-      } catch {
-        // fallback
+      } catch (err) {
+        console.error(
+          `Failed to load content page (${pageKey}):`,
+          err instanceof Error ? err.message : err,
+          err
+        )
       } finally {
         if (mounted) setIsLoading(false)
       }

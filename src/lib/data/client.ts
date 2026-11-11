@@ -1,6 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { CarouselItem, Player, ProjectorState, Season, SiteSettings, Sport } from '../../types'
-import { SPORTS } from '../sports'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -60,11 +59,23 @@ export function parseAthleteCode(input: string | number | undefined | null): num
   return !isNaN(parsed) && parsed > 0 ? parsed : null
 }
 
-export const DEFAULT_SPORTS: Sport[] = SPORTS.map((s) => ({
-  id: s.slug,
-  name: s.label,
-  roles: [...s.roles]
-}))
+export const DEFAULT_SPORTS: Sport[] = [
+  {
+    id: 'cricket',
+    name: 'Cricket',
+    roles: ['Batter', 'Bowler', 'All-rounder', 'Wicketkeeper']
+  },
+  {
+    id: 'futsal',
+    name: 'Futsal',
+    roles: ['Goalkeeper', 'Defender', 'Winger', 'Pivot']
+  },
+  {
+    id: 'volleyball',
+    name: 'Volleyball',
+    roles: ['Setter', 'Outside hitter', 'Middle blocker', 'Opposite', 'Libero']
+  }
+]
 
 export const FALLBACK_CAROUSEL_TEXTS: string[] = [
   'LIVE PLAYER AUCTIONS',
@@ -154,7 +165,7 @@ export function initializeDemoStore(): void {
   } else {
     const updated = DEFAULT_SPORTS.map((ds) => {
       const existing = storedSports.find((s) => s.id === ds.id)
-      return existing ? { ...existing, roles: ds.roles } : ds
+      return existing && Array.isArray(existing.roles) ? existing : ds
     })
     setLocal(STORAGE_KEYS.SPORTS, updated)
   }

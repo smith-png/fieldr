@@ -10,6 +10,7 @@ import {
   getActiveSeason,
   getPlayers,
   getPublicTeams,
+  getRolesForSport,
   getSeason
 } from '../../lib/data'
 import type { Player, PublicTeam, Season } from '../../types'
@@ -24,6 +25,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
   const [team, setTeam] = useState<PublicTeam | null>(null)
   const [teamPlayers, setTeamPlayers] = useState<Player[]>([])
   const [allPlayers, setAllPlayers] = useState<Player[]>([])
+  const [sportRoles, setSportRoles] = useState<string[]>([])
 
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
@@ -49,11 +51,20 @@ export const SeasonTeamDetailPage: React.FC = () => {
 
       setTeam(foundTeam)
 
-      const seasonPlayers = await getPlayers(id)
+      const [seasonPlayers, roles] = await Promise.all([
+        getPlayers(id),
+        getRolesForSport(foundTeam.sport)
+      ])
 
       setAllPlayers(seasonPlayers)
       setTeamPlayers(seasonPlayers.filter((p) => p.team_id === teamId))
-    } catch {
+      setSportRoles(roles)
+    } catch (err) {
+      console.error(
+        'Failed to load season team detail data:',
+        err instanceof Error ? err.message : err,
+        err
+      )
       setHasError(true)
     } finally {
       setIsLoading(false)
@@ -148,31 +159,76 @@ export const SeasonTeamDetailPage: React.FC = () => {
                   No players drafted into this team roster yet.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  {teamPlayers.map((p) => {
-                    const athleteEntries = allPlayers.filter((other) => other.athlete_id && other.athlete_id === p.athlete_id)
-                    const otherSports = athleteEntries.filter((other) => other.sport !== p.sport).map((other) => other.sport)
+                <div className="space-y-8">
+                  {(() => {
+                    const orderedRoleKeys = [
+                      ...sportRoles,
+                      ...Array.from(
+                        new Set(
+                          teamPlayers
+                            .map((p) => p.playing_role)
+                            .filter(
+                              (r) =>
+                                !sportRoles.some(
+                                  (sr) => sr.toLowerCase() === r.toLowerCase()
+                                )
+                            )
+                        )
+                      )
+                    ]
 
-                    return (
-                      <RosterPlayerCard
-                        key={p.id}
-                        player={{
-                          id: p.id,
-                          player_code: p.player_code,
-                          athlete_code: p.athlete_code,
-                          name: p.name,
-                          sport: p.sport,
-                          playing_role: p.playing_role,
-                          academic_year: p.academic_year,
-                          season_id: p.season_id,
-                          photo_url: p.photo_url,
-                          photo_thumb_url: p.photo_thumb_url
-                        }}
-                        team={team}
-                        otherSports={otherSports}
-                      />
-                    )
-                  })}
+                    const groups = orderedRoleKeys
+                      .map((role) => ({
+                        role,
+                        players: teamPlayers.filter(
+                          (p) => p.playing_role.toLowerCase() === role.toLowerCase()
+                        )
+                      }))
+                      .filter((g) => g.players.length > 0)
+
+                    return groups.map((group) => (
+                      <div key={group.role} className="space-y-3">
+                        <div className="flex items-center justify-between border-b border-border pb-2">
+                          <span className="font-mono text-xs uppercase tracking-wider text-accent-bright font-semibold">
+                            {group.role}
+                          </span>
+                          <span className="font-mono text-xs text-muted tabular-nums">
+                            {group.players.length}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                          {group.players.map((p) => {
+                            const athleteEntries = allPlayers.filter(
+                              (other) => other.athlete_id && other.athlete_id === p.athlete_id
+                            )
+                            const otherSports = athleteEntries
+                              .filter((other) => other.sport !== p.sport)
+                              .map((other) => other.sport)
+
+                            return (
+                              <RosterPlayerCard
+                                key={p.id}
+                                player={{
+                                  id: p.id,
+                                  player_code: p.player_code,
+                                  athlete_code: p.athlete_code,
+                                  name: p.name,
+                                  sport: p.sport,
+                                  playing_role: p.playing_role,
+                                  academic_year: p.academic_year,
+                                  season_id: p.season_id,
+                                  photo_url: p.photo_url,
+                                  photo_thumb_url: p.photo_thumb_url
+                                }}
+                                team={team}
+                                otherSports={otherSports}
+                              />
+                            )
+                          })}
+                        </div>
+                      </div>
+                    ))
+                  })()}
                 </div>
               )}
             </div>

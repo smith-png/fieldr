@@ -5,9 +5,15 @@ import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
 import { RosterPlayerCard, RosterScoutModal } from '../../components/roster'
-import { getActiveSeason, getPublicPlayersPaged, getRolesForSport, getSports } from '../../lib/data'
+import {
+  getActiveSeason,
+  getPublicPlayersPaged,
+  getPublicTeams,
+  getRolesForSport,
+  getSports
+} from '../../lib/data'
 import { ACADEMIC_YEAR_VALUES } from '../../lib/academicYears'
-import type { PublicPlayer, Season } from '../../types'
+import type { PublicPlayer, PublicTeam, Season } from '../../types'
 
 const ACADEMIC_YEAR_FILTER_OPTIONS = ['All', ...ACADEMIC_YEAR_VALUES] as const
 
@@ -17,6 +23,7 @@ export const RosterSportPage: React.FC = () => {
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [activeSeason, setActiveSeason] = useState<Season | null>(null)
+  const [teams, setTeams] = useState<PublicTeam[]>([])
   const [selectedYear, setSelectedYear] = useState<string>('All')
   const [selectedRole, setSelectedRole] = useState<string>('All')
 
@@ -36,15 +43,23 @@ export const RosterSportPage: React.FC = () => {
   const [expandedPlayer, setExpandedPlayer] = useState<PublicPlayer | null>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
 
-  // Load initial season data
+  // Load initial season and public teams data
   useEffect(() => {
     let mounted = true
     async function init() {
       try {
         const season = await getActiveSeason()
         if (mounted) setActiveSeason(season)
-      } catch {
-        // demo fallback
+        if (season) {
+          const publicTeams = await getPublicTeams(season.id)
+          if (mounted) setTeams(publicTeams)
+        }
+      } catch (err) {
+        console.error(
+          'Failed to load active season or public teams on roster sport page:',
+          err instanceof Error ? err.message : err,
+          err
+        )
       }
     }
     init()
@@ -78,7 +93,12 @@ export const RosterSportPage: React.FC = () => {
           }
           setIsSportChecked(true)
         }
-      } catch {
+      } catch (err) {
+        console.error(
+          'Failed to load sport roles on roster sport page:',
+          err instanceof Error ? err.message : err,
+          err
+        )
         if (mounted) {
           setIsSportChecked(true)
           setIsSportValid(false)
@@ -121,8 +141,12 @@ export const RosterSportPage: React.FC = () => {
         } else {
           setPlayers(result.players)
         }
-      } catch {
-        // demo fallback
+      } catch (err) {
+        console.error(
+          'Failed to load public players on roster sport page:',
+          err instanceof Error ? err.message : err,
+          err
+        )
       } finally {
         setIsLoading(false)
         setIsLoadingMore(false)
@@ -305,6 +329,7 @@ export const RosterSportPage: React.FC = () => {
                 <RosterPlayerCard
                   key={player.id}
                   player={player}
+                  team={teams.find((t) => t.id === player.team_id)}
                   onClick={() => setExpandedPlayer(player)}
                 />
               ))}

@@ -1,20 +1,28 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import {
   ArrowDown,
   ArrowUp,
+  Check,
   FloppyDisk,
   Hourglass,
   PencilSimple,
   Plus,
-  Trash
+  Trash,
+  X
 } from '@phosphor-icons/react'
 import { useToast } from '../../lib/ToastContext'
 import { getErrorMessage } from '../../lib/errors'
 import {
+  addSportRole,
   createCarouselItem,
   deleteCarouselItem,
+  deleteSportRole,
   getCarouselItems,
   getSiteSettings,
+  getSportRoleUsageCounts,
+  getSports,
+  renameSportRole,
+  reorderSportRoles,
   swapCarouselItems,
   updateCarouselItem,
   updateSiteSetting
@@ -27,11 +35,15 @@ import {
   PageHeader,
   SegmentedControl
 } from '../../components/ui'
-import type { CarouselItem, PageContentSetting, SiteSettings } from '../../types'
+import type { CarouselItem, PageContentSetting, SiteSettings, Sport } from '../../types'
 
-type SetupTab = 'carousel' | 'pages' | 'auction'
+type SetupTab = 'carousel' | 'pages' | 'sports' | 'auction'
 
-export const AdminSetup: React.FC = () => {
+interface AdminSetupProps {
+  onRefresh?: () => Promise<void>
+}
+
+export const AdminSetup: React.FC<AdminSetupProps> = ({ onRefresh }) => {
   const { showToast } = useToast()
   const [activeTab, setActiveTab] = useState<SetupTab>('carousel')
 
@@ -50,6 +62,16 @@ export const AdminSetup: React.FC = () => {
   const [pageTitle, setPageTitle] = useState('')
   const [pageBody, setPageBody] = useState('')
   const [isSavingPage, setIsSavingPage] = useState(false)
+
+  // Sports & Roles State
+  const [sportsList, setSportsList] = useState<Sport[]>([])
+  const [selectedSportId, setSelectedSportId] = useState<string>('cricket')
+  const [roleUsageCounts, setRoleUsageCounts] = useState<Record<string, number>>({})
+  const [isLoadingSports, setIsLoadingSports] = useState(false)
+  const [newRoleName, setNewRoleName] = useState('')
+  const [isSavingRoleAction, setIsSavingRoleAction] = useState(false)
+  const [renamingRole, setRenamingRole] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
 
   // Load Carousel Items
   const loadCarousel = async () => {
@@ -84,10 +106,49 @@ export const AdminSetup: React.FC = () => {
     }
   }
 
+  // Load Sports & Role Usage Counts
+  const loadSportsAndUsage = useCallback(
+    async (targetSportId?: string) => {
+      try {
+        setIsLoadingSports(true)
+        const allSports = await getSports()
+        setSportsList(allSports)
+        const activeId =
+          targetSportId ||
+          (allSports.some((s) => s.id === selectedSportId)
+            ? selectedSportId
+            : allSports[0]?.id || 'cricket')
+        setSelectedSportId(activeId)
+        const counts = await getSportRoleUsageCounts(activeId)
+        setRoleUsageCounts(counts)
+      } catch (err) {
+        showToast(getErrorMessage(err, 'Failed to load sports and roles'), 'error')
+      } finally {
+        setIsLoadingSports(false)
+      }
+    },
+    [selectedSportId, showToast]
+  )
+
   useEffect(() => {
     loadCarousel()
     loadSettings()
+    loadSportsAndUsage('cricket')
   }, [])
+
+  // Refresh role usage counts when selectedSportId changes
+  const handleSelectSport = async (sportId: string) => {
+    setSelectedSportId(sportId)
+    setRenamingRole(null)
+    setRenameValue('')
+    setNewRoleName('')
+    try {
+      const counts = await getSportRoleUsageCounts(sportId)
+      setRoleUsageCounts(counts)
+    } catch (err) {
+      showToast(getErrorMessage(err, 'Failed to load role usage counts'), 'error')
+    }
+  }
 
   // Sync inputs when page key changes
   useEffect(() => {
@@ -232,10 +293,134 @@ export const AdminSetup: React.FC = () => {
       await updateSiteSetting(selectedPageKey, payload)
       setSiteSettings((prev) => ({ ...prev, [selectedPageKey]: payload }))
       showToast('Page content saved', 'success')
-    } catch {
-      showToast('Failed to save page content', 'error')
+    } catch (err) {
+      showToast(getErrorMessage(err, 'Failed to save page content'), 'error')
     } finally {
       setIsSavingPage(false)
+    }
+  }
+
+  // Sports & Roles Handlers
+  const selectedSport = sportsList.find((s) => s.id === selectedSportId) || sportsList[0] || null
+
+  const handleAddRole = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedSport || isSavingRoleAction) return
+
+    const trimmed = newRoleName.trim()
+    if (!trimmed) {
+      showToast('Role name is required.', 'error')
+      return
+    }
+    if (selectedSport.roles.some((r) => r.toLowerCase() === trimmed.toLowerCase())) {
+      showToast(`Role "${trimmed}" already exists in ${selectedSport.name}.`, 'error')
+      return
+    }
+
+    try {
+      setIsSavingRoleAction(true)
+      await addSportRole(selectedSport.id, trimmed)
+      setNewRoleName('')
+      showToast(`Added role "${trimmed}" to ${selectedSport.name}`, 'success')
+      await loadSportsAndUsage(selectedSport.id)
+      await onRefresh?.()
+    } catch (err) {
+      showToast(getErrorMessage(err, 'Failed to add role'), 'error')
+    } finally {
+      setIsSavingRoleAction(false)
+    }
+  }
+
+  const handleStartRename = (role: string) => {
+    setRenamingRole(role)
+    setRenameValue(role)
+  }
+
+  const handleConfirmRename = async (oldRole: string) => {
+    if (!selectedSport || isSavingRoleAction) return
+    const trimmed = renameValue.trim()
+    if (!trimmed) {
+      showToast('Role name is required.', 'error')
+      return
+    }
+    if (trimmed === oldRole) {
+      setRenamingRole(null)
+      return
+    }
+
+    const duplicate = selectedSport.roles.some(
+      (r) => r.toLowerCase() !== oldRole.toLowerCase() && r.toLowerCase() === trimmed.toLowerCase()
+    )
+    if (duplicate) {
+      showToast(`Role "${trimmed}" already exists in ${selectedSport.name}.`, 'error')
+      return
+    }
+
+    try {
+      setIsSavingRoleAction(true)
+      const { updatedPlayersCount } = await renameSportRole(selectedSport.id, oldRole, trimmed)
+      setRenamingRole(null)
+      setRenameValue('')
+      showToast(
+        `Role renamed to "${trimmed}". ${updatedPlayersCount} ${
+          updatedPlayersCount === 1 ? 'player' : 'players'
+        } updated.`,
+        'success'
+      )
+      await loadSportsAndUsage(selectedSport.id)
+      await onRefresh?.()
+    } catch (err) {
+      showToast(getErrorMessage(err, 'Failed to rename role'), 'error')
+    } finally {
+      setIsSavingRoleAction(false)
+    }
+  }
+
+  const handleMoveRole = async (index: number, direction: 'up' | 'down') => {
+    if (!selectedSport || isSavingRoleAction) return
+    const targetIndex = direction === 'up' ? index - 1 : index + 1
+    if (targetIndex < 0 || targetIndex >= selectedSport.roles.length) return
+
+    const nextRoles = [...selectedSport.roles]
+    const temp = nextRoles[index]
+    nextRoles[index] = nextRoles[targetIndex]
+    nextRoles[targetIndex] = temp
+
+    try {
+      setIsSavingRoleAction(true)
+      await reorderSportRoles(selectedSport.id, nextRoles)
+      showToast('Role order updated', 'success')
+      await loadSportsAndUsage(selectedSport.id)
+      await onRefresh?.()
+    } catch (err) {
+      showToast(getErrorMessage(err, 'Failed to reorder roles'), 'error')
+    } finally {
+      setIsSavingRoleAction(false)
+    }
+  }
+
+  const handleDeleteRole = async (role: string) => {
+    if (!selectedSport || isSavingRoleAction) return
+
+    const usedCount = roleUsageCounts[role] || 0
+    if (usedCount > 0) {
+      showToast(
+        `${usedCount} players use this role. Rename it or change those players first.`,
+        'error'
+      )
+      return
+    }
+
+    try {
+      setIsSavingRoleAction(true)
+      await deleteSportRole(selectedSport.id, role)
+      showToast(`Deleted role "${role}"`, 'success')
+      await loadSportsAndUsage(selectedSport.id)
+      await onRefresh?.()
+    } catch (err) {
+      showToast(getErrorMessage(err, 'Failed to delete role'), 'error')
+    } finally {
+      setIsSavingRoleAction(false)
     }
   }
 
@@ -244,7 +429,7 @@ export const AdminSetup: React.FC = () => {
       <PageHeader
         label="Site Configuration"
         title="System Setup"
-        subtitle="Manage the homepage stadium ticker ribbon, public documentation pages, and auction settings."
+        subtitle="Manage the homepage stadium ticker ribbon, public documentation pages, sports roles, and auction settings."
         actions={
           <SegmentedControl
             ariaLabel="Setup sections"
@@ -253,6 +438,7 @@ export const AdminSetup: React.FC = () => {
             options={[
               { value: 'carousel', label: 'Carousel' },
               { value: 'pages', label: 'Pages' },
+              { value: 'sports', label: 'Sports' },
               { value: 'auction', label: 'Auction' }
             ]}
           />
@@ -461,7 +647,195 @@ export const AdminSetup: React.FC = () => {
         </div>
       )}
 
-      {/* Tab 3: Auction Placeholder Card */}
+      {/* Tab 3: Sports and Roles */}
+      {activeTab === 'sports' && (
+        <div className="space-y-6">
+          <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
+              <div>
+                <h2 className="font-syne font-bold text-xl text-text">Sports and Roles</h2>
+                <p className="text-xs text-muted mt-1">
+                  Configure playing roles for each sport discipline. Changes apply across registration forms, filters, and public rosters.
+                </p>
+              </div>
+
+              {sportsList.length > 0 && (
+                <SegmentedControl
+                  ariaLabel="Select sport discipline"
+                  size="sm"
+                  value={selectedSport?.id || 'cricket'}
+                  onChange={handleSelectSport}
+                  options={sportsList.map((s) => ({
+                    value: s.id,
+                    label: s.name
+                  }))}
+                />
+              )}
+            </div>
+
+            {/* Add New Role Form */}
+            <form onSubmit={handleAddRole} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <input
+                type="text"
+                value={newRoleName}
+                onChange={(e) => setNewRoleName(e.target.value)}
+                placeholder={`Add a new role for ${selectedSport?.name || 'sport'}...`}
+                disabled={isSavingRoleAction || !selectedSport}
+                className="flex-1 bg-bg border border-border rounded-xl px-4 py-2.5 text-xs text-text placeholder-muted focus:outline-none focus:border-accent-bright disabled:opacity-50"
+              />
+              <Button
+                type="submit"
+                variant="primary"
+                size="md"
+                leftIcon={Plus}
+                disabled={isSavingRoleAction || !newRoleName.trim() || !selectedSport}
+                isLoading={isSavingRoleAction && !renamingRole}
+              >
+                Add Role
+              </Button>
+            </form>
+
+            {/* Roles List */}
+            {isLoadingSports ? (
+              <div className="space-y-2.5">
+                {[1, 2, 3, 4].map((i) => (
+                  <div
+                    key={i}
+                    className="h-14 bg-surface-2/60 border border-border rounded-xl animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : !selectedSport || selectedSport.roles.length === 0 ? (
+              <EmptyState
+                title="No roles configured"
+                description="Add a playing role above for this sport."
+              />
+            ) : (
+              <div className="bg-bg border border-border rounded-2xl overflow-hidden divide-y divide-border">
+                {selectedSport.roles.map((role, index) => {
+                  const usedCount = roleUsageCounts[role] || 0
+                  const isRenamingThis = renamingRole === role
+
+                  return (
+                    <div
+                      key={role}
+                      className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-surface-2/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3.5 flex-1 min-w-0">
+                        <span className="font-mono text-xs text-muted w-6 shrink-0 tabular-nums">
+                          {String(index + 1).padStart(2, '0')}
+                        </span>
+
+                        {isRenamingThis ? (
+                          <div className="flex items-center gap-2 flex-1 max-w-md">
+                            <input
+                              type="text"
+                              value={renameValue}
+                              onChange={(e) => setRenameValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  handleConfirmRename(role)
+                                } else if (e.key === 'Escape') {
+                                  setRenamingRole(null)
+                                }
+                              }}
+                              autoFocus
+                              disabled={isSavingRoleAction}
+                              className="flex-1 bg-surface border border-accent-bright rounded-xl px-3 py-1.5 text-xs text-text focus:outline-none"
+                            />
+                            <Button
+                              type="button"
+                              variant="primary"
+                              size="sm"
+                              leftIcon={Check}
+                              disabled={isSavingRoleAction || !renameValue.trim()}
+                              isLoading={isSavingRoleAction}
+                              onClick={() => handleConfirmRename(role)}
+                            >
+                              Save
+                            </Button>
+                            <button
+                              type="button"
+                              disabled={isSavingRoleAction}
+                              onClick={() => setRenamingRole(null)}
+                              title="Cancel rename"
+                              className="p-1.5 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 transition-colors"
+                            >
+                              <X size={14} weight="bold" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="min-w-0 flex items-center gap-3 flex-wrap">
+                            <span className="text-sm font-medium text-text">{role}</span>
+                            <span className="text-[11px] font-mono text-muted tabular-nums">
+                              {usedCount} {usedCount === 1 ? 'player' : 'players'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {!isRenamingThis && (
+                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                          {/* Reorder Up / Down */}
+                          <button
+                            type="button"
+                            disabled={index === 0 || isSavingRoleAction}
+                            onClick={() => handleMoveRole(index, 'up')}
+                            title="Move role up"
+                            className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                          >
+                            <ArrowUp size={14} weight="bold" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={
+                              index === selectedSport.roles.length - 1 || isSavingRoleAction
+                            }
+                            onClick={() => handleMoveRole(index, 'down')}
+                            title="Move role down"
+                            className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                          >
+                            <ArrowDown size={14} weight="bold" />
+                          </button>
+
+                          {/* Rename */}
+                          <button
+                            type="button"
+                            disabled={isSavingRoleAction}
+                            onClick={() => handleStartRename(role)}
+                            title="Rename role"
+                            className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 transition-colors"
+                          >
+                            <PencilSimple size={14} />
+                          </button>
+
+                          {/* Delete */}
+                          <button
+                            type="button"
+                            disabled={isSavingRoleAction}
+                            onClick={() => handleDeleteRole(role)}
+                            title={
+                              usedCount > 0
+                                ? `${usedCount} players use this role. Rename it or change those players first.`
+                                : 'Delete role'
+                            }
+                            className="p-2 rounded-lg border border-border text-muted hover:text-error hover:bg-error/10 disabled:opacity-30 transition-colors"
+                          >
+                            <Trash size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Tab 4: Auction Placeholder Card */}
       {activeTab === 'auction' && (
         <EmptyState
           icon={Hourglass}

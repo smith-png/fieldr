@@ -1,16 +1,16 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Shield, Users, Wallet } from '@phosphor-icons/react'
+import { CaretRight, Shield, Users } from '@phosphor-icons/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
-import { getActiveSeason, getPlayers, getTeams } from '../../lib/data'
-import type { Player, Season, Team } from '../../types'
+import { getActiveSeason, getPlayers, getPublicTeams } from '../../lib/data'
+import type { Player, PublicTeam, Season } from '../../types'
 
 export const TeamsPage: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [activeSeason, setActiveSeason] = useState<Season | null>(null)
-  const [teams, setTeams] = useState<Team[]>([])
+  const [teams, setTeams] = useState<PublicTeam[]>([])
   const [players, setPlayers] = useState<Player[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
 
@@ -24,7 +24,7 @@ export const TeamsPage: React.FC = () => {
 
         if (season) {
           const [teamList, playerList] = await Promise.all([
-            getTeams(season.id),
+            getPublicTeams(season.id),
             getPlayers(season.id)
           ])
           if (mounted) {
@@ -32,8 +32,12 @@ export const TeamsPage: React.FC = () => {
             setPlayers(playerList)
           }
         }
-      } catch {
-        // demo fallback
+      } catch (err) {
+        console.error(
+          'Failed to load teams page data:',
+          err instanceof Error ? err.message : err,
+          err
+        )
       } finally {
         if (mounted) setIsLoading(false)
       }
@@ -98,9 +102,10 @@ export const TeamsPage: React.FC = () => {
             {teams.map((team) => {
               const assignedCount = players.filter((p) => p.team_id === team.id).length
               return (
-                <div
+                <Link
                   key={team.id}
-                  className="bg-surface border border-border hover:border-accent-bright rounded-2xl p-6 transition-colors flex flex-col justify-between shadow-sm"
+                  to={`/season/${team.season_id}/teams/${team.id}`}
+                  className="group bg-surface border border-border hover:border-accent-bright rounded-2xl p-6 transition-colors flex flex-col justify-between shadow-sm"
                 >
                   <div>
                     {/* Header with Logo and Color Badge */}
@@ -132,7 +137,7 @@ export const TeamsPage: React.FC = () => {
                               title={`Team color: ${team.color}`}
                             />
                           </div>
-                          <h3 className="font-syne font-bold text-xl text-text tracking-tight">
+                          <h3 className="font-syne font-bold text-xl text-text group-hover:text-accent-bright transition-colors tracking-tight">
                             {team.name}
                           </h3>
                         </div>
@@ -154,31 +159,21 @@ export const TeamsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Financial & Squad Metrics */}
-                  <div className="grid grid-cols-2 gap-4 pt-4 mt-2">
-                    <div className="bg-surface-2 rounded-xl p-3 border border-border">
-                      <div className="flex items-center gap-1.5 text-[11px] text-muted mb-1">
-                        <Wallet size={14} className="text-points" />
-                        <span>Purse Balance</span>
-                      </div>
-                      <div className="font-mono text-base font-bold text-text tabular-nums">
-                        {team.current_purse.toLocaleString()}
-                        <span className="text-xs text-muted ml-1 font-normal">pts</span>
-                      </div>
+                  {/* Squad Metrics */}
+                  <div className="flex items-center justify-between pt-4 mt-2">
+                    <div className="flex items-center gap-2 text-xs text-muted">
+                      <Users size={16} className="text-accent-bright" />
+                      <span>Roster Size:</span>
+                      <span className="font-mono font-bold text-text tabular-nums">
+                        {assignedCount} {assignedCount === 1 ? 'player' : 'players'}
+                      </span>
                     </div>
-
-                    <div className="bg-surface-2 rounded-xl p-3 border border-border">
-                      <div className="flex items-center gap-1.5 text-[11px] text-muted mb-1">
-                        <Users size={14} className="text-accent-bright" />
-                        <span>Roster Size</span>
-                      </div>
-                      <div className="font-mono text-base font-bold text-text tabular-nums">
-                        {assignedCount}
-                        <span className="text-xs text-muted ml-1 font-normal">players</span>
-                      </div>
-                    </div>
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-accent-bright">
+                      <span>View Squad</span>
+                      <CaretRight size={14} weight="bold" className="group-hover:translate-x-0.5 transition-transform" />
+                    </span>
                   </div>
-                </div>
+                </Link>
               )
             })}
           </div>

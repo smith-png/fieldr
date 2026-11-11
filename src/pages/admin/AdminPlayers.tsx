@@ -14,6 +14,7 @@ import {
   User,
   UserMinus,
   UserPlus,
+  Users,
   WarningCircle,
   X
 } from '@phosphor-icons/react'
@@ -36,6 +37,7 @@ import { useToast } from '../../lib/ToastContext'
 import { getAcademicYearLabel } from '../../lib/academicYears'
 import { getErrorMessage } from '../../lib/errors'
 import { Button, Dialog, EmptyState, PageHeader, Pagination } from '../../components/ui'
+import { BulkRegisterPanel } from '../../components/admin'
 
 interface AdminPlayersProps {
   activeSeason: Season | null
@@ -69,10 +71,13 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [selectedSport, setSelectedSport] = useState<string>('all')
+  const [selectedRole, setSelectedRole] = useState<string>('all')
+  const [filterSportRoles, setFilterSportRoles] = useState<string[]>([])
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
 
   // Modals & Drawers
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const [isBulkDrawerOpen, setIsBulkDrawerOpen] = useState(false)
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null)
   const [deleteConfirmPlayer, setDeleteConfirmPlayer] = useState<Player | null>(null)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
@@ -253,10 +258,33 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
     return () => clearTimeout(handler)
   }, [searchQuery])
 
-  // Reset page when sport or status filter changes
+  // Reset page when sport, role or status filter changes
   useEffect(() => {
     setCurrentPage(1)
-  }, [selectedSport, selectedStatus])
+  }, [selectedSport, selectedRole, selectedStatus])
+
+  // Load filter roles when selectedSport changes
+  useEffect(() => {
+    let mounted = true
+    async function loadFilterRoles() {
+      if (selectedSport === 'all') {
+        if (mounted) {
+          setFilterSportRoles([])
+          setSelectedRole('all')
+        }
+        return
+      }
+      const roles = await getRolesForSport(selectedSport)
+      if (mounted) {
+        setFilterSportRoles(roles)
+        setSelectedRole((prev) => (prev !== 'all' && !roles.includes(prev) ? 'all' : prev))
+      }
+    }
+    loadFilterRoles()
+    return () => {
+      mounted = false
+    }
+  }, [selectedSport, sports])
 
   // Load paged players
   const loadPagedPlayers = useCallback(async () => {
@@ -268,6 +296,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
         page: currentPage,
         pageSize,
         sport: selectedSport === 'all' ? undefined : selectedSport,
+        role: selectedRole === 'all' ? undefined : selectedRole,
         status: selectedStatus === 'all' ? undefined : (selectedStatus as PlayerStatus),
         search: debouncedSearch || undefined
       })
@@ -279,7 +308,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
     } finally {
       setIsLoading(false)
     }
-  }, [activeSeason, currentPage, pageSize, selectedSport, selectedStatus, debouncedSearch, showToast])
+  }, [activeSeason, currentPage, pageSize, selectedSport, selectedRole, selectedStatus, debouncedSearch, showToast])
 
   useEffect(() => {
     loadPagedPlayers()
@@ -567,6 +596,15 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
             </Button>
 
             <Button
+              variant="secondary"
+              size="md"
+              leftIcon={Users}
+              onClick={() => setIsBulkDrawerOpen(true)}
+            >
+              Bulk Register
+            </Button>
+
+            <Button
               variant="primary"
               size="md"
               leftIcon={Plus}
@@ -611,6 +649,24 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
               ))}
             </select>
           </div>
+
+          {selectedSport !== 'all' && filterSportRoles.length > 0 && (
+            <div className="flex items-center gap-2 text-xs text-muted">
+              <span>Role:</span>
+              <select
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value)}
+                className="bg-bg border border-border rounded-lg px-2.5 py-1.5 text-xs text-text focus:outline-none focus:border-accent-bright"
+              >
+                <option value="all">All Roles</option>
+                {filterSportRoles.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="flex items-center gap-2 text-xs text-muted">
             <span>Status:</span>
@@ -1064,6 +1120,27 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
           </div>
         </div>
       )}
+
+      {/* Bulk Register Panel */}
+      <BulkRegisterPanel
+        isOpen={isBulkDrawerOpen}
+        onClose={() => setIsBulkDrawerOpen(false)}
+        activeSeason={activeSeason}
+        sports={sports}
+        onSuccess={async () => {
+          await loadPagedPlayers()
+          await refreshSeasonPlayers()
+          await onRefresh()
+        }}
+        onCreateNewAthlete={
+          onGoToTab
+            ? () => {
+                setIsBulkDrawerOpen(false)
+                onGoToTab('athletes')
+              }
+            : undefined
+        }
+      />
 
       {/* CSV Export Modal */}
       <Dialog

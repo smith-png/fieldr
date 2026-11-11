@@ -42,6 +42,7 @@ export const SeasonDetailPage: React.FC = () => {
 
   // Filters for players
   const [playerSportFilter, setPlayerSportFilter] = useState('all')
+  const [playerRoleFilter, setPlayerRoleFilter] = useState('all')
   const [playerSearch, setPlayerSearch] = useState('')
 
   const loadData = async () => {
@@ -70,7 +71,12 @@ export const SeasonDetailPage: React.FC = () => {
       setSports(sportsData)
       setTeams(teamsData)
       setPlayers(playersData)
-    } catch {
+    } catch (err) {
+      console.error(
+        'Failed to load season detail data:',
+        err instanceof Error ? err.message : err,
+        err
+      )
       setHasError(true)
     } finally {
       setIsLoading(false)
@@ -81,9 +87,17 @@ export const SeasonDetailPage: React.FC = () => {
     loadData()
   }, [id])
 
+  const selectedSportObj = sports.find(
+    (s) => s.name.toLowerCase() === playerSportFilter.toLowerCase()
+  )
+  const availableFilterRoles = selectedSportObj?.roles || []
+
   // Filter players
   const filteredPlayers = players.filter((p) => {
     if (playerSportFilter !== 'all' && p.sport.toLowerCase() !== playerSportFilter.toLowerCase()) {
+      return false
+    }
+    if (playerRoleFilter !== 'all' && p.playing_role.toLowerCase() !== playerRoleFilter.toLowerCase()) {
       return false
     }
     if (playerSearch.trim()) {
@@ -255,18 +269,36 @@ export const SeasonDetailPage: React.FC = () => {
                     />
                   </div>
 
-                  <div className="flex items-center gap-2 text-xs">
-                    <Funnel size={14} className="text-muted" />
-                    <select
-                      value={playerSportFilter}
-                      onChange={(e) => setPlayerSportFilter(e.target.value)}
-                      className="bg-bg border border-border rounded-lg px-2.5 py-1.5 text-xs text-text focus:outline-none focus:border-accent-bright"
-                    >
-                      <option value="all">All Sports</option>
-                      {sports.map((s) => (
-                        <option key={s.id} value={s.name}>{s.name}</option>
-                      ))}
-                    </select>
+                  <div className="flex items-center gap-3 flex-wrap text-xs">
+                    <div className="flex items-center gap-2">
+                      <Funnel size={14} className="text-muted" />
+                      <select
+                        value={playerSportFilter}
+                        onChange={(e) => {
+                          setPlayerSportFilter(e.target.value)
+                          setPlayerRoleFilter('all')
+                        }}
+                        className="bg-bg border border-border rounded-lg px-2.5 py-1.5 text-xs text-text focus:outline-none focus:border-accent-bright"
+                      >
+                        <option value="all">All Sports</option>
+                        {sports.map((s) => (
+                          <option key={s.id} value={s.name}>{s.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {playerSportFilter !== 'all' && availableFilterRoles.length > 0 && (
+                      <select
+                        value={playerRoleFilter}
+                        onChange={(e) => setPlayerRoleFilter(e.target.value)}
+                        className="bg-bg border border-border rounded-lg px-2.5 py-1.5 text-xs text-text focus:outline-none focus:border-accent-bright"
+                      >
+                        <option value="all">All Roles</option>
+                        {availableFilterRoles.map((r) => (
+                          <option key={r} value={r}>{r}</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </div>
 

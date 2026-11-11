@@ -52,7 +52,12 @@ export const SeasonPage: React.FC = () => {
       })
 
       setSeasonCards(cards)
-    } catch {
+    } catch (err) {
+      console.error(
+        'Failed to load seasons page data:',
+        err instanceof Error ? err.message : err,
+        err
+      )
       setHasError(true)
     } finally {
       setIsLoading(false)

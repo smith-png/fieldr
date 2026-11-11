@@ -413,7 +413,11 @@ const supabaseSiteService: SiteService = {
     if (!supabase) return DEFAULT_SETTINGS
 
     const { data, error } = await supabase.from('site_settings').select('*')
-    if (error || !data) return DEFAULT_SETTINGS
+    if (error) {
+      console.error('Supabase getSiteSettings error:', error.message, error)
+      return DEFAULT_SETTINGS
+    }
+    if (!data) return DEFAULT_SETTINGS
 
     const result: SiteSettings = { ...DEFAULT_SETTINGS }
     for (const row of data) {

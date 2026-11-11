@@ -35,7 +35,12 @@ export const PlayerProfilePage: React.FC = () => {
       setAthlete(profile)
       const history = await getAthleteCareer(profile.id)
       setCareer(history)
-    } catch {
+    } catch (err) {
+      console.error(
+        'Failed to load athlete profile data:',
+        err instanceof Error ? err.message : err,
+        err
+      )
       setHasError(true)
     } finally {
       setIsLoading(false)

@@ -32,8 +32,12 @@ export const RostersPage: React.FC = () => {
             })
           }
         }
-      } catch {
-        // demo fallback
+      } catch (err) {
+        console.error(
+          'Failed to load rosters page data:',
+          err instanceof Error ? err.message : err,
+          err
+        )
       }
     }
     loadData()

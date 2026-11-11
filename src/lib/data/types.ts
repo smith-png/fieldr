@@ -44,6 +44,15 @@ export interface SeasonsService {
 export interface TeamsService {
   getSports(): Promise<Sport[]>
   getRolesForSport(sportNameOrId: string): Promise<string[]>
+  addSportRole(sportIdOrName: string, roleName: string): Promise<Sport>
+  renameSportRole(
+    sportIdOrName: string,
+    oldRole: string,
+    newRole: string
+  ): Promise<{ sport: Sport; updatedPlayersCount: number }>
+  reorderSportRoles(sportIdOrName: string, orderedRoles: string[]): Promise<Sport>
+  deleteSportRole(sportIdOrName: string, roleName: string): Promise<Sport>
+  getSportRoleUsageCounts(sportIdOrName: string): Promise<Record<string, number>>
   getTeams(seasonId: string): Promise<Team[]>
   getPublicTeams(seasonId: string): Promise<PublicTeam[]>
   getActiveTeams(): Promise<Team[]>
@@ -67,6 +76,7 @@ export interface AthletesPagedResult {
 }
 
 export interface AthletesService {
+  getAllAthletes(): Promise<Athlete[]>
   getAthletesPaged(params: AthletesPagedParams): Promise<AthletesPagedResult>
   searchAthletes(query: string): Promise<Athlete[]>
   getAthleteByCode(code: number | string): Promise<Athlete | null>
@@ -110,6 +120,33 @@ export interface PublicPlayersPagedResult {
   hasMore: boolean
 }
 
+export interface BulkRegisterEntryInput {
+  athlete_id: string
+  athlete_name: string
+  athlete_code?: number
+  academic_year: Player['academic_year']
+  playing_role: string
+}
+
+export interface BulkRegisterParams {
+  seasonId: string
+  sport: string
+  basePoints: number
+  entries: BulkRegisterEntryInput[]
+}
+
+export interface BulkRegisterSkippedItem {
+  athlete_id: string
+  athlete_name: string
+  athlete_code?: number
+  reason: string
+}
+
+export interface BulkRegisterResult {
+  registered: Player[]
+  skipped: BulkRegisterSkippedItem[]
+}
+
 export interface PlayersService {
   getPlayers(seasonId: string): Promise<Player[]>
   getPlayersPaged(params: PlayersPagedParams): Promise<PlayersPagedResult>
@@ -121,6 +158,7 @@ export interface PlayersService {
   bulkCreatePlayers(
     playersData: Array<Omit<Player, 'id' | 'player_code' | 'created_at'>>
   ): Promise<Player[]>
+  bulkRegisterPlayers(params: BulkRegisterParams): Promise<BulkRegisterResult>
   updatePlayer(id: string, updates: Partial<Player>): Promise<Player>
   deletePlayer(id: string): Promise<void>
   exportPlayersForSport(seasonId: string, sport?: string): Promise<Player[]>

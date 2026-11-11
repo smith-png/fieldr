@@ -135,7 +135,11 @@ export const AdminPage: React.FC = () => {
       )}
 
       {currentTab === 'athletes' && (
-        <AdminAthletes onRefresh={loadAllData} />
+        <AdminAthletes
+          activeSeason={activeSeason}
+          sports={sports}
+          onRefresh={loadAllData}
+        />
       )}
 
       {currentTab === 'players' && (
@@ -168,7 +172,7 @@ export const AdminPage: React.FC = () => {
         />
       )}
 
-      {currentTab === 'setup' && <AdminSetup />}
+      {currentTab === 'setup' && <AdminSetup onRefresh={loadAllData} />}
     </AdminLayout>
   )
 }

@@ -1,8 +1,10 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowUpRight } from '@phosphor-icons/react'
 import { useReducedMotion } from 'motion/react'
 import { SPORTS, type SportSlug } from '../../lib/sports'
+import { getSports } from '../../lib/data'
+import type { Sport } from '../../types'
 import {
   CricketIllustration,
   FutsalIllustration,
@@ -19,14 +21,27 @@ const sportIllustrations: Record<SportSlug, React.ComponentType<{ className?: st
   volleyball: VolleyballIllustration
 }
 
-const sportDescriptions: Record<SportSlug, string> = {
-  cricket: 'Batters, pace & spin bowlers, all-rounders, and wicketkeepers.',
-  futsal: 'Goalkeepers, defensive anchors, dynamic playmakers, and forwards.',
-  volleyball: 'Setters, outside hitters, middle blockers, opposites, and liberos.'
-}
-
 export const SportCardsGrid: React.FC<SportCardsGridProps> = ({ playerCounts }) => {
   const shouldReduceMotion = useReducedMotion()
+  const [sportsData, setSportsData] = useState<Sport[]>([])
+
+  useEffect(() => {
+    let mounted = true
+    getSports()
+      .then((res) => {
+        if (mounted) setSportsData(res)
+      })
+      .catch((err) => {
+        console.error(
+          'Failed to load sports in SportCardsGrid:',
+          err instanceof Error ? err.message : err,
+          err
+        )
+      })
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   return (
     <section className="w-full max-w-7xl mx-auto px-6 md:px-16 lg:px-24 py-16 md:py-24">
@@ -46,7 +61,13 @@ export const SportCardsGrid: React.FC<SportCardsGridProps> = ({ playerCounts }) 
           const slug = sport.slug as SportSlug
           const Illustration = sportIllustrations[slug]
           const count = playerCounts[slug] || 0
-          const description = sportDescriptions[slug]
+          const dbSport = sportsData.find(
+            (s) =>
+              s.id.toLowerCase() === slug ||
+              s.name.toLowerCase() === sport.label.toLowerCase()
+          )
+          const description =
+            dbSport && dbSport.roles.length > 0 ? dbSport.roles.join(' · ') : sport.label
 
           return (
             <Link

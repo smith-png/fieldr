@@ -15,7 +15,13 @@ import { getActiveSeason } from './seasons'
 
 const demoTeamsService: TeamsService = {
   async getSports(): Promise<Sport[]> {
-    return getLocal<Sport[]>(STORAGE_KEYS.SPORTS, DEFAULT_SPORTS)
+    const sports = getLocal<Sport[]>(STORAGE_KEYS.SPORTS, DEFAULT_SPORTS)
+    const order = ['cricket', 'futsal', 'volleyball']
+    return [...sports].sort((a, b) => {
+      const idxA = order.indexOf(a.id.toLowerCase())
+      const idxB = order.indexOf(b.id.toLowerCase())
+      return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB)
+    })
   },
 
   async getRolesForSport(sportNameOrId: string): Promise<string[]> {
@@ -28,13 +34,184 @@ const demoTeamsService: TeamsService = {
     return found?.roles || []
   },
 
+  async getSportRoleUsageCounts(sportIdOrName: string): Promise<Record<string, number>> {
+    const sports = await demoTeamsService.getSports()
+    const found = sports.find(
+      (s) =>
+        s.id.toLowerCase() === sportIdOrName.toLowerCase() ||
+        s.name.toLowerCase() === sportIdOrName.toLowerCase()
+    )
+    if (!found) return {}
+
+    const allPlayers = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, [])
+    const counts: Record<string, number> = {}
+    for (const role of found.roles) {
+      counts[role] = 0
+    }
+    for (const p of allPlayers) {
+      if (p.sport.toLowerCase() === found.name.toLowerCase()) {
+        const matchedRole =
+          found.roles.find((r) => r.toLowerCase() === p.playing_role.toLowerCase()) ||
+          p.playing_role
+        counts[matchedRole] = (counts[matchedRole] || 0) + 1
+      }
+    }
+    return counts
+  },
+
+  async addSportRole(sportIdOrName: string, roleName: string): Promise<Sport> {
+    const trimmed = roleName.trim()
+    if (!trimmed) throw new AppError('Role name is required.')
+
+    const allSports = getLocal<Sport[]>(STORAGE_KEYS.SPORTS, DEFAULT_SPORTS)
+    const idx = allSports.findIndex(
+      (s) =>
+        s.id.toLowerCase() === sportIdOrName.toLowerCase() ||
+        s.name.toLowerCase() === sportIdOrName.toLowerCase()
+    )
+    if (idx === -1) throw new AppError('Sport not found.')
+
+    const sport = allSports[idx]
+    if (sport.roles.some((r) => r.toLowerCase() === trimmed.toLowerCase())) {
+      throw new AppError(`Role "${trimmed}" already exists in ${sport.name}.`)
+    }
+
+    const updated: Sport = {
+      ...sport,
+      roles: [...sport.roles, trimmed]
+    }
+    allSports[idx] = updated
+    setLocal(STORAGE_KEYS.SPORTS, allSports)
+    notifyChange('sports_change')
+    return updated
+  },
+
+  async renameSportRole(
+    sportIdOrName: string,
+    oldRole: string,
+    newRole: string
+  ): Promise<{ sport: Sport; updatedPlayersCount: number }> {
+    const trimmed = newRole.trim()
+    if (!trimmed) throw new AppError('Role name is required.')
+
+    const allSports = getLocal<Sport[]>(STORAGE_KEYS.SPORTS, DEFAULT_SPORTS)
+    const idx = allSports.findIndex(
+      (s) =>
+        s.id.toLowerCase() === sportIdOrName.toLowerCase() ||
+        s.name.toLowerCase() === sportIdOrName.toLowerCase()
+    )
+    if (idx === -1) throw new AppError('Sport not found.')
+
+    const sport = allSports[idx]
+    const roleIdx = sport.roles.findIndex((r) => r.toLowerCase() === oldRole.toLowerCase())
+    if (roleIdx === -1) throw new AppError(`Role "${oldRole}" not found in ${sport.name}.`)
+
+    const duplicate = sport.roles.some(
+      (r, i) => i !== roleIdx && r.toLowerCase() === trimmed.toLowerCase()
+    )
+    if (duplicate) {
+      throw new AppError(`Role "${trimmed}" already exists in ${sport.name}.`)
+    }
+
+    const updatedRoles = [...sport.roles]
+    updatedRoles[roleIdx] = trimmed
+
+    const updatedSport: Sport = {
+      ...sport,
+      roles: updatedRoles
+    }
+    allSports[idx] = updatedSport
+    setLocal(STORAGE_KEYS.SPORTS, allSports)
+
+    // Update playing_role on all existing players rows of that sport that use the old name
+    const allPlayers = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, [])
+    let updatedPlayersCount = 0
+    const updatedPlayers = allPlayers.map((p) => {
+      if (
+        p.sport.toLowerCase() === sport.name.toLowerCase() &&
+        p.playing_role.toLowerCase() === oldRole.toLowerCase()
+      ) {
+        updatedPlayersCount += 1
+        return { ...p, playing_role: trimmed }
+      }
+      return p
+    })
+
+    if (updatedPlayersCount > 0) {
+      setLocal(STORAGE_KEYS.PLAYERS, updatedPlayers)
+      notifyChange('players_change')
+    }
+    notifyChange('sports_change')
+
+    return { sport: updatedSport, updatedPlayersCount }
+  },
+
+  async reorderSportRoles(sportIdOrName: string, orderedRoles: string[]): Promise<Sport> {
+    const allSports = getLocal<Sport[]>(STORAGE_KEYS.SPORTS, DEFAULT_SPORTS)
+    const idx = allSports.findIndex(
+      (s) =>
+        s.id.toLowerCase() === sportIdOrName.toLowerCase() ||
+        s.name.toLowerCase() === sportIdOrName.toLowerCase()
+    )
+    if (idx === -1) throw new AppError('Sport not found.')
+
+    const updated: Sport = {
+      ...allSports[idx],
+      roles: orderedRoles
+    }
+    allSports[idx] = updated
+    setLocal(STORAGE_KEYS.SPORTS, allSports)
+    notifyChange('sports_change')
+    return updated
+  },
+
+  async deleteSportRole(sportIdOrName: string, roleName: string): Promise<Sport> {
+    const allSports = getLocal<Sport[]>(STORAGE_KEYS.SPORTS, DEFAULT_SPORTS)
+    const idx = allSports.findIndex(
+      (s) =>
+        s.id.toLowerCase() === sportIdOrName.toLowerCase() ||
+        s.name.toLowerCase() === sportIdOrName.toLowerCase()
+    )
+    if (idx === -1) throw new AppError('Sport not found.')
+
+    const sport = allSports[idx]
+    const allPlayers = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, [])
+    const usedCount = allPlayers.filter(
+      (p) =>
+        p.sport.toLowerCase() === sport.name.toLowerCase() &&
+        p.playing_role.toLowerCase() === roleName.toLowerCase()
+    ).length
+
+    if (usedCount > 0) {
+      throw new AppError(
+        `${usedCount} players use this role. Rename it or change those players first.`
+      )
+    }
+
+    const updated: Sport = {
+      ...sport,
+      roles: sport.roles.filter((r) => r.toLowerCase() !== roleName.toLowerCase())
+    }
+    allSports[idx] = updated
+    setLocal(STORAGE_KEYS.SPORTS, allSports)
+    notifyChange('sports_change')
+    return updated
+  },
+
   async getTeams(seasonId: string): Promise<Team[]> {
     const allTeams = getLocal<Team[]>(STORAGE_KEYS.TEAMS, [])
     return allTeams.filter((t) => t.season_id === seasonId)
   },
 
   async getPublicTeams(seasonId: string): Promise<PublicTeam[]> {
-    const teams = await demoTeamsService.getTeams(seasonId)
+    let targetSeasonId = seasonId
+    if (!targetSeasonId) {
+      const activeSeason = await getActiveSeason()
+      targetSeasonId = activeSeason?.id || ''
+    }
+    if (!targetSeasonId) return []
+
+    const teams = await demoTeamsService.getTeams(targetSeasonId)
     return teams.map((t) => ({
       id: t.id,
       season_id: t.season_id,
@@ -210,8 +387,17 @@ const supabaseTeamsService: TeamsService = {
   async getSports(): Promise<Sport[]> {
     if (!supabase) return DEFAULT_SPORTS
     const { data, error } = await supabase.from('sports').select('*')
-    if (error || !data || data.length === 0) return DEFAULT_SPORTS
-    return data as Sport[]
+    if (error) {
+      console.error('Supabase getSports error:', error.message, error)
+      return DEFAULT_SPORTS
+    }
+    if (!data || data.length === 0) return DEFAULT_SPORTS
+    const order = ['cricket', 'futsal', 'volleyball']
+    return [...(data as Sport[])].sort((a, b) => {
+      const idxA = order.indexOf(a.id.toLowerCase())
+      const idxB = order.indexOf(b.id.toLowerCase())
+      return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB)
+    })
   },
 
   async getRolesForSport(sportNameOrId: string): Promise<string[]> {
@@ -222,6 +408,207 @@ const supabaseTeamsService: TeamsService = {
         s.name.toLowerCase() === sportNameOrId.toLowerCase()
     )
     return found?.roles || []
+  },
+
+  async getSportRoleUsageCounts(sportIdOrName: string): Promise<Record<string, number>> {
+    if (!supabase) return {}
+    const sports = await supabaseTeamsService.getSports()
+    const found = sports.find(
+      (s) =>
+        s.id.toLowerCase() === sportIdOrName.toLowerCase() ||
+        s.name.toLowerCase() === sportIdOrName.toLowerCase()
+    )
+    if (!found) return {}
+
+    const counts: Record<string, number> = {}
+    for (const role of found.roles) {
+      counts[role] = 0
+    }
+
+    const { data, error } = await supabase
+      .from('players')
+      .select('playing_role')
+      .ilike('sport', found.name)
+
+    if (error) throw new AppError(error.message, { original: error })
+
+    for (const row of (data as Array<{ playing_role: string }>) || []) {
+      const matchedRole =
+        found.roles.find((r) => r.toLowerCase() === (row.playing_role || '').toLowerCase()) ||
+        row.playing_role
+      if (matchedRole) {
+        counts[matchedRole] = (counts[matchedRole] || 0) + 1
+      }
+    }
+    return counts
+  },
+
+  async addSportRole(sportIdOrName: string, roleName: string): Promise<Sport> {
+    if (!supabase) throw new AppError('Supabase not configured')
+    const trimmed = roleName.trim()
+    if (!trimmed) throw new AppError('Role name is required.')
+
+    const sports = await supabaseTeamsService.getSports()
+    const found = sports.find(
+      (s) =>
+        s.id.toLowerCase() === sportIdOrName.toLowerCase() ||
+        s.name.toLowerCase() === sportIdOrName.toLowerCase()
+    )
+    if (!found) throw new AppError('Sport not found.')
+
+    if (found.roles.some((r) => r.toLowerCase() === trimmed.toLowerCase())) {
+      throw new AppError(`Role "${trimmed}" already exists in ${found.name}.`)
+    }
+
+    const nextRoles = [...found.roles, trimmed]
+    const { data, error } = await supabase
+      .from('sports')
+      .update({ roles: nextRoles })
+      .eq('id', found.id)
+      .select()
+      .single()
+
+    if (error) throw new AppError(error.message, { original: error })
+    return data as Sport
+  },
+
+  async renameSportRole(
+    sportIdOrName: string,
+    oldRole: string,
+    newRole: string
+  ): Promise<{ sport: Sport; updatedPlayersCount: number }> {
+    if (!supabase) throw new AppError('Supabase not configured')
+    const trimmed = newRole.trim()
+    if (!trimmed) throw new AppError('Role name is required.')
+
+    const sports = await supabaseTeamsService.getSports()
+    const found = sports.find(
+      (s) =>
+        s.id.toLowerCase() === sportIdOrName.toLowerCase() ||
+        s.name.toLowerCase() === sportIdOrName.toLowerCase()
+    )
+    if (!found) throw new AppError('Sport not found.')
+
+    const roleIdx = found.roles.findIndex((r) => r.toLowerCase() === oldRole.toLowerCase())
+    if (roleIdx === -1) throw new AppError(`Role "${oldRole}" not found in ${found.name}.`)
+
+    const duplicate = found.roles.some(
+      (r, i) => i !== roleIdx && r.toLowerCase() === trimmed.toLowerCase()
+    )
+    if (duplicate) {
+      throw new AppError(`Role "${trimmed}" already exists in ${found.name}.`)
+    }
+
+    // Call atomic RPC rename_sport_role first
+    const { data: rpcCount, error: rpcError } = await supabase.rpc('rename_sport_role', {
+      p_sport_id: found.id,
+      p_old_role: oldRole,
+      p_new_role: trimmed
+    })
+
+    if (!rpcError) {
+      const updatedRoles = [...found.roles]
+      updatedRoles[roleIdx] = trimmed
+      return {
+        sport: { ...found, roles: updatedRoles },
+        updatedPlayersCount: typeof rpcCount === 'number' ? rpcCount : 0
+      }
+    }
+
+    // If RPC function is not yet installed in Supabase (PGRST202 / 42883), execute single-query updates
+    const isMissingRpc =
+      rpcError.code === 'PGRST202' ||
+      rpcError.code === '42883' ||
+      (rpcError.message && rpcError.message.includes('rename_sport_role'))
+
+    if (!isMissingRpc) {
+      throw new AppError(rpcError.message, { original: rpcError })
+    }
+
+    const updatedRoles = [...found.roles]
+    updatedRoles[roleIdx] = trimmed
+
+    const { data: updatedSportData, error: sportErr } = await supabase
+      .from('sports')
+      .update({ roles: updatedRoles })
+      .eq('id', found.id)
+      .select()
+      .single()
+
+    if (sportErr) throw new AppError(sportErr.message, { original: sportErr })
+
+    const { count, error: playersErr } = await supabase
+      .from('players')
+      .update({ playing_role: trimmed }, { count: 'exact' })
+      .ilike('sport', found.name)
+      .ilike('playing_role', oldRole)
+
+    if (playersErr) throw new AppError(playersErr.message, { original: playersErr })
+
+    return {
+      sport: updatedSportData as Sport,
+      updatedPlayersCount: count ?? 0
+    }
+  },
+
+  async reorderSportRoles(sportIdOrName: string, orderedRoles: string[]): Promise<Sport> {
+    if (!supabase) throw new AppError('Supabase not configured')
+
+    const sports = await supabaseTeamsService.getSports()
+    const found = sports.find(
+      (s) =>
+        s.id.toLowerCase() === sportIdOrName.toLowerCase() ||
+        s.name.toLowerCase() === sportIdOrName.toLowerCase()
+    )
+    if (!found) throw new AppError('Sport not found.')
+
+    const { data, error } = await supabase
+      .from('sports')
+      .update({ roles: orderedRoles })
+      .eq('id', found.id)
+      .select()
+      .single()
+
+    if (error) throw new AppError(error.message, { original: error })
+    return data as Sport
+  },
+
+  async deleteSportRole(sportIdOrName: string, roleName: string): Promise<Sport> {
+    if (!supabase) throw new AppError('Supabase not configured')
+
+    const sports = await supabaseTeamsService.getSports()
+    const found = sports.find(
+      (s) =>
+        s.id.toLowerCase() === sportIdOrName.toLowerCase() ||
+        s.name.toLowerCase() === sportIdOrName.toLowerCase()
+    )
+    if (!found) throw new AppError('Sport not found.')
+
+    // Check usage across all players of this sport
+    const { count: usedCount, error: countErr } = await supabase
+      .from('players')
+      .select('id', { count: 'exact', head: true })
+      .ilike('sport', found.name)
+      .ilike('playing_role', roleName)
+
+    if (countErr) throw new AppError(countErr.message, { original: countErr })
+
+    if ((usedCount ?? 0) > 0) {
+      throw new AppError(
+        `${usedCount} players use this role. Rename it or change those players first.`
+      )
+    }
+
+    const nextRoles = found.roles.filter((r) => r.toLowerCase() !== roleName.toLowerCase())
+    const { data, error } = await supabase
+      .from('sports')
+      .update({ roles: nextRoles })
+      .eq('id', found.id)
+      .select()
+      .single()
+
+    if (error) throw new AppError(error.message, { original: error })
+    return data as Sport
   },
 
   async getTeams(seasonId: string): Promise<Team[]> {
@@ -316,14 +703,21 @@ const supabaseTeamsService: TeamsService = {
 
   async getPublicTeams(seasonId: string): Promise<PublicTeam[]> {
     if (!supabase) return []
+    let targetSeasonId = seasonId
+    if (!targetSeasonId) {
+      const activeSeason = await getActiveSeason()
+      targetSeasonId = activeSeason?.id || ''
+    }
+    if (!targetSeasonId) return []
+
     const { data, error } = await supabase
       .from('public_teams')
-      .select('*')
-      .eq('season_id', seasonId)
+      .select('id, season_id, sport, name, short_code, color, logo_url, owner_display_name, created_at')
+      .eq('season_id', targetSeasonId)
       .order('name', { ascending: true })
 
     if (error) {
-      console.error('getPublicTeams error:', error)
+      console.error('Supabase getPublicTeams error:', error.message, error)
       return []
     }
     return (data as PublicTeam[]) || []
@@ -395,6 +789,16 @@ export const teamsService: TeamsService = isDemoMode
 export const getSports = () => teamsService.getSports()
 export const getRolesForSport = (sportNameOrId: string) =>
   teamsService.getRolesForSport(sportNameOrId)
+export const addSportRole = (sportIdOrName: string, roleName: string) =>
+  teamsService.addSportRole(sportIdOrName, roleName)
+export const renameSportRole = (sportIdOrName: string, oldRole: string, newRole: string) =>
+  teamsService.renameSportRole(sportIdOrName, oldRole, newRole)
+export const reorderSportRoles = (sportIdOrName: string, orderedRoles: string[]) =>
+  teamsService.reorderSportRoles(sportIdOrName, orderedRoles)
+export const deleteSportRole = (sportIdOrName: string, roleName: string) =>
+  teamsService.deleteSportRole(sportIdOrName, roleName)
+export const getSportRoleUsageCounts = (sportIdOrName: string) =>
+  teamsService.getSportRoleUsageCounts(sportIdOrName)
 export const getTeams = (seasonId: string) => teamsService.getTeams(seasonId)
 export const getPublicTeams = (seasonId: string) => teamsService.getPublicTeams(seasonId)
 export const getActiveTeams = () => teamsService.getActiveTeams()

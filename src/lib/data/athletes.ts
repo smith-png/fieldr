@@ -1,4 +1,4 @@
-import type { Athlete, AthleteCareerEntry, Player, PublicPlayer, Season, Team } from '../../types'
+import type { Athlete, AthleteCareerEntry, Player, PublicPlayer, PublicTeam, Season, Team } from '../../types'
 import { AppError } from '../errors'
 import {
   isDemoMode,
@@ -15,6 +15,14 @@ import { deletePlayerPhotoAssets } from './storage'
 import type { AthletesPagedParams, AthletesPagedResult, AthletesService } from './types'
 
 const demoAthletesService: AthletesService = {
+  async getAllAthletes(): Promise<Athlete[]> {
+    const allAthletes = getLocal<Athlete[]>(STORAGE_KEYS.ATHLETES, []).map((a) => ({
+      ...a,
+      academic_year: a.academic_year || '1st'
+    }))
+    return allAthletes.sort((a, b) => a.athlete_code - b.athlete_code)
+  },
+
   async getAthletesPaged(params: AthletesPagedParams): Promise<AthletesPagedResult> {
     const { page, pageSize, search } = params
     const offset = (page - 1) * pageSize
@@ -259,6 +267,19 @@ const demoAthletesService: AthletesService = {
 }
 
 const supabaseAthletesService: AthletesService = {
+  async getAllAthletes(): Promise<Athlete[]> {
+    if (!supabase) throw new AppError('Supabase not configured')
+    const { data, error } = await supabase
+      .from('athletes')
+      .select('*')
+      .order('athlete_code', { ascending: true })
+    if (error) throw new AppError(error.message, { original: error })
+    return ((data as Athlete[]) || []).map((a) => ({
+      ...a,
+      academic_year: a.academic_year || '1st'
+    }))
+  },
+
   async getAthletesPaged(params: AthletesPagedParams): Promise<AthletesPagedResult> {
     if (!supabase) throw new AppError('Supabase not configured')
 
@@ -371,7 +392,7 @@ const supabaseAthletesService: AthletesService = {
       .limit(1)
 
     if (error) {
-      console.error('getAthleteByCode error:', error)
+      console.error('Supabase getAthleteByCode error:', error.message, error)
       return null
     }
 
@@ -414,29 +435,46 @@ const supabaseAthletesService: AthletesService = {
     }
   },
 
-  // Public career lookup reads ONLY from public_players and seasons, never from athletes or players directly
+  // Public career lookup reads ONLY from public_players, seasons, and public_teams
   async getAthleteCareer(athleteId: string): Promise<AthleteCareerEntry[]> {
     if (!supabase) return []
 
-    const [playersRes, seasonsRes] = await Promise.all([
+    const [playersRes, seasonsRes, teamsRes] = await Promise.all([
       supabase
         .from('public_players')
-        .select(
-          'id, player_code, athlete_code, name, photo_thumb_url, photo_url, academic_year, sport, playing_role, season_id, athlete_id'
-        )
+        .select('*')
         .eq('athlete_id', athleteId),
-      supabase.from('seasons').select('id, name, is_active, created_at')
+      supabase.from('seasons').select('id, name, is_active, created_at'),
+      supabase
+        .from('public_teams')
+        .select('id, season_id, sport, name, short_code, color, logo_url, owner_display_name, created_at')
     ])
 
-    if (playersRes.error || !playersRes.data) return []
+    if (playersRes.error) {
+      console.error('Supabase getAthleteCareer (public_players) error:', playersRes.error.message, playersRes.error)
+      return []
+    }
+    if (seasonsRes.error) {
+      console.error('Supabase getAthleteCareer (seasons) error:', seasonsRes.error.message, seasonsRes.error)
+    }
+    if (teamsRes.error) {
+      console.error('Supabase getAthleteCareer (public_teams) error:', teamsRes.error.message, teamsRes.error)
+    }
+    if (!playersRes.data) return []
 
     const seasonsMap = new Map<string, Season>()
     for (const s of (seasonsRes.data as Season[]) || []) {
       seasonsMap.set(s.id, s)
     }
 
+    const teamsMap = new Map<string, PublicTeam>()
+    for (const t of (teamsRes.data as PublicTeam[]) || []) {
+      teamsMap.set(t.id, t)
+    }
+
     const career: AthleteCareerEntry[] = (playersRes.data as PublicPlayer[]).map((item) => {
       const season = seasonsMap.get(item.season_id)
+      const team = item.team_id ? teamsMap.get(item.team_id) : undefined
       return {
         player_id: item.id,
         season_id: item.season_id,
@@ -445,11 +483,11 @@ const supabaseAthletesService: AthletesService = {
         sport: item.sport,
         playing_role: item.playing_role,
         academic_year: item.academic_year || '1st',
-        status: 'available',
-        team_id: null,
-        team_name: null,
-        team_short_code: null,
-        team_color: null,
+        status: item.status || 'available',
+        team_id: item.team_id ?? null,
+        team_name: team?.name || null,
+        team_short_code: team?.short_code || null,
+        team_color: team?.color || null,
         base_points: 0,
         purchase_price: null
       }
@@ -651,6 +689,7 @@ export const athletesService: AthletesService = isDemoMode
   ? demoAthletesService
   : supabaseAthletesService
 
+export const getAllAthletes = () => athletesService.getAllAthletes()
 export const getAthletesPaged = (params: AthletesPagedParams) =>
   athletesService.getAthletesPaged(params)
 export const searchAthletes = (q: string) => athletesService.searchAthletes(q)

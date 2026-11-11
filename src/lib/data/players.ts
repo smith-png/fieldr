@@ -22,6 +22,9 @@ import {
 } from './client'
 import { getActiveSeason } from './seasons'
 import type {
+  BulkRegisterParams,
+  BulkRegisterResult,
+  BulkRegisterSkippedItem,
   PlayersPagedParams,
   PlayersPagedResult,
   PlayersService,
@@ -62,8 +65,8 @@ function mapJoinedPlayer(row: Record<string, unknown>, pubRow?: PublicPlayer, at
       pubRow?.photo_thumb_url ||
       (row.photo_thumb_url ? String(row.photo_thumb_url) : undefined),
     base_points: typeof row.base_points === 'number' ? row.base_points : 100,
-    status: (row.status as Player['status']) || 'available',
-    team_id: (row.team_id as string | null) ?? null,
+    status: (row.status as Player['status']) || pubRow?.status || 'available',
+    team_id: (row.team_id as string | null) ?? pubRow?.team_id ?? null,
     purchase_price: typeof row.purchase_price === 'number' ? row.purchase_price : null,
     created_at: row.created_at ? String(row.created_at) : undefined
   }
@@ -177,7 +180,9 @@ const demoPlayersService: PlayersService = {
       academic_year: p.academic_year || '1st',
       sport: p.sport,
       playing_role: p.playing_role,
-      season_id: p.season_id
+      season_id: p.season_id,
+      status: p.status,
+      team_id: p.team_id
     }))
 
     const nextOffset = offset + sliced.length
@@ -314,6 +319,96 @@ const demoPlayersService: PlayersService = {
     notifyChange('athletes_change')
     notifyChange('players_change')
     return createdList
+  },
+
+  async bulkRegisterPlayers(params: BulkRegisterParams): Promise<BulkRegisterResult> {
+    const { seasonId, sport, basePoints, entries } = params
+    if (!seasonId) throw new AppError('No active tournament season selected.')
+    if (!sport) throw new AppError('Sport is required.')
+
+    const allPlayers = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, [])
+    const allAthletes = getLocal<Athlete[]>(STORAGE_KEYS.ATHLETES, [])
+    const athMap = new Map<string, Athlete>()
+    for (const a of allAthletes) {
+      athMap.set(a.id, a)
+    }
+
+    const existingAthleteIds = new Set<string>(
+      allPlayers
+        .filter(
+          (p) =>
+            p.season_id === seasonId &&
+            p.sport.toLowerCase() === sport.toLowerCase() &&
+            !!p.athlete_id
+        )
+        .map((p) => p.athlete_id as string)
+    )
+
+    const registered: Player[] = []
+    const skipped: BulkRegisterSkippedItem[] = []
+    const seenInBatch = new Set<string>()
+
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i]
+      const ath = athMap.get(entry.athlete_id)
+      if (!ath) {
+        skipped.push({
+          athlete_id: entry.athlete_id,
+          athlete_name: entry.athlete_name,
+          athlete_code: entry.athlete_code,
+          reason: 'Athlete profile not found'
+        })
+        continue
+      }
+      if (!entry.playing_role || !entry.playing_role.trim()) {
+        skipped.push({
+          athlete_id: ath.id,
+          athlete_name: ath.name,
+          athlete_code: ath.athlete_code,
+          reason: 'Playing role is required'
+        })
+        continue
+      }
+      if (existingAthleteIds.has(ath.id) || seenInBatch.has(ath.id)) {
+        skipped.push({
+          athlete_id: ath.id,
+          athlete_name: ath.name,
+          athlete_code: ath.athlete_code,
+          reason: 'Already registered for this sport in this season'
+        })
+        continue
+      }
+
+      seenInBatch.add(ath.id)
+      const newPlayer: Player = {
+        id: `player-${Date.now()}-${i}-${Math.floor(Math.random() * 1000)}`,
+        season_id: seasonId,
+        athlete_id: ath.id,
+        athlete_code: ath.athlete_code,
+        player_code: formatAthleteCode(ath.athlete_code),
+        name: ath.name,
+        sport,
+        playing_role: entry.playing_role.trim(),
+        academic_year: ath.academic_year || entry.academic_year || '1st',
+        roll_no: ath.roll_no,
+        photo_url: ath.photo_url,
+        photo_thumb_url: ath.photo_thumb_url,
+        base_points: basePoints,
+        status: 'available',
+        team_id: null,
+        purchase_price: null,
+        created_at: new Date().toISOString()
+      }
+      registered.push(newPlayer)
+    }
+
+    if (registered.length > 0) {
+      allPlayers.push(...registered)
+      setLocal(STORAGE_KEYS.PLAYERS, allPlayers)
+      notifyChange('players_change')
+    }
+
+    return { registered, skipped }
   },
 
   async updatePlayer(id: string, updates: Partial<Player>): Promise<Player> {
@@ -509,12 +604,14 @@ const supabasePlayersService: PlayersService = {
       const [pubRes, plyRes] = await Promise.all([
         supabase
           .from('public_players')
-          .select(
-            'id, player_code, athlete_code, name, photo_thumb_url, photo_url, academic_year, sport, playing_role, season_id, athlete_id'
-          )
+          .select('*')
           .eq('season_id', seasonId),
         supabase.from('players').select('*').eq('season_id', seasonId)
       ])
+
+      if (pubRes.error) {
+        console.error('Supabase getPlayers (public_players) error:', pubRes.error.message, pubRes.error)
+      }
 
       const pubList = (pubRes.data as PublicPlayer[]) || []
       const pubMap = new Map<string, PublicPlayer>()
@@ -610,10 +707,7 @@ const supabasePlayersService: PlayersService = {
 
     let query = supabase
       .from('public_players')
-      .select(
-        'id, player_code, athlete_code, name, photo_thumb_url, photo_url, academic_year, sport, playing_role, season_id, athlete_id',
-        { count: 'exact' }
-      )
+      .select('*', { count: 'exact' })
       .eq('season_id', activeSeason.id)
 
     if (sport && sport !== 'all') {
@@ -634,7 +728,10 @@ const supabasePlayersService: PlayersService = {
       .range(offset, offset + limit - 1)
 
     const { data, count, error } = await query
-    if (error) throw new AppError(error.message, { original: error })
+    if (error) {
+      console.error('Supabase getPublicPlayersPaged error:', error.message, error)
+      throw new AppError(error.message, { original: error })
+    }
 
     const totalCount = count || 0
     const players = (data as PublicPlayer[]) || []
@@ -723,6 +820,134 @@ const supabasePlayersService: PlayersService = {
 
     if (error) throw new AppError(error.message, { original: error })
     return ((data as Array<Record<string, unknown>>) || []).map((r) => mapJoinedPlayer(r))
+  },
+
+  async bulkRegisterPlayers(params: BulkRegisterParams): Promise<BulkRegisterResult> {
+    if (!supabase) throw new AppError('Supabase not configured')
+    const { seasonId, sport, basePoints, entries } = params
+    if (!seasonId) throw new AppError('No active tournament season selected.')
+    if (!sport) throw new AppError('Sport is required.')
+
+    // Check existing registrations for this season and sport
+    const { data: existingRows, error: checkErr } = await supabase
+      .from('players')
+      .select('athlete_id')
+      .eq('season_id', seasonId)
+      .ilike('sport', sport)
+
+    if (checkErr) throw new AppError(checkErr.message, { original: checkErr })
+
+    const existingAthleteIds = new Set<string>(
+      ((existingRows as Array<{ athlete_id: string | null }>) || [])
+        .map((r) => r.athlete_id)
+        .filter((id): id is string => !!id)
+    )
+
+    const validEntries: typeof entries = []
+    const skipped: BulkRegisterSkippedItem[] = []
+    const seenInBatch = new Set<string>()
+
+    for (const entry of entries) {
+      if (!entry.athlete_id) {
+        skipped.push({
+          athlete_id: entry.athlete_id,
+          athlete_name: entry.athlete_name,
+          athlete_code: entry.athlete_code,
+          reason: 'Missing athlete profile ID'
+        })
+        continue
+      }
+      if (!entry.playing_role || !entry.playing_role.trim()) {
+        skipped.push({
+          athlete_id: entry.athlete_id,
+          athlete_name: entry.athlete_name,
+          athlete_code: entry.athlete_code,
+          reason: 'Playing role is required'
+        })
+        continue
+      }
+      if (existingAthleteIds.has(entry.athlete_id) || seenInBatch.has(entry.athlete_id)) {
+        skipped.push({
+          athlete_id: entry.athlete_id,
+          athlete_name: entry.athlete_name,
+          athlete_code: entry.athlete_code,
+          reason: 'Already registered for this sport in this season'
+        })
+        continue
+      }
+
+      seenInBatch.add(entry.athlete_id)
+      validEntries.push(entry)
+    }
+
+    if (validEntries.length === 0) {
+      return { registered: [], skipped }
+    }
+
+    const rowsToInsert = validEntries.map((entry) => ({
+      athlete_id: entry.athlete_id,
+      season_id: seasonId,
+      sport,
+      playing_role: entry.playing_role.trim(),
+      base_points: basePoints,
+      academic_year: entry.academic_year || '1st'
+    }))
+
+    // Execute one batch insert into players
+    const { data, error } = await supabase
+      .from('players')
+      .insert(rowsToInsert)
+      .select('*, athletes(id, athlete_code, name, photo_url, photo_thumb_url, roll_no, academic_year)')
+
+    if (!error) {
+      const registered = ((data as Array<Record<string, unknown>>) || []).map((r) =>
+        mapJoinedPlayer(r)
+      )
+      return { registered, skipped }
+    }
+
+    // If the batch insert failed due to a row-level constraint (e.g. concurrent duplicate 23505),
+    // keep the successful ones and record the exact Supabase error for each failed row
+    if (validEntries.length > 1) {
+      const registered: Player[] = []
+      for (const entry of validEntries) {
+        const { data: singleData, error: singleErr } = await supabase
+          .from('players')
+          .insert([
+            {
+              athlete_id: entry.athlete_id,
+              season_id: seasonId,
+              sport,
+              playing_role: entry.playing_role.trim(),
+              base_points: basePoints,
+              academic_year: entry.academic_year || '1st'
+            }
+          ])
+          .select(
+            '*, athletes(id, athlete_code, name, photo_url, photo_thumb_url, roll_no, academic_year)'
+          )
+          .single()
+
+        if (singleErr) {
+          skipped.push({
+            athlete_id: entry.athlete_id,
+            athlete_name: entry.athlete_name,
+            athlete_code: entry.athlete_code,
+            reason:
+              singleErr.code === '23505'
+                ? `Already registered for this sport in this season (${singleErr.message})`
+                : singleErr.message
+          })
+        } else if (singleData) {
+          registered.push(mapJoinedPlayer(singleData as Record<string, unknown>))
+        }
+      }
+      if (registered.length > 0 || skipped.length > 0) {
+        return { registered, skipped }
+      }
+    }
+
+    throw new AppError(error.message, { original: error })
   },
 
   async updatePlayer(id: string, updates: Partial<Player>): Promise<Player> {
@@ -941,6 +1166,8 @@ export const createPlayer = (
 export const bulkCreatePlayers = (
   list: Array<Omit<Player, 'id' | 'player_code' | 'created_at'>>
 ) => playersService.bulkCreatePlayers(list)
+export const bulkRegisterPlayers = (params: BulkRegisterParams) =>
+  playersService.bulkRegisterPlayers(params)
 export const updatePlayer = (id: string, updates: Partial<Player>) =>
   playersService.updatePlayer(id, updates)
 export const deletePlayer = (id: string) => playersService.deletePlayer(id)
