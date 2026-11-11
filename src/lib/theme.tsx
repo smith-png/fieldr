@@ -1,12 +1,14 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
 
 export type ThemePreference = 'system' | 'light' | 'dark'
 export type ResolvedTheme = 'light' | 'dark'
 
 const STORAGE_KEY = 'fieldr-theme'
+const PROJECTOR_STORAGE_KEY = 'fieldr-projector-theme'
 
 // In-memory fallback if localStorage is disabled or throws
 let memoryPreference: ThemePreference = 'system'
+let memoryProjectorTheme: ResolvedTheme = 'dark'
 
 export function getStoredPreference(): ThemePreference {
   try {
@@ -27,6 +29,31 @@ export function setStoredPreference(pref: ThemePreference): void {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
       localStorage.setItem(STORAGE_KEY, pref)
+    }
+  } catch {
+    // storage unavailable
+  }
+}
+
+export function getStoredProjectorTheme(): ResolvedTheme {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const val = localStorage.getItem(PROJECTOR_STORAGE_KEY)
+      if (val === 'light' || val === 'dark') {
+        return val
+      }
+    }
+  } catch {
+    // fallback to in-memory
+  }
+  return memoryProjectorTheme
+}
+
+export function setStoredProjectorTheme(theme: ResolvedTheme): void {
+  memoryProjectorTheme = theme
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem(PROJECTOR_STORAGE_KEY, theme)
     }
   } catch {
     // storage unavailable
@@ -57,7 +84,7 @@ export function applyThemeToDom(resolved: ResolvedTheme, disableTransitions = tr
   const isReducedMotion =
     typeof window !== 'undefined' &&
     window.matchMedia &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    window.matchMedia('(prefers-color-scheme: reduce)').matches
 
   if (disableTransitions && !isReducedMotion) {
     root.classList.add('no-transitions')
@@ -166,10 +193,46 @@ export function useTheme(): ThemeContextValue {
 }
 
 /**
- * Hook used on the /projector route:
- * Forces data-theme="dark" while mounted, and restores the user's preference on unmount,
- * without modifying localStorage.
+ * Dedicated theme hook for the /projector route:
+ * Uses its own localStorage key ('fieldr-projector-theme'), defaulting to 'dark'.
+ * Applies the projector theme while mounted and restores the public/admin theme on unmount.
  */
+export function useProjectorTheme(): {
+  projectorTheme: ResolvedTheme
+  setProjectorTheme: (theme: ResolvedTheme) => void
+  toggleProjectorTheme: () => void
+} {
+  const { preference } = useTheme()
+  const [projectorTheme, setProjectorThemeState] = useState<ResolvedTheme>(() =>
+    getStoredProjectorTheme()
+  )
+
+  const setProjectorTheme = useCallback((next: ResolvedTheme) => {
+    setProjectorThemeState(next)
+    setStoredProjectorTheme(next)
+    applyThemeToDom(next, true)
+  }, [])
+
+  const toggleProjectorTheme = useCallback(() => {
+    setProjectorThemeState((prev) => {
+      const next: ResolvedTheme = prev === 'dark' ? 'light' : 'dark'
+      setStoredProjectorTheme(next)
+      applyThemeToDom(next, true)
+      return next
+    })
+  }, [])
+
+  useEffect(() => {
+    applyThemeToDom(projectorTheme, false)
+    return () => {
+      const restored = resolveTheme(preference)
+      applyThemeToDom(restored, false)
+    }
+  }, [projectorTheme, preference])
+
+  return { projectorTheme, setProjectorTheme, toggleProjectorTheme }
+}
+
 export function useForceDarkTheme(): void {
   const { preference } = useTheme()
 

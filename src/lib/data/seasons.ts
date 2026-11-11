@@ -1,4 +1,4 @@
-import type { CarouselItem, Match, MatchPlayerStats, Player, ProjectorState, PurseTransaction, Season, SeasonDeletionCounts, Team } from '../../types'
+import type { CarouselItem, Player, ProjectorState, PurseTransaction, Season, SeasonDeletionCounts, Team } from '../../types'
 import { AppError } from '../errors'
 import {
   isDemoMode,
@@ -63,10 +63,6 @@ const demoSeasonsService: SeasonsService = {
       throw new AppError('End date must be on or after start date')
     }
 
-    if (isArchived && seasons.length === 0) {
-      // First season must be active unless user overrides
-    }
-
     const newSeason: Season = {
       id: `season-${Date.now()}`,
       name: trimmedName,
@@ -116,17 +112,12 @@ const demoSeasonsService: SeasonsService = {
   async getSeasonDeletionPreview(seasonId: string): Promise<SeasonDeletionCounts> {
     const teams = getLocal<Team[]>(STORAGE_KEYS.TEAMS, []).filter((t) => t.season_id === seasonId)
     const players = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, []).filter((p) => p.season_id === seasonId)
-    const matches = getLocal<Match[]>(STORAGE_KEYS.MATCHES, []).filter((m) => m.season_id === seasonId)
-    const matchIds = new Set(matches.map((m) => m.id))
-    const matchStats = getLocal<MatchPlayerStats[]>(STORAGE_KEYS.MATCH_STATS, []).filter((s) => matchIds.has(s.match_id))
     const txs = getLocal<PurseTransaction[]>(STORAGE_KEYS.TRANSACTIONS, []).filter((t) => t.season_id === seasonId)
     const carousel = getLocal<CarouselItem[]>(STORAGE_KEYS.CAROUSEL, []).filter((c) => c.season_id === seasonId)
 
     return {
       teams: teams.length,
       players: players.length,
-      matches: matches.length,
-      match_stats: matchStats.length,
       purse_transactions: txs.length,
       carousel_items: carousel.length
     }
@@ -146,16 +137,6 @@ const demoSeasonsService: SeasonsService = {
     }
 
     // Cascade delete season records (athletes are preserved!)
-    const matches = getLocal<Match[]>(STORAGE_KEYS.MATCHES, [])
-    const matchIds = new Set(matches.filter((m) => m.season_id === seasonId).map((m) => m.id))
-
-    const remainingMatches = matches.filter((m) => m.season_id !== seasonId)
-    setLocal(STORAGE_KEYS.MATCHES, remainingMatches)
-
-    const stats = getLocal<MatchPlayerStats[]>(STORAGE_KEYS.MATCH_STATS, [])
-    const remainingStats = stats.filter((s) => !matchIds.has(s.match_id))
-    setLocal(STORAGE_KEYS.MATCH_STATS, remainingStats)
-
     const txs = getLocal<PurseTransaction[]>(STORAGE_KEYS.TRANSACTIONS, [])
     setLocal(STORAGE_KEYS.TRANSACTIONS, txs.filter((t) => t.season_id !== seasonId))
 
@@ -174,7 +155,6 @@ const demoSeasonsService: SeasonsService = {
     notifyChange('seasons_change')
     notifyChange('teams_change')
     notifyChange('players_change')
-    notifyChange('matches_change')
   }
 }
 
@@ -329,13 +309,12 @@ const supabaseSeasonsService: SeasonsService = {
 
   async getSeasonDeletionPreview(seasonId: string): Promise<SeasonDeletionCounts> {
     if (!supabase) {
-      return { teams: 0, players: 0, matches: 0, match_stats: 0, purse_transactions: 0, carousel_items: 0 }
+      return { teams: 0, players: 0, purse_transactions: 0, carousel_items: 0 }
     }
 
-    const [teamsRes, playersRes, matchesRes, txRes, carRes] = await Promise.all([
+    const [teamsRes, playersRes, txRes, carRes] = await Promise.all([
       supabase.from('teams').select('id', { count: 'exact', head: true }).eq('season_id', seasonId),
       supabase.from('players').select('id', { count: 'exact', head: true }).eq('season_id', seasonId),
-      supabase.from('matches').select('id', { count: 'exact', head: true }).eq('season_id', seasonId),
       supabase.from('purse_transactions').select('id', { count: 'exact', head: true }).eq('season_id', seasonId),
       supabase.from('carousel_items').select('id', { count: 'exact', head: true }).eq('season_id', seasonId)
     ])
@@ -343,8 +322,6 @@ const supabaseSeasonsService: SeasonsService = {
     return {
       teams: teamsRes.count || 0,
       players: playersRes.count || 0,
-      matches: matchesRes.count || 0,
-      match_stats: 0, // cascades with matches
       purse_transactions: txRes.count || 0,
       carousel_items: carRes.count || 0
     }

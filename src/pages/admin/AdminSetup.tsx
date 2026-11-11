@@ -2,13 +2,11 @@ import React, { useEffect, useState } from 'react'
 import {
   ArrowDown,
   ArrowUp,
-  Check,
   FloppyDisk,
   Hourglass,
   PencilSimple,
   Plus,
-  Trash,
-  X
+  Trash
 } from '@phosphor-icons/react'
 import { useToast } from '../../lib/ToastContext'
 import { getErrorMessage } from '../../lib/errors'
@@ -17,11 +15,18 @@ import {
   deleteCarouselItem,
   getCarouselItems,
   getSiteSettings,
-  reorderCarouselItems,
   swapCarouselItems,
   updateCarouselItem,
   updateSiteSetting
 } from '../../lib/data'
+import {
+  Button,
+  Dialog,
+  EmptyState,
+  ErrorState,
+  PageHeader,
+  SegmentedControl
+} from '../../components/ui'
 import type { CarouselItem, PageContentSetting, SiteSettings } from '../../types'
 
 type SetupTab = 'carousel' | 'pages' | 'auction'
@@ -137,7 +142,6 @@ export const AdminSetup: React.FC = () => {
 
   // Handle Toggle Active
   const handleToggleActive = async (item: CarouselItem) => {
-    // Guard: at least 1 active item must remain
     if (item.active) {
       const activeCount = carouselItems.filter((i) => i.active).length
       if (activeCount <= 1) {
@@ -147,7 +151,6 @@ export const AdminSetup: React.FC = () => {
     }
 
     const prevItems = [...carouselItems]
-    // Optimistic update
     setCarouselItems((prev) =>
       prev.map((i) => (i.id === item.id ? { ...i, active: !i.active } : i))
     )
@@ -165,7 +168,6 @@ export const AdminSetup: React.FC = () => {
 
   // Handle Delete
   const handleDeleteCarouselItem = async (item: CarouselItem) => {
-    // Guard: at least 1 active item must remain
     if (item.active) {
       const activeCount = carouselItems.filter((i) => i.active).length
       if (activeCount <= 1) {
@@ -174,10 +176,7 @@ export const AdminSetup: React.FC = () => {
       }
     }
 
-    if (!window.confirm('Delete this carousel item?')) return
-
     const prevItems = [...carouselItems]
-    // Optimistic delete
     setCarouselItems((prev) => prev.filter((i) => i.id !== item.id))
 
     try {
@@ -203,7 +202,6 @@ export const AdminSetup: React.FC = () => {
     const orderA = itemA.sort_order ?? index
     const orderB = itemB.sort_order ?? targetIndex
 
-    // Optimistic swap
     const swapped = [...carouselItems]
     swapped[index] = { ...itemB, sort_order: orderA }
     swapped[targetIndex] = { ...itemA, sort_order: orderB }
@@ -243,122 +241,90 @@ export const AdminSetup: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/10">
-        <div>
-          <span className="text-xs font-mono uppercase tracking-widest text-[#047554] block mb-1">
-            SITE CONFIGURATION
-          </span>
-          <h1 className="font-syne font-extrabold text-3xl sm:text-4xl text-text tracking-tight">
-            System Setup
-          </h1>
-        </div>
-
-        {/* Setup Navigation Tabs */}
-        <div className="flex items-center gap-1.5 p-1 bg-surface-2 border border-border rounded-xl">
-          <button
-            type="button"
-            onClick={() => setActiveTab('carousel')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              activeTab === 'carousel'
-                ? 'bg-btn-bg text-btn-fg font-semibold'
-                : 'text-muted hover:text-text'
-            }`}
-          >
-            Carousel
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('pages')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              activeTab === 'pages'
-                ? 'bg-btn-bg text-btn-fg font-semibold'
-                : 'text-muted hover:text-text'
-            }`}
-          >
-            Pages
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('auction')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              activeTab === 'auction'
-                ? 'bg-btn-bg text-btn-fg font-semibold'
-                : 'text-muted hover:text-text'
-            }`}
-          >
-            Auction
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        label="Site Configuration"
+        title="System Setup"
+        subtitle="Manage the homepage stadium ticker ribbon, public documentation pages, and auction settings."
+        actions={
+          <SegmentedControl
+            ariaLabel="Setup sections"
+            value={activeTab}
+            onChange={setActiveTab}
+            options={[
+              { value: 'carousel', label: 'Carousel' },
+              { value: 'pages', label: 'Pages' },
+              { value: 'auction', label: 'Auction' }
+            ]}
+          />
+        }
+      />
 
       {/* Tab 1: Carousel Items */}
       {activeTab === 'carousel' && (
         <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface border border-border rounded-2xl p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface border border-border rounded-2xl p-6 shadow-sm">
             <div>
               <h2 className="font-syne font-bold text-xl text-text">Homepage Ticker Strip</h2>
               <p className="text-xs text-muted mt-1">
                 Manage ticker announcements shown in the home page stadium ribbon. Max 80 characters per item.
               </p>
             </div>
-            <button
-              type="button"
+            <Button
+              variant="primary"
+              size="md"
+              leftIcon={Plus}
               onClick={() => {
                 setEditingItem(null)
                 setItemText('')
                 setIsAddModalOpen(true)
               }}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-btn-bg text-btn-fg text-xs font-semibold hover:opacity-90 transition-colors shrink-0"
             >
-              <Plus size={16} weight="bold" />
-              <span>Add item</span>
-            </button>
+              Add item
+            </Button>
           </div>
 
           {/* Offline/Error Retry Banner */}
           {carouselError && (
-            <div className="bg-error/10 border border-error/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5 text-xs text-text">
-                <span className="w-2 h-2 rounded-full bg-error shrink-0" />
-                <span className="break-all">{carouselError}</span>
-              </div>
-              <button
-                type="button"
-                onClick={loadCarousel}
-                className="px-3.5 py-1.5 rounded-lg bg-surface-2 hover:bg-surface text-xs font-semibold text-text transition-colors shrink-0 self-start sm:self-auto"
-              >
-                Retry
-              </button>
-            </div>
+            <ErrorState
+              title="Failed to load carousel items"
+              message={carouselError}
+              onRetry={loadCarousel}
+            />
           )}
 
           {isLoadingCarousel ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-16 bg-surface border border-border/40 rounded-xl animate-pulse" />
+                <div key={i} className="h-16 bg-surface border border-border rounded-xl animate-pulse" />
               ))}
             </div>
           ) : carouselItems.length === 0 ? (
-            <div className="bg-surface border border-border rounded-2xl p-12 text-center text-muted">
-              No carousel items configured. Click &ldquo;Add item&rdquo; to introduce ticker strings.
-            </div>
+            <EmptyState
+              title="No carousel items configured"
+              description="Click Add item to introduce announcements to the homepage ticker strip."
+              actionLabel="Add item"
+              onAction={() => {
+                setEditingItem(null)
+                setItemText('')
+                setIsAddModalOpen(true)
+              }}
+            />
           ) : (
-            <div className="bg-surface border border-border rounded-2xl overflow-hidden divide-y divide-border">
+            <div className="bg-surface border border-border rounded-2xl overflow-hidden divide-y divide-border shadow-sm">
               {carouselItems.map((item, index) => (
                 <div
                   key={item.id}
-                  className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-surface-2/50 transition-colors"
+                  className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-surface-2/60 transition-colors"
                 >
                   <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <span className="font-mono text-xs text-muted w-6 shrink-0">
+                    <span className="font-mono text-xs text-muted w-6 shrink-0 tabular-nums">
                       {String(index + 1).padStart(2, '0')}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-text break-all font-sans">
                         {item.text}
                       </p>
-                      <span className="text-[10px] font-mono text-muted">
+                      <span className="text-[10px] font-mono text-muted tabular-nums">
                         {item.text.length} / 80 chars
                       </span>
                     </div>
@@ -371,7 +337,7 @@ export const AdminSetup: React.FC = () => {
                       disabled={index === 0}
                       onClick={() => handleMove(index, 'up')}
                       title="Move up"
-                      className="p-2 rounded-lg border border-border text-muted hover:text-text disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                      className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors"
                     >
                       <ArrowUp size={14} weight="bold" />
                     </button>
@@ -380,7 +346,7 @@ export const AdminSetup: React.FC = () => {
                       disabled={index === carouselItems.length - 1}
                       onClick={() => handleMove(index, 'down')}
                       title="Move down"
-                      className="p-2 rounded-lg border border-border text-muted hover:text-text disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                      className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors"
                     >
                       <ArrowDown size={14} weight="bold" />
                     </button>
@@ -391,8 +357,8 @@ export const AdminSetup: React.FC = () => {
                       onClick={() => handleToggleActive(item)}
                       className={`px-2.5 py-1.5 rounded-lg text-xs font-mono transition-colors ${
                         item.active
-                          ? 'bg-accent-bright/15 border border-accent-bright text-accent-bright'
-                          : 'bg-surface-2 border border-border text-muted'
+                          ? 'bg-surface-2 border border-accent-bright text-accent-bright font-semibold'
+                          : 'bg-surface-2 border border-border text-muted hover:text-text'
                       }`}
                     >
                       {item.active ? 'Active' : 'Inactive'}
@@ -407,7 +373,7 @@ export const AdminSetup: React.FC = () => {
                         setIsAddModalOpen(true)
                       }}
                       title="Edit text"
-                      className="p-2 rounded-lg border border-border text-muted hover:text-text transition-colors"
+                      className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 transition-colors"
                     >
                       <PencilSimple size={14} />
                     </button>
@@ -417,7 +383,7 @@ export const AdminSetup: React.FC = () => {
                       type="button"
                       onClick={() => handleDeleteCarouselItem(item)}
                       title="Delete item"
-                      className="p-2 rounded-lg border border-border text-muted hover:text-error transition-colors"
+                      className="p-2 rounded-lg border border-border text-muted hover:text-error hover:bg-error/10 transition-colors"
                     >
                       <Trash size={14} />
                     </button>
@@ -431,7 +397,7 @@ export const AdminSetup: React.FC = () => {
 
       {/* Tab 2: Pages Content Editor */}
       {activeTab === 'pages' && (
-        <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8 space-y-6">
+        <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
             <div>
               <h2 className="font-syne font-bold text-xl text-text">Public Pages Editor</h2>
@@ -440,30 +406,16 @@ export const AdminSetup: React.FC = () => {
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedPageKey('help_page')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  selectedPageKey === 'help_page'
-                    ? 'bg-btn-bg text-btn-fg font-semibold'
-                    : 'bg-surface-2 text-muted hover:text-text'
-                }`}
-              >
-                Help Page
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedPageKey('about_page')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  selectedPageKey === 'about_page'
-                    ? 'bg-btn-bg text-btn-fg font-semibold'
-                    : 'bg-surface-2 text-muted hover:text-text'
-                }`}
-              >
-                About Page
-              </button>
-            </div>
+            <SegmentedControl
+              ariaLabel="Select public page"
+              size="sm"
+              value={selectedPageKey}
+              onChange={setSelectedPageKey}
+              options={[
+                { value: 'help_page', label: 'Help Page' },
+                { value: 'about_page', label: 'About Page' }
+              ]}
+            />
           </div>
 
           <form onSubmit={handleSavePage} className="space-y-5">
@@ -494,14 +446,16 @@ export const AdminSetup: React.FC = () => {
             </div>
 
             <div className="flex justify-end pt-2">
-              <button
+              <Button
                 type="submit"
+                variant="primary"
+                size="md"
+                leftIcon={FloppyDisk}
                 disabled={isSavingPage}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-btn-bg text-btn-fg text-xs font-semibold hover:opacity-90 disabled:opacity-50 transition-colors"
+                isLoading={isSavingPage}
               >
-                <FloppyDisk size={16} weight="bold" />
-                <span>{isSavingPage ? 'Saving...' : 'Save Page Content'}</span>
-              </button>
+                Save Page Content
+              </Button>
             </div>
           </form>
         </div>
@@ -509,95 +463,77 @@ export const AdminSetup: React.FC = () => {
 
       {/* Tab 3: Auction Placeholder Card */}
       {activeTab === 'auction' && (
-        <div className="bg-surface border border-border rounded-2xl p-12 text-center max-w-2xl mx-auto space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-surface-2 border border-border flex items-center justify-center mx-auto text-muted">
-            <Hourglass size={24} weight="duotone" />
-          </div>
-          <h2 className="font-syne font-bold text-2xl text-text">Auction Rules & Timing</h2>
-          <p className="text-sm text-muted max-w-md mx-auto leading-relaxed">
-            Live auction timing and settings will be configurable in a future release.
-          </p>
-          <div className="inline-block px-3 py-1 rounded-full bg-surface-2 border border-border font-mono text-[11px] text-muted">
-            Drafting Engine: Manual Control Mode Active
-          </div>
-        </div>
+        <EmptyState
+          icon={Hourglass}
+          title="Auction Rules & Timing"
+          description="Live auction timing and automated bidding increments will be configurable in a future release. Manual control mode is currently active."
+        />
       )}
 
-      {/* Add / Edit Carousel Modal */}
-      {isAddModalOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 bg-scrim flex items-center justify-center p-4"
-        >
-          <div className="bg-surface border border-border rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
-            <div className="flex items-center justify-between pb-4 border-b border-border mb-5">
-              <h3 className="font-syne font-bold text-lg text-text">
-                {editingItem ? 'Edit Ticker Item' : 'New Ticker Item'}
-              </h3>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsAddModalOpen(false)
-                  setEditingItem(null)
-                }}
-                className="p-1 rounded-lg text-muted hover:text-text"
+      {/* Add / Edit Carousel Dialog */}
+      <Dialog
+        isOpen={isAddModalOpen}
+        onClose={() => {
+          if (!isSavingCarousel) {
+            setIsAddModalOpen(false)
+            setEditingItem(null)
+          }
+        }}
+        title={editingItem ? 'Edit Ticker Item' : 'New Ticker Item'}
+        size="md"
+      >
+        <form onSubmit={handleSaveCarouselItem} className="space-y-4">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-mono uppercase tracking-wider text-muted">
+                Ticker Text
+              </label>
+              <span
+                className={`font-mono text-xs tabular-nums ${
+                  itemText.length > 80 ? 'text-error' : 'text-muted'
+                }`}
               >
-                <X size={18} weight="bold" />
-              </button>
+                {itemText.length} / 80
+              </span>
             </div>
-
-            <form onSubmit={handleSaveCarouselItem} className="space-y-4">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-mono uppercase tracking-wider text-muted">
-                    Ticker Text
-                  </label>
-                  <span
-                    className={`font-mono text-xs ${
-                      itemText.length > 80 ? 'text-error' : 'text-muted'
-                    }`}
-                  >
-                    {itemText.length} / 80
-                  </span>
-                </div>
-                <input
-                  type="text"
-                  maxLength={80}
-                  value={itemText}
-                  onChange={(e) => setItemText(e.target.value)}
-                  placeholder="e.g. SQUAD REGISTRATIONS CLOSING SOON"
-                  required
-                  autoFocus
-                  disabled={isSavingCarousel}
-                  className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent-bright disabled:opacity-50"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-3">
-                <button
-                  type="button"
-                  disabled={isSavingCarousel}
-                  onClick={() => {
-                    setIsAddModalOpen(false)
-                    setEditingItem(null)
-                  }}
-                  className="px-4 py-2 rounded-xl text-xs text-muted hover:text-text disabled:opacity-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSavingCarousel}
-                  className="px-5 py-2 rounded-xl bg-btn-bg text-btn-fg text-xs font-semibold hover:opacity-90 disabled:opacity-50 disabled:pointer-events-none transition-colors"
-                >
-                  {isSavingCarousel ? 'Saving...' : 'Save Item'}
-                </button>
-              </div>
-            </form>
+            <input
+              type="text"
+              maxLength={80}
+              value={itemText}
+              onChange={(e) => setItemText(e.target.value)}
+              placeholder="e.g. SQUAD REGISTRATIONS CLOSING SOON"
+              required
+              autoFocus
+              disabled={isSavingCarousel}
+              className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent-bright disabled:opacity-50"
+            />
           </div>
-        </div>
-      )}
+
+          <div className="flex justify-end gap-2.5 pt-3">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={isSavingCarousel}
+              onClick={() => {
+                setIsAddModalOpen(false)
+                setEditingItem(null)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              disabled={isSavingCarousel}
+              isLoading={isSavingCarousel}
+            >
+              Save Item
+            </Button>
+          </div>
+        </form>
+      </Dialog>
     </div>
   )
 }

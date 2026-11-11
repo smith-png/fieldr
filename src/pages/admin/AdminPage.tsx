@@ -3,11 +3,12 @@ import { AdminLayout, type AdminTab } from './AdminLayout'
 import { AdminDashboard } from './AdminDashboard'
 import { AdminSeasons } from './AdminSeasons'
 import { AdminTeams } from './AdminTeams'
+import { AdminAthletes } from './AdminAthletes'
 import { AdminPlayers } from './AdminPlayers'
-import { AdminMatches } from './AdminMatches'
 import { AdminPurses } from './AdminPurses'
 import { AdminProjectorControl } from './AdminProjectorControl'
 import { AdminSetup } from './AdminSetup'
+import { Spinner } from '../../components/ui'
 import {
   getPlayers,
   getProjectorState,
@@ -91,8 +92,9 @@ export const AdminPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-bg text-muted flex items-center justify-center font-mono text-xs tracking-widest">
-        <span>INITIALIZING FIELDR COMMAND CENTER...</span>
+      <div className="min-h-screen bg-bg text-muted flex flex-col items-center justify-center gap-3 font-mono text-xs tracking-widest">
+        <Spinner size="lg" />
+        <span>Loading Fieldr Admin...</span>
       </div>
     )
   }
@@ -132,6 +134,10 @@ export const AdminPage: React.FC = () => {
         />
       )}
 
+      {currentTab === 'athletes' && (
+        <AdminAthletes onRefresh={loadAllData} />
+      )}
+
       {currentTab === 'players' && (
         <AdminPlayers
           activeSeason={activeSeason}
@@ -139,6 +145,7 @@ export const AdminPage: React.FC = () => {
           teams={teams}
           sports={sports}
           onRefresh={loadAllData}
+          onGoToTab={setCurrentTab}
         />
       )}
 
@@ -157,15 +164,6 @@ export const AdminPage: React.FC = () => {
           projectorState={projectorState}
           teams={teams}
           players={players}
-          onRefresh={loadAllData}
-        />
-      )}
-
-      {currentTab === 'matches' && (
-        <AdminMatches
-          season={activeSeason}
-          teams={teams}
-          sports={sports}
           onRefresh={loadAllData}
         />
       )}

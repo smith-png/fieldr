@@ -3,9 +3,6 @@ import type {
   AthleteCareerEntry,
   AuthUser,
   CarouselItem,
-  Match,
-  MatchPlayerStats,
-  MatchWithTeams,
   Player,
   PlayerStatus,
   ProjectorState,
@@ -57,25 +54,28 @@ export interface TeamsService {
   subscribeToTeams(seasonId: string, callback: (teams: Team[]) => void): () => void
 }
 
+export interface AthletesPagedParams {
+  page: number
+  pageSize: number
+  search?: string
+}
+
+export interface AthletesPagedResult {
+  athletes: Athlete[]
+  totalCount: number
+  totalPages: number
+}
+
 export interface AthletesService {
+  getAthletesPaged(params: AthletesPagedParams): Promise<AthletesPagedResult>
   searchAthletes(query: string): Promise<Athlete[]>
   getAthleteByCode(code: number | string): Promise<Athlete | null>
   getAthleteById(id: string): Promise<Athlete | null>
   getAthleteCareer(athleteId: string): Promise<AthleteCareerEntry[]>
+  getAthleteEntries(athleteId: string): Promise<AthleteCareerEntry[]>
   createAthlete(data: Omit<Athlete, 'id' | 'athlete_code' | 'created_at'>): Promise<Athlete>
   updateAthlete(id: string, updates: Partial<Athlete>): Promise<Athlete>
-}
-
-export interface MatchesService {
-  getMatches(seasonId: string, sport?: string): Promise<MatchWithTeams[]>
-  getMatch(id: string): Promise<MatchWithTeams | null>
-  createMatch(matchData: Omit<Match, 'id' | 'created_at'>): Promise<MatchWithTeams>
-  updateMatch(id: string, updates: Partial<Match>): Promise<MatchWithTeams>
-  deleteMatch(id: string): Promise<void>
-  bulkCreateMatches(matchesData: Array<Omit<Match, 'id' | 'created_at'>>): Promise<Match[]>
-  getMatchStats(matchId: string): Promise<MatchPlayerStats[]>
-  saveMatchStats(matchId: string, stats: Array<{ playerId: string; stats: Record<string, unknown> }>): Promise<void>
-  subscribeToMatches(seasonId: string, callback: (matches: MatchWithTeams[]) => void): () => void
+  deleteAthlete(id: string): Promise<void>
 }
 
 export interface PlayersPagedParams {

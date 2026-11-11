@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { CaretLeft, Clock, ShieldCheck, Trophy, Users } from '@phosphor-icons/react'
+import { CaretLeft, ShieldCheck, Users } from '@phosphor-icons/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
@@ -8,12 +8,11 @@ import { EmptyState, ErrorState, Spinner } from '../../components/ui'
 import { RosterPlayerCard } from '../../components/roster/RosterPlayerCard'
 import {
   getActiveSeason,
-  getMatches,
   getPlayers,
   getPublicTeams,
   getSeason
 } from '../../lib/data'
-import type { MatchWithTeams, Player, PublicTeam, Season } from '../../types'
+import type { Player, PublicTeam, Season } from '../../types'
 
 export const SeasonTeamDetailPage: React.FC = () => {
   const { id, teamId } = useParams<{ id: string; teamId: string }>()
@@ -25,7 +24,6 @@ export const SeasonTeamDetailPage: React.FC = () => {
   const [team, setTeam] = useState<PublicTeam | null>(null)
   const [teamPlayers, setTeamPlayers] = useState<Player[]>([])
   const [allPlayers, setAllPlayers] = useState<Player[]>([])
-  const [teamMatches, setTeamMatches] = useState<MatchWithTeams[]>([])
 
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
@@ -51,16 +49,10 @@ export const SeasonTeamDetailPage: React.FC = () => {
 
       setTeam(foundTeam)
 
-      const [seasonPlayers, matchesData] = await Promise.all([
-        getPlayers(id),
-        getMatches(id)
-      ])
+      const seasonPlayers = await getPlayers(id)
 
       setAllPlayers(seasonPlayers)
       setTeamPlayers(seasonPlayers.filter((p) => p.team_id === teamId))
-      setTeamMatches(
-        matchesData.filter((m) => m.team_a_id === teamId || m.team_b_id === teamId)
-      )
     } catch {
       setHasError(true)
     } finally {
@@ -140,8 +132,6 @@ export const SeasonTeamDetailPage: React.FC = () => {
                   <span>Owner: <strong className="text-text">{team.owner_display_name || 'Unassigned'}</strong></span>
                   <span>&bull;</span>
                   <span>Roster Squad: {teamPlayers.length} Players</span>
-                  <span>&bull;</span>
-                  <span>Fixtures: {teamMatches.length} Matches</span>
                 </div>
               </div>
             </div>
@@ -183,52 +173,6 @@ export const SeasonTeamDetailPage: React.FC = () => {
                       />
                     )
                   })}
-                </div>
-              )}
-            </div>
-
-            {/* Team Matches */}
-            <div>
-              <h2 className="font-syne font-bold text-xl text-text mb-4 flex items-center gap-2">
-                <Trophy size={20} className="text-accent-bright" />
-                <span>Match Schedule & Results ({teamMatches.length})</span>
-              </h2>
-
-              {teamMatches.length === 0 ? (
-                <div className="p-8 text-center rounded-2xl bg-surface border border-border text-xs text-muted">
-                  No fixtures scheduled for this franchise yet.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-3">
-                  {teamMatches.map((m) => (
-                    <div key={m.id} className="p-4 rounded-xl bg-surface border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                      <div className="flex items-center gap-3">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-surface-2 text-muted">
-                          {m.round}
-                        </span>
-                        <div className="font-semibold text-text flex items-center gap-2">
-                          <span>{m.team_a?.name || 'Team A'}</span>
-                          {m.score_a && <span className="text-accent-bright font-mono">({m.score_a})</span>}
-                          <span className="text-muted font-mono text-[10px]">VS</span>
-                          <span>{m.team_b?.name || 'Team B'}</span>
-                          {m.score_b && <span className="text-accent-bright font-mono">({m.score_b})</span>}
-                        </div>
-                      </div>
-
-                      <div className="text-muted">
-                        {m.result_summary ? (
-                          <span className="text-text font-medium">{m.result_summary}</span>
-                        ) : m.scheduled_at ? (
-                          <span className="flex items-center gap-1">
-                            <Clock size={14} />
-                            {new Date(m.scheduled_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
-                          </span>
-                        ) : (
-                          <span>Scheduled</span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
                 </div>
               )}
             </div>

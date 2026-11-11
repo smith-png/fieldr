@@ -1,8 +1,6 @@
 import React, { createContext, useContext, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { CheckCircle, WarningCircle, X } from '@phosphor-icons/react'
-
-type ToastType = 'success' | 'error' | 'info'
+import { ToastItem, type ToastType } from '../components/ui/Toast'
 
 interface ToastMessage {
   id: string
@@ -49,35 +47,17 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           {toasts.map((t) => (
             <motion.div
               key={t.id}
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              initial={{ opacity: 0, y: 16, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.95 }}
-              transition={{ duration: 0.25 }}
-              className={`pointer-events-auto flex items-center justify-between gap-3 px-4 py-3 rounded-xl border shadow-xl text-sm ${
-                t.type === 'success'
-                  ? 'bg-surface border-accent-bright/50 text-text'
-                  : t.type === 'error'
-                  ? 'bg-surface border-error/50 text-text'
-                  : 'bg-surface border-border text-text'
-              }`}
+              exit={{ opacity: 0, y: 8, scale: 0.96 }}
+              transition={{ duration: 0.2 }}
             >
-              <div className="flex items-center gap-2.5 min-w-0">
-                {t.type === 'success' && (
-                  <CheckCircle size={18} weight="fill" className="text-accent-bright shrink-0" />
-                )}
-                {t.type === 'error' && (
-                  <WarningCircle size={18} weight="fill" className="text-error shrink-0" />
-                )}
-                <span className="truncate">{t.text}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => removeToast(t.id)}
-                aria-label="Dismiss notification"
-                className="text-muted hover:text-text shrink-0 p-1"
-              >
-                <X size={14} weight="bold" />
-              </button>
+              <ToastItem
+                id={t.id}
+                message={t.text}
+                type={t.type}
+                onDismiss={removeToast}
+              />
             </motion.div>
           ))}
         </AnimatePresence>

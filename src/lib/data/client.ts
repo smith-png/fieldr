@@ -31,8 +31,6 @@ export const STORAGE_KEYS = {
   TEAMS: 'fieldr_teams',
   PLAYERS: 'fieldr_players',
   ATHLETES: 'fieldr_athletes',
-  MATCHES: 'fieldr_matches',
-  MATCH_STATS: 'fieldr_match_stats',
   TRANSACTIONS: 'fieldr_transactions',
   PROJECTOR: 'fieldr_projector_state',
   CAROUSEL: 'fieldr_carousel_items',
@@ -130,7 +128,7 @@ export function setLocal<T>(key: string, value: T): void {
   }
 }
 
-import type { Athlete, Match, Team } from '../../types'
+import type { Athlete, Team } from '../../types'
 
 export function getNextAthleteCode(currentAthletes: Athlete[]): number {
   let maxCode = 0
@@ -281,6 +279,7 @@ export function initializeDemoStore(): void {
         id: 'ath-1',
         athlete_code: 1,
         name: 'Aiden Reed',
+        academic_year: '3rd',
         roll_no: 'ENG-2023-014',
         notes: 'Top-order aggressive stroke maker and agile boundary fielder.',
         created_at: '2025-01-10T00:00:00.000Z'
@@ -289,6 +288,7 @@ export function initializeDemoStore(): void {
         id: 'ath-2',
         athlete_code: 2,
         name: 'Kavita Sharma',
+        academic_year: 'Final',
         roll_no: 'SCI-2022-088',
         notes: 'Clinical left-arm orthodox spinner and reliable middle order anchor.',
         created_at: '2025-01-10T00:00:00.000Z'
@@ -297,6 +297,7 @@ export function initializeDemoStore(): void {
         id: 'ath-3',
         athlete_code: 3,
         name: 'Liam Henderson',
+        academic_year: '2nd',
         roll_no: 'BUS-2024-002',
         notes: 'High-press futsal winger with rapid turnaround and crossing precision.',
         created_at: '2025-01-11T00:00:00.000Z'
@@ -305,6 +306,7 @@ export function initializeDemoStore(): void {
         id: 'ath-4',
         athlete_code: 4,
         name: 'Mateo Silva',
+        academic_year: 'Final',
         roll_no: 'ENG-2021-042',
         notes: 'Dominant volleyball outside hitter with heavy jump serve.',
         created_at: '2025-01-12T00:00:00.000Z'
@@ -313,6 +315,7 @@ export function initializeDemoStore(): void {
         id: 'ath-5',
         athlete_code: 5,
         name: 'Zara Patel',
+        academic_year: '3rd',
         roll_no: 'MED-2023-109',
         notes: 'Wicketkeeper batter with exceptional glove work against spin.',
         created_at: '2025-01-12T00:00:00.000Z'
@@ -321,6 +324,7 @@ export function initializeDemoStore(): void {
         id: 'ath-6',
         athlete_code: 6,
         name: 'Daniel Brooks',
+        academic_year: 'Final',
         roll_no: 'LAW-2022-031',
         notes: 'Pace bowler bowling at 85+ mph with late reverse swing.',
         created_at: '2025-01-13T00:00:00.000Z'
@@ -387,7 +391,7 @@ export function initializeDemoStore(): void {
         player_code: '0004',
         name: 'Mateo Silva',
         sport: 'Volleyball',
-        playing_role: 'Attacker',
+        playing_role: 'Spiker',
         academic_year: 'Final',
         base_points: 500,
         status: 'sold',
@@ -496,6 +500,7 @@ export function initializeDemoStore(): void {
           id: `ath-${Date.now()}-${codeNum}`,
           athlete_code: codeNum,
           name: p.name,
+          academic_year: p.academic_year || '1st',
           photo_url: p.photo_url,
           photo_thumb_url: p.photo_thumb_url,
           roll_no: p.roll_no,
@@ -517,63 +522,19 @@ export function initializeDemoStore(): void {
     setLocal(STORAGE_KEYS.ATHLETES, athletes)
     setLocal(STORAGE_KEYS.PLAYERS, updatedPlayers)
     players = updatedPlayers
-  }
-
-  // Seed demo matches if empty
-  let matches = getLocal<Match[]>(STORAGE_KEYS.MATCHES, [])
-  if (!matches || matches.length === 0) {
-    matches = [
-      {
-        id: 'match-1',
-        season_id: activeSeason.id,
-        sport: 'Cricket',
-        round: 'League Match 1',
-        team_a_id: 'team-c1-2026',
-        team_b_id: 'team-c2-2026',
-        scheduled_at: '2026-03-05T14:00:00.000Z',
-        venue: 'Main Stadium Oval',
-        status: 'completed',
-        score_a: '184/5 (20.0)',
-        score_b: '172/8 (20.0)',
-        winner_team_id: 'team-c1-2026',
-        result_summary: 'Stallions CC won by 12 runs',
-        created_at: '2026-02-15T00:00:00.000Z'
-      },
-      {
-        id: 'match-2',
-        season_id: activeSeason.id,
-        sport: 'Cricket',
-        round: 'League Match 2',
-        team_a_id: 'team-c2-2026',
-        team_b_id: 'team-c1-2026',
-        scheduled_at: '2026-03-12T15:30:00.000Z',
-        venue: 'Main Stadium Oval',
-        status: 'scheduled',
-        score_a: undefined,
-        score_b: undefined,
-        winner_team_id: null,
-        result_summary: undefined,
-        created_at: '2026-02-15T00:00:00.000Z'
-      },
-      // 2025 archived match
-      {
-        id: 'match-2025-final',
-        season_id: 'season-2025-fieldr',
-        sport: 'Cricket',
-        round: 'Grand Final',
-        team_a_id: 'team-c1-2025',
-        team_b_id: 'team-c2-2025',
-        scheduled_at: '2025-02-24T16:00:00.000Z',
-        venue: 'Collegiate Arena',
-        status: 'completed',
-        score_a: '195/4 (20.0)',
-        score_b: '168/9 (20.0)',
-        winner_team_id: 'team-c1-2025',
-        result_summary: 'Stallions CC won by 27 runs to claim 2025 Trophy',
-        created_at: '2025-02-20T00:00:00.000Z'
+  } else if (athletes && athletes.length > 0) {
+    // Ensure any stored demo athletes without academic_year get a default
+    let changed = false
+    const patched = athletes.map((a) => {
+      if (!a.academic_year) {
+        changed = true
+        return { ...a, academic_year: '1st' as const }
       }
-    ]
-    setLocal(STORAGE_KEYS.MATCHES, matches)
+      return a
+    })
+    if (changed) {
+      setLocal(STORAGE_KEYS.ATHLETES, patched)
+    }
   }
 
   if (!localStorage.getItem(STORAGE_KEYS.PROJECTOR)) {

@@ -21,11 +21,13 @@ export interface Athlete {
   id: string
   athlete_code: number
   name: string
+  academic_year?: AcademicYear
   photo_url?: string
   photo_thumb_url?: string
   roll_no?: string
   notes?: string
   created_at?: string
+  entries_count?: number
 }
 
 export interface Sport {
@@ -105,39 +107,6 @@ export interface PublicPlayer {
   purchase_price?: number | null
 }
 
-export type MatchStatus = 'scheduled' | 'completed' | 'abandoned'
-
-export interface Match {
-  id: string
-  season_id: string
-  sport: string
-  round: string
-  team_a_id: string
-  team_b_id: string
-  scheduled_at?: string
-  venue?: string
-  status: MatchStatus
-  score_a?: string
-  score_b?: string
-  winner_team_id?: string | null
-  result_summary?: string
-  created_at?: string
-}
-
-export interface MatchWithTeams extends Match {
-  team_a?: Team | PublicTeam
-  team_b?: Team | PublicTeam
-  winner_team?: Team | PublicTeam | null
-}
-
-export interface MatchPlayerStats {
-  id: string
-  match_id: string
-  player_id: string
-  stats: Record<string, unknown>
-  created_at?: string
-}
-
 export interface AthleteCareerEntry {
   player_id: string
   season_id: string
@@ -158,8 +127,6 @@ export interface AthleteCareerEntry {
 export interface SeasonDeletionCounts {
   teams: number
   players: number
-  matches: number
-  match_stats: number
   purse_transactions: number
   carousel_items: number
 }
@@ -213,9 +180,9 @@ export interface SiteSettings {
 
 export type AdminTab =
   | 'dashboard'
+  | 'athletes'
   | 'players'
   | 'teams'
-  | 'matches'
   | 'purses'
   | 'seasons'
   | 'projector'

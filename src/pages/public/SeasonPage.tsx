@@ -5,14 +5,13 @@ import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
 import { EmptyState, ErrorState, Spinner } from '../../components/ui'
-import { getActiveSeason, getMatches, getPlayers, getSeasons, getTeams } from '../../lib/data'
+import { getActiveSeason, getPlayers, getPublicTeams, getSeasons } from '../../lib/data'
 import type { Season } from '../../types'
 
 interface SeasonCardData {
   season: Season
   teamCount: number
   playerCount: number
-  matchCount: number
 }
 
 export const SeasonPage: React.FC = () => {
@@ -33,16 +32,14 @@ export const SeasonPage: React.FC = () => {
       const allSeasons = await getSeasons()
 
       const cardPromises = allSeasons.map(async (s) => {
-        const [teams, players, matches] = await Promise.all([
-          getTeams(s.id),
-          getPlayers(s.id),
-          getMatches(s.id)
+        const [teams, players] = await Promise.all([
+          getPublicTeams(s.id),
+          getPlayers(s.id)
         ])
         return {
           season: s,
           teamCount: teams.length,
-          playerCount: players.length,
-          matchCount: matches.length
+          playerCount: players.length
         }
       })
 
@@ -144,7 +141,7 @@ export const SeasonPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="mt-6 pt-6 border-t border-border grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                  <div className="mt-6 pt-6 border-t border-border grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                     <div>
                       <span className="text-muted block text-[10px] font-mono uppercase">Dates</span>
                       <span className="font-semibold text-text mt-0.5 block">
@@ -161,10 +158,6 @@ export const SeasonPage: React.FC = () => {
                       <span className="text-muted block text-[10px] font-mono uppercase">Roster Entries</span>
                       <span className="font-mono font-bold text-text mt-0.5 block">{activeCard.playerCount} Players</span>
                     </div>
-                    <div>
-                      <span className="text-muted block text-[10px] font-mono uppercase">Matches</span>
-                      <span className="font-mono font-bold text-text mt-0.5 block">{activeCard.matchCount} Fixtures</span>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -178,7 +171,7 @@ export const SeasonPage: React.FC = () => {
                 </h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {previousCards.map(({ season, teamCount, playerCount, matchCount }) => (
+                  {previousCards.map(({ season, teamCount, playerCount }) => (
                     <div
                       key={season.id}
                       onClick={() => navigate(`/season/${season.id}`)}
@@ -208,8 +201,6 @@ export const SeasonPage: React.FC = () => {
                           <span>{teamCount} Teams</span>
                           <span>&bull;</span>
                           <span>{playerCount} Players</span>
-                          <span>&bull;</span>
-                          <span>{matchCount} Matches</span>
                         </div>
                         <CaretRight size={16} className="group-hover:translate-x-1 transition-transform text-accent-bright" />
                       </div>

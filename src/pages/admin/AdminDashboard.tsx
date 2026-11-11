@@ -1,13 +1,12 @@
 import React from 'react'
 import {
+  ArrowsLeftRight,
   Coins,
   ShieldCheck,
   Television,
-  Users,
-  ArrowUpRight,
-  ArrowDownRight,
-  ArrowsLeftRight
+  Users
 } from '@phosphor-icons/react'
+import { Button, EmptyState, PageHeader } from '../../components/ui'
 import type { AdminTab, Player, PurseTransaction, Season, Team } from '../../types'
 
 interface AdminDashboardProps {
@@ -31,30 +30,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   return (
     <div className="flex flex-col gap-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
-        <div>
-          <span className="text-xs font-mono uppercase tracking-widest text-accent-bright block mb-1">
-            Tournament Control
-          </span>
-          <h1 className="font-syne font-bold text-3xl sm:text-4xl text-text tracking-tight">
-            {activeSeason?.name || 'Tournament Dashboard'}
-          </h1>
-        </div>
-        <button
-          type="button"
-          onClick={() => onGoToTab('projector')}
-          className="min-h-[44px] px-5 py-2.5 rounded-full bg-btn-bg text-btn-fg font-medium text-xs sm:text-sm hover:opacity-90 transition-all flex items-center justify-center gap-2 self-start sm:self-auto"
-        >
-          <Television size={18} weight="bold" />
-          <span>Switch Projector Scene</span>
-        </button>
-      </div>
+      <PageHeader
+        label="Tournament Control"
+        title={activeSeason?.name || 'Tournament Dashboard'}
+        actions={
+          <Button
+            variant="primary"
+            leftIcon={Television}
+            onClick={() => onGoToTab('projector')}
+          >
+            Switch Projector Scene
+          </Button>
+        }
+      />
 
       {/* KPI Cards Grid (4 Columns) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Total Teams */}
-        <div className="p-5 rounded-2xl bg-surface border border-border flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-surface border border-border shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between text-muted mb-4">
             <span className="text-xs font-mono uppercase tracking-wider">Registered Teams</span>
             <ShieldCheck size={20} className="text-accent-bright" />
@@ -68,7 +61,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => onGoToTab('teams')}
-                className="text-accent-bright hover:underline"
+                className="text-accent-bright font-medium hover:underline"
               >
                 View
               </button>
@@ -77,7 +70,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
 
         {/* Card 2: Total Players */}
-        <div className="p-5 rounded-2xl bg-surface border border-border flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-surface border border-border shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between text-muted mb-4">
             <span className="text-xs font-mono uppercase tracking-wider">Player Pool</span>
             <Users size={20} className="text-accent-bright" />
@@ -95,7 +88,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
 
         {/* Card 3: Total Purse Points */}
-        <div className="p-5 rounded-2xl bg-surface border border-border flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-surface border border-border shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between text-muted mb-4">
             <span className="text-xs font-mono uppercase tracking-wider">Total Active Purse</span>
             <Coins size={20} className="text-points" />
@@ -111,7 +104,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
 
         {/* Card 4: Ledger Activity */}
-        <div className="p-5 rounded-2xl bg-surface border border-border flex flex-col justify-between">
+        <div className="p-5 rounded-2xl bg-surface border border-border shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between text-muted mb-4">
             <span className="text-xs font-mono uppercase tracking-wider">Purse Transactions</span>
             <ArrowsLeftRight size={20} className="text-muted" />
@@ -127,11 +120,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
       </div>
 
-      {/* Two Column Section: Quick Actions & Recent Ledger Activity */}
+      {/* Two Column Section: Recent Ledger Activity & Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 Cols: Recent Purse Activity */}
-        <div className="lg:col-span-2 p-6 rounded-3xl bg-surface border border-border flex flex-col gap-5">
-          <div className="flex items-center justify-between">
+        <div className="lg:col-span-2 bg-surface border border-border rounded-2xl shadow-sm overflow-hidden flex flex-col">
+          <div className="p-6 border-b border-border flex items-center justify-between gap-4">
             <div>
               <h2 className="font-syne font-bold text-xl text-text tracking-tight">
                 Recent Purse Activity
@@ -140,66 +133,71 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 Real-time audit log of budget adjustments and player purchase deductions.
               </p>
             </div>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => onGoToTab('purses')}
-              className="text-xs font-medium text-accent-bright hover:text-text transition-colors"
+              className="text-accent-bright hover:text-text"
             >
-              Manage purses &rarr;
-            </button>
+              Manage purses
+            </Button>
           </div>
 
           {transactions.length === 0 ? (
-            <div className="py-12 text-center text-xs text-muted border border-dashed border-border rounded-2xl">
-              No transactions recorded yet in this season.
+            <div className="p-6">
+              <EmptyState
+                icon={Coins}
+                title="No transactions recorded yet"
+                description="Purse adjustments and player auction deductions for this season will appear here."
+              />
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+              <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-border text-muted font-mono uppercase tracking-wider">
-                    <th className="pb-3 font-medium">Team</th>
-                    <th className="pb-3 font-medium">Type</th>
-                    <th className="pb-3 font-medium text-right">Amount</th>
-                    <th className="pb-3 font-medium text-right">Balance</th>
-                    <th className="pb-3 font-medium pl-4">Reason</th>
+                  <tr className="border-b border-border bg-surface-2 text-muted font-mono uppercase tracking-wider text-[11px]">
+                    <th className="py-3 px-4 font-medium">Team</th>
+                    <th className="py-3 px-4 font-medium">Type</th>
+                    <th className="py-3 px-4 font-medium text-right">Amount</th>
+                    <th className="py-3 px-4 font-medium text-right">Balance</th>
+                    <th className="py-3 px-4 font-medium">Reason</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {transactions.slice(0, 6).map((tx) => {
                     const team = teams.find((t) => t.id === tx.team_id)
                     return (
-                      <tr key={tx.id} className="hover:bg-surface-2 transition-colors">
-                        <td className="py-3 font-medium text-text">
+                      <tr key={tx.id} className="hover:bg-surface-2/60 transition-colors">
+                        <td className="py-3.5 px-4 font-medium text-text">
                           <span className="flex items-center gap-2">
                             <span
-                              className="w-2.5 h-2.5 rounded-full shrink-0"
+                              className="w-2.5 h-2.5 rounded-full shrink-0 border border-border"
                               style={{ backgroundColor: team?.color || 'var(--accent)' }}
                             />
                             <span>{team?.name || 'Team'}</span>
                           </span>
                         </td>
-                        <td className="py-3 uppercase font-mono text-[11px]">
+                        <td className="py-3.5 px-4 uppercase font-mono text-[11px]">
                           <span
-                            className={`px-2 py-0.5 rounded ${
+                            className={
                               tx.type === 'deduct'
-                                ? 'bg-error/15 text-error'
+                                ? 'text-error font-semibold'
                                 : tx.type === 'add'
-                                ? 'bg-accent-bright/15 text-accent-bright'
-                                : 'bg-surface-2 text-muted'
-                            }`}
+                                ? 'text-accent-bright font-semibold'
+                                : 'text-muted'
+                            }
                           >
                             {tx.type}
                           </span>
                         </td>
-                        <td className="py-3 text-right font-mono font-semibold tabular-nums text-text">
+                        <td className="py-3.5 px-4 text-right font-mono font-semibold tabular-nums text-text">
                           {tx.type === 'deduct' ? '-' : '+'}
                           {tx.amount.toLocaleString()}
                         </td>
-                        <td className="py-3 text-right font-mono tabular-nums text-points">
+                        <td className="py-3.5 px-4 text-right font-mono tabular-nums text-points font-semibold">
                           {tx.balance_after.toLocaleString()}
                         </td>
-                        <td className="py-3 text-muted pl-4 truncate max-w-xs">
+                        <td className="py-3.5 px-4 text-muted truncate max-w-xs">
                           {tx.reason || 'Manual ledger action'}
                         </td>
                       </tr>
@@ -212,7 +210,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
 
         {/* Right 1 Col: Quick Control Shortcuts */}
-        <div className="p-6 rounded-3xl bg-surface border border-border flex flex-col gap-5">
+        <div className="p-6 rounded-2xl bg-surface border border-border shadow-sm flex flex-col gap-5 self-start">
           <div>
             <h2 className="font-syne font-bold text-xl text-text tracking-tight">
               Console Shortcuts
@@ -226,65 +224,65 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <button
               type="button"
               onClick={() => onGoToTab('players')}
-              className="p-3.5 rounded-2xl bg-surface-2 border border-border hover:border-accent-bright text-left transition-all flex items-center justify-between group"
+              className="p-3.5 rounded-xl bg-surface-2 border border-border hover:border-accent-bright text-left transition-colors flex items-center justify-between group"
             >
               <div>
-                <div className="text-xs font-semibold text-text group-hover:text-accent-bright">
+                <div className="text-xs font-semibold text-text group-hover:text-accent-bright transition-colors">
                   Register New Player
                 </div>
-                <div className="text-[11px] text-muted">
-                  Manual entry with photo and sport role
+                <div className="text-[11px] text-muted mt-0.5">
+                  Assign athlete profile to a sport role
                 </div>
               </div>
-              <Users size={18} className="text-accent-bright" />
+              <Users size={18} className="text-accent-bright shrink-0" />
             </button>
 
             <button
               type="button"
               onClick={() => onGoToTab('teams')}
-              className="p-3.5 rounded-2xl bg-surface-2 border border-border hover:border-accent-bright text-left transition-all flex items-center justify-between group"
+              className="p-3.5 rounded-xl bg-surface-2 border border-border hover:border-accent-bright text-left transition-colors flex items-center justify-between group"
             >
               <div>
-                <div className="text-xs font-semibold text-text group-hover:text-accent-bright">
+                <div className="text-xs font-semibold text-text group-hover:text-accent-bright transition-colors">
                   Create New Franchise Team
                 </div>
-                <div className="text-[11px] text-muted">
+                <div className="text-[11px] text-muted mt-0.5">
                   Set color, logo, owner, and purse
                 </div>
               </div>
-              <ShieldCheck size={18} className="text-accent-bright" />
+              <ShieldCheck size={18} className="text-accent-bright shrink-0" />
             </button>
 
             <button
               type="button"
               onClick={() => onGoToTab('purses')}
-              className="p-3.5 rounded-2xl bg-surface-2 border border-border hover:border-accent-bright text-left transition-all flex items-center justify-between group"
+              className="p-3.5 rounded-xl bg-surface-2 border border-border hover:border-accent-bright text-left transition-colors flex items-center justify-between group"
             >
               <div>
-                <div className="text-xs font-semibold text-text group-hover:text-accent-bright">
+                <div className="text-xs font-semibold text-text group-hover:text-accent-bright transition-colors">
                   Reset Starting Purses
                 </div>
-                <div className="text-[11px] text-muted">
+                <div className="text-[11px] text-muted mt-0.5">
                   Set uniform points for all teams
                 </div>
               </div>
-              <Coins size={18} className="text-points" />
+              <Coins size={18} className="text-points shrink-0" />
             </button>
 
             <button
               type="button"
               onClick={() => onGoToTab('projector')}
-              className="p-3.5 rounded-2xl bg-surface-2 border border-border hover:border-accent-bright text-left transition-all flex items-center justify-between group"
+              className="p-3.5 rounded-xl bg-surface-2 border border-border hover:border-accent-bright text-left transition-colors flex items-center justify-between group"
             >
               <div>
-                <div className="text-xs font-semibold text-text group-hover:text-accent-bright">
+                <div className="text-xs font-semibold text-text group-hover:text-accent-bright transition-colors">
                   Broadcast Player Spotlight
                 </div>
-                <div className="text-[11px] text-muted">
+                <div className="text-[11px] text-muted mt-0.5">
                   Show high-res card on stage display
                 </div>
               </div>
-              <Television size={18} className="text-accent-bright" />
+              <Television size={18} className="text-accent-bright shrink-0" />
             </button>
           </div>
         </div>

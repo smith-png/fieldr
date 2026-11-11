@@ -2,9 +2,7 @@ import React, { useState } from 'react'
 import {
   Broadcast,
   Eye,
-  ProjectorScreen,
   ShieldCheck,
-  Sparkle,
   Television,
   User,
   Users
@@ -12,6 +10,8 @@ import {
 import type { Player, ProjectorMode, ProjectorState, Season, Team } from '../../types'
 import { setProjectorState } from '../../lib/data'
 import { useToast } from '../../lib/ToastContext'
+import { BrandMark } from '../../components/layout/BrandMark'
+import { Button, PageHeader } from '../../components/ui'
 
 interface AdminProjectorControlProps {
   activeSeason: Season | null
@@ -71,30 +71,22 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
 
   return (
     <div className="flex flex-col gap-8">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
-        <div>
-          <span className="text-xs font-mono uppercase tracking-widest text-accent-bright block mb-1">
-            Stage Broadcast Control
-          </span>
-          <h1 className="font-syne font-bold text-3xl sm:text-4xl text-text tracking-tight">
-            Projector Command Studio
-          </h1>
-          <p className="text-xs sm:text-sm text-muted mt-1">
-            Choose what displays live on the hall auditorium big screen with instant synchronization.
-          </p>
-        </div>
-
-        <a
-          href="/projector"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="min-h-[44px] px-6 py-2.5 rounded-full bg-btn-bg text-btn-fg font-medium text-xs sm:text-sm hover:opacity-90 transition-all flex items-center justify-center gap-2 self-start sm:self-auto shadow-lg"
-        >
-          <Television size={18} weight="bold" />
-          <span>Open Fullscreen Projector</span>
-        </a>
-      </div>
+      <PageHeader
+        label="Stage Broadcast Control"
+        title="Projector Command Studio"
+        subtitle="Choose what displays live on the hall auditorium big screen with instant synchronization."
+        actions={
+          <a
+            href="/projector"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="min-h-[40px] px-4 py-2 rounded-xl bg-btn-bg text-btn-fg font-semibold text-xs hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-sm"
+          >
+            <Television size={18} weight="bold" />
+            <span>Open Fullscreen Projector</span>
+          </a>
+        }
+      />
 
       {/* Main Grid: Left Controls (2 Cols) + Right Live Miniature Stage Preview (1 Col) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -106,21 +98,21 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
 
           {/* Mode 1: Idle Scene */}
           <div
-            className={`p-5 rounded-3xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+            className={`p-5 rounded-2xl border transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm ${
               projectorState.mode === 'idle'
-                ? 'bg-accent/15 border-accent-bright'
-                : 'bg-surface border-border hover:border-border/80'
+                ? 'bg-surface border-accent-bright'
+                : 'bg-surface border-border hover:border-accent-bright/60'
             }`}
           >
             <div className="flex items-start gap-4">
               <div
-                className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+                className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border border-border ${
                   projectorState.mode === 'idle'
-                    ? 'bg-accent-bright text-on-accent'
+                    ? 'bg-accent text-on-accent'
                     : 'bg-surface-2 text-muted'
                 }`}
               >
-                <Broadcast size={24} weight="bold" />
+                <Broadcast size={22} weight="bold" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
@@ -128,44 +120,45 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
                     1. Idle Welcome Screen
                   </h3>
                   {projectorState.mode === 'idle' && (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-accent-bright/15 text-accent-bright border border-accent-bright/40">
-                      Live on Stage
+                    <span className="text-[11px] font-mono uppercase text-accent-bright font-semibold">
+                      · Live on Stage
                     </span>
                   )}
                 </div>
                 <p className="text-xs text-muted mt-1 leading-relaxed">
-                  Huge Fieldr wordmark, season title, and the tournament motto: "Draft. Bid. Win."
+                  Displays the centered tournament season title and subtle Fieldr branding at the bottom.
                 </p>
               </div>
             </div>
 
-            <button
+            <Button
               type="button"
+              variant={projectorState.mode === 'idle' ? 'secondary' : 'primary'}
+              size="md"
               disabled={isUpdating || projectorState.mode === 'idle'}
               onClick={() => handleSwitchMode('idle')}
-              className="min-h-[44px] px-6 py-2.5 rounded-xl bg-btn-bg text-btn-fg font-medium text-xs hover:opacity-90 disabled:opacity-40 transition-all shrink-0 self-start sm:self-auto"
             >
               {projectorState.mode === 'idle' ? 'Currently Active' : 'Broadcast Scene'}
-            </button>
+            </Button>
           </div>
 
           {/* Mode 2: Teams & Purses Leaderboard */}
           <div
-            className={`p-5 rounded-3xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+            className={`p-5 rounded-2xl border transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm ${
               projectorState.mode === 'teams'
-                ? 'bg-accent/15 border-accent-bright'
-                : 'bg-surface border-border hover:border-border/80'
+                ? 'bg-surface border-accent-bright'
+                : 'bg-surface border-border hover:border-accent-bright/60'
             }`}
           >
             <div className="flex items-start gap-4">
               <div
-                className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+                className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border border-border ${
                   projectorState.mode === 'teams'
-                    ? 'bg-accent-bright text-on-accent'
+                    ? 'bg-accent text-on-accent'
                     : 'bg-surface-2 text-muted'
                 }`}
               >
-                <ShieldCheck size={24} weight="bold" />
+                <ShieldCheck size={22} weight="bold" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
@@ -173,8 +166,8 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
                     2. All Teams & Purses Leaderboard
                   </h3>
                   {projectorState.mode === 'teams' && (
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-accent-bright/15 text-accent-bright border border-accent-bright/40">
-                      Live on Stage
+                    <span className="text-[11px] font-mono uppercase text-accent-bright font-semibold">
+                      · Live on Stage
                     </span>
                   )}
                 </div>
@@ -184,34 +177,35 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
               </div>
             </div>
 
-            <button
+            <Button
               type="button"
+              variant={projectorState.mode === 'teams' ? 'secondary' : 'primary'}
+              size="md"
               disabled={isUpdating || projectorState.mode === 'teams'}
               onClick={() => handleSwitchMode('teams')}
-              className="min-h-[44px] px-6 py-2.5 rounded-xl bg-btn-bg text-btn-fg font-medium text-xs hover:opacity-90 disabled:opacity-40 transition-all shrink-0 self-start sm:self-auto"
             >
               {projectorState.mode === 'teams' ? 'Currently Active' : 'Broadcast Scene'}
-            </button>
+            </Button>
           </div>
 
           {/* Mode 3: Player Spotlight */}
           <div
-            className={`p-5 rounded-3xl border transition-all flex flex-col gap-4 ${
+            className={`p-5 rounded-2xl border transition-colors flex flex-col gap-4 shadow-sm ${
               projectorState.mode === 'player'
-                ? 'bg-accent/15 border-accent-bright'
-                : 'bg-surface border-border hover:border-border/80'
+                ? 'bg-surface border-accent-bright'
+                : 'bg-surface border-border hover:border-accent-bright/60'
             }`}
           >
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-start gap-4">
                 <div
-                  className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+                  className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border border-border ${
                     projectorState.mode === 'player'
-                      ? 'bg-accent-bright text-on-accent'
+                      ? 'bg-accent text-on-accent'
                       : 'bg-surface-2 text-muted'
                   }`}
                 >
-                  <User size={24} weight="bold" />
+                  <User size={22} weight="bold" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -219,27 +213,28 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
                       3. Player Spotlight Card
                     </h3>
                     {projectorState.mode === 'player' && (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-accent-bright/15 text-accent-bright border border-accent-bright/40">
-                        Live on Stage
+                      <span className="text-[11px] font-mono uppercase text-accent-bright font-semibold">
+                        · Live on Stage
                       </span>
                     )}
                   </div>
                   <p className="text-xs text-muted mt-1 leading-relaxed">
-                    Cinematic player card with huge typography, photo, sport, discipline, and base points.
+                    Cinematic player card with large typography, photo, sport, discipline, and base points.
                   </p>
                 </div>
               </div>
 
-              <button
+              <Button
                 type="button"
+                variant="primary"
+                size="md"
                 disabled={isUpdating || !selectedPlayerId}
                 onClick={() => handleSwitchMode('player')}
-                className="min-h-[44px] px-6 py-2.5 rounded-xl bg-btn-bg text-btn-fg font-medium text-xs hover:opacity-90 disabled:opacity-40 transition-all shrink-0 self-start sm:self-auto"
               >
                 {projectorState.mode === 'player' && projectorState.player_id === selectedPlayerId
                   ? 'Update Spotlight'
                   : 'Broadcast Player'}
-              </button>
+              </Button>
             </div>
 
             {/* Player Selection Dropdown */}
@@ -263,22 +258,22 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
 
           {/* Mode 4: Team Roster View */}
           <div
-            className={`p-5 rounded-3xl border transition-all flex flex-col gap-4 ${
+            className={`p-5 rounded-2xl border transition-colors flex flex-col gap-4 shadow-sm ${
               projectorState.mode === 'roster'
-                ? 'bg-accent/15 border-accent-bright'
-                : 'bg-surface border-border hover:border-border/80'
+                ? 'bg-surface border-accent-bright'
+                : 'bg-surface border-border hover:border-accent-bright/60'
             }`}
           >
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-start gap-4">
                 <div
-                  className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+                  className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border border-border ${
                     projectorState.mode === 'roster'
-                      ? 'bg-accent-bright text-on-accent'
+                      ? 'bg-accent text-on-accent'
                       : 'bg-surface-2 text-muted'
                   }`}
                 >
-                  <Users size={24} weight="bold" />
+                  <Users size={22} weight="bold" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -286,27 +281,28 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
                       4. Team Roster Showcase
                     </h3>
                     {projectorState.mode === 'roster' && (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-accent-bright/15 text-accent-bright border border-accent-bright/40">
-                        Live on Stage
+                      <span className="text-[11px] font-mono uppercase text-accent-bright font-semibold">
+                        · Live on Stage
                       </span>
                     )}
                   </div>
                   <p className="text-xs text-muted mt-1 leading-relaxed">
-                    Display an individual team's franchise emblem, owner, purse, and all drafted players.
+                    Display an individual team&apos;s franchise emblem, owner, purse, and all drafted players.
                   </p>
                 </div>
               </div>
 
-              <button
+              <Button
                 type="button"
+                variant="primary"
+                size="md"
                 disabled={isUpdating || !selectedTeamId}
                 onClick={() => handleSwitchMode('roster')}
-                className="min-h-[44px] px-6 py-2.5 rounded-xl bg-btn-bg text-btn-fg font-medium text-xs hover:opacity-90 disabled:opacity-40 transition-all shrink-0 self-start sm:self-auto"
               >
                 {projectorState.mode === 'roster' && projectorState.team_id === selectedTeamId
                   ? 'Update Roster'
                   : 'Broadcast Roster'}
-              </button>
+              </Button>
             </div>
 
             {/* Team Selection Dropdown */}
@@ -330,49 +326,47 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
         </div>
 
         {/* Right 1 Col: Live Stage Miniature Preview */}
-        <div className="p-6 rounded-3xl bg-surface border border-border flex flex-col gap-4 self-start w-full">
+        <div className="p-6 rounded-2xl bg-surface border border-border shadow-sm flex flex-col gap-4 self-start w-full">
           <div className="flex items-center justify-between">
             <span className="text-xs font-mono uppercase tracking-wider text-muted flex items-center gap-2">
               <Eye size={16} />
               <span>Live Stage Preview</span>
             </span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono uppercase bg-accent-bright/15 text-accent-bright border border-accent-bright/40">
+            <span className="text-[11px] font-mono uppercase text-accent-bright font-semibold">
               {projectorState.mode}
             </span>
           </div>
 
-          {/* Miniature 16:9 Screen (always dark as stage replica) */}
-          <div className="aspect-video w-full rounded-2xl bg-[#0B0B0B] border border-white/20 p-4 flex flex-col justify-between relative overflow-hidden select-none">
-            {/* Ambient Back Glow */}
-            <div className="absolute top-0 right-0 w-32 h-32 rounded-full bg-[#047554]/20 blur-2xl pointer-events-none" />
-
-            {/* Mini scene contents */}
+          {/* Miniature 16:9 Screen using semantic theme tokens */}
+          <div className="aspect-video w-full rounded-xl bg-bg border border-border p-4 flex flex-col justify-between relative overflow-hidden select-none">
             {projectorState.mode === 'idle' && (
-              <div className="flex flex-col items-center justify-center my-auto text-center gap-1">
-                <span className="font-syne font-extrabold text-2xl text-white tracking-tighter">
-                  FIELDR
-                </span>
-                <span className="text-[10px] font-mono tracking-widest text-[#047554] uppercase">
-                  Draft. Bid. Win.
-                </span>
-              </div>
+              <>
+                <div className="flex-1 flex items-center justify-center text-center px-2">
+                  <span className="font-syne font-extrabold text-base text-text tracking-tight leading-tight">
+                    {activeSeason?.name || 'Annual Sports Tournament'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-center pt-2 scale-75 origin-bottom">
+                  <BrandMark size="sm" showWordmark={true} />
+                </div>
+              </>
             )}
 
             {projectorState.mode === 'teams' && (
               <div className="flex flex-col gap-2 my-auto">
-                <div className="text-[10px] font-mono text-white/60 uppercase">
+                <div className="text-[10px] font-mono text-muted uppercase">
                   All Franchises ({teams.length})
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
                   {teams.slice(0, 4).map((t) => (
                     <div
                       key={t.id}
-                      className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-[9px] flex items-center justify-between"
+                      className="p-1.5 rounded-lg bg-surface border border-border text-[9px] flex items-center justify-between"
                     >
-                      <span className="truncate max-w-[70px] text-white font-medium">
+                      <span className="truncate max-w-[70px] text-text font-medium">
                         {t.short_code}
                       </span>
-                      <span className="font-mono text-[#C88B0F]">
+                      <span className="font-mono text-points tabular-nums">
                         {t.current_purse}
                       </span>
                     </div>
@@ -383,25 +377,26 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
 
             {projectorState.mode === 'player' && spotlightPlayer && (
               <div className="flex items-center gap-3 my-auto">
-                <div className="w-12 h-14 rounded-xl bg-white/10 overflow-hidden shrink-0 flex items-center justify-center">
+                <div className="w-12 h-14 rounded-xl bg-surface border border-border overflow-hidden shrink-0 flex items-center justify-center">
                   {spotlightPlayer.photo_url ? (
                     <img
                       src={spotlightPlayer.photo_url}
                       alt={spotlightPlayer.name}
+                      referrerPolicy="no-referrer"
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <User size={18} className="text-white/60" />
+                    <User size={18} className="text-muted" />
                   )}
                 </div>
                 <div className="min-w-0">
-                  <div className="font-syne font-bold text-xs text-white truncate">
+                  <div className="font-syne font-bold text-xs text-text truncate">
                     {spotlightPlayer.name}
                   </div>
-                  <div className="text-[9px] text-[#047554] font-medium">
+                  <div className="text-[9px] text-accent-bright font-medium">
                     {spotlightPlayer.sport} · {spotlightPlayer.playing_role}
                   </div>
-                  <div className="font-mono text-[9px] text-[#C88B0F] mt-0.5">
+                  <div className="font-mono text-[9px] text-points tabular-nums mt-0.5">
                     {spotlightPlayer.base_points} PTS
                   </div>
                 </div>
@@ -411,24 +406,18 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
             {projectorState.mode === 'roster' && rosterTeam && (
               <div className="flex flex-col gap-1.5 my-auto">
                 <div className="flex items-center justify-between">
-                  <span className="font-syne font-bold text-xs text-white">
+                  <span className="font-syne font-bold text-xs text-text">
                     {rosterTeam.name}
                   </span>
-                  <span className="font-mono text-[9px] text-[#C88B0F]">
+                  <span className="font-mono text-[9px] text-points tabular-nums">
                     {rosterTeam.current_purse} PTS
                   </span>
                 </div>
-                <div className="text-[9px] text-white/60">
+                <div className="text-[9px] text-muted">
                   {rosterPlayers.length} players assigned
                 </div>
               </div>
             )}
-
-            {/* Miniature Footer */}
-            <div className="flex items-center justify-between text-[8px] text-white/60 pt-2 border-t border-white/10">
-              <span>Main Auditorium</span>
-              <span>1920x1080 Stage</span>
-            </div>
           </div>
 
           <div className="text-[11px] text-muted leading-relaxed">

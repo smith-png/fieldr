@@ -1,7 +1,6 @@
 import type {
   Athlete,
   Player,
-  PlayerStatus,
   ProjectorState,
   PublicPlayer,
   PurseTransaction,
@@ -17,12 +16,11 @@ import {
   notifyChange,
   demoBroadcastChannel,
   STORAGE_KEYS,
-  getNextPlayerCode,
   formatAthleteCode,
+  parseAthleteCode,
   getNextAthleteCode
 } from './client'
 import { getActiveSeason } from './seasons'
-import { deletePlayerPhotoAssets, uploadPlayerPhotos } from './storage'
 import type {
   PlayersPagedParams,
   PlayersPagedResult,
@@ -31,13 +29,70 @@ import type {
   PublicPlayersPagedResult
 } from './types'
 
+function mapJoinedPlayer(row: Record<string, unknown>, pubRow?: PublicPlayer, athRow?: Athlete): Player {
+  const embeddedAth = Array.isArray(row.athletes)
+    ? (row.athletes[0] as Athlete | undefined)
+    : (row.athletes as Athlete | undefined)
+  const ath = athRow || embeddedAth
+
+  const rawCode =
+    ath?.athlete_code ??
+    pubRow?.athlete_code ??
+    (typeof row.athlete_code === 'number' ? row.athlete_code : undefined)
+
+  const formattedCode =
+    rawCode !== undefined && rawCode !== null
+      ? formatAthleteCode(rawCode)
+      : String(pubRow?.player_code || row.player_code || '0001')
+
+  return {
+    id: String(row.id || pubRow?.id || ''),
+    season_id: String(row.season_id || pubRow?.season_id || ''),
+    athlete_id: String(row.athlete_id || pubRow?.athlete_id || ath?.id || '') || undefined,
+    athlete_code: rawCode,
+    player_code: formattedCode,
+    name: String(ath?.name || pubRow?.name || row.name || 'Unnamed Athlete'),
+    sport: String(row.sport || pubRow?.sport || 'Cricket'),
+    playing_role: String(row.playing_role || pubRow?.playing_role || 'Player'),
+    academic_year: ((row.academic_year || pubRow?.academic_year || ath?.academic_year || '1st') as Player['academic_year']),
+    roll_no: ath?.roll_no ?? (row.roll_no ? String(row.roll_no) : undefined),
+    photo_url: ath?.photo_url || pubRow?.photo_url || (row.photo_url ? String(row.photo_url) : undefined),
+    photo_thumb_url:
+      ath?.photo_thumb_url ||
+      pubRow?.photo_thumb_url ||
+      (row.photo_thumb_url ? String(row.photo_thumb_url) : undefined),
+    base_points: typeof row.base_points === 'number' ? row.base_points : 100,
+    status: (row.status as Player['status']) || 'available',
+    team_id: (row.team_id as string | null) ?? null,
+    purchase_price: typeof row.purchase_price === 'number' ? row.purchase_price : null,
+    created_at: row.created_at ? String(row.created_at) : undefined
+  }
+}
+
 const demoPlayersService: PlayersService = {
   async getPlayers(seasonId: string): Promise<Player[]> {
     try {
       if (!seasonId) return []
       const allPlayers = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, [])
+      const allAthletes = getLocal<Athlete[]>(STORAGE_KEYS.ATHLETES, [])
+      const athMap = new Map<string, Athlete>()
+      for (const a of allAthletes) athMap.set(a.id, a)
+
       return Array.isArray(allPlayers)
-        ? allPlayers.filter((p) => p && p.season_id === seasonId)
+        ? allPlayers
+            .filter((p) => p && p.season_id === seasonId)
+            .map((p) => {
+              const ath = p.athlete_id ? athMap.get(p.athlete_id) : undefined
+              return {
+                ...p,
+                name: ath?.name || p.name,
+                athlete_code: ath?.athlete_code ?? p.athlete_code,
+                player_code: formatAthleteCode(ath?.athlete_code ?? p.player_code),
+                photo_url: ath?.photo_url ?? p.photo_url,
+                photo_thumb_url: ath?.photo_thumb_url ?? p.photo_thumb_url,
+                roll_no: ath?.roll_no ?? p.roll_no
+              }
+            })
         : []
     } catch {
       return []
@@ -48,15 +103,15 @@ const demoPlayersService: PlayersService = {
     const { seasonId, page, pageSize, search, sport, role, status } = params
     const offset = (page - 1) * pageSize
 
-    let list = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, []).filter(
-      (p) => p.season_id === seasonId
-    )
+    let list = await demoPlayersService.getPlayers(seasonId)
 
     if (search && search.trim()) {
       const q = search.trim().toLowerCase()
+      const parsedCode = parseAthleteCode(q)
       list = list.filter(
         (p) =>
           p.name.toLowerCase().includes(q) ||
+          (parsedCode !== null && p.athlete_code === parsedCode) ||
           (p.player_code && p.player_code.toLowerCase().includes(q)) ||
           (p.roll_no && p.roll_no.toLowerCase().includes(q))
       )
@@ -90,13 +145,12 @@ const demoPlayersService: PlayersService = {
     const offset = cursor ? parseInt(cursor, 10) : 0
     const limit = pageSize
 
-    const activeSeason = (getLocal<Season[]>(STORAGE_KEYS.SEASONS, [])).find((s) => s.is_active)
+    const activeSeason = getLocal<Season[]>(STORAGE_KEYS.SEASONS, []).find((s) => s.is_active)
     if (!activeSeason) return { players: [], hasMore: false }
 
-    let list = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, []).filter(
-      (p) =>
-        p.season_id === activeSeason.id &&
-        (!sport || p.sport.toLowerCase() === sport.toLowerCase())
+    const seasonPlayers = await demoPlayersService.getPlayers(activeSeason.id)
+    let list = seasonPlayers.filter(
+      (p) => !sport || p.sport.toLowerCase() === sport.toLowerCase()
     )
 
     if (academicYear && academicYear !== 'all') {
@@ -123,11 +177,7 @@ const demoPlayersService: PlayersService = {
       academic_year: p.academic_year || '1st',
       sport: p.sport,
       playing_role: p.playing_role,
-      season_id: p.season_id,
-      status: p.status,
-      team_id: p.team_id,
-      base_points: p.base_points,
-      purchase_price: p.purchase_price
+      season_id: p.season_id
     }))
 
     const nextOffset = offset + sliced.length
@@ -139,76 +189,51 @@ const demoPlayersService: PlayersService = {
   },
 
   async createPlayer(
-    playerData: Omit<Player, 'id' | 'player_code' | 'created_at'>,
-    options?: { photoFile?: File }
+    playerData: Omit<Player, 'id' | 'player_code' | 'created_at'>
   ): Promise<Player> {
     const allPlayers = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, [])
     const allAthletes = getLocal<Athlete[]>(STORAGE_KEYS.ATHLETES, [])
 
-    let photoUrl = playerData.photo_url
-    let photoThumbUrl = playerData.photo_thumb_url
-
-    if (options?.photoFile) {
-      const uploadRes = await uploadPlayerPhotos(options.photoFile)
-      photoUrl = uploadRes.photoUrl
-      photoThumbUrl = uploadRes.thumbUrl
+    if (!playerData.athlete_id) {
+      throw new AppError('Please select an athlete profile first.')
     }
 
-    let athlete: Athlete | undefined
-
-    if (playerData.athlete_id) {
-      athlete = allAthletes.find((a) => a.id === playerData.athlete_id)
-      if (!athlete) throw new AppError('Linked athlete profile not found')
-    } else {
-      // Find by exact name or create new athlete
-      const existing = allAthletes.find(
-        (a) => a.name.trim().toLowerCase() === playerData.name.trim().toLowerCase()
-      )
-      if (existing) {
-        athlete = existing
-      } else {
-        const nextCode = getNextAthleteCode(allAthletes)
-        athlete = {
-          id: `ath-${Date.now()}-${nextCode}`,
-          athlete_code: nextCode,
-          name: playerData.name.trim(),
-          photo_url: photoUrl,
-          photo_thumb_url: photoThumbUrl,
-          roll_no: playerData.roll_no?.trim(),
-          notes: playerData.notes?.trim(),
-          created_at: new Date().toISOString()
-        }
-        allAthletes.push(athlete)
-        setLocal(STORAGE_KEYS.ATHLETES, allAthletes)
-        notifyChange('athletes_change')
-      }
+    const athlete = allAthletes.find((a) => a.id === playerData.athlete_id)
+    if (!athlete) {
+      throw new AppError('Selected athlete profile was not found.')
     }
 
     // Check unique constraint: athlete cannot have two entries in the same season for the same sport
     const duplicate = allPlayers.some(
       (p) =>
         p.season_id === playerData.season_id &&
-        p.athlete_id === athlete!.id &&
+        p.athlete_id === athlete.id &&
         p.sport.toLowerCase() === playerData.sport.toLowerCase()
     )
     if (duplicate) {
-      throw new AppError(
-        `Athlete ${athlete.name} is already registered in ${playerData.sport} for this season.`
-      )
+      throw new AppError('This athlete is already registered for this sport in this season.')
     }
 
     const playerCode = formatAthleteCode(athlete.athlete_code)
+    const snapshotYear = playerData.academic_year || athlete.academic_year || '1st'
 
     const newPlayer: Player = {
-      ...playerData,
+      id: `player-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      season_id: playerData.season_id,
       athlete_id: athlete.id,
       athlete_code: athlete.athlete_code,
-      name: athlete.name,
-      photo_url: photoUrl || athlete.photo_url,
-      photo_thumb_url: photoThumbUrl || athlete.photo_thumb_url,
-      id: `player-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       player_code: playerCode,
-      academic_year: playerData.academic_year || '1st',
+      name: athlete.name,
+      sport: playerData.sport,
+      playing_role: playerData.playing_role,
+      academic_year: snapshotYear,
+      roll_no: athlete.roll_no,
+      photo_url: athlete.photo_url,
+      photo_thumb_url: athlete.photo_thumb_url,
+      base_points: playerData.base_points,
+      status: 'available',
+      team_id: null,
+      purchase_price: null,
       created_at: new Date().toISOString()
     }
 
@@ -247,6 +272,7 @@ const demoPlayersService: PlayersService = {
             id: `ath-${Date.now()}-${nextCode}`,
             athlete_code: nextCode,
             name: pd.name.trim(),
+            academic_year: pd.academic_year || '1st',
             photo_url: pd.photo_url,
             photo_thumb_url: pd.photo_thumb_url,
             roll_no: pd.roll_no?.trim(),
@@ -257,7 +283,6 @@ const demoPlayersService: PlayersService = {
         }
       }
 
-      // Check duplicate
       const isDup = allPlayers
         .concat(createdList)
         .some(
@@ -273,11 +298,11 @@ const demoPlayersService: PlayersService = {
         athlete_id: athlete.id,
         athlete_code: athlete.athlete_code,
         name: athlete.name,
-        photo_url: pd.photo_url || athlete.photo_url,
-        photo_thumb_url: pd.photo_thumb_url || athlete.photo_thumb_url,
+        photo_url: athlete.photo_url,
+        photo_thumb_url: athlete.photo_thumb_url,
         id: `player-${Date.now()}-${i}`,
         player_code: formatAthleteCode(athlete.athlete_code),
-        academic_year: pd.academic_year || '1st',
+        academic_year: pd.academic_year || athlete.academic_year || '1st',
         created_at: new Date().toISOString()
       }
       createdList.push(newPlayer)
@@ -296,7 +321,28 @@ const demoPlayersService: PlayersService = {
     const index = allPlayers.findIndex((p) => p.id === id)
     if (index === -1) throw new AppError('Player not found')
 
-    const updated = { ...allPlayers[index], ...updates }
+    const current = allPlayers[index]
+    const nextSport = updates.sport || current.sport
+
+    if (current.athlete_id && nextSport.toLowerCase() !== current.sport.toLowerCase()) {
+      const duplicate = allPlayers.some(
+        (p) =>
+          p.id !== id &&
+          p.season_id === current.season_id &&
+          p.athlete_id === current.athlete_id &&
+          p.sport.toLowerCase() === nextSport.toLowerCase()
+      )
+      if (duplicate) {
+        throw new AppError('This athlete is already registered for this sport in this season.')
+      }
+    }
+
+    const updated: Player = {
+      ...current,
+      sport: nextSport,
+      playing_role: updates.playing_role !== undefined ? updates.playing_role : current.playing_role,
+      base_points: updates.base_points !== undefined ? updates.base_points : current.base_points
+    }
     allPlayers[index] = updated
     setLocal(STORAGE_KEYS.PLAYERS, allPlayers)
     notifyChange('players_change')
@@ -330,9 +376,7 @@ const demoPlayersService: PlayersService = {
   },
 
   async exportPlayersForSport(seasonId: string, sport?: string): Promise<Player[]> {
-    let list = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, []).filter(
-      (p) => p.season_id === seasonId
-    )
+    let list = await demoPlayersService.getPlayers(seasonId)
     if (sport && sport !== 'all') {
       list = list.filter((p) => p.sport.toLowerCase() === sport.toLowerCase())
     }
@@ -434,13 +478,13 @@ const demoPlayersService: PlayersService = {
     }
 
     const handleBroadcast = (e: MessageEvent) => {
-      if (e.data?.event === 'players_change') {
+      if (e.data?.event === 'players_change' || e.data?.event === 'athletes_change') {
         handleUpdate()
       }
     }
 
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEYS.PLAYERS) {
+      if (e.key === STORAGE_KEYS.PLAYERS || e.key === STORAGE_KEYS.ATHLETES) {
         handleUpdate()
       }
     }
@@ -457,21 +501,37 @@ const demoPlayersService: PlayersService = {
 }
 
 const supabasePlayersService: PlayersService = {
+  // Uses public_players + players so it works for both public pages (without touching athletes) and admin
   async getPlayers(seasonId: string): Promise<Player[]> {
     try {
-      if (!seasonId) return []
-      if (!supabase) return []
-      const { data, error } = await supabase
-        .from('players')
-        .select('*')
-        .eq('season_id', seasonId)
-        .order('name', { ascending: true })
+      if (!seasonId || !supabase) return []
 
-      if (error) {
-        console.error('getPlayers error from Supabase:', error)
-        return []
+      const [pubRes, plyRes] = await Promise.all([
+        supabase
+          .from('public_players')
+          .select(
+            'id, player_code, athlete_code, name, photo_thumb_url, photo_url, academic_year, sport, playing_role, season_id, athlete_id'
+          )
+          .eq('season_id', seasonId),
+        supabase.from('players').select('*').eq('season_id', seasonId)
+      ])
+
+      const pubList = (pubRes.data as PublicPlayer[]) || []
+      const pubMap = new Map<string, PublicPlayer>()
+      for (const pub of pubList) {
+        pubMap.set(pub.id, pub)
       }
-      return Array.isArray(data) ? (data as Player[]) : []
+
+      const rawPlayers = (plyRes.data as Array<Record<string, unknown>>) || []
+      let result: Player[]
+
+      if (rawPlayers.length > 0) {
+        result = rawPlayers.map((row) => mapJoinedPlayer(row, pubMap.get(String(row.id))))
+      } else {
+        result = pubList.map((pub) => mapJoinedPlayer({}, pub))
+      }
+
+      return result.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
     } catch (err) {
       console.error('getPlayers caught error:', err)
       return []
@@ -486,15 +546,11 @@ const supabasePlayersService: PlayersService = {
       return { players: [], totalCount: 0, totalPages: 1 }
     }
 
+    // Fetch season players joined with athletes (admin-only endpoint)
     let query = supabase
       .from('players')
-      .select('*', { count: 'exact' })
+      .select('*, athletes(id, athlete_code, name, photo_url, photo_thumb_url, roll_no, academic_year)')
       .eq('season_id', seasonId)
-
-    if (search && search.trim()) {
-      const q = search.trim()
-      query = query.or(`name.ilike.%${q}%,player_code.ilike.%${q}%,roll_no.ilike.%${q}%`)
-    }
 
     if (sport && sport !== 'all') {
       query = query.ilike('sport', sport)
@@ -508,19 +564,33 @@ const supabasePlayersService: PlayersService = {
       query = query.eq('status', status)
     }
 
-    query = query
-      .order('name', { ascending: true })
-      .order('id', { ascending: true })
-      .range(offset, offset + pageSize - 1)
-
-    const { data, count, error } = await query
+    const { data, error } = await query
     if (error) throw new AppError(error.message, { original: error })
 
-    const totalCount = count || 0
+    let mapped = ((data as Array<Record<string, unknown>>) || []).map((row) =>
+      mapJoinedPlayer(row)
+    )
+
+    if (search && search.trim()) {
+      const q = search.trim().toLowerCase()
+      const parsedCode = parseAthleteCode(q)
+      mapped = mapped.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          (parsedCode !== null && p.athlete_code === parsedCode) ||
+          (p.player_code && p.player_code.toLowerCase().includes(q)) ||
+          (p.roll_no && p.roll_no.toLowerCase().includes(q))
+      )
+    }
+
+    mapped.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
+
+    const totalCount = mapped.length
     const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
+    const paged = mapped.slice(offset, offset + pageSize)
 
     return {
-      players: (data as Player[]) || [],
+      players: paged,
       totalCount,
       totalPages
     }
@@ -541,7 +611,7 @@ const supabasePlayersService: PlayersService = {
     let query = supabase
       .from('public_players')
       .select(
-        'id, player_code, athlete_code, athlete_id, name, photo_thumb_url, photo_url, academic_year, sport, playing_role, season_id, status, team_id, base_points, purchase_price',
+        'id, player_code, athlete_code, name, photo_thumb_url, photo_url, academic_year, sport, playing_role, season_id, athlete_id',
         { count: 'exact' }
       )
       .eq('season_id', activeSeason.id)
@@ -578,67 +648,54 @@ const supabasePlayersService: PlayersService = {
   },
 
   async createPlayer(
-    playerData: Omit<Player, 'id' | 'player_code' | 'created_at'>,
-    options?: { photoFile?: File }
+    playerData: Omit<Player, 'id' | 'player_code' | 'created_at'>
   ): Promise<Player> {
     if (!supabase) throw new AppError('Supabase not configured')
 
-    let photoUrl = playerData.photo_url
-    let photoThumbUrl = playerData.photo_thumb_url
-
-    if (options?.photoFile) {
-      const uploadRes = await uploadPlayerPhotos(options.photoFile)
-      photoUrl = uploadRes.photoUrl
-      photoThumbUrl = uploadRes.thumbUrl
+    if (!playerData.athlete_id) {
+      throw new AppError('Please select an athlete profile first.')
     }
 
-    let athleteId = playerData.athlete_id
+    // Check if that athlete is already registered in the same season and sport
+    const { count: existingCount, error: checkErr } = await supabase
+      .from('players')
+      .select('id', { count: 'exact', head: true })
+      .eq('season_id', playerData.season_id)
+      .eq('athlete_id', playerData.athlete_id)
+      .ilike('sport', playerData.sport)
 
-    if (!athleteId) {
-      const trimmedName = playerData.name.trim()
-      const { data: existingAth } = await supabase
-        .from('athletes')
-        .select('id')
-        .ilike('name', trimmedName)
-        .maybeSingle()
+    if (checkErr) throw new AppError(checkErr.message, { original: checkErr })
 
-      if (existingAth) {
-        athleteId = existingAth.id
-      } else {
-        const { data: newAth, error: athErr } = await supabase
-          .from('athletes')
-          .insert([
-            {
-              name: trimmedName,
-              photo_url: photoUrl || null,
-              photo_thumb_url: photoThumbUrl || null,
-              roll_no: playerData.roll_no?.trim() || null,
-              notes: playerData.notes?.trim() || null
-            }
-          ])
-          .select('id')
-          .single()
-
-        if (athErr) throw new AppError(athErr.message, { original: athErr })
-        athleteId = newAth.id
-      }
+    if ((existingCount ?? 0) > 0) {
+      throw new AppError('This athlete is already registered for this sport in this season.')
     }
 
+    // Save inserts ONLY into players: athlete_id, season_id, sport, playing_role, base_points, academic_year
     const { data, error } = await supabase
       .from('players')
       .insert([
         {
-          ...playerData,
-          athlete_id: athleteId,
-          photo_url: photoUrl,
-          photo_thumb_url: photoThumbUrl
+          athlete_id: playerData.athlete_id,
+          season_id: playerData.season_id,
+          sport: playerData.sport,
+          playing_role: playerData.playing_role,
+          base_points: playerData.base_points,
+          academic_year: playerData.academic_year
         }
       ])
-      .select()
+      .select('*, athletes(id, athlete_code, name, photo_url, photo_thumb_url, roll_no, academic_year)')
       .single()
 
-    if (error) throw new AppError(error.message, { original: error })
-    return data as Player
+    if (error) {
+      if (error.code === '23505') {
+        throw new AppError('This athlete is already registered for this sport in this season.', {
+          original: error
+        })
+      }
+      throw new AppError(error.message, { original: error })
+    }
+
+    return mapJoinedPlayer(data as Record<string, unknown>)
   },
 
   async bulkCreatePlayers(
@@ -646,27 +703,54 @@ const supabasePlayersService: PlayersService = {
   ): Promise<Player[]> {
     if (!supabase) throw new AppError('Supabase not configured')
 
+    const rowsToInsert = playersData
+      .filter((p) => !!p.athlete_id)
+      .map((p) => ({
+        athlete_id: p.athlete_id,
+        season_id: p.season_id,
+        sport: p.sport,
+        playing_role: p.playing_role,
+        base_points: p.base_points,
+        academic_year: p.academic_year
+      }))
+
+    if (rowsToInsert.length === 0) return []
+
     const { data, error } = await supabase
       .from('players')
-      .insert(playersData)
-      .select()
+      .insert(rowsToInsert)
+      .select('*, athletes(id, athlete_code, name, photo_url, photo_thumb_url, roll_no, academic_year)')
 
     if (error) throw new AppError(error.message, { original: error })
-    return (data as Player[]) || []
+    return ((data as Array<Record<string, unknown>>) || []).map((r) => mapJoinedPlayer(r))
   },
 
   async updatePlayer(id: string, updates: Partial<Player>): Promise<Player> {
     if (!supabase) throw new AppError('Supabase not configured')
 
+    const payload: Record<string, unknown> = {}
+    if (updates.sport !== undefined) payload.sport = updates.sport
+    if (updates.playing_role !== undefined) payload.playing_role = updates.playing_role
+    if (updates.base_points !== undefined) payload.base_points = updates.base_points
+    if (updates.academic_year !== undefined) payload.academic_year = updates.academic_year
+
     const { data, error } = await supabase
       .from('players')
-      .update(updates)
+      .update(payload)
       .eq('id', id)
-      .select()
+      .select('*, athletes(id, athlete_code, name, photo_url, photo_thumb_url, roll_no, academic_year)')
       .single()
 
-    if (error) throw new AppError(error.message, { original: error })
-    return data as Player
+    if (error) {
+      if (error.code === '23505') {
+        throw new AppError('This athlete is already registered for this sport in this season.', {
+          original: error
+        })
+      }
+      throw new AppError(error.message, { original: error })
+    }
+
+    return mapJoinedPlayer(data as Record<string, unknown>)
   },
 
   async deletePlayer(id: string): Promise<void> {
@@ -676,7 +760,7 @@ const supabasePlayersService: PlayersService = {
       .from('projector_state')
       .select('*')
       .eq('player_id', id)
-      .single()
+      .maybeSingle()
 
     if (pState) {
       await supabase
@@ -685,60 +769,16 @@ const supabasePlayersService: PlayersService = {
         .eq('player_id', id)
     }
 
-    const { data: playerToDelete } = await supabase
-      .from('players')
-      .select('photo_url, photo_thumb_url')
-      .eq('id', id)
-      .single()
-
-    if (playerToDelete) {
-      await deletePlayerPhotoAssets(
-        playerToDelete.photo_url,
-        playerToDelete.photo_thumb_url
-      )
-    }
-
     const { error } = await supabase.from('players').delete().eq('id', id)
     if (error) throw new AppError(error.message, { original: error })
   },
 
   async exportPlayersForSport(seasonId: string, sport?: string): Promise<Player[]> {
-    const result: Player[] = []
-    const batchSize = 1000
-
-    if (!supabase) return []
-
-    let from = 0
-    let keepFetching = true
-
-    while (keepFetching) {
-      let query = supabase
-        .from('players')
-        .select('*')
-        .eq('season_id', seasonId)
-        .order('name', { ascending: true })
-        .order('id', { ascending: true })
-        .range(from, from + batchSize - 1)
-
-      if (sport && sport !== 'all') {
-        query = query.ilike('sport', sport)
-      }
-
-      const { data, error } = await query
-      if (error) throw new AppError(error.message, { original: error })
-
-      if (data && data.length > 0) {
-        result.push(...(data as Player[]))
-        from += batchSize
-        if (data.length < batchSize) {
-          keepFetching = false
-        }
-      } else {
-        keepFetching = false
-      }
+    let list = await supabasePlayersService.getPlayers(seasonId)
+    if (sport && sport !== 'all') {
+      list = list.filter((p) => p.sport.toLowerCase() === sport.toLowerCase())
     }
-
-    return result
+    return list
   },
 
   async assignPlayerToTeam(
@@ -759,7 +799,7 @@ const supabasePlayersService: PlayersService = {
 
     const { data: updatedPlayer, error: pErr } = await supabase
       .from('players')
-      .select('*')
+      .select('*, athletes(id, athlete_code, name, photo_url, photo_thumb_url, roll_no, academic_year)')
       .eq('id', playerId)
       .single()
     if (pErr || !updatedPlayer) {
@@ -775,7 +815,10 @@ const supabasePlayersService: PlayersService = {
       throw new AppError(tErr?.message || 'Team not found', { original: tErr })
     }
 
-    return { player: updatedPlayer as Player, team: updatedTeam as Team }
+    return {
+      player: mapJoinedPlayer(updatedPlayer as Record<string, unknown>),
+      team: updatedTeam as Team
+    }
   },
 
   async unassignPlayerFromTeam(
@@ -797,7 +840,7 @@ const supabasePlayersService: PlayersService = {
 
     const { data: updatedPlayer, error: pErr } = await supabase
       .from('players')
-      .select('*')
+      .select('*, athletes(id, athlete_code, name, photo_url, photo_thumb_url, roll_no, academic_year)')
       .eq('id', playerId)
       .single()
     if (pErr || !updatedPlayer) {
@@ -814,7 +857,10 @@ const supabasePlayersService: PlayersService = {
       if (t) updatedTeam = t as Team
     }
 
-    return { player: updatedPlayer as Player, team: updatedTeam }
+    return {
+      player: mapJoinedPlayer(updatedPlayer as Record<string, unknown>),
+      team: updatedTeam
+    }
   },
 
   subscribeToPlayers(seasonId: string, callback: (players: Player[]) => void): () => void {
@@ -854,7 +900,6 @@ export const getPlayers = (seasonId: string) => playersService.getPlayers(season
 export const getPlayersPaged = (params: PlayersPagedParams) =>
   playersService.getPlayersPaged(params)
 
-// Backward-compatible getPublicPlayersPaged wrapper supporting offset/limit or cursor
 export async function getPublicPlayersPaged(
   params:
     | PublicPlayersPagedParams
