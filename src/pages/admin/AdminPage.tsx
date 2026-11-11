@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { AdminLayout, type AdminTab } from './AdminLayout'
+import { AdminLayout } from './AdminLayout'
 import { AdminDashboard } from './AdminDashboard'
 import { AdminSeasons } from './AdminSeasons'
 import { AdminTeams } from './AdminTeams'
@@ -17,9 +17,12 @@ import {
   getSeasons,
   getSports,
   getTeams,
-  setActiveSeason as apiSetActiveSeason
+  setActiveSeason as apiSetActiveSeason,
+  subscribeToPlayers,
+  subscribeToProjector,
+  subscribeToTeams
 } from '../../lib/data'
-import type { Player, ProjectorState, PurseTransaction, Season, Sport, Team } from '../../types'
+import type { AdminTab, Player, ProjectorState, PurseTransaction, Season, Sport, Team } from '../../types'
 
 export const AdminPage: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<AdminTab>('dashboard')
@@ -81,6 +84,27 @@ export const AdminPage: React.FC = () => {
       window.removeEventListener('storage', handleStorageChange)
     }
   }, [])
+
+  useEffect(() => {
+    if (!activeSeason?.id) return
+    const seasonId = activeSeason.id
+
+    const unsubProjector = subscribeToProjector(seasonId, (nextState) => {
+      setProjectorState(nextState)
+    })
+    const unsubPlayers = subscribeToPlayers(seasonId, (nextPlayers) => {
+      setPlayers(nextPlayers)
+    })
+    const unsubTeams = subscribeToTeams(seasonId, (nextTeams) => {
+      setTeams(nextTeams)
+    })
+
+    return () => {
+      unsubProjector()
+      unsubPlayers()
+      unsubTeams()
+    }
+  }, [activeSeason?.id])
 
   const handleSwitchSeason = async (seasonId: string) => {
     try {
@@ -178,6 +202,7 @@ export const AdminPage: React.FC = () => {
         <AdminProjectorControl
           activeSeason={activeSeason}
           projectorState={projectorState}
+          sports={sports}
           teams={teams}
           players={players}
           onRefresh={loadAllData}

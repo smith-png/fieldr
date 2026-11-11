@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { Archive, Calendar, CaretRight, ShieldCheck, Trophy, Users } from '@phosphor-icons/react'
+import { useNavigate } from 'react-router-dom'
+import { CaretRight, Trophy } from '@phosphor-icons/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
 import { EmptyState, ErrorState, Spinner } from '../../components/ui'
-import { getActiveSeason, getPlayers, getPublicTeams, getSeasons } from '../../lib/data'
+import { getActiveSeason, getPublicPlayersBySeason, getPublicTeams, getSeasons } from '../../lib/data'
+import { sortSeasons } from '../../lib/utils'
 import type { Season } from '../../types'
 
 interface SeasonCardData {
@@ -29,12 +30,12 @@ export const SeasonPage: React.FC = () => {
       const active = await getActiveSeason()
       setActiveSeason(active)
 
-      const allSeasons = await getSeasons()
+      const allSeasons = sortSeasons(await getSeasons())
 
       const cardPromises = allSeasons.map(async (s) => {
         const [teams, players] = await Promise.all([
           getPublicTeams(s.id),
-          getPlayers(s.id)
+          getPublicPlayersBySeason(s.id)
         ])
         return {
           season: s,
@@ -44,13 +45,6 @@ export const SeasonPage: React.FC = () => {
       })
 
       const cards = await Promise.all(cardPromises)
-      // Sort active season first, then by date descending
-      cards.sort((a, b) => {
-        if (a.season.is_active && !b.season.is_active) return -1
-        if (!a.season.is_active && b.season.is_active) return 1
-        return new Date(b.season.created_at || '').getTime() - new Date(a.season.created_at || '').getTime()
-      })
-
       setSeasonCards(cards)
     } catch (err) {
       console.error(

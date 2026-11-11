@@ -8,12 +8,12 @@ import { EmptyState, ErrorState, Spinner } from '../../components/ui'
 import { RosterPlayerCard } from '../../components/roster/RosterPlayerCard'
 import {
   getActiveSeason,
-  getPlayers,
+  getPublicPlayersBySeason,
   getPublicTeams,
   getRolesForSport,
   getSeason
 } from '../../lib/data'
-import type { Player, PublicTeam, Season } from '../../types'
+import type { PublicPlayer, PublicTeam, Season } from '../../types'
 
 export const SeasonTeamDetailPage: React.FC = () => {
   const { id, teamId } = useParams<{ id: string; teamId: string }>()
@@ -23,8 +23,8 @@ export const SeasonTeamDetailPage: React.FC = () => {
   const [activeSeason, setActiveSeason] = useState<Season | null>(null)
   const [season, setSeason] = useState<Season | null>(null)
   const [team, setTeam] = useState<PublicTeam | null>(null)
-  const [teamPlayers, setTeamPlayers] = useState<Player[]>([])
-  const [allPlayers, setAllPlayers] = useState<Player[]>([])
+  const [teamPlayers, setTeamPlayers] = useState<PublicPlayer[]>([])
+  const [allPlayers, setAllPlayers] = useState<PublicPlayer[]>([])
   const [sportRoles, setSportRoles] = useState<string[]>([])
 
   const [isLoading, setIsLoading] = useState(true)
@@ -52,7 +52,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
       setTeam(foundTeam)
 
       const [seasonPlayers, roles] = await Promise.all([
-        getPlayers(id),
+        getPublicPlayersBySeason(id),
         getRolesForSport(foundTeam.sport)
       ])
 

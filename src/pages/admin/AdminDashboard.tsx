@@ -180,9 +180,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <td className="py-3.5 px-4 uppercase font-mono text-[11px]">
                           <span
                             className={
-                              tx.type === 'deduct'
+                              tx.type === 'deduct' || tx.type === 'purchase'
                                 ? 'text-error font-semibold'
-                                : tx.type === 'add'
+                                : tx.type === 'add' || tx.type === 'refund'
                                 ? 'text-accent-bright font-semibold'
                                 : 'text-muted'
                             }
@@ -191,8 +191,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-right font-mono font-semibold tabular-nums text-text">
-                          {tx.type === 'deduct' ? '-' : '+'}
-                          {tx.amount.toLocaleString()}
+                          {tx.type === 'deduct' || tx.type === 'purchase' ? '-' : '+'}
+                          {Math.abs(tx.amount).toLocaleString()}
                         </td>
                         <td className="py-3.5 px-4 text-right font-mono tabular-nums text-points font-semibold">
                           {tx.balance_after.toLocaleString()}

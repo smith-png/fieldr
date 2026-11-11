@@ -1,4 +1,9 @@
 import type { ProjectorState } from '../../types'
+import {
+  PROJECTOR_AUTO_FILTERS,
+  PROJECTOR_AUTO_INTERVAL,
+  PROJECTOR_MODES
+} from '../constants'
 import { AppError } from '../errors'
 import {
   isDemoMode,
@@ -9,15 +14,24 @@ import {
   demoBroadcastChannel,
   STORAGE_KEYS
 } from './client'
-import type { ProjectorService } from './types'
+import type { ProjectorService, StartProjectorAutoParams } from './types'
 
 const defaultState = (seasonId: string): ProjectorState => ({
   season_id: seasonId,
-  mode: 'idle',
+  mode: PROJECTOR_MODES.IDLE,
   player_id: null,
   team_id: null,
+  auto_sport: null,
+  auto_filter: PROJECTOR_AUTO_FILTERS.ALL,
+  auto_interval_seconds: PROJECTOR_AUTO_INTERVAL.DEFAULT,
+  auto_started_at: null,
   updated_at: new Date().toISOString()
 })
+
+function clampIntervalSeconds(value: number): number {
+  const num = Math.round(Number(value) || PROJECTOR_AUTO_INTERVAL.DEFAULT)
+  return Math.min(PROJECTOR_AUTO_INTERVAL.MAX, Math.max(PROJECTOR_AUTO_INTERVAL.MIN, num))
+}
 
 const demoProjectorService: ProjectorService = {
   async getProjectorState(seasonId: string): Promise<ProjectorState> {
@@ -29,9 +43,55 @@ const demoProjectorService: ProjectorService = {
   },
 
   async setProjectorState(state: ProjectorState): Promise<ProjectorState> {
+    const isAuto =
+      state.mode === PROJECTOR_MODES.PLAYER_AUTO ||
+      state.mode === PROJECTOR_MODES.ROSTER_AUTO
     const updatedState: ProjectorState = {
       ...state,
+      auto_sport: isAuto ? state.auto_sport ?? null : null,
+      auto_started_at: isAuto ? state.auto_started_at ?? null : null,
       updated_at: new Date().toISOString()
+    }
+    setLocal(STORAGE_KEYS.PROJECTOR, updatedState)
+    notifyChange('projector_change', updatedState)
+    return updatedState
+  },
+
+  async startProjectorAuto(params: StartProjectorAutoParams): Promise<ProjectorState> {
+    const nowIso = new Date().toISOString()
+    const current = await demoProjectorService.getProjectorState(params.seasonId)
+    const updatedState: ProjectorState = {
+      ...current,
+      season_id: params.seasonId,
+      mode: params.mode,
+      auto_sport: params.sport,
+      auto_filter:
+        params.mode === PROJECTOR_MODES.ROSTER_AUTO
+          ? PROJECTOR_AUTO_FILTERS.ALL
+          : params.filter || PROJECTOR_AUTO_FILTERS.ALL,
+      auto_interval_seconds: clampIntervalSeconds(params.intervalSeconds),
+      auto_started_at: nowIso,
+      player_id: null,
+      team_id: null,
+      updated_at: nowIso
+    }
+    setLocal(STORAGE_KEYS.PROJECTOR, updatedState)
+    notifyChange('projector_change', updatedState)
+    return updatedState
+  },
+
+  async stopProjectorAuto(seasonId: string): Promise<ProjectorState> {
+    const nowIso = new Date().toISOString()
+    const current = await demoProjectorService.getProjectorState(seasonId)
+    const updatedState: ProjectorState = {
+      ...current,
+      season_id: seasonId,
+      mode: PROJECTOR_MODES.IDLE,
+      auto_sport: null,
+      auto_started_at: null,
+      player_id: null,
+      team_id: null,
+      updated_at: nowIso
     }
     setLocal(STORAGE_KEYS.PROJECTOR, updatedState)
     notifyChange('projector_change', updatedState)
@@ -74,13 +134,16 @@ const demoProjectorService: ProjectorService = {
   }
 }
 
+const PROJECTOR_STATE_COLS =
+  'season_id, mode, player_id, team_id, current_bid, sale_event_id, sale_player_id, sale_team_id, sale_price, sale_at, auto_sport, auto_filter, auto_interval_seconds, auto_started_at, updated_at'
+
 const supabaseProjectorService: ProjectorService = {
   async getProjectorState(seasonId: string): Promise<ProjectorState> {
     if (!supabase) return defaultState(seasonId)
 
     const { data, error } = await supabase
       .from('projector_state')
-      .select('*')
+      .select(PROJECTOR_STATE_COLS)
       .eq('season_id', seasonId)
       .single()
 
@@ -94,15 +157,73 @@ const supabaseProjectorService: ProjectorService = {
   async setProjectorState(state: ProjectorState): Promise<ProjectorState> {
     if (!supabase) throw new AppError('Supabase not configured')
 
+    const isAuto =
+      state.mode === PROJECTOR_MODES.PLAYER_AUTO ||
+      state.mode === PROJECTOR_MODES.ROSTER_AUTO
     const updatedState: ProjectorState = {
       ...state,
+      auto_sport: isAuto ? state.auto_sport ?? null : null,
+      auto_started_at: isAuto ? state.auto_started_at ?? null : null,
       updated_at: new Date().toISOString()
     }
 
     const { data, error } = await supabase
       .from('projector_state')
       .upsert(updatedState)
-      .select()
+      .select(PROJECTOR_STATE_COLS)
+      .single()
+
+    if (error) throw new AppError(error.message, { original: error })
+    return data as ProjectorState
+  },
+
+  async startProjectorAuto(params: StartProjectorAutoParams): Promise<ProjectorState> {
+    if (!supabase) throw new AppError('Supabase not configured')
+
+    const nowIso = new Date().toISOString()
+    const payload = {
+      season_id: params.seasonId,
+      mode: params.mode,
+      auto_sport: params.sport,
+      auto_filter:
+        params.mode === PROJECTOR_MODES.ROSTER_AUTO
+          ? PROJECTOR_AUTO_FILTERS.ALL
+          : params.filter || PROJECTOR_AUTO_FILTERS.ALL,
+      auto_interval_seconds: clampIntervalSeconds(params.intervalSeconds),
+      auto_started_at: nowIso,
+      player_id: null,
+      team_id: null,
+      updated_at: nowIso
+    }
+
+    const { data, error } = await supabase
+      .from('projector_state')
+      .upsert(payload)
+      .select(PROJECTOR_STATE_COLS)
+      .single()
+
+    if (error) throw new AppError(error.message, { original: error })
+    return data as ProjectorState
+  },
+
+  async stopProjectorAuto(seasonId: string): Promise<ProjectorState> {
+    if (!supabase) throw new AppError('Supabase not configured')
+
+    const nowIso = new Date().toISOString()
+    const payload = {
+      season_id: seasonId,
+      mode: PROJECTOR_MODES.IDLE,
+      auto_sport: null,
+      auto_started_at: null,
+      player_id: null,
+      team_id: null,
+      updated_at: nowIso
+    }
+
+    const { data, error } = await supabase
+      .from('projector_state')
+      .upsert(payload)
+      .select(PROJECTOR_STATE_COLS)
       .single()
 
     if (error) throw new AppError(error.message, { original: error })
@@ -155,6 +276,10 @@ export const getProjectorState = (seasonId: string) =>
   projectorService.getProjectorState(seasonId)
 export const setProjectorState = (state: ProjectorState) =>
   projectorService.setProjectorState(state)
+export const startProjectorAuto = (params: StartProjectorAutoParams) =>
+  projectorService.startProjectorAuto(params)
+export const stopProjectorAuto = (seasonId: string) =>
+  projectorService.stopProjectorAuto(seasonId)
 export const subscribeToProjector = (
   seasonId: string,
   callback: (state: ProjectorState) => void

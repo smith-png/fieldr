@@ -1,5 +1,6 @@
-import type { Athlete, AthleteCareerEntry, Player, PublicPlayer, PublicTeam, Season, Team } from '../../types'
+import type { Athlete, AthleteCareerEntry, Player, PublicPlayer, Season, Team } from '../../types'
 import { AppError } from '../errors'
+import { PUBLIC_PLAYER_SELECT_COLUMNS, PUBLIC_SQUAD_SELECT_COLUMNS } from '../constants'
 import {
   isDemoMode,
   supabase,
@@ -266,12 +267,15 @@ const demoAthletesService: AthletesService = {
   }
 }
 
+const ATHLETE_COLS =
+  'id, athlete_code, name, academic_year, photo_url, photo_thumb_url, roll_no, notes, created_at'
+
 const supabaseAthletesService: AthletesService = {
   async getAllAthletes(): Promise<Athlete[]> {
     if (!supabase) throw new AppError('Supabase not configured')
     const { data, error } = await supabase
       .from('athletes')
-      .select('*')
+      .select(ATHLETE_COLS)
       .order('athlete_code', { ascending: true })
     if (error) throw new AppError(error.message, { original: error })
     return ((data as Athlete[]) || []).map((a) => ({
@@ -286,7 +290,7 @@ const supabaseAthletesService: AthletesService = {
     const { page, pageSize, search } = params
     const offset = (page - 1) * pageSize
 
-    let query = supabase.from('athletes').select('*', { count: 'exact' })
+    let query = supabase.from('athletes').select(ATHLETE_COLS, { count: 'exact' })
 
     if (search && search.trim()) {
       const q = search.trim()
@@ -350,7 +354,7 @@ const supabaseAthletesService: AthletesService = {
     if (!q) {
       const { data, error } = await supabase
         .from('athletes')
-        .select('*')
+        .select(ATHLETE_COLS)
         .order('athlete_code', { ascending: true })
         .limit(20)
       if (error) throw new AppError(error.message, { original: error })
@@ -361,7 +365,7 @@ const supabaseAthletesService: AthletesService = {
     }
 
     const parsedCode = parseAthleteCode(q)
-    let dbQuery = supabase.from('athletes').select('*')
+    let dbQuery = supabase.from('athletes').select(ATHLETE_COLS)
 
     if (parsedCode !== null) {
       dbQuery = dbQuery.or(`athlete_code.eq.${parsedCode},name.ilike.%${q}%,roll_no.ilike.%${q}%`)
@@ -385,9 +389,7 @@ const supabaseAthletesService: AthletesService = {
 
     const { data, error } = await supabase
       .from('public_players')
-      .select(
-        'id, player_code, athlete_code, name, photo_thumb_url, photo_url, academic_year, sport, playing_role, season_id, athlete_id'
-      )
+      .select(PUBLIC_PLAYER_SELECT_COLUMNS)
       .eq('athlete_code', parsed)
       .limit(1)
 
@@ -413,7 +415,7 @@ const supabaseAthletesService: AthletesService = {
     if (!supabase) return null
     const { data, error } = await supabase
       .from('athletes')
-      .select('*')
+      .select(ATHLETE_COLS)
       .eq('id', id)
       .maybeSingle()
 
@@ -435,19 +437,16 @@ const supabaseAthletesService: AthletesService = {
     }
   },
 
-  // Public career lookup reads ONLY from public_players, seasons, and public_teams
+  // Public career lookup reads ONLY from public_players, seasons, and public_squads
   async getAthleteCareer(athleteId: string): Promise<AthleteCareerEntry[]> {
     if (!supabase) return []
 
-    const [playersRes, seasonsRes, teamsRes] = await Promise.all([
+    const [playersRes, seasonsRes] = await Promise.all([
       supabase
         .from('public_players')
-        .select('*')
+        .select(PUBLIC_PLAYER_SELECT_COLUMNS)
         .eq('athlete_id', athleteId),
-      supabase.from('seasons').select('id, name, is_active, created_at'),
-      supabase
-        .from('public_teams')
-        .select('id, season_id, sport, name, short_code, color, logo_url, owner_display_name, created_at')
+      supabase.from('seasons').select('id, name, is_active, created_at')
     ])
 
     if (playersRes.error) {
@@ -457,24 +456,47 @@ const supabaseAthletesService: AthletesService = {
     if (seasonsRes.error) {
       console.error('Supabase getAthleteCareer (seasons) error:', seasonsRes.error.message, seasonsRes.error)
     }
-    if (teamsRes.error) {
-      console.error('Supabase getAthleteCareer (public_teams) error:', teamsRes.error.message, teamsRes.error)
-    }
     if (!playersRes.data) return []
+
+    const pubEntries = (playersRes.data as PublicPlayer[]) || []
+    const playerIds = pubEntries.map((p) => p.id)
+
+    interface PublicSquadCareerRow {
+      player_id: string
+      season_id: string
+      purchase_price?: number | null
+      team_id: string
+      team_name: string
+      team_short_code: string
+      team_color: string
+    }
+
+    const squadsMap = new Map<string, PublicSquadCareerRow>()
+    if (playerIds.length > 0) {
+      const { data: squadRows, error: squadsErr } = await supabase
+        .from('public_squads')
+        .select(PUBLIC_SQUAD_SELECT_COLUMNS)
+        .in('player_id', playerIds)
+
+      if (squadsErr) {
+        console.error('Supabase getAthleteCareer (public_squads) error:', squadsErr.message, squadsErr)
+      } else {
+        for (const sq of (squadRows as PublicSquadCareerRow[]) || []) {
+          if (sq.player_id) {
+            squadsMap.set(sq.player_id, sq)
+          }
+        }
+      }
+    }
 
     const seasonsMap = new Map<string, Season>()
     for (const s of (seasonsRes.data as Season[]) || []) {
       seasonsMap.set(s.id, s)
     }
 
-    const teamsMap = new Map<string, PublicTeam>()
-    for (const t of (teamsRes.data as PublicTeam[]) || []) {
-      teamsMap.set(t.id, t)
-    }
-
-    const career: AthleteCareerEntry[] = (playersRes.data as PublicPlayer[]).map((item) => {
+    const career: AthleteCareerEntry[] = pubEntries.map((item) => {
       const season = seasonsMap.get(item.season_id)
-      const team = item.team_id ? teamsMap.get(item.team_id) : undefined
+      const squad = squadsMap.get(item.id)
       return {
         player_id: item.id,
         season_id: item.season_id,
@@ -483,13 +505,13 @@ const supabaseAthletesService: AthletesService = {
         sport: item.sport,
         playing_role: item.playing_role,
         academic_year: item.academic_year || '1st',
-        status: item.status || 'available',
-        team_id: item.team_id ?? null,
-        team_name: team?.name || null,
-        team_short_code: team?.short_code || null,
-        team_color: team?.color || null,
+        status: squad ? 'sold' : 'available',
+        team_id: squad ? squad.team_id : null,
+        team_name: squad ? squad.team_name : null,
+        team_short_code: squad ? squad.team_short_code : null,
+        team_color: squad ? squad.team_color : null,
         base_points: 0,
-        purchase_price: null
+        purchase_price: squad?.purchase_price ?? null
       }
     })
 

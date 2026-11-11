@@ -3,7 +3,8 @@ import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SportCardsGrid } from '../../components/home/SportCardsGrid'
 import { SiteFooter } from '../../components/layout/SiteFooter'
-import { getActiveSeason, getPlayers } from '../../lib/data'
+import { getActiveSeason, getPublicPlayersBySeason } from '../../lib/data'
+import { matchesSport } from '../../lib/utils'
 import type { Season } from '../../types'
 import type { SportSlug } from '../../lib/sports'
 
@@ -23,12 +24,12 @@ export const RostersPage: React.FC = () => {
         const active = await getActiveSeason()
         if (mounted) setActiveSeason(active)
         if (active) {
-          const players = await getPlayers(active.id)
+          const players = await getPublicPlayersBySeason(active.id)
           if (mounted) {
             setPlayerCounts({
-              cricket: players.filter((p) => p.sport.toLowerCase() === 'cricket').length,
-              futsal: players.filter((p) => p.sport.toLowerCase() === 'futsal').length,
-              volleyball: players.filter((p) => p.sport.toLowerCase() === 'volleyball').length
+              cricket: players.filter((p) => matchesSport(p.sport, 'cricket')).length,
+              futsal: players.filter((p) => matchesSport(p.sport, 'futsal')).length,
+              volleyball: players.filter((p) => matchesSport(p.sport, 'volleyball')).length
             })
           }
         }

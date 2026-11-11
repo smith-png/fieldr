@@ -1,4 +1,20 @@
-export type UserRole = 'admin' | 'projector'
+import type {
+  AdminTab,
+  PlayerStatus,
+  ProjectorAutoFilter,
+  ProjectorMode,
+  PurseTransactionType,
+  UserRole
+} from '../lib/constants'
+
+export type {
+  AdminTab,
+  PlayerStatus,
+  ProjectorAutoFilter,
+  ProjectorMode,
+  PurseTransactionType,
+  UserRole
+}
 
 export interface AuthUser {
   id: string
@@ -64,7 +80,6 @@ export interface PublicTeam {
   created_at?: string
 }
 
-export type PlayerStatus = 'available' | 'unsold' | 'sold'
 export type AcademicYear = '1st' | '2nd' | '3rd' | 'Final'
 
 export interface Player {
@@ -131,8 +146,6 @@ export interface SeasonDeletionCounts {
   carousel_items: number
 }
 
-export type PurseTransactionType = 'initial' | 'add' | 'deduct' | 'set'
-
 export interface PurseTransaction {
   id: string
   season_id: string
@@ -145,8 +158,6 @@ export interface PurseTransaction {
   created_by?: string
 }
 
-export type ProjectorMode = 'idle' | 'auction' | 'sold' | 'unsold' | 'teams' | 'player' | 'roster'
-
 export interface ProjectorState {
   season_id: string
   mode: ProjectorMode
@@ -158,6 +169,10 @@ export interface ProjectorState {
   sale_team_id?: string | null
   sale_price?: number | null
   sale_at?: string | null
+  auto_sport?: string | null
+  auto_filter?: ProjectorAutoFilter | null
+  auto_interval_seconds?: number | null
+  auto_started_at?: string | null
   updated_at: string
 }
 
@@ -214,14 +229,3 @@ export interface SiteSettings {
   }
   [key: string]: unknown
 }
-
-export type AdminTab =
-  | 'dashboard'
-  | 'athletes'
-  | 'players'
-  | 'teams'
-  | 'auction'
-  | 'purses'
-  | 'seasons'
-  | 'projector'
-  | 'setup'

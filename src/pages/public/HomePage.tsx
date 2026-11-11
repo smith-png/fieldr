@@ -10,9 +10,10 @@ import {
   FALLBACK_CAROUSEL_TEXTS,
   getActiveSeason,
   getCarouselItems,
-  getPlayers,
+  getPublicPlayersBySeason,
   subscribeToCarouselItems
 } from '../../lib/data'
+import { matchesSport } from '../../lib/utils'
 import type { CarouselItem, Season } from '../../types'
 import type { SportSlug } from '../../lib/sports'
 
@@ -45,13 +46,13 @@ export const HomePage: React.FC = () => {
       // 2. Load player counts (safe fallback 0)
       if (active && active.id) {
         try {
-          const players = await getPlayers(active.id)
+          const players = await getPublicPlayersBySeason(active.id)
           if (mounted) {
             const list = Array.isArray(players) ? players : []
             setPlayerCounts({
-              cricket: list.filter((p) => p && typeof p.sport === 'string' && p.sport.toLowerCase() === 'cricket').length,
-              futsal: list.filter((p) => p && typeof p.sport === 'string' && p.sport.toLowerCase() === 'futsal').length,
-              volleyball: list.filter((p) => p && typeof p.sport === 'string' && p.sport.toLowerCase() === 'volleyball').length
+              cricket: list.filter((p) => p && matchesSport(p.sport, 'cricket')).length,
+              futsal: list.filter((p) => p && matchesSport(p.sport, 'futsal')).length,
+              volleyball: list.filter((p) => p && matchesSport(p.sport, 'volleyball')).length
             })
           }
         } catch (err) {

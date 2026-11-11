@@ -1,6 +1,7 @@
 import React from 'react'
 import type { PublicPlayer, PublicTeam } from '../../types'
 import { formatAthleteCode } from '../../lib/data'
+import { getInitials } from '../../lib/utils'
 
 export interface RosterPlayerCardProps {
   player: PublicPlayer
@@ -32,12 +33,7 @@ export const RosterPlayerCard: React.FC<RosterPlayerCardProps> = ({
           />
         ) : (
           <div className="w-12 h-12 rounded-lg bg-surface-2 border border-border flex items-center justify-center text-muted font-mono text-sm font-bold shrink-0">
-            {player.name
-              .split(' ')
-              .map((n) => n[0])
-              .slice(0, 2)
-              .join('')
-              .toUpperCase()}
+            {getInitials(player.name)}
           </div>
         )}
 

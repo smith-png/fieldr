@@ -382,9 +382,9 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
                     <div className="flex items-center gap-2">
                       <span
                         className={`font-mono uppercase text-[10px] font-semibold ${
-                          tx.type === 'deduct'
+                          tx.type === 'deduct' || tx.type === 'purchase'
                             ? 'text-error'
-                            : tx.type === 'add'
+                            : tx.type === 'add' || tx.type === 'refund'
                             ? 'text-accent-bright'
                             : 'text-muted'
                         }`}
@@ -401,8 +401,8 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
 
                   <div className="text-right">
                     <span className="font-mono font-semibold tabular-nums text-text text-sm block">
-                      {tx.type === 'deduct' ? '-' : '+'}
-                      {tx.amount.toLocaleString()} PTS
+                      {tx.type === 'deduct' || tx.type === 'purchase' ? '-' : '+'}
+                      {Math.abs(tx.amount).toLocaleString()} PTS
                     </span>
                     <span className="text-[10px] font-mono tabular-nums text-points">
                       Bal: {tx.balance_after.toLocaleString()} PTS

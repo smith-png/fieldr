@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { Calendar, CaretLeft, IdentificationBadge, ShieldCheck, Trophy, User } from '@phosphor-icons/react'
+import { Calendar, CaretLeft, IdentificationBadge, Trophy, User } from '@phosphor-icons/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'

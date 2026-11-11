@@ -1,15 +1,16 @@
 import React, { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { User, X } from '@phosphor-icons/react'
-import type { PublicPlayer } from '../../types'
+import type { PublicPlayer, PublicTeam } from '../../types'
 import { formatAthleteCode } from '../../lib/data'
 
 export interface RosterScoutModalProps {
   player: PublicPlayer | null
+  team?: PublicTeam | null
   onClose: () => void
 }
 
-export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({ player, onClose }) => {
+export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({ player, team, onClose }) => {
   const modalRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -101,14 +102,26 @@ export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({ player, onCl
             </div>
           </div>
 
-          <div className="mt-5 flex items-center justify-between text-xs">
+          <div className="mt-5 flex items-center justify-between text-xs gap-2">
             <Link
               to={`/players/${player.athlete_code || formattedCode}`}
               className="text-accent-bright hover:underline font-mono text-xs font-bold"
             >
               View Full Universal Profile &amp; History &rarr;
             </Link>
-            <span className="text-accent-bright font-mono text-[11px] font-bold">Ready for Draft</span>
+            {team || player.status === 'sold' ? (
+              <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-bold text-text">
+                {team && (
+                  <span
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: team.color || 'var(--accent)' }}
+                  />
+                )}
+                <span>{team ? team.name : 'Drafted'}</span>
+              </span>
+            ) : (
+              <span className="text-accent-bright font-mono text-[11px] font-bold">Ready for Draft</span>
+            )}
           </div>
         </div>
       </div>

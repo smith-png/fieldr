@@ -19,9 +19,9 @@ import {
 } from './client'
 import type { AuctionService } from './types'
 
-const DEMO_AUCTION_BIDS_KEY = 'fieldr_auction_bids'
-const DEMO_AUCTION_SALES_KEY = 'fieldr_auction_sales'
-const DEMO_AUCTION_SETTINGS_KEY = 'fieldr_auction_settings'
+const DEMO_AUCTION_BIDS_KEY = STORAGE_KEYS.DEMO_AUCTION_BIDS
+const DEMO_AUCTION_SALES_KEY = STORAGE_KEYS.DEMO_AUCTION_SALES
+const DEMO_AUCTION_SETTINGS_KEY = STORAGE_KEYS.DEMO_AUCTION_SETTINGS
 
 export const DEFAULT_AUCTION_SETTINGS: Omit<AuctionSettings, 'season_id'> = {
   bid_increments: [5, 10, 25],
@@ -550,6 +550,9 @@ const demoAuctionService: AuctionService = {
   }
 }
 
+const AUCTION_SETTINGS_COLS =
+  'season_id, bid_increments, max_squad_size, secured_enabled, secured_duration_seconds, price_countup_seconds, bid_update_ms, catchup_window_seconds'
+
 const supabaseAuctionService: AuctionService = {
   async getAuctionSettings(seasonId: string): Promise<AuctionSettings> {
     if (!supabase || !seasonId) {
@@ -558,7 +561,7 @@ const supabaseAuctionService: AuctionService = {
 
     const { data, error } = await supabase
       .from('auction_settings')
-      .select('*')
+      .select(AUCTION_SETTINGS_COLS)
       .eq('season_id', seasonId)
       .maybeSingle()
 
@@ -601,7 +604,7 @@ const supabaseAuctionService: AuctionService = {
     const { data, error } = await supabase
       .from('auction_settings')
       .upsert(payload, { onConflict: 'season_id' })
-      .select('*')
+      .select(AUCTION_SETTINGS_COLS)
       .single()
 
     if (error) {
@@ -654,7 +657,7 @@ const supabaseAuctionService: AuctionService = {
 
     const { data, error } = await supabase
       .from('auction_bids')
-      .select('*')
+      .select('id, player_id, team_id, amount, voided, created_at')
       .eq('player_id', playerId)
       .eq('voided', false)
       .order('created_at', { ascending: false })

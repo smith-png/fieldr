@@ -1,5 +1,8 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import type { CarouselItem, Player, ProjectorState, Season, SiteSettings, Sport } from '../../types'
+import type { Athlete, CarouselItem, Player, ProjectorState, Season, SiteSettings, Sport, Team } from '../../types'
+import { STORAGE_KEYS } from '../constants'
+
+export { STORAGE_KEYS }
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -12,29 +15,15 @@ export const supabase: SupabaseClient | null = !isDemoMode
 
 // Broadcast channel for real-time cross-tab updates in demo mode
 export const demoBroadcastChannel =
-  typeof window !== 'undefined' && 'BroadcastChannel' in window
+  isDemoMode && typeof window !== 'undefined' && 'BroadcastChannel' in window
     ? new BroadcastChannel('fieldr-projector-sync')
     : null
 
 export function notifyChange(event: string, payload?: unknown): void {
-  if (demoBroadcastChannel) {
+  if (isDemoMode && demoBroadcastChannel) {
     demoBroadcastChannel.postMessage({ event, payload, timestamp: Date.now() })
   }
 }
-
-// Local storage keys for demo persistence
-export const STORAGE_KEYS = {
-  USER: 'fieldr_auth_user',
-  SEASONS: 'fieldr_seasons',
-  SPORTS: 'fieldr_sports',
-  TEAMS: 'fieldr_teams',
-  PLAYERS: 'fieldr_players',
-  ATHLETES: 'fieldr_athletes',
-  TRANSACTIONS: 'fieldr_transactions',
-  PROJECTOR: 'fieldr_projector_state',
-  CAROUSEL: 'fieldr_carousel_items',
-  SETTINGS: 'fieldr_site_settings'
-} as const
 
 export function formatAthleteCode(code: number | string | undefined | null): string {
   if (code === undefined || code === null) return '0001'
@@ -121,7 +110,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
 }
 
 export function getLocal<T>(key: string, defaultValue: T): T {
-  if (typeof window === 'undefined') return defaultValue
+  if (!isDemoMode || typeof window === 'undefined') return defaultValue
   try {
     const raw = localStorage.getItem(key)
     return raw ? JSON.parse(raw) : defaultValue
@@ -131,15 +120,13 @@ export function getLocal<T>(key: string, defaultValue: T): T {
 }
 
 export function setLocal<T>(key: string, value: T): void {
-  if (typeof window === 'undefined') return
+  if (!isDemoMode || typeof window === 'undefined') return
   try {
     localStorage.setItem(key, JSON.stringify(value))
   } catch {
     // Storage quota fallback
   }
 }
-
-import type { Athlete, Team } from '../../types'
 
 export function getNextAthleteCode(currentAthletes: Athlete[]): number {
   let maxCode = 0
@@ -151,13 +138,8 @@ export function getNextAthleteCode(currentAthletes: Athlete[]): number {
   return maxCode + 1
 }
 
-export function getNextPlayerCode(_seasonId: string, _currentPlayers: Player[]): string {
-  // Numeric codes are tied to athletes now. This is a fallback helper returning formatted string.
-  return '0001'
-}
-
 export function initializeDemoStore(): void {
-  if (typeof window === 'undefined') return
+  if (!isDemoMode || typeof window === 'undefined') return
 
   const storedSports = getLocal<Sport[]>(STORAGE_KEYS.SPORTS, [])
   if (!storedSports || storedSports.length === 0) {

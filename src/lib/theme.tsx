@@ -1,10 +1,11 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { STORAGE_KEYS } from './constants'
 
 export type ThemePreference = 'system' | 'light' | 'dark'
 export type ResolvedTheme = 'light' | 'dark'
 
-const STORAGE_KEY = 'fieldr-theme'
-const PROJECTOR_STORAGE_KEY = 'fieldr-projector-theme'
+const STORAGE_KEY = STORAGE_KEYS.THEME
+const PROJECTOR_STORAGE_KEY = STORAGE_KEYS.PROJECTOR_THEME
 
 // In-memory fallback if localStorage is disabled or throws
 let memoryPreference: ThemePreference = 'system'

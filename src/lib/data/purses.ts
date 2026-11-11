@@ -112,6 +112,9 @@ const demoPursesService: PursesService = {
   }
 }
 
+const PURSE_TX_COLS =
+  'id, season_id, team_id, type, amount, balance_after, reason, created_at, created_by'
+
 const supabasePursesService: PursesService = {
   async getPurseTransactions(
     seasonId: string,
@@ -120,7 +123,7 @@ const supabasePursesService: PursesService = {
     if (!supabase) return []
     let query = supabase
       .from('purse_transactions')
-      .select('*')
+      .select(PURSE_TX_COLS)
       .eq('season_id', seasonId)
       .order('created_at', { ascending: false })
 
@@ -162,7 +165,7 @@ const supabasePursesService: PursesService = {
 
     const { data: txList } = await supabase
       .from('purse_transactions')
-      .select('*')
+      .select(PURSE_TX_COLS)
       .eq('team_id', teamId)
       .order('created_at', { ascending: false })
       .limit(1)

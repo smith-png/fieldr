@@ -350,6 +350,7 @@ export const RosterSportPage: React.FC = () => {
       {/* Expanded Player Floating Modal */}
       <RosterScoutModal
         player={expandedPlayer}
+        team={expandedPlayer ? teams.find((t) => t.id === expandedPlayer.team_id) : null}
         onClose={() => setExpandedPlayer(null)}
       />
 

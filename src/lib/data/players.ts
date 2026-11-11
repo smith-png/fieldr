@@ -8,6 +8,7 @@ import type {
   Team
 } from '../../types'
 import { AppError } from '../errors'
+import { PUBLIC_PLAYER_SELECT_COLUMNS, PUBLIC_SQUAD_SELECT_COLUMNS } from '../constants'
 import {
   isDemoMode,
   supabase,
@@ -29,7 +30,8 @@ import type {
   PlayersPagedResult,
   PlayersService,
   PublicPlayersPagedParams,
-  PublicPlayersPagedResult
+  PublicPlayersPagedResult,
+  SeasonPlayerLookupResult
 } from './types'
 
 function mapJoinedPlayer(row: Record<string, unknown>, pubRow?: PublicPlayer, athRow?: Athlete): Player {
@@ -64,20 +66,10 @@ function mapJoinedPlayer(row: Record<string, unknown>, pubRow?: PublicPlayer, at
       ath?.photo_thumb_url ||
       pubRow?.photo_thumb_url ||
       (row.photo_thumb_url ? String(row.photo_thumb_url) : undefined),
-    base_points:
-      typeof row.base_points === 'number'
-        ? row.base_points
-        : typeof pubRow?.base_points === 'number'
-          ? pubRow.base_points
-          : 100,
-    status: (row.status as Player['status']) || pubRow?.status || 'available',
-    team_id: (row.team_id as string | null) ?? pubRow?.team_id ?? null,
-    purchase_price:
-      typeof row.purchase_price === 'number'
-        ? row.purchase_price
-        : typeof pubRow?.purchase_price === 'number'
-          ? pubRow.purchase_price
-          : null,
+    base_points: typeof row.base_points === 'number' ? row.base_points : 100,
+    status: (row.status as Player['status']) || 'available',
+    team_id: (row.team_id as string | null) ?? null,
+    purchase_price: typeof row.purchase_price === 'number' ? row.purchase_price : null,
     created_at: row.created_at ? String(row.created_at) : undefined
   }
 }
@@ -110,6 +102,27 @@ const demoPlayersService: PlayersService = {
     } catch {
       return []
     }
+  },
+
+  async getPublicPlayersBySeason(seasonId: string): Promise<PublicPlayer[]> {
+    const seasonPlayers = await demoPlayersService.getPlayers(seasonId)
+    return seasonPlayers
+      .map((p) => ({
+        id: p.id,
+        season_id: p.season_id,
+        athlete_id: p.athlete_id,
+        athlete_code: p.athlete_code,
+        player_code: p.player_code,
+        name: p.name,
+        sport: p.sport,
+        playing_role: p.playing_role,
+        academic_year: p.academic_year || '1st',
+        status: p.status,
+        team_id: p.team_id ?? null,
+        photo_url: p.photo_url,
+        photo_thumb_url: p.photo_thumb_url || p.photo_url
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
   },
 
   async getPlayersPaged(params: PlayersPagedParams): Promise<PlayersPagedResult> {
@@ -192,15 +205,43 @@ const demoPlayersService: PlayersService = {
       playing_role: p.playing_role,
       season_id: p.season_id,
       status: p.status,
-      team_id: p.team_id
+      team_id: p.team_id,
+      purchase_price: p.purchase_price ?? null
     }))
 
     const nextOffset = offset + sliced.length
     return {
       players: publicList,
       nextCursor: nextOffset < totalCount ? String(nextOffset) : undefined,
-      hasMore: nextOffset < totalCount
+      hasMore: nextOffset < totalCount,
+      totalCount
     }
+  },
+
+  async lookupSeasonPlayerByCode(
+    seasonId: string,
+    sport: string,
+    athleteCode: number
+  ): Promise<SeasonPlayerLookupResult> {
+    const seasonPlayers = await demoPlayersService.getPlayers(seasonId)
+    const codeMatches = seasonPlayers.filter(
+      (p) => (p.athlete_code || parseAthleteCode(p.player_code)) === athleteCode
+    )
+    if (codeMatches.length === 0) {
+      return { match: null, otherSports: [] }
+    }
+
+    const sportNorm = sport.trim().toLowerCase()
+    const match =
+      codeMatches.find((p) => p.sport.trim().toLowerCase() === sportNorm) || null
+    const otherSports = Array.from(
+      new Set(
+        codeMatches
+          .filter((p) => p.sport.trim().toLowerCase() !== sportNorm)
+          .map((p) => p.sport)
+      )
+    )
+    return { match, otherSports }
   },
 
   async createPlayer(
@@ -605,8 +646,26 @@ const demoPlayersService: PlayersService = {
   }
 }
 
+interface PublicSquadRow {
+  player_id: string
+  season_id: string
+  sport: string
+  player_code: string
+  name: string
+  photo_thumb_url?: string
+  photo_url?: string
+  academic_year: string
+  playing_role: string
+  purchase_price?: number | null
+  team_id: string
+  team_name: string
+  team_short_code: string
+  team_color: string
+  team_logo_url?: string | null
+}
+
 const supabasePlayersService: PlayersService = {
-  // Uses public_players + players so it works for both public pages (without touching athletes) and admin
+  // Admin and projector lookup: merges public_players view with players table
   async getPlayers(seasonId: string): Promise<Player[]> {
     try {
       if (!seasonId || !supabase) return []
@@ -614,7 +673,7 @@ const supabasePlayersService: PlayersService = {
       const [pubRes, plyRes] = await Promise.all([
         supabase
           .from('public_players')
-          .select('*')
+          .select(PUBLIC_PLAYER_SELECT_COLUMNS)
           .eq('season_id', seasonId),
         supabase.from('players').select('*').eq('season_id', seasonId)
       ])
@@ -641,6 +700,65 @@ const supabasePlayersService: PlayersService = {
       return result.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
     } catch (err) {
       console.error('getPlayers caught error:', err)
+      return []
+    }
+  },
+
+  // Public-only lookup: queries ONLY public_players and public_squads (never players or athletes)
+  async getPublicPlayersBySeason(seasonId: string): Promise<PublicPlayer[]> {
+    try {
+      if (!seasonId || !supabase) return []
+
+      const [pubRes, squadsRes] = await Promise.all([
+        supabase
+          .from('public_players')
+          .select(PUBLIC_PLAYER_SELECT_COLUMNS)
+          .eq('season_id', seasonId),
+        supabase
+          .from('public_squads')
+          .select(PUBLIC_SQUAD_SELECT_COLUMNS)
+          .eq('season_id', seasonId)
+      ])
+
+      if (pubRes.error) {
+        console.error('Supabase getPublicPlayersBySeason error:', pubRes.error.message, pubRes.error)
+        return []
+      }
+      if (squadsRes.error) {
+        console.error('Supabase getPublicPlayersBySeason (public_squads) error:', squadsRes.error.message, squadsRes.error)
+      }
+
+      const squadMap = new Map<string, PublicSquadRow>()
+      for (const sq of (squadsRes.data as PublicSquadRow[]) || []) {
+        if (sq.player_id) {
+          squadMap.set(sq.player_id, sq)
+        }
+      }
+
+      const pubList = (pubRes.data as PublicPlayer[]) || []
+      return pubList
+        .map((pub) => {
+          const squad = squadMap.get(pub.id)
+          return {
+            id: pub.id,
+            season_id: pub.season_id,
+            athlete_id: pub.athlete_id,
+            athlete_code: pub.athlete_code,
+            player_code: formatAthleteCode(pub.athlete_code ?? pub.player_code),
+            name: pub.name || 'Unnamed Athlete',
+            sport: pub.sport || 'Cricket',
+            playing_role: pub.playing_role || 'Player',
+            academic_year: (pub.academic_year || '1st') as PublicPlayer['academic_year'],
+            status: squad ? ('sold' as const) : ('available' as const),
+            team_id: squad ? squad.team_id : null,
+            purchase_price: squad?.purchase_price ?? null,
+            photo_url: pub.photo_url,
+            photo_thumb_url: pub.photo_thumb_url || pub.photo_url
+          }
+        })
+        .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
+    } catch (err) {
+      console.error('getPublicPlayersBySeason caught error:', err)
       return []
     }
   },
@@ -717,7 +835,7 @@ const supabasePlayersService: PlayersService = {
 
     let query = supabase
       .from('public_players')
-      .select('*', { count: 'exact' })
+      .select(PUBLIC_PLAYER_SELECT_COLUMNS, { count: 'exact' })
       .eq('season_id', activeSeason.id)
 
     if (sport && sport !== 'all') {
@@ -744,11 +862,42 @@ const supabasePlayersService: PlayersService = {
     }
 
     const totalCount = count || 0
-    const players = (data as PublicPlayer[]) || []
+    const rawPlayers = (data as PublicPlayer[]) || []
+    const playerIds = rawPlayers.map((p) => p.id)
+
+    const squadMap = new Map<string, PublicSquadRow>()
+    if (playerIds.length > 0) {
+      const { data: squadRows, error: squadError } = await supabase
+        .from('public_squads')
+        .select(PUBLIC_SQUAD_SELECT_COLUMNS)
+        .in('player_id', playerIds)
+
+      if (squadError) {
+        console.error('Supabase getPublicPlayersPaged (public_squads) error:', squadError.message, squadError)
+      } else {
+        for (const sq of (squadRows as PublicSquadRow[]) || []) {
+          if (sq.player_id) {
+            squadMap.set(sq.player_id, sq)
+          }
+        }
+      }
+    }
+
+    const players: PublicPlayer[] = rawPlayers.map((pub) => {
+      const squad = squadMap.get(pub.id)
+      return {
+        ...pub,
+        status: squad ? ('sold' as const) : ('available' as const),
+        team_id: squad ? squad.team_id : null,
+        purchase_price: squad?.purchase_price ?? null
+      }
+    })
+
     const nextOffset = offset + players.length
 
     return {
       players,
+      totalCount,
       nextCursor: nextOffset < totalCount ? String(nextOffset) : undefined,
       hasMore: nextOffset < totalCount
     }
@@ -1128,6 +1277,59 @@ const supabasePlayersService: PlayersService = {
         supabase.removeChannel(sbChannel)
       }
     }
+  },
+
+  async lookupSeasonPlayerByCode(
+    seasonId: string,
+    sport: string,
+    athleteCode: number
+  ): Promise<SeasonPlayerLookupResult> {
+    if (!supabase) return { match: null, otherSports: [] }
+
+    const { data: pubRows, error: pubError } = await supabase
+      .from('public_players')
+      .select(PUBLIC_PLAYER_SELECT_COLUMNS)
+      .eq('season_id', seasonId)
+      .eq('athlete_code', athleteCode)
+
+    if (pubError) {
+      throw new AppError(pubError.message, { original: pubError })
+    }
+
+    const rows = (pubRows || []) as Array<Record<string, unknown>>
+    if (rows.length === 0) {
+      return { match: null, otherSports: [] }
+    }
+
+    const sportNorm = sport.trim().toLowerCase()
+    const matchedPub =
+      rows.find((r) => String(r.sport || '').trim().toLowerCase() === sportNorm) || null
+    const otherSports = Array.from(
+      new Set(
+        rows
+          .filter((r) => String(r.sport || '').trim().toLowerCase() !== sportNorm)
+          .map((r) => String(r.sport || '').trim())
+          .filter(Boolean)
+      )
+    )
+
+    if (!matchedPub) {
+      return { match: null, otherSports }
+    }
+
+    const playerId = String(matchedPub.id)
+    const { data: pRow } = await supabase
+      .from('players')
+      .select('id, status, base_points, team_id, purchase_price, notes, created_at')
+      .eq('id', playerId)
+      .maybeSingle()
+
+    const match = mapJoinedPlayer(
+      (pRow as Record<string, unknown>) || { id: playerId, season_id: seasonId },
+      matchedPub as unknown as PublicPlayer
+    )
+
+    return { match, otherSports }
   }
 }
 
@@ -1136,8 +1338,15 @@ export const playersService: PlayersService = isDemoMode
   : supabasePlayersService
 
 export const getPlayers = (seasonId: string) => playersService.getPlayers(seasonId)
+export const getPublicPlayersBySeason = (seasonId: string) =>
+  playersService.getPublicPlayersBySeason(seasonId)
 export const getPlayersPaged = (params: PlayersPagedParams) =>
   playersService.getPlayersPaged(params)
+export const lookupSeasonPlayerByCode = (
+  seasonId: string,
+  sport: string,
+  athleteCode: number
+) => playersService.lookupSeasonPlayerByCode(seasonId, sport, athleteCode)
 
 export async function getPublicPlayersPaged(
   params:
@@ -1161,14 +1370,14 @@ export async function getPublicPlayersPaged(
     })
     return {
       players: res.players,
-      totalCount: 0,
+      totalCount: res.totalCount ?? res.players.length,
       hasMore: res.hasMore
     }
   }
   const res = await playersService.getPublicPlayersPaged(params)
   return {
     players: res.players,
-    totalCount: 0,
+    totalCount: res.totalCount ?? res.players.length,
     hasMore: res.hasMore
   }
 }

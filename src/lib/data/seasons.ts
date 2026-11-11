@@ -158,13 +158,16 @@ const demoSeasonsService: SeasonsService = {
   }
 }
 
+const SEASON_COLS =
+  'id, name, is_active, is_archived, start_date, end_date, description, created_at'
+
 const supabaseSeasonsService: SeasonsService = {
   async getSeasons(): Promise<Season[]> {
     try {
       if (!supabase) return []
       const { data, error } = await supabase
         .from('seasons')
-        .select('*')
+        .select(SEASON_COLS)
         .order('is_active', { ascending: false })
         .order('created_at', { ascending: false })
 
@@ -184,7 +187,7 @@ const supabaseSeasonsService: SeasonsService = {
       if (!supabase) return null
       const { data, error } = await supabase
         .from('seasons')
-        .select('*')
+        .select(SEASON_COLS)
         .eq('id', id)
         .maybeSingle()
 
@@ -204,7 +207,7 @@ const supabaseSeasonsService: SeasonsService = {
       if (!supabase) return null
       const { data, error } = await supabase
         .from('seasons')
-        .select('*')
+        .select(SEASON_COLS)
         .eq('is_active', true)
         .maybeSingle()
 

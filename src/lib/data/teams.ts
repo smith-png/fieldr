@@ -386,7 +386,7 @@ const demoTeamsService: TeamsService = {
 const supabaseTeamsService: TeamsService = {
   async getSports(): Promise<Sport[]> {
     if (!supabase) return DEFAULT_SPORTS
-    const { data, error } = await supabase.from('sports').select('*')
+    const { data, error } = await supabase.from('sports').select('id, name, roles')
     if (error) {
       console.error('Supabase getSports error:', error.message, error)
       return DEFAULT_SPORTS
@@ -615,7 +615,9 @@ const supabaseTeamsService: TeamsService = {
     if (!supabase) return []
     const { data, error } = await supabase
       .from('teams')
-      .select('*')
+      .select(
+        'id, season_id, sport, name, short_code, color, logo_url, owner_display_name, owner_user_id, starting_purse, current_purse, created_at'
+      )
       .eq('season_id', seasonId)
       .order('name', { ascending: true })
 
@@ -686,7 +688,7 @@ const supabaseTeamsService: TeamsService = {
 
     const { data: pState } = await supabase
       .from('projector_state')
-      .select('*')
+      .select('season_id, team_id')
       .eq('team_id', id)
       .single()
 

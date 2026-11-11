@@ -8,6 +8,7 @@ import type {
   CarouselItem,
   Player,
   PlayerStatus,
+  ProjectorAutoFilter,
   ProjectorState,
   PublicPlayer,
   PublicTeam,
@@ -119,6 +120,7 @@ export interface PublicPlayersPagedParams {
 
 export interface PublicPlayersPagedResult {
   players: PublicPlayer[]
+  totalCount?: number
   nextCursor?: string
   hasMore: boolean
 }
@@ -150,10 +152,21 @@ export interface BulkRegisterResult {
   skipped: BulkRegisterSkippedItem[]
 }
 
+export interface SeasonPlayerLookupResult {
+  match: Player | null
+  otherSports: string[]
+}
+
 export interface PlayersService {
   getPlayers(seasonId: string): Promise<Player[]>
+  getPublicPlayersBySeason(seasonId: string): Promise<PublicPlayer[]>
   getPlayersPaged(params: PlayersPagedParams): Promise<PlayersPagedResult>
   getPublicPlayersPaged(params: PublicPlayersPagedParams): Promise<PublicPlayersPagedResult>
+  lookupSeasonPlayerByCode(
+    seasonId: string,
+    sport: string,
+    athleteCode: number
+  ): Promise<SeasonPlayerLookupResult>
   createPlayer(
     playerData: Omit<Player, 'id' | 'player_code' | 'created_at'>,
     options?: { photoFile?: File }
@@ -188,9 +201,19 @@ export interface PursesService {
   resetAllPurses(seasonId: string, startingPurse: number, reason?: string): Promise<void>
 }
 
+export interface StartProjectorAutoParams {
+  seasonId: string
+  mode: 'player_auto' | 'roster_auto'
+  sport: string
+  filter?: ProjectorAutoFilter
+  intervalSeconds: number
+}
+
 export interface ProjectorService {
   getProjectorState(seasonId: string): Promise<ProjectorState>
   setProjectorState(state: ProjectorState): Promise<ProjectorState>
+  startProjectorAuto(params: StartProjectorAutoParams): Promise<ProjectorState>
+  stopProjectorAuto(seasonId: string): Promise<ProjectorState>
   subscribeToProjector(seasonId: string, callback: (state: ProjectorState) => void): () => void
 }
 

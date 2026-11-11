@@ -324,8 +324,8 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
       const roles = await getRolesForSport(sport)
       if (mounted) {
         setAvailableRoles(roles)
-        if (roles.length > 0 && (!playingRole || !roles.includes(playingRole))) {
-          setPlayingRole(roles[0])
+        if (roles.length > 0) {
+          setPlayingRole((prev) => (!prev || !roles.includes(prev) ? roles[0] : prev))
         }
       }
     }
@@ -333,7 +333,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
     return () => {
       mounted = false
     }
-  }, [sport, playingRole])
+  }, [sport])
 
   const openCreateDrawer = async () => {
     setEditingPlayer(null)

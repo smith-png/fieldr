@@ -218,7 +218,7 @@ const supabaseSiteService: SiteService = {
 
       let query = supabase
         .from('carousel_items')
-        .select('*')
+        .select('id, text, sort_order, active, season_id, created_at')
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true })
 
@@ -412,7 +412,9 @@ const supabaseSiteService: SiteService = {
   async getSiteSettings(): Promise<SiteSettings> {
     if (!supabase) return DEFAULT_SETTINGS
 
-    const { data, error } = await supabase.from('site_settings').select('*')
+    const { data, error } = await supabase
+      .from('site_settings')
+      .select('key, value, updated_at')
     if (error) {
       console.error('Supabase getSiteSettings error:', error.message, error)
       return DEFAULT_SETTINGS

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import {
   ArrowsIn,
@@ -24,7 +24,13 @@ import {
   subscribeToProjector,
   subscribeToTeams
 } from '../../lib/data'
+import { PROJECTOR_MODES } from '../../lib/constants'
 import { getAcademicYearLabel } from '../../lib/academicYears'
+import {
+  getAutoSlideshowPlayers,
+  getAutoSlideshowTeams,
+  useAutoSlideshow
+} from '../../hooks/useAutoSlideshow'
 import { useProjectorTheme } from '../../hooks/useTheme'
 import type {
   AuctionSettings,
@@ -128,6 +134,231 @@ const AuctionBidNumber: React.FC<{
     >
       {displayValue.toLocaleString()}
     </motion.span>
+  )
+}
+
+const PlayerSpotlightSceneContent: React.FC<{
+  player: Player
+  shouldReduceMotion: boolean
+  isAutoSlide?: boolean
+}> = ({ player, shouldReduceMotion, isAutoSlide = false }) => {
+  return (
+    <>
+      {/* High-Contrast Large Portrait */}
+      <motion.div
+        initial={shouldReduceMotion || isAutoSlide ? false : { scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.5, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
+        className="w-64 h-80 sm:w-80 sm:h-96 md:w-96 md:h-[460px] rounded-3xl bg-surface border-2 border-border shadow-xl overflow-hidden shrink-0 flex items-center justify-center relative"
+      >
+        {player.photo_url ? (
+          <img
+            src={player.photo_url}
+            alt={player.name}
+            referrerPolicy="no-referrer"
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-4 text-muted">
+            <User size={96} weight="thin" />
+            <span className="font-mono text-sm tracking-wider uppercase">
+              No Photo Uploaded
+            </span>
+          </div>
+        )}
+
+        {/* Status Indicator */}
+        <div className="absolute top-4 right-4">
+          <span
+            className={`px-3 py-1 rounded-lg text-xs font-mono uppercase tracking-widest font-bold border bg-surface/90 backdrop-blur-md ${
+              player.status === 'sold'
+                ? 'border-error/40 text-error'
+                : player.status === 'unsold'
+                ? 'border-border text-muted'
+                : 'border-accent-bright/40 text-accent-bright'
+            }`}
+          >
+            {player.status === 'sold'
+              ? 'SOLD / DRAFTED'
+              : player.status === 'unsold'
+              ? 'UNSOLD'
+              : 'AVAILABLE'}
+          </span>
+        </div>
+      </motion.div>
+
+      {/* Player Credentials & Stats */}
+      <div className="flex flex-col gap-6 text-left max-w-2xl">
+        <div>
+          {/* Sport & Role Eyebrow */}
+          <div className="flex items-center gap-3 text-sm md:text-base font-mono uppercase tracking-widest text-accent-bright font-semibold mb-3">
+            <span>
+              #{formatAthleteCode(player.player_code || player.athlete_code)}
+            </span>
+            <span className="text-muted">/</span>
+            <span>{player.sport}</span>
+            <span className="text-muted">/</span>
+            <span>{player.playing_role}</span>
+          </div>
+
+          {/* Huge Name Display */}
+          <h2 className="font-syne font-extrabold text-5xl sm:text-7xl md:text-8xl text-text tracking-tighter leading-[0.95]">
+            {player.name}
+          </h2>
+        </div>
+
+        {/* Metadata Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 pt-6 border-t border-border font-mono">
+          <div>
+            <span className="text-xs text-muted uppercase tracking-wider block">
+              Academic Year
+            </span>
+            <span className="font-syne font-bold text-xl md:text-2xl text-text mt-1 block">
+              {getAcademicYearLabel(player.academic_year || '1st')}
+            </span>
+          </div>
+
+          {player.roll_no && (
+            <div>
+              <span className="text-xs text-muted uppercase tracking-wider block">
+                Roll Number
+              </span>
+              <span className="font-syne font-bold text-xl md:text-2xl text-text mt-1 block">
+                #{player.roll_no}
+              </span>
+            </div>
+          )}
+
+          <div>
+            <span className="text-xs text-muted uppercase tracking-wider block">
+              Base Auction Price
+            </span>
+            <span className="font-syne font-extrabold text-2xl md:text-3xl text-points tabular-nums mt-1 block">
+              {player.base_points.toLocaleString()} PTS
+            </span>
+          </div>
+        </div>
+
+        {player.notes && (
+          <div className="p-4 rounded-2xl bg-surface border border-border text-sm text-text leading-relaxed">
+            <span className="font-mono text-xs uppercase text-muted block mb-1">
+              Scouting Bio
+            </span>
+            {player.notes}
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+const TeamRosterSceneContent: React.FC<{
+  team: Team
+  rosterPlayers: Player[]
+}> = ({ team, rosterPlayers }) => {
+  return (
+    <>
+      {/* Franchise Header Banner */}
+      <div className="p-8 rounded-2xl bg-surface border border-border shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+        <div className="flex items-center gap-6">
+          <div
+            className="w-20 h-20 rounded-2xl flex items-center justify-center font-syne font-extrabold text-2xl text-white overflow-hidden border border-border shrink-0 shadow-sm"
+            style={{ backgroundColor: team.color || 'var(--accent-bright)' }}
+          >
+            {team.logo_url ? (
+              <img
+                src={team.logo_url}
+                alt={team.name}
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span>{team.short_code}</span>
+            )}
+          </div>
+          <div>
+            <div className="flex items-center gap-3">
+              <h2 className="font-syne font-bold text-4xl sm:text-5xl text-text tracking-tight">
+                {team.name}
+              </h2>
+              <span className="font-mono text-sm text-muted font-semibold">
+                · {team.short_code}
+              </span>
+            </div>
+            <div className="text-sm text-muted mt-1 flex items-center gap-3">
+              <span>
+                Sport: <strong className="text-text">{team.sport}</strong>
+              </span>
+              {team.owner_display_name && (
+                <>
+                  <span>·</span>
+                  <span>
+                    Owner: <strong className="text-text">{team.owner_display_name}</strong>
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="text-left md:text-right font-mono">
+          <span className="text-xs uppercase tracking-wider text-muted block">
+            Remaining Purse
+          </span>
+          <div className="font-syne font-extrabold text-4xl text-points tabular-nums mt-0.5">
+            <AnimatedCounter value={team.current_purse} /> PTS
+          </div>
+        </div>
+      </div>
+
+      {/* Assigned Players List */}
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between font-mono text-xs uppercase tracking-wider text-muted">
+          <span>Drafted Squad ({rosterPlayers.length} Players)</span>
+        </div>
+
+        {rosterPlayers.length === 0 ? (
+          <div className="py-16 text-center text-sm font-mono text-muted border border-dashed border-border rounded-2xl bg-surface/50">
+            No athletes drafted to this franchise roster yet.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {rosterPlayers.map((player) => (
+              <div
+                key={player.id}
+                className="p-4 rounded-2xl bg-surface border border-border flex items-center gap-4 shadow-sm"
+              >
+                <div className="w-12 h-12 rounded-xl bg-surface-2 border border-border overflow-hidden shrink-0 flex items-center justify-center">
+                  {player.photo_url ? (
+                    <img
+                      src={player.photo_url}
+                      alt={player.name}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <User size={20} className="text-muted" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h4 className="font-syne font-bold text-base text-text truncate">
+                    {player.name}
+                  </h4>
+                  <div className="text-xs text-accent-bright font-medium">
+                    {player.playing_role} · {getAcademicYearLabel(player.academic_year || '1st')}
+                  </div>
+                  {player.purchase_price ? (
+                    <div className="font-mono text-xs text-points tabular-nums mt-0.5">
+                      Draft Price: {player.purchase_price.toLocaleString()} PTS
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
   )
 }
 
@@ -440,6 +671,42 @@ export const ProjectorPage: React.FC = () => {
   const rosterTeam = teams.find((t) => t.id === projectorState.team_id)
   const rosterPlayers = rosterTeam ? players.filter((p) => p.team_id === rosterTeam.id) : []
 
+  // Auto slideshow lists and active slides (timers only run in player_auto / roster_auto)
+  const isPlayerAuto = projectorState.mode === PROJECTOR_MODES.PLAYER_AUTO
+  const isRosterAuto = projectorState.mode === PROJECTOR_MODES.ROSTER_AUTO
+
+  const autoPlayers = useMemo(
+    () =>
+      isPlayerAuto
+        ? getAutoSlideshowPlayers(players, projectorState.auto_sport, projectorState.auto_filter)
+        : [],
+    [isPlayerAuto, players, projectorState.auto_sport, projectorState.auto_filter]
+  )
+
+  const autoTeams = useMemo(
+    () =>
+      isRosterAuto ? getAutoSlideshowTeams(teams, projectorState.auto_sport) : [],
+    [isRosterAuto, teams, projectorState.auto_sport]
+  )
+
+  const playerAutoSlideshow = useAutoSlideshow(
+    autoPlayers,
+    projectorState.auto_interval_seconds,
+    isPlayerAuto ? projectorState.auto_started_at : null
+  )
+
+  const rosterAutoSlideshow = useAutoSlideshow(
+    autoTeams,
+    projectorState.auto_interval_seconds,
+    isRosterAuto ? projectorState.auto_started_at : null
+  )
+
+  const autoSpotlightPlayer = playerAutoSlideshow.currentItem
+  const autoRosterTeam = rosterAutoSlideshow.currentItem
+  const autoRosterPlayers = autoRosterTeam
+    ? players.filter((p) => p.team_id === autoRosterTeam.id)
+    : []
+
   // Auction / Sold / Unsold entities
   const stagePlayer = players.find((p) => p.id === projectorState.player_id)
   const leadingTeam = projectorState.team_id
@@ -477,6 +744,14 @@ export const ProjectorPage: React.FC = () => {
     exit: shouldReduceMotion
       ? { opacity: 0 }
       : { opacity: 0, scale: 1.02 }
+  }
+
+  // Slide transition: crossfade with a slight upward drift over 600ms using only opacity and transform;
+  // with prefers-reduced-motion use fade only.
+  const autoSlideVariants = {
+    initial: shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 18 },
+    animate: shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 },
+    exit: shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -18 }
   }
 
   return (
@@ -1106,7 +1381,7 @@ export const ProjectorPage: React.FC = () => {
           )}
 
           {/* ================= SCENE 6: PLAYER SPOTLIGHT ================= */}
-          {projectorState.mode === 'player' && (
+          {projectorState.mode === PROJECTOR_MODES.PLAYER && (
             <motion.div
               key={`scene-player-${spotlightPlayer?.id || 'none'}`}
               variants={sceneVariants}
@@ -1117,106 +1392,10 @@ export const ProjectorPage: React.FC = () => {
               className="flex flex-col lg:flex-row items-center justify-center gap-10 md:gap-16 lg:gap-24 w-full max-w-6xl my-auto"
             >
               {spotlightPlayer ? (
-                <>
-                  {/* High-Contrast Large Portrait */}
-                  <motion.div
-                    initial={shouldReduceMotion ? {} : { scale: 0.95, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ duration: 0.5, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
-                    className="w-64 h-80 sm:w-80 sm:h-96 md:w-96 md:h-[460px] rounded-3xl bg-surface border-2 border-border shadow-xl overflow-hidden shrink-0 flex items-center justify-center relative"
-                  >
-                    {spotlightPlayer.photo_url ? (
-                      <img
-                        src={spotlightPlayer.photo_url}
-                        alt={spotlightPlayer.name}
-                        referrerPolicy="no-referrer"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center gap-4 text-muted">
-                        <User size={96} weight="thin" />
-                        <span className="font-mono text-sm tracking-wider uppercase">
-                          No Photo Uploaded
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Status Indicator */}
-                    <div className="absolute top-4 right-4">
-                      <span
-                        className={`px-3 py-1 rounded-lg text-xs font-mono uppercase tracking-widest font-bold border bg-surface/90 backdrop-blur-md ${
-                          spotlightPlayer.status === 'sold'
-                            ? 'border-error/40 text-error'
-                            : 'border-accent-bright/40 text-accent-bright'
-                        }`}
-                      >
-                        {spotlightPlayer.status === 'sold' ? 'SOLD / DRAFTED' : 'AVAILABLE'}
-                      </span>
-                    </div>
-                  </motion.div>
-
-                  {/* Player Credentials & Stats */}
-                  <div className="flex flex-col gap-6 text-left max-w-2xl">
-                    <div>
-                      {/* Sport & Role Eyebrow */}
-                      <div className="flex items-center gap-3 text-sm md:text-base font-mono uppercase tracking-widest text-accent-bright font-semibold mb-3">
-                        <span>
-                          #{formatAthleteCode(spotlightPlayer.player_code || spotlightPlayer.athlete_code)}
-                        </span>
-                        <span className="text-muted">/</span>
-                        <span>{spotlightPlayer.sport}</span>
-                        <span className="text-muted">/</span>
-                        <span>{spotlightPlayer.playing_role}</span>
-                      </div>
-
-                      {/* Huge Name Display */}
-                      <h2 className="font-syne font-extrabold text-5xl sm:text-7xl md:text-8xl text-text tracking-tighter leading-[0.95]">
-                        {spotlightPlayer.name}
-                      </h2>
-                    </div>
-
-                    {/* Metadata Grid */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 pt-6 border-t border-border font-mono">
-                      <div>
-                        <span className="text-xs text-muted uppercase tracking-wider block">
-                          Academic Year
-                        </span>
-                        <span className="font-syne font-bold text-xl md:text-2xl text-text mt-1 block">
-                          {getAcademicYearLabel(spotlightPlayer.academic_year || '1st')}
-                        </span>
-                      </div>
-
-                      {spotlightPlayer.roll_no && (
-                        <div>
-                          <span className="text-xs text-muted uppercase tracking-wider block">
-                            Roll Number
-                          </span>
-                          <span className="font-syne font-bold text-xl md:text-2xl text-text mt-1 block">
-                            #{spotlightPlayer.roll_no}
-                          </span>
-                        </div>
-                      )}
-
-                      <div>
-                        <span className="text-xs text-muted uppercase tracking-wider block">
-                          Base Auction Price
-                        </span>
-                        <span className="font-syne font-extrabold text-2xl md:text-3xl text-points tabular-nums mt-1 block">
-                          {spotlightPlayer.base_points.toLocaleString()} PTS
-                        </span>
-                      </div>
-                    </div>
-
-                    {spotlightPlayer.notes && (
-                      <div className="p-4 rounded-2xl bg-surface border border-border text-sm text-text leading-relaxed">
-                        <span className="font-mono text-xs uppercase text-muted block mb-1">
-                          Scouting Bio
-                        </span>
-                        {spotlightPlayer.notes}
-                      </div>
-                    )}
-                  </div>
-                </>
+                <PlayerSpotlightSceneContent
+                  player={spotlightPlayer}
+                  shouldReduceMotion={shouldReduceMotion}
+                />
               ) : (
                 <div className="text-center font-mono text-xl text-muted">
                   No player currently selected in Spotlight.
@@ -1225,8 +1404,45 @@ export const ProjectorPage: React.FC = () => {
             </motion.div>
           )}
 
+          {/* ================= SCENE 6B: PLAYER SPOTLIGHT AUTO SLIDESHOW ================= */}
+          {projectorState.mode === PROJECTOR_MODES.PLAYER_AUTO && (
+            <motion.div
+              key="scene-player-auto"
+              variants={sceneVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              className="flex flex-col items-center justify-center w-full max-w-6xl my-auto"
+            >
+              {autoSpotlightPlayer ? (
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    key={autoSpotlightPlayer.id}
+                    variants={autoSlideVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                    className="flex flex-col lg:flex-row items-center justify-center gap-10 md:gap-16 lg:gap-24 w-full"
+                  >
+                    <PlayerSpotlightSceneContent
+                      player={autoSpotlightPlayer}
+                      shouldReduceMotion={shouldReduceMotion}
+                      isAutoSlide={true}
+                    />
+                  </motion.div>
+                </AnimatePresence>
+              ) : (
+                <div className="py-24 text-center font-mono text-2xl text-muted">
+                  No players to show for {projectorState.auto_sport || 'Sport'}
+                </div>
+              )}
+            </motion.div>
+          )}
+
           {/* ================= SCENE 7: TEAM ROSTER ================= */}
-          {projectorState.mode === 'roster' && (
+          {projectorState.mode === PROJECTOR_MODES.ROSTER && (
             <motion.div
               key={`scene-roster-${rosterTeam?.id || 'none'}`}
               variants={sceneVariants}
@@ -1237,111 +1453,49 @@ export const ProjectorPage: React.FC = () => {
               className="flex flex-col justify-center w-full h-full max-w-6xl my-auto"
             >
               {rosterTeam ? (
-                <>
-                  {/* Franchise Header Banner */}
-                  <div className="p-8 rounded-2xl bg-surface border border-border shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-                    <div className="flex items-center gap-6">
-                      <div
-                        className="w-20 h-20 rounded-2xl flex items-center justify-center font-syne font-extrabold text-2xl text-white overflow-hidden border border-border shrink-0 shadow-sm"
-                        style={{ backgroundColor: rosterTeam.color || 'var(--accent-bright)' }}
-                      >
-                        {rosterTeam.logo_url ? (
-                          <img
-                            src={rosterTeam.logo_url}
-                            alt={rosterTeam.name}
-                            referrerPolicy="no-referrer"
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <span>{rosterTeam.short_code}</span>
-                        )}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-3">
-                          <h2 className="font-syne font-bold text-4xl sm:text-5xl text-text tracking-tight">
-                            {rosterTeam.name}
-                          </h2>
-                          <span className="font-mono text-sm text-muted font-semibold">
-                            · {rosterTeam.short_code}
-                          </span>
-                        </div>
-                        <div className="text-sm text-muted mt-1 flex items-center gap-3">
-                          <span>
-                            Sport: <strong className="text-text">{rosterTeam.sport}</strong>
-                          </span>
-                          {rosterTeam.owner_display_name && (
-                            <>
-                              <span>·</span>
-                              <span>
-                                Owner: <strong className="text-text">{rosterTeam.owner_display_name}</strong>
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="text-left md:text-right font-mono">
-                      <span className="text-xs uppercase tracking-wider text-muted block">
-                        Remaining Purse
-                      </span>
-                      <div className="font-syne font-extrabold text-4xl text-points tabular-nums mt-0.5">
-                        <AnimatedCounter value={rosterTeam.current_purse} /> PTS
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Assigned Players List */}
-                  <div className="flex flex-col gap-4">
-                    <div className="flex items-center justify-between font-mono text-xs uppercase tracking-wider text-muted">
-                      <span>Drafted Squad ({rosterPlayers.length} Players)</span>
-                    </div>
-
-                    {rosterPlayers.length === 0 ? (
-                      <div className="py-16 text-center text-sm font-mono text-muted border border-dashed border-border rounded-2xl bg-surface/50">
-                        No athletes drafted to this franchise roster yet.
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {rosterPlayers.map((player) => (
-                          <div
-                            key={player.id}
-                            className="p-4 rounded-2xl bg-surface border border-border flex items-center gap-4 shadow-sm"
-                          >
-                            <div className="w-12 h-12 rounded-xl bg-surface-2 border border-border overflow-hidden shrink-0 flex items-center justify-center">
-                              {player.photo_url ? (
-                                <img
-                                  src={player.photo_url}
-                                  alt={player.name}
-                                  referrerPolicy="no-referrer"
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <User size={20} className="text-muted" />
-                              )}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <h4 className="font-syne font-bold text-base text-text truncate">
-                                {player.name}
-                              </h4>
-                              <div className="text-xs text-accent-bright font-medium">
-                                {player.playing_role} · {getAcademicYearLabel(player.academic_year || '1st')}
-                              </div>
-                              {player.purchase_price ? (
-                                <div className="font-mono text-xs text-points tabular-nums mt-0.5">
-                                  Draft Price: {player.purchase_price.toLocaleString()} PTS
-                                </div>
-                              ) : null}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </>
+                <TeamRosterSceneContent
+                  team={rosterTeam}
+                  rosterPlayers={rosterPlayers}
+                />
               ) : (
                 <div className="text-center font-mono text-xl text-muted">
                   No team selected for Roster showcase.
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* ================= SCENE 7B: TEAM ROSTER AUTO SLIDESHOW ================= */}
+          {projectorState.mode === PROJECTOR_MODES.ROSTER_AUTO && (
+            <motion.div
+              key="scene-roster-auto"
+              variants={sceneVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              className="flex flex-col justify-center w-full h-full max-w-6xl my-auto"
+            >
+              {autoRosterTeam ? (
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    key={autoRosterTeam.id}
+                    variants={autoSlideVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                    className="flex flex-col justify-center w-full h-full"
+                  >
+                    <TeamRosterSceneContent
+                      team={autoRosterTeam}
+                      rosterPlayers={autoRosterPlayers}
+                    />
+                  </motion.div>
+                </AnimatePresence>
+              ) : (
+                <div className="py-24 text-center font-mono text-2xl text-muted">
+                  No teams for {projectorState.auto_sport || 'Sport'}
                 </div>
               )}
             </motion.div>

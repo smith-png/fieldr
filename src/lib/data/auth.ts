@@ -90,9 +90,8 @@ const supabaseAuthService: AuthService = {
     }
   },
 
-  async demoSignIn(role: UserRole): Promise<AuthUser> {
-    // Demo sign-in fallback when in Supabase mode for testing
-    return demoAuthService.demoSignIn(role)
+  async demoSignIn(_role: UserRole): Promise<AuthUser> {
+    throw new AppError('Demo mode is disabled when Supabase is configured')
   },
 
   async signOut(): Promise<void> {

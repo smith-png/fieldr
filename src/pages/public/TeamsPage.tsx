@@ -4,14 +4,14 @@ import { CaretRight, Shield, Users } from '@phosphor-icons/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
-import { getActiveSeason, getPlayers, getPublicTeams } from '../../lib/data'
-import type { Player, PublicTeam, Season } from '../../types'
+import { getActiveSeason, getPublicPlayersBySeason, getPublicTeams } from '../../lib/data'
+import type { PublicPlayer, PublicTeam, Season } from '../../types'
 
 export const TeamsPage: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [activeSeason, setActiveSeason] = useState<Season | null>(null)
   const [teams, setTeams] = useState<PublicTeam[]>([])
-  const [players, setPlayers] = useState<Player[]>([])
+  const [players, setPlayers] = useState<PublicPlayer[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
 
   useEffect(() => {
@@ -25,7 +25,7 @@ export const TeamsPage: React.FC = () => {
         if (season) {
           const [teamList, playerList] = await Promise.all([
             getPublicTeams(season.id),
-            getPlayers(season.id)
+            getPublicPlayersBySeason(season.id)
           ])
           if (mounted) {
             setTeams(teamList)

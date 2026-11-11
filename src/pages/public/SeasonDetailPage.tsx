@@ -16,12 +16,13 @@ import { EmptyState, ErrorState, Spinner } from '../../components/ui'
 import { RosterPlayerCard } from '../../components/roster/RosterPlayerCard'
 import {
   getActiveSeason,
-  getPlayers,
+  getPublicPlayersBySeason,
   getPublicTeams,
   getSeason,
   getSports
 } from '../../lib/data'
-import type { Player, PublicTeam, Season, Sport } from '../../types'
+import { matchesSport } from '../../lib/utils'
+import type { PublicPlayer, PublicTeam, Season, Sport } from '../../types'
 
 type SeasonTab = 'overview' | 'teams' | 'players'
 
@@ -34,7 +35,7 @@ export const SeasonDetailPage: React.FC = () => {
   const [season, setSeason] = useState<Season | null>(null)
   const [sports, setSports] = useState<Sport[]>([])
   const [teams, setTeams] = useState<PublicTeam[]>([])
-  const [players, setPlayers] = useState<Player[]>([])
+  const [players, setPlayers] = useState<PublicPlayer[]>([])
 
   const [activeTab, setActiveTab] = useState<SeasonTab>('overview')
   const [isLoading, setIsLoading] = useState(true)
@@ -65,7 +66,7 @@ export const SeasonDetailPage: React.FC = () => {
       const [sportsData, teamsData, playersData] = await Promise.all([
         getSports(),
         getPublicTeams(id),
-        getPlayers(id)
+        getPublicPlayersBySeason(id)
       ])
 
       setSports(sportsData)
@@ -88,13 +89,13 @@ export const SeasonDetailPage: React.FC = () => {
   }, [id])
 
   const selectedSportObj = sports.find(
-    (s) => s.name.toLowerCase() === playerSportFilter.toLowerCase()
+    (s) => matchesSport(s.name, playerSportFilter)
   )
   const availableFilterRoles = selectedSportObj?.roles || []
 
   // Filter players
   const filteredPlayers = players.filter((p) => {
-    if (playerSportFilter !== 'all' && p.sport.toLowerCase() !== playerSportFilter.toLowerCase()) {
+    if (playerSportFilter !== 'all' && !matchesSport(p.sport, playerSportFilter)) {
       return false
     }
     if (playerRoleFilter !== 'all' && p.playing_role.toLowerCase() !== playerRoleFilter.toLowerCase()) {

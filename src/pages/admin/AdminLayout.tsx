@@ -25,9 +25,8 @@ import {
 import { BrandMark } from '../../components/layout/BrandMark'
 import { useAuth } from '../../lib/AuthContext'
 import { type ThemePreference, useTheme } from '../../lib/theme'
+import { STORAGE_KEYS } from '../../lib/constants'
 import type { AdminTab, Season } from '../../types'
-
-export type { AdminTab }
 
 interface AdminLayoutProps {
   currentTab: AdminTab
@@ -53,14 +52,14 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   // Sidebar collapse state on desktop persisted in localStorage
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false
-    return localStorage.getItem('fieldr_admin_sidebar_collapsed') === 'true'
+    return localStorage.getItem(STORAGE_KEYS.ADMIN_SIDEBAR_COLLAPSED) === 'true'
   })
 
   // Mobile drawer state
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false)
 
   useEffect(() => {
-    localStorage.setItem('fieldr_admin_sidebar_collapsed', String(isCollapsed))
+    localStorage.setItem(STORAGE_KEYS.ADMIN_SIDEBAR_COLLAPSED, String(isCollapsed))
   }, [isCollapsed])
 
   // Prevent scroll when mobile drawer is open

@@ -48,6 +48,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const quickDemoLogin = async (role: UserRole): Promise<AuthUser> => {
+    if (!isDemoMode) {
+      throw new Error('Demo mode is disabled when Supabase is configured')
+    }
     const authUser = await demoSignIn(role)
     setUser(authUser)
     return authUser
