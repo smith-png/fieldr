@@ -9,3 +9,5 @@ export * from './projector'
 export * from './athletes'
 export * from './site'
 export * from './storage'
+export * from './auction'
+

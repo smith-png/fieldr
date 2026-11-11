@@ -53,21 +53,31 @@ function mapJoinedPlayer(row: Record<string, unknown>, pubRow?: PublicPlayer, at
     season_id: String(row.season_id || pubRow?.season_id || ''),
     athlete_id: String(row.athlete_id || pubRow?.athlete_id || ath?.id || '') || undefined,
     athlete_code: rawCode,
-    player_code: formattedCode,
+    player_code: pubRow?.player_code ? formatAthleteCode(pubRow.player_code) : formattedCode,
     name: String(ath?.name || pubRow?.name || row.name || 'Unnamed Athlete'),
-    sport: String(row.sport || pubRow?.sport || 'Cricket'),
-    playing_role: String(row.playing_role || pubRow?.playing_role || 'Player'),
-    academic_year: ((row.academic_year || pubRow?.academic_year || ath?.academic_year || '1st') as Player['academic_year']),
+    sport: String(pubRow?.sport || row.sport || 'Cricket'),
+    playing_role: String(pubRow?.playing_role || row.playing_role || 'Player'),
+    academic_year: ((pubRow?.academic_year || row.academic_year || ath?.academic_year || '1st') as Player['academic_year']),
     roll_no: ath?.roll_no ?? (row.roll_no ? String(row.roll_no) : undefined),
     photo_url: ath?.photo_url || pubRow?.photo_url || (row.photo_url ? String(row.photo_url) : undefined),
     photo_thumb_url:
       ath?.photo_thumb_url ||
       pubRow?.photo_thumb_url ||
       (row.photo_thumb_url ? String(row.photo_thumb_url) : undefined),
-    base_points: typeof row.base_points === 'number' ? row.base_points : 100,
+    base_points:
+      typeof row.base_points === 'number'
+        ? row.base_points
+        : typeof pubRow?.base_points === 'number'
+          ? pubRow.base_points
+          : 100,
     status: (row.status as Player['status']) || pubRow?.status || 'available',
     team_id: (row.team_id as string | null) ?? pubRow?.team_id ?? null,
-    purchase_price: typeof row.purchase_price === 'number' ? row.purchase_price : null,
+    purchase_price:
+      typeof row.purchase_price === 'number'
+        ? row.purchase_price
+        : typeof pubRow?.purchase_price === 'number'
+          ? pubRow.purchase_price
+          : null,
     created_at: row.created_at ? String(row.created_at) : undefined
   }
 }
@@ -1107,7 +1117,11 @@ const supabasePlayersService: PlayersService = {
           supabasePlayersService.getPlayers(seasonId).then(callback).catch(() => {})
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          supabasePlayersService.getPlayers(seasonId).then(callback).catch(() => {})
+        }
+      })
 
     return () => {
       if (supabase) {

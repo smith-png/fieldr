@@ -1,6 +1,9 @@
 import type {
   Athlete,
   AthleteCareerEntry,
+  AuctionBid,
+  AuctionSale,
+  AuctionSettings,
   AuthUser,
   CarouselItem,
   Player,
@@ -213,3 +216,23 @@ export interface StorageService {
   deletePlayerPhotoAssets(photoUrl?: string, thumbUrl?: string): Promise<void>
   uploadAsset(file: File, folder?: string): Promise<string>
 }
+
+export interface AuctionService {
+  getAuctionSettings(seasonId: string): Promise<AuctionSettings>
+  saveAuctionSettings(settings: AuctionSettings): Promise<AuctionSettings>
+  subscribeToAuctionSettings(
+    seasonId: string,
+    callback: (settings: AuctionSettings) => void
+  ): () => void
+  getAuctionBidsForPlayer(playerId: string): Promise<AuctionBid[]>
+  getRecentAuctionSales(seasonId: string, limit?: number): Promise<AuctionSale[]>
+  auctionBringToStage(playerId: string): Promise<void>
+  auctionPlaceBid(teamId: string, amount: number): Promise<void>
+  auctionClearBid(seasonId: string): Promise<void>
+  auctionSecure(seasonId: string): Promise<void>
+  auctionMarkUnsold(seasonId: string): Promise<void>
+  auctionUndoLastSale(seasonId: string): Promise<void>
+  auctionBackToIdle(seasonId: string): Promise<ProjectorState>
+  subscribeToAuctionRealtime(seasonId: string, onUpdate: () => void): () => void
+}
+

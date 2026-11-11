@@ -3,6 +3,7 @@ import { AdminLayout, type AdminTab } from './AdminLayout'
 import { AdminDashboard } from './AdminDashboard'
 import { AdminSeasons } from './AdminSeasons'
 import { AdminTeams } from './AdminTeams'
+import { AdminAuction } from './AdminAuction'
 import { AdminAthletes } from './AdminAthletes'
 import { AdminPlayers } from './AdminPlayers'
 import { AdminPurses } from './AdminPurses'
@@ -134,6 +135,17 @@ export const AdminPage: React.FC = () => {
         />
       )}
 
+      {currentTab === 'auction' && (
+        <AdminAuction
+          activeSeason={activeSeason}
+          sports={sports}
+          players={players}
+          teams={teams}
+          projectorState={projectorState}
+          onRefresh={loadAllData}
+        />
+      )}
+
       {currentTab === 'athletes' && (
         <AdminAthletes
           activeSeason={activeSeason}
@@ -172,7 +184,13 @@ export const AdminPage: React.FC = () => {
         />
       )}
 
-      {currentTab === 'setup' && <AdminSetup onRefresh={loadAllData} />}
+      {currentTab === 'setup' && (
+        <AdminSetup
+          activeSeason={activeSeason}
+          teams={teams}
+          onRefresh={loadAllData}
+        />
+      )}
     </AdminLayout>
   )
 }

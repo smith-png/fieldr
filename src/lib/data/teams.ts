@@ -772,7 +772,11 @@ const supabaseTeamsService: TeamsService = {
           supabaseTeamsService.getTeams(seasonId).then(callback).catch(() => {})
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          supabaseTeamsService.getTeams(seasonId).then(callback).catch(() => {})
+        }
+      })
 
     return () => {
       if (supabase) {

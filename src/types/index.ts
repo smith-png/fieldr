@@ -64,7 +64,7 @@ export interface PublicTeam {
   created_at?: string
 }
 
-export type PlayerStatus = 'available' | 'sold'
+export type PlayerStatus = 'available' | 'unsold' | 'sold'
 export type AcademicYear = '1st' | '2nd' | '3rd' | 'Final'
 
 export interface Player {
@@ -145,14 +145,51 @@ export interface PurseTransaction {
   created_by?: string
 }
 
-export type ProjectorMode = 'idle' | 'teams' | 'player' | 'roster'
+export type ProjectorMode = 'idle' | 'auction' | 'sold' | 'unsold' | 'teams' | 'player' | 'roster'
 
 export interface ProjectorState {
   season_id: string
   mode: ProjectorMode
   player_id?: string | null
   team_id?: string | null
+  current_bid?: number | null
+  sale_event_id?: string | null
+  sale_player_id?: string | null
+  sale_team_id?: string | null
+  sale_price?: number | null
+  sale_at?: string | null
   updated_at: string
+}
+
+export interface AuctionBid {
+  id: string
+  season_id?: string
+  player_id: string
+  team_id: string
+  amount: number
+  voided: boolean
+  created_at: string
+}
+
+export interface AuctionSale {
+  id: string
+  season_id?: string
+  player_id: string
+  team_id: string
+  price: number
+  reversed_at?: string | null
+  created_at: string
+}
+
+export interface AuctionSettings {
+  season_id: string
+  bid_increments: number[]
+  max_squad_size: number | null
+  secured_enabled: boolean
+  secured_duration_seconds: number
+  price_countup_seconds: number
+  bid_update_ms: number
+  catchup_window_seconds: number
 }
 
 export interface CarouselItem {
@@ -183,6 +220,7 @@ export type AdminTab =
   | 'athletes'
   | 'players'
   | 'teams'
+  | 'auction'
   | 'purses'
   | 'seasons'
   | 'projector'

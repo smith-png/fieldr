@@ -1,28 +1,35 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  ArrowCounterClockwise,
   ArrowDown,
   ArrowUp,
   Check,
   FloppyDisk,
-  Hourglass,
   PencilSimple,
+  Play,
   Plus,
   Trash,
+  WarningCircle,
   X
 } from '@phosphor-icons/react'
 import { useToast } from '../../lib/ToastContext'
 import { getErrorMessage } from '../../lib/errors'
 import {
+  DEFAULT_AUCTION_SETTINGS,
   addSportRole,
   createCarouselItem,
   deleteCarouselItem,
   deleteSportRole,
+  getActiveSeason,
+  getAuctionSettings,
   getCarouselItems,
   getSiteSettings,
   getSportRoleUsageCounts,
   getSports,
+  getTeams,
   renameSportRole,
   reorderSportRoles,
+  saveAuctionSettings,
   swapCarouselItems,
   updateCarouselItem,
   updateSiteSetting
@@ -35,17 +42,50 @@ import {
   PageHeader,
   SegmentedControl
 } from '../../components/ui'
-import type { CarouselItem, PageContentSetting, SiteSettings, Sport } from '../../types'
+import { SecuredSequence } from '../../components/projector/SecuredSequence'
+import type {
+  AuctionSettings,
+  CarouselItem,
+  PageContentSetting,
+  Season,
+  SiteSettings,
+  Sport,
+  Team
+} from '../../types'
 
 type SetupTab = 'carousel' | 'pages' | 'sports' | 'auction'
 
 interface AdminSetupProps {
+  activeSeason?: Season | null
+  teams?: Team[]
   onRefresh?: () => Promise<void>
 }
 
-export const AdminSetup: React.FC<AdminSetupProps> = ({ onRefresh }) => {
+// Clean SVG data URI portrait for the sample preview player
+const SAMPLE_PLAYER_PHOTO_DATA_URI =
+  "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 480' fill='none'><rect width='400' height='480' fill='%23141B24'/><circle cx='200' cy='168' r='72' fill='%23253244'/><path d='M72 430C72 342 128 286 200 286C272 286 328 342 328 430' fill='%23253244'/></svg>"
+
+function areIncrementsEqual(a: number[], b: number[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (Number(a[i]) !== Number(b[i])) return false
+  }
+  return true
+}
+
+export const AdminSetup: React.FC<AdminSetupProps> = ({
+  activeSeason: propActiveSeason,
+  teams: propTeams,
+  onRefresh
+}) => {
   const { showToast } = useToast()
   const [activeTab, setActiveTab] = useState<SetupTab>('carousel')
+
+  // Effective season & teams (uses props when passed from AdminPage, or fetches fallback)
+  const [fallbackSeason, setFallbackSeason] = useState<Season | null>(null)
+  const [fallbackTeams, setFallbackTeams] = useState<Team[]>([])
+  const effectiveSeason = propActiveSeason !== undefined ? propActiveSeason : fallbackSeason
+  const effectiveTeams = propTeams !== undefined ? propTeams : fallbackTeams
 
   // Carousel State
   const [carouselItems, setCarouselItems] = useState<CarouselItem[]>([])
@@ -72,6 +112,107 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onRefresh }) => {
   const [isSavingRoleAction, setIsSavingRoleAction] = useState(false)
   const [renamingRole, setRenamingRole] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
+
+  // Auction Display & Rules State
+  const [savedAuctionSettings, setSavedAuctionSettings] = useState<AuctionSettings | null>(null)
+  const [isLoadingAuctionSettings, setIsLoadingAuctionSettings] = useState(false)
+  const [isSavingAuctionSettings, setIsSavingAuctionSettings] = useState(false)
+
+  const [securedEnabled, setSecuredEnabled] = useState<boolean>(
+    DEFAULT_AUCTION_SETTINGS.secured_enabled
+  )
+  const [securedDurationInput, setSecuredDurationInput] = useState<string>(
+    String(DEFAULT_AUCTION_SETTINGS.secured_duration_seconds)
+  )
+  const [priceCountupInput, setPriceCountupInput] = useState<string>(
+    String(DEFAULT_AUCTION_SETTINGS.price_countup_seconds)
+  )
+  const [bidUpdateMsInput, setBidUpdateMsInput] = useState<string>(
+    String(DEFAULT_AUCTION_SETTINGS.bid_update_ms)
+  )
+  const [catchupWindowInput, setCatchupWindowInput] = useState<string>(
+    String(DEFAULT_AUCTION_SETTINGS.catchup_window_seconds)
+  )
+  const [bidIncrements, setBidIncrements] = useState<number[]>([
+    ...DEFAULT_AUCTION_SETTINGS.bid_increments
+  ])
+  const [newIncrementInput, setNewIncrementInput] = useState<string>('')
+  const [incrementError, setIncrementError] = useState<string | null>(null)
+  const [noSquadLimit, setNoSquadLimit] = useState<boolean>(
+    DEFAULT_AUCTION_SETTINGS.max_squad_size === null
+  )
+  const [maxSquadSizeInput, setMaxSquadSizeInput] = useState<string>('12')
+
+  // Preview Overlay State
+  const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false)
+  const [previewReplayKey, setPreviewReplayKey] = useState<number>(0)
+
+  // Load fallback season/teams if not passed via props
+  useEffect(() => {
+    if (propActiveSeason !== undefined) return
+    let mounted = true
+    getActiveSeason()
+      .then((s) => {
+        if (!mounted) return
+        setFallbackSeason(s)
+        if (s) {
+          getTeams(s.id)
+            .then((t) => {
+              if (mounted) setFallbackTeams(t)
+            })
+            .catch(() => {})
+        }
+      })
+      .catch(() => {})
+    return () => {
+      mounted = false
+    }
+  }, [propActiveSeason])
+
+  // Populate Auction Settings form from an AuctionSettings object
+  const applySettingsToForm = useCallback((settings: AuctionSettings) => {
+    setSecuredEnabled(Boolean(settings.secured_enabled))
+    setSecuredDurationInput(String(settings.secured_duration_seconds))
+    setPriceCountupInput(String(settings.price_countup_seconds))
+    setBidUpdateMsInput(String(settings.bid_update_ms))
+    setCatchupWindowInput(String(settings.catchup_window_seconds))
+    setBidIncrements([...settings.bid_increments].sort((a, b) => a - b))
+    setNewIncrementInput('')
+    setIncrementError(null)
+    if (settings.max_squad_size === null || settings.max_squad_size === undefined) {
+      setNoSquadLimit(true)
+      setMaxSquadSizeInput('12')
+    } else {
+      setNoSquadLimit(false)
+      setMaxSquadSizeInput(String(settings.max_squad_size))
+    }
+  }, [])
+
+  // Reload Auction Settings whenever selected season changes
+  const loadAuctionSettingsForSeason = useCallback(
+    async (seasonId: string) => {
+      if (!seasonId) return
+      try {
+        setIsLoadingAuctionSettings(true)
+        const loaded = await getAuctionSettings(seasonId)
+        setSavedAuctionSettings(loaded)
+        applySettingsToForm(loaded)
+      } catch (err) {
+        showToast(getErrorMessage(err, 'Failed to load auction settings'), 'error')
+      } finally {
+        setIsLoadingAuctionSettings(false)
+      }
+    },
+    [applySettingsToForm, showToast]
+  )
+
+  useEffect(() => {
+    if (effectiveSeason?.id) {
+      loadAuctionSettingsForSeason(effectiveSeason.id)
+    } else {
+      setSavedAuctionSettings(null)
+    }
+  }, [effectiveSeason?.id, loadAuctionSettingsForSeason])
 
   // Load Carousel Items
   const loadCarousel = async () => {
@@ -183,9 +324,10 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onRefresh }) => {
         await updateCarouselItem(editingItem.id, { text: trimmed })
         showToast('Carousel item updated', 'success')
       } else {
-        const maxOrder = carouselItems.length > 0
-          ? Math.max(...carouselItems.map((i) => i.sort_order ?? 0))
-          : -1
+        const maxOrder =
+          carouselItems.length > 0
+            ? Math.max(...carouselItems.map((i) => i.sort_order ?? 0))
+            : -1
         await createCarouselItem(trimmed, maxOrder + 1)
         showToast('Carousel item created', 'success')
       }
@@ -424,6 +566,183 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onRefresh }) => {
     }
   }
 
+  // Auction Settings Validation & Handlers
+  const parsedDuration = Number(securedDurationInput)
+  const parsedCountup = Number(priceCountupInput)
+  const parsedBidUpdateMs = Number(bidUpdateMsInput)
+  const parsedCatchup = Number(catchupWindowInput)
+  const parsedMaxSquad = noSquadLimit ? null : Number(maxSquadSizeInput)
+
+  const durationError = useMemo(() => {
+    if (securedDurationInput.trim() === '' || isNaN(parsedDuration)) {
+      return 'Enter a number between 2 and 15 seconds.'
+    }
+    if (parsedDuration < 2 || parsedDuration > 15) {
+      return 'Secured sequence length must be between 2 and 15 seconds.'
+    }
+    return null
+  }, [securedDurationInput, parsedDuration])
+
+  const countupError = useMemo(() => {
+    if (priceCountupInput.trim() === '' || isNaN(parsedCountup)) {
+      return 'Enter a number between 0.3 and 6 seconds.'
+    }
+    if (parsedCountup < 0.3 || parsedCountup > 6) {
+      return 'Price count-up must be between 0.3 and 6 seconds.'
+    }
+    if (!isNaN(parsedDuration) && parsedCountup > parsedDuration) {
+      return `Price count-up (${parsedCountup}s) cannot exceed the secured sequence length (${parsedDuration}s).`
+    }
+    return null
+  }, [priceCountupInput, parsedCountup, parsedDuration])
+
+  const bidUpdateError = useMemo(() => {
+    if (
+      bidUpdateMsInput.trim() === '' ||
+      isNaN(parsedBidUpdateMs) ||
+      !Number.isInteger(parsedBidUpdateMs) ||
+      parsedBidUpdateMs < 100 ||
+      parsedBidUpdateMs > 2000
+    ) {
+      return 'Bid update animation must be an integer between 100 and 2000 ms.'
+    }
+    return null
+  }, [bidUpdateMsInput, parsedBidUpdateMs])
+
+  const catchupError = useMemo(() => {
+    if (
+      catchupWindowInput.trim() === '' ||
+      isNaN(parsedCatchup) ||
+      !Number.isInteger(parsedCatchup) ||
+      parsedCatchup < 0 ||
+      parsedCatchup > 120
+    ) {
+      return 'Catch-up window must be an integer between 0 and 120 seconds.'
+    }
+    return null
+  }, [catchupWindowInput, parsedCatchup])
+
+  const maxSquadError = useMemo(() => {
+    if (noSquadLimit) return null
+    if (
+      maxSquadSizeInput.trim() === '' ||
+      parsedMaxSquad === null ||
+      isNaN(parsedMaxSquad) ||
+      !Number.isInteger(parsedMaxSquad) ||
+      parsedMaxSquad < 1
+    ) {
+      return 'Maximum squad size must be a whole number of at least 1.'
+    }
+    return null
+  }, [noSquadLimit, maxSquadSizeInput, parsedMaxSquad])
+
+  const isAuctionFormValid =
+    !durationError &&
+    !countupError &&
+    !bidUpdateError &&
+    !catchupError &&
+    !maxSquadError &&
+    bidIncrements.length >= 1
+
+  const isAuctionFormDirty = useMemo(() => {
+    if (!savedAuctionSettings) return false
+    if (securedEnabled !== savedAuctionSettings.secured_enabled) return true
+    if (parsedDuration !== Number(savedAuctionSettings.secured_duration_seconds)) return true
+    if (parsedCountup !== Number(savedAuctionSettings.price_countup_seconds)) return true
+    if (parsedBidUpdateMs !== Number(savedAuctionSettings.bid_update_ms)) return true
+    if (parsedCatchup !== Number(savedAuctionSettings.catchup_window_seconds)) return true
+    if (!areIncrementsEqual(bidIncrements, savedAuctionSettings.bid_increments)) return true
+    const savedMax = savedAuctionSettings.max_squad_size ?? null
+    if (parsedMaxSquad !== savedMax) return true
+    return false
+  }, [
+    savedAuctionSettings,
+    securedEnabled,
+    parsedDuration,
+    parsedCountup,
+    parsedBidUpdateMs,
+    parsedCatchup,
+    bidIncrements,
+    parsedMaxSquad
+  ])
+
+  const handleAddIncrementChip = () => {
+    setIncrementError(null)
+    const raw = newIncrementInput.trim()
+    if (!raw) return
+    const val = Number(raw)
+    if (isNaN(val) || val <= 0) {
+      setIncrementError('Bid increment must be a positive number.')
+      return
+    }
+    if (bidIncrements.some((inc) => inc === val)) {
+      setIncrementError(`Increment +${val} already exists.`)
+      return
+    }
+    const next = [...bidIncrements, val].sort((a, b) => a - b)
+    setBidIncrements(next)
+    setNewIncrementInput('')
+  }
+
+  const handleRemoveIncrementChip = (val: number) => {
+    setIncrementError(null)
+    if (bidIncrements.length <= 1) {
+      setIncrementError('At least one bid increment is required.')
+      return
+    }
+    setBidIncrements(bidIncrements.filter((inc) => inc !== val))
+  }
+
+  const handleResetAuctionDefaults = () => {
+    if (!effectiveSeason) return
+    applySettingsToForm({
+      season_id: effectiveSeason.id,
+      ...DEFAULT_AUCTION_SETTINGS,
+      bid_increments: [...DEFAULT_AUCTION_SETTINGS.bid_increments]
+    })
+  }
+
+  const handleSaveAuctionSettings = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!effectiveSeason || !isAuctionFormValid || !isAuctionFormDirty || isSavingAuctionSettings) {
+      return
+    }
+
+    try {
+      setIsSavingAuctionSettings(true)
+      const payload: AuctionSettings = {
+        season_id: effectiveSeason.id,
+        bid_increments: [...bidIncrements].sort((a, b) => a - b),
+        max_squad_size: noSquadLimit ? null : Math.round(Number(maxSquadSizeInput)),
+        secured_enabled: securedEnabled,
+        secured_duration_seconds: parsedDuration,
+        price_countup_seconds: parsedCountup,
+        bid_update_ms: Math.round(parsedBidUpdateMs),
+        catchup_window_seconds: Math.round(parsedCatchup)
+      }
+      const saved = await saveAuctionSettings(payload)
+      setSavedAuctionSettings(saved)
+      applySettingsToForm(saved)
+      showToast('Auction display and rules saved', 'success')
+      await onRefresh?.()
+    } catch (err) {
+      showToast(getErrorMessage(err, 'Failed to save auction settings'), 'error')
+    } finally {
+      setIsSavingAuctionSettings(false)
+    }
+  }
+
+  // Sample data for the preview overlay (uses first team of selected season if one exists)
+  const previewSampleTeam = effectiveTeams[0] || null
+  const previewDurationSec =
+    !isNaN(parsedDuration) && parsedDuration >= 2 && parsedDuration <= 15
+      ? parsedDuration
+      : DEFAULT_AUCTION_SETTINGS.secured_duration_seconds
+  const previewCountupSec =
+    !isNaN(parsedCountup) && parsedCountup >= 0.3 && parsedCountup <= 6
+      ? Math.min(parsedCountup, previewDurationSec)
+      : Math.min(DEFAULT_AUCTION_SETTINGS.price_countup_seconds, previewDurationSec)
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -469,7 +788,6 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onRefresh }) => {
             </Button>
           </div>
 
-          {/* Offline/Error Retry Banner */}
           {carouselError && (
             <ErrorState
               title="Failed to load carousel items"
@@ -517,7 +835,6 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onRefresh }) => {
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                    {/* Move Up/Down */}
                     <button
                       type="button"
                       disabled={index === 0}
@@ -537,7 +854,6 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onRefresh }) => {
                       <ArrowDown size={14} weight="bold" />
                     </button>
 
-                    {/* Active Toggle */}
                     <button
                       type="button"
                       onClick={() => handleToggleActive(item)}
@@ -550,7 +866,6 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onRefresh }) => {
                       {item.active ? 'Active' : 'Inactive'}
                     </button>
 
-                    {/* Edit */}
                     <button
                       type="button"
                       onClick={() => {
@@ -564,7 +879,6 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onRefresh }) => {
                       <PencilSimple size={14} />
                     </button>
 
-                    {/* Delete */}
                     <button
                       type="button"
                       onClick={() => handleDeleteCarouselItem(item)}
@@ -673,7 +987,6 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onRefresh }) => {
               )}
             </div>
 
-            {/* Add New Role Form */}
             <form onSubmit={handleAddRole} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
               <input
                 type="text"
@@ -695,7 +1008,6 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onRefresh }) => {
               </Button>
             </form>
 
-            {/* Roles List */}
             {isLoadingSports ? (
               <div className="space-y-2.5">
                 {[1, 2, 3, 4].map((i) => (
@@ -777,7 +1089,6 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onRefresh }) => {
 
                       {!isRenamingThis && (
                         <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                          {/* Reorder Up / Down */}
                           <button
                             type="button"
                             disabled={index === 0 || isSavingRoleAction}
@@ -799,7 +1110,6 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onRefresh }) => {
                             <ArrowDown size={14} weight="bold" />
                           </button>
 
-                          {/* Rename */}
                           <button
                             type="button"
                             disabled={isSavingRoleAction}
@@ -810,7 +1120,6 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onRefresh }) => {
                             <PencilSimple size={14} />
                           </button>
 
-                          {/* Delete */}
                           <button
                             type="button"
                             disabled={isSavingRoleAction}
@@ -835,13 +1144,526 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({ onRefresh }) => {
         </div>
       )}
 
-      {/* Tab 4: Auction Placeholder Card */}
+      {/* Tab 4: Auction Display and Rules */}
       {activeTab === 'auction' && (
-        <EmptyState
-          icon={Hourglass}
-          title="Auction Rules & Timing"
-          description="Live auction timing and automated bidding increments will be configurable in a future release. Manual control mode is currently active."
-        />
+        <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8 space-y-8 shadow-sm">
+          {/* Header & Active Season Note */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
+            <div>
+              <h2 className="font-syne font-bold text-xl text-text">
+                Auction display and rules
+              </h2>
+              <p className="text-xs text-muted mt-1">
+                Configure stage projector animations, timing rules, bidding increments, and squad size limits.
+              </p>
+            </div>
+
+            <div className="px-3.5 py-2 rounded-xl bg-surface-2 border border-border text-xs font-mono text-text shrink-0">
+              Applies to the selected season:{' '}
+              <strong className="text-accent-bright font-semibold">
+                {effectiveSeason?.name || 'None selected'}
+              </strong>
+            </div>
+          </div>
+
+          {!effectiveSeason ? (
+            <EmptyState
+              title="No active season selected"
+              description="Select or create a tournament season in the Seasons tab to configure auction settings."
+            />
+          ) : isLoadingAuctionSettings ? (
+            <div className="space-y-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className="h-20 bg-surface-2/60 border border-border rounded-xl animate-pulse"
+                />
+              ))}
+            </div>
+          ) : (
+            <form onSubmit={handleSaveAuctionSettings} className="space-y-8">
+              {/* 1. Secured Animation Switch */}
+              <div className="p-5 rounded-2xl bg-bg border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <label
+                    htmlFor="toggle-secured-enabled"
+                    className="font-syne font-bold text-base text-text block cursor-pointer"
+                  >
+                    Secured animation
+                  </label>
+                  <p className="text-xs text-muted mt-1">
+                    Play the full-screen team colour sweep and price count-up sequence when a player is secured. When off, the projector shows the static sold card immediately.
+                  </p>
+                </div>
+
+                <button
+                  id="toggle-secured-enabled"
+                  type="button"
+                  role="switch"
+                  aria-checked={securedEnabled}
+                  onClick={() => setSecuredEnabled((v) => !v)}
+                  className={`min-h-[48px] px-5 py-2.5 rounded-xl font-mono text-xs font-bold uppercase tracking-wider border transition-colors flex items-center gap-3 shrink-0 ${
+                    securedEnabled
+                      ? 'bg-accent-bright/15 border-accent-bright text-accent-bright'
+                      : 'bg-surface-2 border-border text-muted hover:text-text'
+                  }`}
+                >
+                  <span
+                    className={`w-3 h-3 rounded-full transition-colors ${
+                      securedEnabled ? 'bg-accent-bright' : 'bg-muted'
+                    }`}
+                  />
+                  <span>{securedEnabled ? 'On' : 'Off'}</span>
+                </button>
+              </div>
+
+              {/* 2 & 3. Secured Sequence Length & Price Count-Up */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* 2. Secured sequence length */}
+                <div className="p-5 rounded-2xl bg-bg border border-border space-y-4">
+                  <div>
+                    <label
+                      htmlFor="secured-duration-number"
+                      className="font-syne font-bold text-base text-text block"
+                    >
+                      Secured sequence length
+                    </label>
+                    <p className="text-xs text-muted mt-1">
+                      Total duration of the secured animation in seconds before settling into the static sold card (2 to 15s).
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="range"
+                      min={2}
+                      max={15}
+                      step={0.1}
+                      aria-label="Secured sequence length slider"
+                      value={
+                        !isNaN(parsedDuration)
+                          ? Math.min(15, Math.max(2, parsedDuration))
+                          : 5.6
+                      }
+                      onChange={(e) => setSecuredDurationInput(e.target.value)}
+                      className="flex-1 h-2 bg-surface-2 rounded-lg accent-accent-bright cursor-pointer"
+                    />
+                    <div className="relative w-28 shrink-0">
+                      <input
+                        id="secured-duration-number"
+                        type="number"
+                        min={2}
+                        max={15}
+                        step={0.1}
+                        value={securedDurationInput}
+                        onChange={(e) => setSecuredDurationInput(e.target.value)}
+                        className="w-full min-h-[48px] bg-surface border border-border rounded-xl pl-3.5 pr-8 py-2 font-mono text-sm font-bold text-text tabular-nums focus:outline-none focus:border-accent-bright"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted">
+                        s
+                      </span>
+                    </div>
+                  </div>
+
+                  {durationError && (
+                    <div className="flex items-center gap-2 text-xs text-error font-mono">
+                      <WarningCircle size={15} weight="bold" className="shrink-0" />
+                      <span>{durationError}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Price count-up */}
+                <div className="p-5 rounded-2xl bg-bg border border-border space-y-4">
+                  <div>
+                    <label
+                      htmlFor="price-countup-number"
+                      className="font-syne font-bold text-base text-text block"
+                    >
+                      Price count-up
+                    </label>
+                    <p className="text-xs text-muted mt-1">
+                      Duration for the sale price to count up from 0 to the final price (0.3 to 6s, cannot exceed sequence length).
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="range"
+                      min={0.3}
+                      max={6}
+                      step={0.1}
+                      aria-label="Price count-up slider"
+                      value={
+                        !isNaN(parsedCountup)
+                          ? Math.min(6, Math.max(0.3, parsedCountup))
+                          : 1.8
+                      }
+                      onChange={(e) => setPriceCountupInput(e.target.value)}
+                      className="flex-1 h-2 bg-surface-2 rounded-lg accent-accent-bright cursor-pointer"
+                    />
+                    <div className="relative w-28 shrink-0">
+                      <input
+                        id="price-countup-number"
+                        type="number"
+                        min={0.3}
+                        max={6}
+                        step={0.1}
+                        value={priceCountupInput}
+                        onChange={(e) => setPriceCountupInput(e.target.value)}
+                        className={`w-full min-h-[48px] bg-surface border rounded-xl pl-3.5 pr-8 py-2 font-mono text-sm font-bold text-text tabular-nums focus:outline-none ${
+                          countupError
+                            ? 'border-error focus:border-error'
+                            : 'border-border focus:border-accent-bright'
+                        }`}
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted">
+                        s
+                      </span>
+                    </div>
+                  </div>
+
+                  {countupError && (
+                    <div className="flex items-center gap-2 text-xs text-error font-mono">
+                      <WarningCircle size={15} weight="bold" className="shrink-0" />
+                      <span>{countupError}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 4 & 5. Bid Update Animation & Catch-Up Window After Refresh */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* 4. Bid update animation */}
+                <div className="p-5 rounded-2xl bg-bg border border-border space-y-3">
+                  <div>
+                    <label
+                      htmlFor="bid-update-ms-input"
+                      className="font-syne font-bold text-base text-text block"
+                    >
+                      Bid update animation
+                    </label>
+                    <p className="text-xs text-muted mt-1">
+                      Duration in milliseconds for the live bid number flip and leading-team colour flash (100 to 2000 ms).
+                    </p>
+                  </div>
+
+                  <div className="relative max-w-xs">
+                    <input
+                      id="bid-update-ms-input"
+                      type="number"
+                      min={100}
+                      max={2000}
+                      step={50}
+                      value={bidUpdateMsInput}
+                      onChange={(e) => setBidUpdateMsInput(e.target.value)}
+                      className="w-full min-h-[48px] bg-surface border border-border rounded-xl pl-4 pr-12 py-2.5 font-mono text-sm font-bold text-text tabular-nums focus:outline-none focus:border-accent-bright"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 font-mono text-xs text-muted">
+                      ms
+                    </span>
+                  </div>
+
+                  {bidUpdateError && (
+                    <div className="flex items-center gap-2 text-xs text-error font-mono">
+                      <WarningCircle size={15} weight="bold" className="shrink-0" />
+                      <span>{bidUpdateError}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* 5. Catch-up window after refresh */}
+                <div className="p-5 rounded-2xl bg-bg border border-border space-y-3">
+                  <div>
+                    <label
+                      htmlFor="catchup-window-input"
+                      className="font-syne font-bold text-base text-text block"
+                    >
+                      Catch-up window after refresh
+                    </label>
+                    <p className="text-xs text-muted mt-1">
+                      A projector that reloads within this time after a sale still plays the animation; later it shows the static sold card (0 to 120s).
+                    </p>
+                  </div>
+
+                  <div className="relative max-w-xs">
+                    <input
+                      id="catchup-window-input"
+                      type="number"
+                      min={0}
+                      max={120}
+                      step={1}
+                      value={catchupWindowInput}
+                      onChange={(e) => setCatchupWindowInput(e.target.value)}
+                      className="w-full min-h-[48px] bg-surface border border-border rounded-xl pl-4 pr-12 py-2.5 font-mono text-sm font-bold text-text tabular-nums focus:outline-none focus:border-accent-bright"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 font-mono text-xs text-muted">
+                      sec
+                    </span>
+                  </div>
+
+                  {catchupError && (
+                    <div className="flex items-center gap-2 text-xs text-error font-mono">
+                      <WarningCircle size={15} weight="bold" className="shrink-0" />
+                      <span>{catchupError}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 6 & 7. Bid Increments & Maximum Squad Size */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* 6. Bid increments */}
+                <div className="p-5 rounded-2xl bg-bg border border-border space-y-4">
+                  <div>
+                    <label
+                      htmlFor="new-bid-increment-input"
+                      className="font-syne font-bold text-base text-text block"
+                    >
+                      Bid increments
+                    </label>
+                    <p className="text-xs text-muted mt-1">
+                      Quick increment buttons shown in the Auction Room. Positive numbers only, no duplicates, stored sorted ascending.
+                    </p>
+                  </div>
+
+                  {/* Chips List */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {bidIncrements.map((inc) => (
+                      <div
+                        key={inc}
+                        className="min-h-[42px] pl-3.5 pr-2 py-1.5 rounded-xl bg-surface border border-border flex items-center gap-2 font-mono text-sm font-bold text-points tabular-nums"
+                      >
+                        <span>+{inc.toLocaleString()}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveIncrementChip(inc)}
+                          disabled={bidIncrements.length <= 1}
+                          title={
+                            bidIncrements.length <= 1
+                              ? 'At least one increment is required'
+                              : `Remove +${inc}`
+                          }
+                          aria-label={`Remove increment ${inc}`}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-muted hover:text-error hover:bg-error/10 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                        >
+                          <X size={14} weight="bold" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Add Increment Input */}
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      id="new-bid-increment-input"
+                      type="number"
+                      min={1}
+                      step="any"
+                      value={newIncrementInput}
+                      onChange={(e) => {
+                        setNewIncrementInput(e.target.value)
+                        setIncrementError(null)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleAddIncrementChip()
+                        }
+                      }}
+                      placeholder="Add increment (e.g. 50)..."
+                      className="flex-1 min-h-[48px] bg-surface border border-border rounded-xl px-4 py-2.5 font-mono text-sm text-text placeholder-muted focus:outline-none focus:border-accent-bright"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="lg"
+                      leftIcon={Plus}
+                      onClick={handleAddIncrementChip}
+                      disabled={!newIncrementInput.trim()}
+                      className="min-h-[48px] shrink-0"
+                    >
+                      Add
+                    </Button>
+                  </div>
+
+                  {incrementError && (
+                    <div className="flex items-center gap-2 text-xs text-error font-mono">
+                      <WarningCircle size={15} weight="bold" className="shrink-0" />
+                      <span>{incrementError}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* 7. Maximum squad size */}
+                <div className="p-5 rounded-2xl bg-bg border border-border space-y-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <label
+                        htmlFor="max-squad-size-input"
+                        className="font-syne font-bold text-base text-text block"
+                      >
+                        Maximum squad size
+                      </label>
+                      <p className="text-xs text-muted mt-1">
+                        Maximum number of players a franchise team can acquire in the Auction Room before its tile is locked.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={noSquadLimit}
+                      onClick={() => setNoSquadLimit((v) => !v)}
+                      className={`min-h-[48px] px-4 py-2 rounded-xl font-mono text-xs font-bold uppercase tracking-wider border transition-colors flex items-center gap-2.5 shrink-0 ${
+                        noSquadLimit
+                          ? 'bg-accent-bright/15 border-accent-bright text-accent-bright'
+                          : 'bg-surface border-border text-muted hover:text-text'
+                      }`}
+                    >
+                      <span
+                        className={`w-2.5 h-2.5 rounded-full ${
+                          noSquadLimit ? 'bg-accent-bright' : 'bg-muted'
+                        }`}
+                      />
+                      <span>No limit</span>
+                    </button>
+                  </div>
+
+                  <div className="relative max-w-xs">
+                    <input
+                      id="max-squad-size-input"
+                      type="number"
+                      min={1}
+                      step={1}
+                      disabled={noSquadLimit}
+                      value={noSquadLimit ? '' : maxSquadSizeInput}
+                      placeholder={noSquadLimit ? 'No squad limit' : '12'}
+                      onChange={(e) => setMaxSquadSizeInput(e.target.value)}
+                      className="w-full min-h-[48px] bg-surface border border-border rounded-xl px-4 py-2.5 font-mono text-sm font-bold text-text placeholder-muted focus:outline-none focus:border-accent-bright disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                  </div>
+
+                  {maxSquadError && (
+                    <div className="flex items-center gap-2 text-xs text-error font-mono">
+                      <WarningCircle size={15} weight="bold" className="shrink-0" />
+                      <span>{maxSquadError}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons Bar */}
+              <div className="pt-4 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="lg"
+                    leftIcon={Play}
+                    onClick={() => {
+                      setPreviewReplayKey((k) => k + 1)
+                      setIsPreviewOpen(true)
+                    }}
+                    className="min-h-[48px]"
+                  >
+                    Preview secured animation
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="lg"
+                    leftIcon={ArrowCounterClockwise}
+                    onClick={handleResetAuctionDefaults}
+                    disabled={isSavingAuctionSettings}
+                    className="min-h-[48px]"
+                  >
+                    Reset to defaults
+                  </Button>
+                </div>
+
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="lg"
+                  leftIcon={FloppyDisk}
+                  disabled={!isAuctionFormDirty || !isAuctionFormValid || isSavingAuctionSettings}
+                  isLoading={isSavingAuctionSettings}
+                  className="min-h-[48px]"
+                >
+                  Save settings
+                </Button>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* Full-Screen Preview Overlay for Secured Animation */}
+      {isPreviewOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Preview secured animation"
+          className="fixed inset-0 z-50 bg-bg text-text overflow-y-auto flex flex-col justify-between p-6 sm:p-10 select-none"
+        >
+          {/* Preview Controls Bar */}
+          <div className="relative z-30 flex flex-wrap items-center justify-between gap-4 bg-surface/90 backdrop-blur-md border border-border rounded-2xl px-5 py-3.5 shadow-lg max-w-6xl w-full mx-auto">
+            <div className="flex items-center gap-3">
+              <span className="w-2.5 h-2.5 rounded-full bg-accent-bright animate-pulse" />
+              <span className="font-mono text-xs uppercase tracking-widest font-bold text-text">
+                Secured Sequence Preview
+              </span>
+              <span className="text-xs font-mono text-muted hidden sm:inline">
+                ({previewDurationSec}s sequence · {previewCountupSec}s price count-up)
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              <Button
+                type="button"
+                variant="secondary"
+                size="md"
+                leftIcon={ArrowCounterClockwise}
+                onClick={() => setPreviewReplayKey((k) => k + 1)}
+                className="min-h-[44px]"
+              >
+                Replay
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                leftIcon={X}
+                onClick={() => setIsPreviewOpen(false)}
+                className="min-h-[44px]"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+
+          {/* Shared SecuredSequence Component */}
+          <div className="flex-1 flex items-center justify-center w-full max-w-7xl mx-auto my-auto py-6">
+            <SecuredSequence
+              key={previewReplayKey}
+              playerName="Aarav Kulkarni"
+              playerCode="0104"
+              sport={previewSampleTeam?.sport || 'Cricket'}
+              playingRole="All-Rounder"
+              academicYearLabel="Final Year"
+              photoUrl={SAMPLE_PLAYER_PHOTO_DATA_URI}
+              teamName={previewSampleTeam?.name || 'Emerald Falcons'}
+              teamShortCode={previewSampleTeam?.short_code || 'EF'}
+              teamColor={previewSampleTeam?.color || '#10B981'}
+              teamLogoUrl={previewSampleTeam?.logo_url}
+              price={450}
+              securedDurationSeconds={previewDurationSec}
+              priceCountupSeconds={previewCountupSec}
+            />
+          </div>
+        </div>
       )}
 
       {/* Add / Edit Carousel Dialog */}

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import {
   ArrowsIn,
@@ -9,23 +9,131 @@ import {
 } from '@phosphor-icons/react'
 import { AnimatedCounter } from '../../components/home/AnimatedCounter'
 import { BrandMark } from '../../components/layout/BrandMark'
+import { SecuredSequence } from '../../components/projector/SecuredSequence'
 import {
   formatAthleteCode,
+  getAuctionSettings,
+  getDefaultAuctionSettings,
   getPlayers,
   getProjectorState,
+  getPublicTeams,
   getSeasons,
   getTeams,
+  subscribeToAuctionSettings,
   subscribeToPlayers,
   subscribeToProjector,
   subscribeToTeams
 } from '../../lib/data'
 import { getAcademicYearLabel } from '../../lib/academicYears'
 import { useProjectorTheme } from '../../hooks/useTheme'
-import type { Player, ProjectorState, Season, Team } from '../../types'
+import type {
+  AuctionSettings,
+  Player,
+  ProjectorState,
+  PublicTeam,
+  Season,
+  Team
+} from '../../types'
+
+/**
+ * Merges public_teams (name, short_code, color, logo_url, sport, owner_display_name)
+ * with teams (starting_purse, current_purse).
+ */
+function mergeTeamsWithPublicView(pubTeams: PublicTeam[], fullTeams: Team[]): Team[] {
+  const fullMap = new Map<string, Team>()
+  for (const ft of fullTeams) {
+    fullMap.set(ft.id, ft)
+  }
+
+  if (pubTeams.length > 0) {
+    return pubTeams.map((pt) => {
+      const ft = fullMap.get(pt.id)
+      return {
+        id: pt.id,
+        season_id: pt.season_id,
+        sport: pt.sport || ft?.sport || 'Cricket',
+        name: pt.name || ft?.name || 'Team',
+        short_code: pt.short_code || ft?.short_code || 'TM',
+        color: pt.color || ft?.color || '#10B981',
+        logo_url: pt.logo_url || ft?.logo_url,
+        owner_display_name: pt.owner_display_name ?? ft?.owner_display_name,
+        starting_purse: ft?.starting_purse ?? 0,
+        current_purse: ft?.current_purse ?? 0,
+        created_at: pt.created_at ?? ft?.created_at
+      }
+    })
+  }
+
+  return fullTeams
+}
+
+/**
+ * Quick count-up and vertical flip/settle for live bid changes in AUCTION mode,
+ * driven by bid_update_ms from auction_settings.
+ */
+const AuctionBidNumber: React.FC<{
+  value: number
+  durationMs: number
+  reduceMotion: boolean
+  accentColor?: string | null
+}> = ({ value, durationMs, reduceMotion, accentColor }) => {
+  const [displayValue, setDisplayValue] = useState(value)
+  const prevValueRef = useRef(value)
+
+  useEffect(() => {
+    if (reduceMotion) {
+      setDisplayValue(value)
+      prevValueRef.current = value
+      return
+    }
+
+    const startValue = prevValueRef.current
+    const endValue = value
+    prevValueRef.current = value
+
+    if (startValue === endValue) {
+      setDisplayValue(endValue)
+      return
+    }
+
+    const safeDuration = Math.min(2000, Math.max(100, Number(durationMs) || 600))
+    const startTime = performance.now()
+    let rafId = 0
+
+    const tick = (now: number) => {
+      const elapsed = now - startTime
+      const progress = Math.min(elapsed / safeDuration, 1)
+      const easeOut = 1 - Math.pow(1 - progress, 3)
+      const current = Math.round(startValue + (endValue - startValue) * easeOut)
+      setDisplayValue(current)
+      if (progress < 1) {
+        rafId = requestAnimationFrame(tick)
+      }
+    }
+
+    rafId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafId)
+  }, [value, durationMs, reduceMotion])
+
+  const settleDurationSec = Math.min(2, Math.max(0.1, (Number(durationMs) || 600) / 1000)) * 0.55
+
+  return (
+    <motion.span
+      key={value}
+      initial={reduceMotion ? { opacity: 0.9 } : { opacity: 0.72, y: 16, scale: 1.05 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: settleDurationSec, ease: [0.16, 1, 0.3, 1] }}
+      className="inline-block font-syne font-extrabold text-7xl sm:text-8xl md:text-9xl xl:text-[9.5rem] leading-none tracking-tight tabular-nums"
+      style={{ color: accentColor || 'var(--points)' }}
+    >
+      {displayValue.toLocaleString()}
+    </motion.span>
+  )
+}
 
 export const ProjectorPage: React.FC = () => {
   const { projectorTheme, toggleProjectorTheme } = useProjectorTheme()
-  const shouldReduceMotion = useReducedMotion()
+  const shouldReduceMotion = Boolean(useReducedMotion())
 
   const [activeSeason, setActiveSeason] = useState<Season | null>(null)
   const [projectorState, setProjectorState] = useState<ProjectorState>({
@@ -33,14 +141,149 @@ export const ProjectorPage: React.FC = () => {
     mode: 'idle',
     player_id: null,
     team_id: null,
+    current_bid: null,
+    sale_event_id: null,
+    sale_player_id: null,
+    sale_team_id: null,
+    sale_price: null,
+    sale_at: null,
     updated_at: new Date().toISOString()
   })
+  const [auctionSettings, setAuctionSettings] = useState<AuctionSettings>(() =>
+    getDefaultAuctionSettings('')
+  )
+  const auctionSettingsRef = useRef<AuctionSettings>(auctionSettings)
+  useEffect(() => {
+    auctionSettingsRef.current = auctionSettings
+  }, [auctionSettings])
+
   const [teams, setTeams] = useState<Team[]>([])
   const [players, setPlayers] = useState<Player[]>([])
 
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showControls, setShowControls] = useState(false)
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Auction bid/team change flash tracking
+  const prevAuctionSnapRef = useRef<{
+    playerId: string | null
+    bid: number | null
+    teamId: string | null
+  }>({
+    playerId: null,
+    bid: null,
+    teamId: null
+  })
+  const [bidFlashKey, setBidFlashKey] = useState(0)
+
+  // Secured animation tracking (play once per sale_event_id)
+  const hasLoadedInitialStateRef = useRef(false)
+  const lastSeenSaleEventIdRef = useRef<string | null>(null)
+  const [activeSecuredSaleId, setActiveSecuredSaleId] = useState<string | null>(null)
+
+  const handleIncomingProjectorState = useCallback(
+    (nextState: ProjectorState, settingsOverride?: AuctionSettings) => {
+      setProjectorState(nextState)
+
+      const currentSettings = settingsOverride || auctionSettingsRef.current
+      const effectiveSaleEventId =
+        nextState.sale_event_id ||
+        (nextState.mode === 'sold' && nextState.sale_at
+          ? `${nextState.sale_player_id || nextState.player_id || 'p'}-${nextState.sale_at}`
+          : null)
+
+      if (!hasLoadedInitialStateRef.current) {
+        hasLoadedInitialStateRef.current = true
+        if (effectiveSaleEventId) {
+          lastSeenSaleEventIdRef.current = effectiveSaleEventId
+          if (!currentSettings.secured_enabled) {
+            setActiveSecuredSaleId(null)
+            return
+          }
+          const catchupWindowMs = Math.max(0, Number(currentSettings.catchup_window_seconds ?? 15)) * 1000
+          const saleAtMs = nextState.sale_at ? new Date(nextState.sale_at).getTime() : 0
+          const ageMs = saleAtMs > 0 ? Date.now() - saleAtMs : Infinity
+          if (nextState.mode === 'sold' && ageMs >= -5000 && ageMs <= catchupWindowMs) {
+            setActiveSecuredSaleId(effectiveSaleEventId)
+          } else {
+            setActiveSecuredSaleId(null)
+          }
+        }
+        return
+      }
+
+      if (effectiveSaleEventId && effectiveSaleEventId !== lastSeenSaleEventIdRef.current) {
+        lastSeenSaleEventIdRef.current = effectiveSaleEventId
+        if (nextState.mode === 'sold' && currentSettings.secured_enabled) {
+          setActiveSecuredSaleId(effectiveSaleEventId)
+        } else {
+          setActiveSecuredSaleId(null)
+        }
+        return
+      }
+
+      if (nextState.mode !== 'sold' || !currentSettings.secured_enabled) {
+        setActiveSecuredSaleId(null)
+      }
+    },
+    []
+  )
+
+  // If secured_enabled is toggled off in realtime while playing, immediately settle to static SOLD card
+  useEffect(() => {
+    if (!auctionSettings.secured_enabled && activeSecuredSaleId) {
+      setActiveSecuredSaleId(null)
+    }
+  }, [auctionSettings.secured_enabled, activeSecuredSaleId])
+
+  // Settle SECURED animation into static SOLD card after secured_duration_seconds
+  useEffect(() => {
+    if (!activeSecuredSaleId) return
+    const durationMs = Math.round(
+      Math.min(15, Math.max(2, Number(auctionSettings.secured_duration_seconds) || 5.6)) * 1000
+    )
+    const timer = setTimeout(() => {
+      setActiveSecuredSaleId(null)
+    }, durationMs)
+    return () => clearTimeout(timer)
+  }, [activeSecuredSaleId, auctionSettings.secured_duration_seconds])
+
+  // Detect bid or leading team change during live auction to trigger team colour flash
+  useEffect(() => {
+    if (projectorState.mode !== 'auction') {
+      prevAuctionSnapRef.current = {
+        playerId: null,
+        bid: null,
+        teamId: null
+      }
+      return
+    }
+
+    const currentPlayerId = projectorState.player_id ?? null
+    const currentBid = projectorState.current_bid ?? null
+    const currentTeamId = projectorState.team_id ?? null
+    const prev = prevAuctionSnapRef.current
+
+    if (
+      prev.playerId === currentPlayerId &&
+      currentPlayerId !== null &&
+      currentTeamId !== null &&
+      (prev.bid !== currentBid || prev.teamId !== currentTeamId)
+    ) {
+      setBidFlashKey((k) => k + 1)
+    }
+
+    prevAuctionSnapRef.current = {
+      playerId: currentPlayerId,
+      bid: currentBid,
+      teamId: currentTeamId
+    }
+  }, [
+    projectorState.mode,
+    projectorState.player_id,
+    projectorState.current_bid,
+    projectorState.team_id
+  ])
 
   // Controls hidden by default; appear on tap or mouse movement and fade out after 3 seconds
   useEffect(() => {
@@ -66,55 +309,117 @@ export const ProjectorPage: React.FC = () => {
     }
   }, [])
 
-  // Initial load and subscriptions
+  // Helper to fetch all projector data for a season (public_players + players, public_teams + teams, auction_settings, projector_state)
+  const refetchSeasonData = useCallback(
+    async (seasonId: string) => {
+      if (!seasonId) return
+      try {
+        const [latestPState, latestSettings, pubTeams, fullTeams, latestPlayers] =
+          await Promise.all([
+            getProjectorState(seasonId),
+            getAuctionSettings(seasonId),
+            getPublicTeams(seasonId).catch(() => []),
+            getTeams(seasonId).catch(() => []),
+            getPlayers(seasonId)
+          ])
+
+        setAuctionSettings(latestSettings)
+        auctionSettingsRef.current = latestSettings
+        setTeams(mergeTeamsWithPublicView(pubTeams, fullTeams))
+        setPlayers(latestPlayers)
+        handleIncomingProjectorState(latestPState, latestSettings)
+      } catch (err) {
+        console.error('Projector refetchSeasonData error:', err)
+      }
+    },
+    [handleIncomingProjectorState]
+  )
+
+  // Initial load and realtime subscriptions
   useEffect(() => {
     let unsubProjector = () => {}
     let unsubTeams = () => {}
     let unsubPlayers = () => {}
+    let unsubSettings = () => {}
+    let isMounted = true
 
     async function init() {
       try {
         const seasonsList = await getSeasons()
         const active = seasonsList.find((s) => s.is_active) || seasonsList[0] || null
+        if (!isMounted) return
         setActiveSeason(active)
 
         if (active) {
-          const [initialPState, initialTeams, initialPlayers] = await Promise.all([
-            getProjectorState(active.id),
-            getTeams(active.id),
-            getPlayers(active.id)
-          ])
+          await refetchSeasonData(active.id)
+          if (!isMounted) return
 
-          setProjectorState(initialPState)
-          setTeams(initialTeams)
-          setPlayers(initialPlayers)
-
-          // Realtime subscriptions
+          // Realtime subscriptions (also refetch automatically when status === 'SUBSCRIBED')
           unsubProjector = subscribeToProjector(active.id, (newState) => {
-            setProjectorState(newState)
+            if (isMounted) handleIncomingProjectorState(newState)
           })
 
-          unsubTeams = subscribeToTeams(active.id, (newTeams) => {
-            setTeams(newTeams)
+          unsubSettings = subscribeToAuctionSettings(active.id, (newSettings) => {
+            if (isMounted) {
+              setAuctionSettings(newSettings)
+              auctionSettingsRef.current = newSettings
+            }
+          })
+
+          unsubTeams = subscribeToTeams(active.id, async (newFullTeams) => {
+            try {
+              const pubTeams = await getPublicTeams(active.id).catch(() => [])
+              if (isMounted) {
+                setTeams(mergeTeamsWithPublicView(pubTeams, newFullTeams))
+              }
+            } catch {
+              if (isMounted) setTeams(newFullTeams)
+            }
           })
 
           unsubPlayers = subscribeToPlayers(active.id, (newPlayers) => {
-            setPlayers(newPlayers)
+            if (isMounted) setPlayers(newPlayers)
           })
         }
-      } catch {
-        // fallback
+      } catch (err) {
+        console.error('Projector init error:', err)
       }
     }
 
     init()
 
     return () => {
+      isMounted = false
       unsubProjector()
+      unsubSettings()
       unsubTeams()
       unsubPlayers()
     }
-  }, [activeSeason?.id])
+  }, [activeSeason?.id, handleIncomingProjectorState, refetchSeasonData])
+
+  // Refetch when tab becomes visible or browser comes back online
+  useEffect(() => {
+    const seasonId = activeSeason?.id
+    if (!seasonId) return
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refetchSeasonData(seasonId)
+      }
+    }
+
+    const handleOnline = () => {
+      refetchSeasonData(seasonId)
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('online', handleOnline)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('online', handleOnline)
+    }
+  }, [activeSeason?.id, refetchSeasonData])
 
   const toggleFullscreen = async () => {
     try {
@@ -134,6 +439,34 @@ export const ProjectorPage: React.FC = () => {
   const spotlightPlayer = players.find((p) => p.id === projectorState.player_id)
   const rosterTeam = teams.find((t) => t.id === projectorState.team_id)
   const rosterPlayers = rosterTeam ? players.filter((p) => p.team_id === rosterTeam.id) : []
+
+  // Auction / Sold / Unsold entities
+  const stagePlayer = players.find((p) => p.id === projectorState.player_id)
+  const leadingTeam = projectorState.team_id
+    ? teams.find((t) => t.id === projectorState.team_id) || null
+    : null
+
+  const soldPlayerId = projectorState.sale_player_id || projectorState.player_id
+  const soldTeamId = projectorState.sale_team_id || projectorState.team_id
+  const soldPlayer = soldPlayerId ? players.find((p) => p.id === soldPlayerId) || null : null
+  const soldTeam = soldTeamId ? teams.find((t) => t.id === soldTeamId) || null : null
+  const soldPrice = Number(
+    projectorState.sale_price ??
+      projectorState.current_bid ??
+      soldPlayer?.purchase_price ??
+      soldPlayer?.base_points ??
+      0
+  )
+
+  const isPlayingSecuredAnimation =
+    projectorState.mode === 'sold' &&
+    Boolean(auctionSettings.secured_enabled) &&
+    Boolean(activeSecuredSaleId)
+
+  const bidFlashDurationSec = Math.min(
+    2,
+    Math.max(0.1, (Number(auctionSettings.bid_update_ms) || 600) / 1000)
+  )
 
   // Animation variants
   const sceneVariants = {
@@ -225,7 +558,453 @@ export const ProjectorPage: React.FC = () => {
             </motion.div>
           )}
 
-          {/* ================= SCENE 2: TEAMS & PURSES ================= */}
+          {/* ================= SCENE 2: LIVE AUCTION STAGE ================= */}
+          {projectorState.mode === 'auction' && (
+            <motion.div
+              key={`scene-auction-${stagePlayer?.id || 'none'}`}
+              initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 20, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -14, scale: 0.99 }}
+              transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+              className="w-full max-w-7xl my-auto relative"
+            >
+              {/* Single Team-Colour Flash Overlay when Bid or Leading Team Changes */}
+              <AnimatePresence>
+                {bidFlashKey > 0 && leadingTeam && (
+                  <motion.div
+                    key={`bid-flash-${bidFlashKey}`}
+                    initial={{ opacity: 0.42 }}
+                    animate={{ opacity: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: bidFlashDurationSec, ease: 'easeOut' }}
+                    className="fixed inset-0 pointer-events-none z-0"
+                    style={{
+                      background: `radial-gradient(circle at 65% 50%, ${leadingTeam.color}55 0%, transparent 72%)`
+                    }}
+                  />
+                )}
+              </AnimatePresence>
+
+              {stagePlayer ? (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-stretch relative z-10">
+                  {/* Left: Large Player Card */}
+                  <div className="lg:col-span-5 p-6 sm:p-8 rounded-3xl bg-surface border-2 border-border shadow-xl flex flex-col justify-between gap-6">
+                    <div className="w-full aspect-[4/4.4] max-h-[420px] rounded-2xl bg-surface-2 border border-border overflow-hidden relative flex items-center justify-center">
+                      {stagePlayer.photo_url || stagePlayer.photo_thumb_url ? (
+                        <img
+                          src={stagePlayer.photo_url || stagePlayer.photo_thumb_url}
+                          alt={stagePlayer.name}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center gap-3 text-muted">
+                          <User size={96} weight="thin" />
+                          <span className="font-mono text-xs uppercase tracking-widest">
+                            No Photo
+                          </span>
+                        </div>
+                      )}
+
+                      {/* 4-Digit Player Code Badge */}
+                      <div className="absolute top-4 left-4 px-3.5 py-1.5 rounded-xl bg-bg/90 backdrop-blur-md border border-border font-mono text-base sm:text-lg font-bold tracking-wider text-accent-bright shadow-sm">
+                        #{formatAthleteCode(stagePlayer.player_code || stagePlayer.athlete_code)}
+                      </div>
+
+                      {/* Sport Tag */}
+                      <div className="absolute top-4 right-4 px-3.5 py-1.5 rounded-xl bg-bg/90 backdrop-blur-md border border-border font-mono text-xs sm:text-sm font-bold uppercase tracking-widest text-text shadow-sm">
+                        {stagePlayer.sport}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-4">
+                      <div>
+                        <span className="font-mono text-xs sm:text-sm uppercase tracking-widest text-accent-bright font-semibold block mb-1">
+                          {stagePlayer.playing_role}
+                        </span>
+                        <h2 className="font-syne font-extrabold text-4xl sm:text-5xl xl:text-6xl text-text tracking-tight leading-[0.98] break-words">
+                          {stagePlayer.name}
+                        </h2>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border font-mono">
+                        <div>
+                          <span className="text-xs uppercase tracking-wider text-muted block">
+                            Academic Year
+                          </span>
+                          <span className="font-syne font-bold text-xl sm:text-2xl text-text mt-0.5 block">
+                            {getAcademicYearLabel(stagePlayer.academic_year || '1st')}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs uppercase tracking-wider text-muted block">
+                            Base Points
+                          </span>
+                          <span className="font-syne font-extrabold text-xl sm:text-2xl text-points tabular-nums mt-0.5 block">
+                            {stagePlayer.base_points.toLocaleString()} PTS
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right: Centred Current Bid & Leading Team Display */}
+                  <div
+                    className="lg:col-span-7 p-8 sm:p-12 rounded-3xl bg-surface border-2 shadow-xl flex flex-col items-center justify-between text-center relative overflow-hidden transition-colors duration-300"
+                    style={{
+                      borderColor: leadingTeam?.color || 'var(--border)'
+                    }}
+                  >
+                    {/* Top Team Accent Bar */}
+                    <div
+                      className="absolute top-0 left-0 right-0 h-3 transition-colors duration-300"
+                      style={{
+                        backgroundColor: leadingTeam?.color || 'var(--accent-bright)'
+                      }}
+                    />
+
+                    {/* Flash Border Pulse on New Bid */}
+                    <AnimatePresence>
+                      {bidFlashKey > 0 && leadingTeam && (
+                        <motion.div
+                          key={`card-flash-${bidFlashKey}`}
+                          initial={{ opacity: 0.32 }}
+                          animate={{ opacity: 0 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: bidFlashDurationSec, ease: 'easeOut' }}
+                          className="absolute inset-0 pointer-events-none"
+                          style={{ backgroundColor: leadingTeam.color }}
+                        />
+                      )}
+                    </AnimatePresence>
+
+                    {/* Stage Header Status */}
+                    <div className="w-full flex items-center justify-center gap-3 pt-2">
+                      <span
+                        className="w-3 h-3 rounded-full"
+                        style={{
+                          backgroundColor: leadingTeam?.color || 'var(--accent-bright)'
+                        }}
+                      />
+                      <span className="font-mono text-sm sm:text-base uppercase tracking-[0.22em] font-bold text-muted">
+                        {leadingTeam ? 'Current Bid on Stage' : 'Opening Stage Valuation'}
+                      </span>
+                    </div>
+
+                    {/* Huge Centred Current Bid */}
+                    <div className="my-auto py-8 flex flex-col items-center justify-center">
+                      <div className="flex items-baseline justify-center gap-4 flex-wrap">
+                        <AuctionBidNumber
+                          value={
+                            leadingTeam && projectorState.current_bid != null
+                              ? projectorState.current_bid
+                              : stagePlayer.base_points
+                          }
+                          durationMs={auctionSettings.bid_update_ms}
+                          reduceMotion={shouldReduceMotion}
+                          accentColor={leadingTeam?.color || 'var(--points)'}
+                        />
+                        <span className="font-mono text-2xl sm:text-3xl md:text-4xl font-bold text-muted uppercase tracking-wider">
+                          PTS
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Leading Team or Awaiting Bids Footer Box */}
+                    <div className="w-full pt-6 border-t border-border">
+                      {leadingTeam ? (
+                        <motion.div
+                          key={`leading-team-${leadingTeam.id}`}
+                          initial={shouldReduceMotion ? { opacity: 0.85 } : { opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{
+                            duration: bidFlashDurationSec * 0.55,
+                            ease: [0.16, 1, 0.3, 1]
+                          }}
+                          className="p-5 sm:p-6 rounded-2xl bg-surface-2 border border-border flex flex-col sm:flex-row items-center justify-between gap-5 relative overflow-hidden"
+                        >
+                          {/* Team Colour Bar */}
+                          <div
+                            className="w-full sm:w-2.5 h-2.5 sm:h-full absolute top-0 left-0"
+                            style={{ backgroundColor: leadingTeam.color || 'var(--accent-bright)' }}
+                          />
+
+                          <div className="flex items-center gap-4 sm:pl-3">
+                            <div
+                              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center font-syne font-extrabold text-2xl text-white overflow-hidden border border-border shrink-0 shadow-md"
+                              style={{ backgroundColor: leadingTeam.color || 'var(--accent-bright)' }}
+                            >
+                              {leadingTeam.logo_url ? (
+                                <img
+                                  src={leadingTeam.logo_url}
+                                  alt={leadingTeam.name}
+                                  referrerPolicy="no-referrer"
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <span>{leadingTeam.short_code}</span>
+                              )}
+                            </div>
+
+                            <div className="text-center sm:text-left">
+                              <span className="font-mono text-xs sm:text-sm uppercase tracking-widest text-muted block">
+                                Leading Franchise
+                              </span>
+                              <h3 className="font-syne font-extrabold text-3xl sm:text-4xl md:text-5xl text-text tracking-tight leading-tight">
+                                {leadingTeam.name}
+                              </h3>
+                            </div>
+                          </div>
+
+                          <div
+                            className="px-4 py-2 rounded-xl font-mono text-sm sm:text-base font-bold uppercase tracking-widest border shrink-0"
+                            style={{
+                              borderColor: `${leadingTeam.color}66`,
+                              color: leadingTeam.color || 'var(--text)'
+                            }}
+                          >
+                            {leadingTeam.short_code}
+                          </div>
+                        </motion.div>
+                      ) : (
+                        <div className="p-6 sm:p-8 rounded-2xl bg-surface-2/80 border border-dashed border-border flex flex-col sm:flex-row items-center justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                            <span className="w-3 h-3 rounded-full bg-points animate-pulse" />
+                            <span className="font-syne font-bold text-2xl sm:text-3xl text-text tracking-tight">
+                              Awaiting bids
+                            </span>
+                          </div>
+                          <div className="font-mono text-base sm:text-xl text-muted">
+                            Base Points:{' '}
+                            <strong className="text-points font-bold tabular-nums">
+                              {stagePlayer.base_points.toLocaleString()} PTS
+                            </strong>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-24 text-center font-mono text-2xl text-muted">
+                  Awaiting player on stage...
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* ================= SCENE 3: SOLD (SECURED ANIMATION -> STATIC SOLD CARD) ================= */}
+          {projectorState.mode === 'sold' && (
+            <motion.div
+              key={`scene-sold-${soldPlayer?.id || 'none'}-${isPlayingSecuredAnimation ? 'anim' : 'static'}`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.35 }}
+              className="w-full max-w-7xl my-auto relative flex items-center justify-center"
+            >
+              {isPlayingSecuredAnimation ? (
+                <SecuredSequence
+                  playerName={soldPlayer?.name || 'Player Secured'}
+                  playerCode={formatAthleteCode(soldPlayer?.player_code || soldPlayer?.athlete_code)}
+                  sport={soldPlayer?.sport || 'Cricket'}
+                  playingRole={soldPlayer?.playing_role || 'Player'}
+                  academicYearLabel={
+                    soldPlayer?.academic_year
+                      ? getAcademicYearLabel(soldPlayer.academic_year)
+                      : undefined
+                  }
+                  photoUrl={soldPlayer?.photo_url || soldPlayer?.photo_thumb_url}
+                  teamName={soldTeam?.name || 'Franchise'}
+                  teamShortCode={soldTeam?.short_code || 'TM'}
+                  teamColor={soldTeam?.color || '#10B981'}
+                  teamLogoUrl={soldTeam?.logo_url}
+                  price={soldPrice}
+                  securedDurationSeconds={auctionSettings.secured_duration_seconds}
+                  priceCountupSeconds={auctionSettings.price_countup_seconds}
+                  reduceMotion={shouldReduceMotion}
+                />
+              ) : (
+                /* ---------- CALM STATIC SOLD CARD (Player, Team, Price) ---------- */
+                <div
+                  className="w-full max-w-6xl bg-surface border-2 rounded-3xl p-8 sm:p-12 shadow-xl relative overflow-hidden"
+                  style={{ borderColor: soldTeam?.color || 'var(--border)' }}
+                >
+                  <div
+                    className="absolute top-0 left-0 right-0 h-3"
+                    style={{ backgroundColor: soldTeam?.color || 'var(--accent-bright)' }}
+                  />
+
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+                    {/* Player Portrait */}
+                    <div className="lg:col-span-4 flex flex-col items-center">
+                      <div className="w-60 h-72 sm:w-72 sm:h-88 rounded-3xl bg-surface-2 border border-border overflow-hidden flex items-center justify-center relative shadow-md">
+                        {soldPlayer?.photo_url || soldPlayer?.photo_thumb_url ? (
+                          <img
+                            src={soldPlayer.photo_url || soldPlayer.photo_thumb_url}
+                            alt={soldPlayer.name}
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <User size={88} weight="thin" className="text-muted" />
+                        )}
+                        <div className="absolute top-4 left-4 px-3 py-1 rounded-lg bg-bg/90 backdrop-blur-md border border-border font-mono text-sm font-bold text-accent-bright">
+                          #{formatAthleteCode(soldPlayer?.player_code || soldPlayer?.athlete_code)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Static Sold Details */}
+                    <div className="lg:col-span-8 flex flex-col gap-6 text-center lg:text-left">
+                      <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3">
+                        <span
+                          className="px-4 py-1.5 rounded-xl font-mono text-sm font-bold uppercase tracking-widest border"
+                          style={{
+                            borderColor: soldTeam?.color || 'var(--accent-bright)',
+                            color: soldTeam?.color || 'var(--accent-bright)',
+                            backgroundColor: `${soldTeam?.color || '#10B981'}18`
+                          }}
+                        >
+                          SOLD
+                        </span>
+                        {soldPlayer && (
+                          <span className="font-mono text-sm uppercase tracking-wider text-muted">
+                            {soldPlayer.sport} · {soldPlayer.playing_role} ·{' '}
+                            {getAcademicYearLabel(soldPlayer.academic_year || '1st')}
+                          </span>
+                        )}
+                      </div>
+
+                      <h2 className="font-syne font-extrabold text-5xl sm:text-6xl md:text-7xl text-text tracking-tight leading-[0.98]">
+                        {soldPlayer?.name || 'Drafted Athlete'}
+                      </h2>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6 border-t border-border items-center">
+                        {/* Buyer Team */}
+                        {soldTeam ? (
+                          <div className="flex items-center justify-center lg:justify-start gap-4">
+                            <div
+                              className="w-16 h-16 rounded-2xl flex items-center justify-center font-syne font-extrabold text-xl text-white overflow-hidden border border-border shrink-0 shadow-sm"
+                              style={{ backgroundColor: soldTeam.color || 'var(--accent-bright)' }}
+                            >
+                              {soldTeam.logo_url ? (
+                                <img
+                                  src={soldTeam.logo_url}
+                                  alt={soldTeam.name}
+                                  referrerPolicy="no-referrer"
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <span>{soldTeam.short_code}</span>
+                              )}
+                            </div>
+                            <div className="text-left min-w-0">
+                              <span className="font-mono text-xs uppercase tracking-widest text-muted block">
+                                Franchise
+                              </span>
+                              <div className="font-syne font-bold text-2xl sm:text-3xl text-text truncate">
+                                {soldTeam.name}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="font-mono text-sm text-muted">Franchise Assigned</div>
+                        )}
+
+                        {/* Final Price */}
+                        <div className="text-center sm:text-right">
+                          <span className="font-mono text-xs uppercase tracking-widest text-muted block">
+                            Winning Bid
+                          </span>
+                          <div
+                            className="font-syne font-extrabold text-4xl sm:text-5xl md:text-6xl tabular-nums mt-0.5"
+                            style={{ color: soldTeam?.color || 'var(--points)' }}
+                          >
+                            {soldPrice.toLocaleString()}{' '}
+                            <span className="font-mono text-xl font-bold text-muted">PTS</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* ================= SCENE 4: UNSOLD ================= */}
+          {projectorState.mode === 'unsold' && (
+            <motion.div
+              key={`scene-unsold-${stagePlayer?.id || 'none'}`}
+              variants={sceneVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              className="w-full max-w-5xl my-auto"
+            >
+              {stagePlayer ? (
+                <div className="p-8 sm:p-12 rounded-3xl bg-surface/90 border border-border shadow-md flex flex-col md:flex-row items-center gap-8 md:gap-12">
+                  {/* Muted Portrait */}
+                  <div className="w-56 h-68 sm:w-64 sm:h-80 rounded-2xl bg-surface-2 border border-border overflow-hidden shrink-0 flex items-center justify-center relative grayscale opacity-75">
+                    {stagePlayer.photo_url || stagePlayer.photo_thumb_url ? (
+                      <img
+                        src={stagePlayer.photo_url || stagePlayer.photo_thumb_url}
+                        alt={stagePlayer.name}
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <User size={80} weight="thin" className="text-muted" />
+                    )}
+                  </div>
+
+                  {/* Unsold Details */}
+                  <div className="flex-1 flex flex-col items-center md:items-start text-center md:text-left gap-5">
+                    <div className="inline-flex items-center gap-3 px-4 py-1.5 rounded-xl bg-surface-2 border border-border font-mono text-sm sm:text-base font-bold uppercase tracking-[0.2em] text-muted">
+                      UNSOLD
+                    </div>
+
+                    <div>
+                      <div className="font-mono text-xs sm:text-sm uppercase tracking-widest text-muted mb-1.5">
+                        #{formatAthleteCode(stagePlayer.player_code || stagePlayer.athlete_code)} ·{' '}
+                        {stagePlayer.sport} · {stagePlayer.playing_role}
+                      </div>
+                      <h2 className="font-syne font-extrabold text-4xl sm:text-6xl text-text/85 tracking-tight leading-tight">
+                        {stagePlayer.name}
+                      </h2>
+                    </div>
+
+                    <div className="w-full grid grid-cols-2 gap-6 pt-5 border-t border-border font-mono">
+                      <div>
+                        <span className="text-xs uppercase tracking-wider text-muted block">
+                          Academic Year
+                        </span>
+                        <span className="font-syne font-bold text-xl sm:text-2xl text-text/80 mt-1 block">
+                          {getAcademicYearLabel(stagePlayer.academic_year || '1st')}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-xs uppercase tracking-wider text-muted block">
+                          Base Points
+                        </span>
+                        <span className="font-syne font-bold text-xl sm:text-2xl text-muted tabular-nums mt-1 block">
+                          {stagePlayer.base_points.toLocaleString()} PTS
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-20 text-center font-mono text-xl text-muted">
+                  Player marked unsold.
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* ================= SCENE 5: TEAMS & PURSES ================= */}
           {projectorState.mode === 'teams' && (
             <motion.div
               key="scene-teams"
@@ -326,7 +1105,7 @@ export const ProjectorPage: React.FC = () => {
             </motion.div>
           )}
 
-          {/* ================= SCENE 3: PLAYER SPOTLIGHT ================= */}
+          {/* ================= SCENE 6: PLAYER SPOTLIGHT ================= */}
           {projectorState.mode === 'player' && (
             <motion.div
               key={`scene-player-${spotlightPlayer?.id || 'none'}`}
@@ -382,7 +1161,7 @@ export const ProjectorPage: React.FC = () => {
                       {/* Sport & Role Eyebrow */}
                       <div className="flex items-center gap-3 text-sm md:text-base font-mono uppercase tracking-widest text-accent-bright font-semibold mb-3">
                         <span>
-                          #{formatAthleteCode(spotlightPlayer.athlete_code || spotlightPlayer.player_code)}
+                          #{formatAthleteCode(spotlightPlayer.player_code || spotlightPlayer.athlete_code)}
                         </span>
                         <span className="text-muted">/</span>
                         <span>{spotlightPlayer.sport}</span>
@@ -446,7 +1225,7 @@ export const ProjectorPage: React.FC = () => {
             </motion.div>
           )}
 
-          {/* ================= SCENE 4: TEAM ROSTER ================= */}
+          {/* ================= SCENE 7: TEAM ROSTER ================= */}
           {projectorState.mode === 'roster' && (
             <motion.div
               key={`scene-roster-${rosterTeam?.id || 'none'}`}

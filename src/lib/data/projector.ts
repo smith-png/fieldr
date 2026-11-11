@@ -133,7 +133,11 @@ const supabaseProjectorService: ProjectorService = {
           }
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          supabaseProjectorService.getProjectorState(seasonId).then(callback).catch(() => {})
+        }
+      })
 
     return () => {
       if (supabase) {
