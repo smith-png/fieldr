@@ -156,11 +156,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="border-b border-border bg-surface-2 text-muted font-mono uppercase tracking-wider text-[11px]">
-                    <th className="py-3 px-4 font-medium">Team</th>
-                    <th className="py-3 px-4 font-medium">Type</th>
-                    <th className="py-3 px-4 font-medium text-right">Amount</th>
-                    <th className="py-3 px-4 font-medium text-right">Balance</th>
-                    <th className="py-3 px-4 font-medium">Reason</th>
+                    <th className="py-3 px-4 font-normal">Team</th>
+                    <th className="py-3 px-4 font-normal">Type</th>
+                    <th className="py-3 px-4 font-normal text-right">Amount</th>
+                    <th className="py-3 px-4 font-normal text-right">Balance</th>
+                    <th className="py-3 px-4 font-normal">Reason</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">

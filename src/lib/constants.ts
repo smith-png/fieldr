@@ -93,6 +93,7 @@ export const ADMIN_TABS = {
   TEAMS: 'teams',
   AUCTION: 'auction',
   PURSES: 'purses',
+  LOGS: 'logs',
   SEASONS: 'seasons',
   PROJECTOR: 'projector',
   SETUP: 'setup'

@@ -6,7 +6,8 @@ import {
   getLocal,
   setLocal,
   notifyChange,
-  STORAGE_KEYS
+  STORAGE_KEYS,
+  markLocalMutation
 } from './client'
 import type { PursesService } from './types'
 
@@ -51,6 +52,7 @@ const demoPursesService: PursesService = {
       )
     }
 
+    markLocalMutation(['teams', 'auction'])
     team.current_purse = newBalance
     setLocal(STORAGE_KEYS.TEAMS, allTeams)
 
@@ -105,6 +107,7 @@ const demoPursesService: PursesService = {
       })
     }
 
+    markLocalMutation(['teams', 'auction'])
     setLocal(STORAGE_KEYS.TEAMS, allTeams)
     setLocal(STORAGE_KEYS.TRANSACTIONS, allTx)
     notifyChange('teams_change')
@@ -149,6 +152,7 @@ const supabasePursesService: PursesService = {
 
     if (!supabase) throw new AppError('Supabase not configured')
 
+    markLocalMutation(['teams', 'auction'])
     const { data: newBalance, error: rpcErr } = await supabase.rpc(
       'execute_purse_transaction',
       {
@@ -162,6 +166,7 @@ const supabasePursesService: PursesService = {
     )
 
     if (rpcErr) throw new AppError(rpcErr.message, { original: rpcErr })
+    markLocalMutation(['teams', 'auction'])
 
     const { data: txList } = await supabase
       .from('purse_transactions')
@@ -198,6 +203,7 @@ const supabasePursesService: PursesService = {
 
     if (!supabase) throw new AppError('Supabase not configured')
 
+    markLocalMutation(['teams', 'auction'])
     const { error } = await supabase.rpc('reset_all_purses', {
       p_season_id: seasonId,
       p_starting_amount: startingAmount,
@@ -205,6 +211,7 @@ const supabasePursesService: PursesService = {
     })
 
     if (error) throw new AppError(error.message, { original: error })
+    markLocalMutation(['teams', 'auction'])
   }
 }
 

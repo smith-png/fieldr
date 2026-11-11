@@ -27,7 +27,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
         {backAction && <div className="shrink-0 mt-1">{backAction}</div>}
         <div className="min-w-0">
           {label && (
-            <span className="text-xs font-mono uppercase tracking-widest text-accent-bright block mb-1.5">
+            <span className="text-xs font-sans font-normal uppercase tracking-wide text-accent-bright block mb-1.5">
               {label}
             </span>
           )}
@@ -38,7 +38,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
             {badge}
           </div>
           {subtitle && (
-            <p className="text-xs sm:text-sm text-muted mt-1.5 max-w-2xl leading-relaxed">
+            <p className="text-xs sm:text-sm font-light text-muted mt-1.5 max-w-2xl leading-relaxed">
               {subtitle}
             </p>
           )}

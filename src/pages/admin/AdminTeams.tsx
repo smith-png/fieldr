@@ -606,11 +606,11 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
             <table className="w-full text-left text-xs">
               <thead className="bg-surface-2 text-muted font-mono uppercase text-[10px] sticky top-0">
                 <tr>
-                  <th className="p-2.5">Sport</th>
-                  <th className="p-2.5">Team Name</th>
-                  <th className="p-2.5">Code</th>
-                  <th className="p-2.5">Starting Purse</th>
-                  <th className="p-2.5">Validation</th>
+                  <th className="p-2.5 font-normal">Sport</th>
+                  <th className="p-2.5 font-normal">Team Name</th>
+                  <th className="p-2.5 font-normal">Code</th>
+                  <th className="p-2.5 font-normal">Starting Purse</th>
+                  <th className="p-2.5 font-normal">Validation</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">

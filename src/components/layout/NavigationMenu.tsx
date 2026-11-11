@@ -165,12 +165,12 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
                   <Link
                     to={link.path}
                     onClick={onClose}
-                    className="group flex items-center gap-4 text-4xl sm:text-6xl md:text-7xl font-syne font-extrabold tracking-tight text-white/85 hover:text-white transition-colors transition-transform transform hover:translate-x-3"
+                    className="group flex items-center gap-4 text-3xl sm:text-6xl md:text-7xl font-syne font-bold tracking-tight leading-tight text-white/85 hover:text-white transition-colors transition-transform transform hover:translate-x-3"
                   >
                     <span>{link.title}</span>
                     <ArrowRight
                       size={36}
-                      weight="bold"
+                      weight="regular"
                       className="opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-[opacity,transform] text-accent-bright"
                     />
                   </Link>
@@ -192,12 +192,12 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
                   <button
                     type="button"
                     onClick={handleSignOut}
-                    className="group flex items-center gap-3 text-2xl sm:text-3xl font-syne font-bold text-white/60 hover:text-error transition-colors transition-transform transform hover:translate-x-2"
+                    className="group flex items-center gap-3 text-2xl sm:text-3xl font-sans font-light text-white/60 hover:text-error transition-colors transition-transform transform hover:translate-x-2"
                   >
                     <span>Sign out</span>
                     <ArrowRight
                       size={24}
-                      weight="bold"
+                      weight="regular"
                       className="opacity-0 group-hover:opacity-100 transition-opacity"
                     />
                   </button>
@@ -205,12 +205,12 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
                   <Link
                     to="/login"
                     onClick={onClose}
-                    className="group flex items-center gap-3 text-2xl sm:text-3xl font-syne font-bold text-white/90 hover:text-white transition-colors transition-transform transform hover:translate-x-2"
+                    className="group flex items-center gap-3 text-2xl sm:text-3xl font-sans font-medium text-white/90 hover:text-white transition-colors transition-transform transform hover:translate-x-2"
                   >
                     <span>Sign in</span>
                     <ArrowRight
                       size={24}
-                      weight="bold"
+                      weight="regular"
                       className="opacity-0 group-hover:opacity-100 transition-opacity text-accent-bright"
                     />
                   </Link>
@@ -230,7 +230,7 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
               >
                 <span
                   id="appearance-label"
-                  className="text-xs font-mono uppercase tracking-widest text-white/60 block mb-2.5"
+                  className="text-xs font-sans font-medium uppercase tracking-wide text-white/60 block mb-2.5"
                 >
                   Appearance
                 </span>
@@ -254,13 +254,13 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
                         tabIndex={isSelected ? 0 : -1}
                         onClick={() => setPreference(opt.value)}
                         onKeyDown={(e) => handleKeyDownAppearance(e, idx)}
-                        className={`min-h-[44px] min-w-[44px] px-3.5 py-2 rounded-lg flex items-center gap-2 text-xs font-mono tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright ${
+                        className={`min-h-[44px] min-w-[44px] px-3.5 py-2 rounded-lg flex items-center gap-2 text-xs font-sans tracking-normal transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright ${
                           isSelected
-                            ? 'bg-white/25 text-white font-bold border border-white/30 shadow-sm'
-                            : 'text-white/65 hover:text-white hover:bg-white/10 border border-transparent'
+                            ? 'bg-white/25 text-white font-medium border border-white/30 shadow-sm'
+                            : 'text-white/65 font-normal hover:text-white hover:bg-white/10 border border-transparent'
                         }`}
                       >
-                        <IconComponent size={16} weight={isSelected ? 'bold' : 'regular'} />
+                        <IconComponent size={16} weight="regular" />
                         <span>{opt.label}</span>
                       </button>
                     )
@@ -272,13 +272,13 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
             {/* Footer Metadata */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-6 border-t border-white/15 text-xs text-white/60">
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-white/90">
+                <span className="font-medium text-white/90">
                   {activeSeason?.name || 'Fieldr Tournaments'}
                 </span>
                 <span>·</span>
                 <span>Tournament Console</span>
               </div>
-              <div className="font-syne font-bold tracking-widest text-accent-bright uppercase">
+              <div className="font-sans font-medium tracking-wide text-accent-bright uppercase">
                 Draft. Bid. Win.
               </div>
             </div>

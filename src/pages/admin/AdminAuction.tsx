@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowCounterClockwise,
   ArrowRight,
@@ -85,6 +85,8 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
   // Queue filters
   const [queueTab, setQueueTab] = useState<QueueTab>('queue')
   const [queueSearch, setQueueSearch] = useState<string>('')
+  const queueListRef = useRef<HTMLDivElement | null>(null)
+  const queueScrollTopRef = useRef<number>(0)
 
   // Bid input field
   const [bidAmountInput, setBidAmountInput] = useState<string>('')
@@ -122,9 +124,20 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
     }
   }, [sports, selectedSportName])
 
-  // Fetch all auction data for the current season
+  const latestFetchReqIdRef = useRef(0)
+  const isMountedRef = useRef(true)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  // Fetch all auction data for the current season (silent background refresh, guarded against out-of-order responses)
   const fetchLiveAuctionState = useCallback(async () => {
     if (!activeSeason?.id) return
+    const reqId = ++latestFetchReqIdRef.current
     try {
       const [freshState, freshPlayers, freshTeams, freshSettings, freshSales] = await Promise.all([
         getProjectorState(activeSeason.id),
@@ -133,29 +146,31 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
         getAuctionSettings(activeSeason.id),
         getRecentAuctionSales(activeSeason.id, 10)
       ])
+      if (!isMountedRef.current || reqId !== latestFetchReqIdRef.current) return
+
+      const bids = freshState.player_id
+        ? await getAuctionBidsForPlayer(freshState.player_id)
+        : []
+      if (!isMountedRef.current || reqId !== latestFetchReqIdRef.current) return
 
       setProjectorState(freshState)
       setPlayers(freshPlayers)
       setTeams(freshTeams)
       setAuctionSettings(freshSettings)
       setRecentSales(freshSales)
-
-      if (freshState.player_id) {
-        const bids = await getAuctionBidsForPlayer(freshState.player_id)
-        setPlayerBids(bids)
-      } else {
-        setPlayerBids([])
-      }
+      setPlayerBids(bids)
     } catch (err) {
-      console.error(
-        'Failed to refresh live auction state:',
-        err instanceof Error ? err.message : err,
-        err
-      )
+      if (isMountedRef.current && reqId === latestFetchReqIdRef.current) {
+        console.error(
+          'Failed to refresh live auction state:',
+          err instanceof Error ? err.message : err,
+          err
+        )
+      }
     }
   }, [activeSeason?.id])
 
-  // Initial load and realtime subscription
+  // Initial load and 500ms-debounced realtime subscription (cleaned up on unmount)
   useEffect(() => {
     if (!activeSeason?.id) return
 
@@ -274,6 +289,15 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
     })
   }, [queueTab, queueAvailableOrUnsold, queueSoldPlayers, queueSearch])
 
+  // Preserve Queue list scroll position across stage updates and realtime refreshes
+  useLayoutEffect(() => {
+    const el = queueListRef.current
+    if (!el) return
+    if (Math.abs(el.scrollTop - queueScrollTopRef.current) > 1) {
+      el.scrollTop = queueScrollTopRef.current
+    }
+  }, [displayedQueuePlayers, stagePlayerId, projectorState])
+
   // Teams for the selected sport (or stage player's sport if a player is on stage)
   const activeSportForTeams = stagePlayer ? stagePlayer.sport : selectedSportName
   const sportTeams = useMemo(() => {
@@ -309,8 +333,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
     try {
       setIsPending(true)
       await auctionBringToStage(player.id)
-      await fetchLiveAuctionState()
-      await onRefresh()
+      await Promise.all([fetchLiveAuctionState(), onRefresh()])
       success(`${player.name} brought to stage`)
     } catch (err: unknown) {
       error(err instanceof Error ? err.message : 'Failed to bring player to stage')
@@ -334,8 +357,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
     try {
       setIsPending(true)
       await auctionPlaceBid(team.id, parsedBidAmount)
-      await fetchLiveAuctionState()
-      await onRefresh()
+      await Promise.all([fetchLiveAuctionState(), onRefresh()])
       success(`Bid placed: ${team.short_code} at ${parsedBidAmount.toLocaleString()} PTS`)
     } catch (err: unknown) {
       error(err instanceof Error ? err.message : 'Failed to place bid')
@@ -349,8 +371,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
     try {
       setIsPending(true)
       await auctionClearBid(activeSeason.id)
-      await fetchLiveAuctionState()
-      await onRefresh()
+      await Promise.all([fetchLiveAuctionState(), onRefresh()])
       success('Current bid cleared')
     } catch (err: unknown) {
       error(err instanceof Error ? err.message : 'Failed to clear bid')
@@ -365,8 +386,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
       setIsPending(true)
       await auctionSecure(activeSeason.id)
       setIsSecureConfirmOpen(false)
-      await fetchLiveAuctionState()
-      await onRefresh()
+      await Promise.all([fetchLiveAuctionState(), onRefresh()])
       success(
         stagePlayer && leadingTeam
           ? `Secured ${stagePlayer.name} for ${leadingTeam.name}`
@@ -385,8 +405,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
       setIsPending(true)
       await auctionMarkUnsold(activeSeason.id)
       setIsUnsoldConfirmOpen(false)
-      await fetchLiveAuctionState()
-      await onRefresh()
+      await Promise.all([fetchLiveAuctionState(), onRefresh()])
       success(stagePlayer ? `Marked ${stagePlayer.name} as unsold` : 'Player marked unsold')
     } catch (err: unknown) {
       error(err instanceof Error ? err.message : 'Failed to mark player unsold')
@@ -400,8 +419,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
     try {
       setIsPending(true)
       await auctionBackToIdle(activeSeason.id)
-      await fetchLiveAuctionState()
-      await onRefresh()
+      await Promise.all([fetchLiveAuctionState(), onRefresh()])
       success('Stage reset to idle')
     } catch (err: unknown) {
       error(err instanceof Error ? err.message : 'Failed to reset stage to idle')
@@ -416,8 +434,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
       setIsPending(true)
       await auctionUndoLastSale(activeSeason.id)
       setIsUndoSaleConfirmOpen(false)
-      await fetchLiveAuctionState()
-      await onRefresh()
+      await Promise.all([fetchLiveAuctionState(), onRefresh()])
       success('Last sale reversed')
     } catch (err: unknown) {
       error(err instanceof Error ? err.message : 'Failed to undo last sale')
@@ -505,10 +522,10 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
                 role="tab"
                 aria-selected={isSelected}
                 onClick={() => setSelectedSportName(sport.name)}
-                className={`min-h-[48px] px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors flex items-center gap-2 ${
+                className={`min-h-[48px] px-4 py-2 rounded-lg text-xs sm:text-sm font-['DM_Sans',sans-serif] transition-colors flex items-center gap-2 ${
                   isSelected
-                    ? 'bg-btn-bg text-btn-fg font-semibold shadow-sm'
-                    : 'text-muted hover:text-text hover:bg-surface'
+                    ? 'bg-btn-bg text-btn-fg font-medium shadow-sm'
+                    : 'text-muted hover:text-text hover:bg-surface font-normal'
                 }`}
               >
                 <span>{sport.name}</span>
@@ -531,7 +548,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* 2. LEFT COLUMN: QUEUE */}
         <div className="lg:col-span-5 rounded-2xl bg-surface border border-border flex flex-col overflow-hidden shadow-sm">
-          <div className="p-4 sm:p-5 border-b border-border flex flex-col gap-3.5">
+          <div className="p-4 sm:p-5 border-b border-border flex flex-col gap-3.5 shrink-0 bg-surface z-10">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <Users size={18} className="text-accent-bright" weight="bold" />
@@ -545,10 +562,10 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
                 <button
                   type="button"
                   onClick={() => setQueueTab('queue')}
-                  className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-['DM_Sans',sans-serif] transition-colors ${
                     queueTab === 'queue'
-                      ? 'bg-surface text-text font-semibold border border-border shadow-sm'
-                      : 'text-muted hover:text-text'
+                      ? 'bg-surface text-text font-medium border border-border shadow-sm'
+                      : 'text-muted hover:text-text font-normal'
                   }`}
                 >
                   Queue ({queueAvailableOrUnsold.length})
@@ -556,10 +573,10 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
                 <button
                   type="button"
                   onClick={() => setQueueTab('sold')}
-                  className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-['DM_Sans',sans-serif] transition-colors ${
                     queueTab === 'sold'
-                      ? 'bg-surface text-text font-semibold border border-border shadow-sm'
-                      : 'text-muted hover:text-text'
+                      ? 'bg-surface text-text font-medium border border-border shadow-sm'
+                      : 'text-muted hover:text-text font-normal'
                   }`}
                 >
                   Sold ({queueSoldPlayers.length})
@@ -584,7 +601,13 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
           </div>
 
           {/* Queue Player List */}
-          <div className="divide-y divide-border max-h-[640px] overflow-y-auto">
+          <div
+            ref={queueListRef}
+            onScroll={(e) => {
+              queueScrollTopRef.current = e.currentTarget.scrollTop
+            }}
+            className="divide-y divide-border max-h-[50vh] lg:max-h-[60vh] overflow-y-auto overscroll-contain thin-scrollbar"
+          >
             {displayedQueuePlayers.length === 0 ? (
               <div className="p-10 text-center text-xs text-muted">
                 {queueTab === 'queue'
@@ -660,7 +683,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
                         size="lg"
                         disabled={isPending || isOnStage}
                         onClick={() => handleBringToStage(player)}
-                        className="shrink-0 min-h-[48px] px-4 text-xs"
+                        className="shrink-0 min-h-[48px] px-4 text-xs font-['DM_Sans',sans-serif] !font-normal"
                       >
                         {isOnStage ? 'On Stage' : 'Bring to stage'}
                       </Button>

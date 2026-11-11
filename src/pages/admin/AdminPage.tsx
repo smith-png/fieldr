@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { AdminLayout } from './AdminLayout'
 import { AdminDashboard } from './AdminDashboard'
 import { AdminSeasons } from './AdminSeasons'
@@ -7,16 +8,20 @@ import { AdminAuction } from './AdminAuction'
 import { AdminAthletes } from './AdminAthletes'
 import { AdminPlayers } from './AdminPlayers'
 import { AdminPurses } from './AdminPurses'
+import { AdminLogs } from './AdminLogs'
 import { AdminProjectorControl } from './AdminProjectorControl'
 import { AdminSetup } from './AdminSetup'
 import { Spinner } from '../../components/ui'
 import {
+  REALTIME_DEBOUNCE_MS,
   getPlayers,
   getProjectorState,
   getPurseTransactions,
   getSeasons,
   getSports,
   getTeams,
+  isRealtimeSuppressed,
+  markLocalMutation,
   setActiveSeason as apiSetActiveSeason,
   subscribeToPlayers,
   subscribeToProjector,
@@ -25,8 +30,38 @@ import {
 import type { AdminTab, Player, ProjectorState, PurseTransaction, Season, Sport, Team } from '../../types'
 
 export const AdminPage: React.FC = () => {
-  const [currentTab, setCurrentTab] = useState<AdminTab>('dashboard')
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  const [currentTab, setCurrentTab] = useState<AdminTab>(() =>
+    location.pathname === '/admin/logs' ? 'logs' : 'dashboard'
+  )
   const [isLoading, setIsLoading] = useState(true)
+  const hasLoadedOnceRef = useRef(false)
+  const latestLoadReqIdRef = useRef(0)
+  const isMountedRef = useRef(true)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (location.pathname === '/admin/logs') {
+      setCurrentTab('logs')
+    }
+  }, [location.pathname])
+
+  const handleSelectTab = (tab: AdminTab) => {
+    setCurrentTab(tab)
+    if (tab === 'logs' && location.pathname !== '/admin/logs') {
+      navigate('/admin/logs')
+    } else if (tab !== 'logs' && location.pathname === '/admin/logs') {
+      navigate('/admin')
+    }
+  }
 
   const [seasons, setSeasons] = useState<Season[]>([])
   const [activeSeason, setActiveSeason] = useState<Season | null>(null)
@@ -42,16 +77,17 @@ export const AdminPage: React.FC = () => {
     updated_at: new Date().toISOString()
   })
 
-  const loadAllData = async () => {
+  const loadAllData = useCallback(async () => {
+    const reqId = ++latestLoadReqIdRef.current
+    if (!hasLoadedOnceRef.current) {
+      setIsLoading(true)
+    }
+
     try {
-      const allSeasons = await getSeasons()
-      setSeasons(allSeasons)
+      const [allSeasons, allSports] = await Promise.all([getSeasons(), getSports()])
+      if (!isMountedRef.current || reqId !== latestLoadReqIdRef.current) return
 
       const active = allSeasons.find((s) => s.is_active) || allSeasons[0] || null
-      setActiveSeason(active)
-
-      const allSports = await getSports()
-      setSports(allSports)
 
       if (active) {
         const [allTeams, allPlayers, allTx, pState] = await Promise.all([
@@ -60,30 +96,67 @@ export const AdminPage: React.FC = () => {
           getPurseTransactions(active.id),
           getProjectorState(active.id)
         ])
+        if (!isMountedRef.current || reqId !== latestLoadReqIdRef.current) return
+
+        setSeasons(allSeasons)
+        setActiveSeason((prev) =>
+          prev &&
+          prev.id === active.id &&
+          prev.name === active.name &&
+          prev.is_active === active.is_active &&
+          prev.is_archived === active.is_archived &&
+          prev.start_date === active.start_date &&
+          prev.end_date === active.end_date &&
+          prev.description === active.description
+            ? prev
+            : active
+        )
+        setSports(allSports)
         setTeams(allTeams)
         setPlayers(allPlayers)
         setTransactions(allTx)
         setProjectorState(pState)
+      } else {
+        setSeasons(allSeasons)
+        setActiveSeason(null)
+        setSports(allSports)
       }
     } catch {
       // fallback
     } finally {
-      setIsLoading(false)
+      if (isMountedRef.current && reqId === latestLoadReqIdRef.current) {
+        hasLoadedOnceRef.current = true
+        setIsLoading(false)
+      }
     }
-  }
+  }, [])
 
   useEffect(() => {
     loadAllData()
 
-    // Listen for broadcast/storage changes in demo mode
+    let storageTimer: ReturnType<typeof setTimeout> | null = null
     const handleStorageChange = () => {
-      loadAllData()
+      if (
+        isRealtimeSuppressed('players') ||
+        isRealtimeSuppressed('athletes') ||
+        isRealtimeSuppressed('teams') ||
+        isRealtimeSuppressed('auction')
+      ) {
+        return
+      }
+      if (storageTimer) clearTimeout(storageTimer)
+      storageTimer = setTimeout(() => {
+        storageTimer = null
+        loadAllData()
+      }, REALTIME_DEBOUNCE_MS)
     }
+
     window.addEventListener('storage', handleStorageChange)
     return () => {
+      if (storageTimer) clearTimeout(storageTimer)
       window.removeEventListener('storage', handleStorageChange)
     }
-  }, [])
+  }, [loadAllData])
 
   useEffect(() => {
     if (!activeSeason?.id) return
@@ -108,6 +181,7 @@ export const AdminPage: React.FC = () => {
 
   const handleSwitchSeason = async (seasonId: string) => {
     try {
+      markLocalMutation(['players', 'teams', 'auction'])
       await apiSetActiveSeason(seasonId)
       await loadAllData()
     } catch {
@@ -127,7 +201,7 @@ export const AdminPage: React.FC = () => {
   return (
     <AdminLayout
       currentTab={currentTab}
-      onSelectTab={setCurrentTab}
+      onSelectTab={handleSelectTab}
       activeSeason={activeSeason}
       seasons={seasons}
       onSwitchSeason={handleSwitchSeason}
@@ -138,7 +212,7 @@ export const AdminPage: React.FC = () => {
           teams={teams}
           players={players}
           transactions={transactions}
-          onGoToTab={setCurrentTab}
+          onGoToTab={handleSelectTab}
         />
       )}
 
@@ -185,7 +259,7 @@ export const AdminPage: React.FC = () => {
           teams={teams}
           sports={sports}
           onRefresh={loadAllData}
-          onGoToTab={setCurrentTab}
+          onGoToTab={handleSelectTab}
         />
       )}
 
@@ -195,6 +269,13 @@ export const AdminPage: React.FC = () => {
           teams={teams}
           transactions={transactions}
           onRefresh={loadAllData}
+        />
+      )}
+
+      {currentTab === 'logs' && (
+        <AdminLogs
+          activeSeason={activeSeason}
+          teams={teams}
         />
       )}
 

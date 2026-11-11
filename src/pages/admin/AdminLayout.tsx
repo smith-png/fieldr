@@ -5,6 +5,7 @@ import {
   CaretLeft,
   CaretRight,
   ChartPieSlice,
+  ClockCounterClockwise,
   Coins,
   Gavel,
   Gear,
@@ -79,6 +80,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     { id: 'teams', label: 'Teams', icon: <ShieldCheck size={18} weight="bold" /> },
     { id: 'auction', label: 'Auction', icon: <Gavel size={18} weight="bold" /> },
     { id: 'purses', label: 'Purses', icon: <Coins size={18} weight="bold" /> },
+    { id: 'logs', label: 'Logs', icon: <ClockCounterClockwise size={18} weight="bold" /> },
     { id: 'seasons', label: 'Seasons', icon: <Calendar size={18} weight="bold" /> },
     { id: 'projector', label: 'Projector', icon: <ProjectorScreen size={18} weight="bold" /> },
     { id: 'setup', label: 'Setup', icon: <Gear size={18} weight="bold" /> }

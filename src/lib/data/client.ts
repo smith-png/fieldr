@@ -25,6 +25,31 @@ export function notifyChange(event: string, payload?: unknown): void {
   }
 }
 
+export const REALTIME_DEBOUNCE_MS = 500
+
+export type RealtimeScope = 'players' | 'athletes' | 'teams' | 'auction'
+
+const localMutationUntil: Record<RealtimeScope, number> = {
+  players: 0,
+  athletes: 0,
+  teams: 0,
+  auction: 0
+}
+
+export function markLocalMutation(
+  scopes: RealtimeScope[] = ['players', 'athletes', 'teams', 'auction'],
+  suppressMs = 1500
+): void {
+  const until = Date.now() + suppressMs
+  for (const scope of scopes) {
+    localMutationUntil[scope] = Math.max(localMutationUntil[scope] || 0, until)
+  }
+}
+
+export function isRealtimeSuppressed(scope: RealtimeScope): boolean {
+  return Date.now() < (localMutationUntil[scope] || 0)
+}
+
 export function formatAthleteCode(code: number | string | undefined | null): string {
   if (code === undefined || code === null) return '0001'
   if (typeof code === 'number') {

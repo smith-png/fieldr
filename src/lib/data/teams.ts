@@ -8,7 +8,10 @@ import {
   notifyChange,
   demoBroadcastChannel,
   STORAGE_KEYS,
-  DEFAULT_SPORTS
+  DEFAULT_SPORTS,
+  REALTIME_DEBOUNCE_MS,
+  markLocalMutation,
+  isRealtimeSuppressed
 } from './client'
 import type { TeamsService } from './types'
 import { getActiveSeason } from './seasons'
@@ -241,6 +244,7 @@ const demoTeamsService: TeamsService = {
       current_purse: teamData.starting_purse,
       created_at: new Date().toISOString()
     }
+    markLocalMutation(['teams', 'auction'])
     allTeams.push(newTeam)
     setLocal(STORAGE_KEYS.TEAMS, allTeams)
 
@@ -292,6 +296,7 @@ const demoTeamsService: TeamsService = {
       })
     }
 
+    markLocalMutation(['teams', 'auction'])
     allTeams.push(...created)
     setLocal(STORAGE_KEYS.TEAMS, allTeams)
     setLocal(STORAGE_KEYS.TRANSACTIONS, allTx)
@@ -305,6 +310,7 @@ const demoTeamsService: TeamsService = {
     if (index === -1) throw new AppError('Team not found')
 
     const updated = { ...allTeams[index], ...updates }
+    markLocalMutation(['teams', 'auction'])
     allTeams[index] = updated
     setLocal(STORAGE_KEYS.TEAMS, allTeams)
     notifyChange('teams_change')
@@ -315,6 +321,7 @@ const demoTeamsService: TeamsService = {
     const allTeams = getLocal<Team[]>(STORAGE_KEYS.TEAMS, [])
     const targetTeam = allTeams.find((t) => t.id === id)
     const filteredTeams = allTeams.filter((t) => t.id !== id)
+    markLocalMutation(['teams', 'players', 'auction'])
     setLocal(STORAGE_KEYS.TEAMS, filteredTeams)
 
     // Unassign all players belonging to this team
@@ -356,27 +363,51 @@ const demoTeamsService: TeamsService = {
   },
 
   subscribeToTeams(seasonId: string, callback: (teams: Team[]) => void): () => void {
-    const handleUpdate = () => {
-      demoTeamsService.getTeams(seasonId).then(callback).catch(() => {})
+    let active = true
+    let latestReqId = 0
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+    const runFetch = () => {
+      if (!active) return
+      const reqId = ++latestReqId
+      demoTeamsService
+        .getTeams(seasonId)
+        .then((res) => {
+          if (active && reqId === latestReqId) {
+            callback(res)
+          }
+        })
+        .catch(() => {})
+    }
+
+    const scheduleFetch = () => {
+      if (!active || isRealtimeSuppressed('teams')) return
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null
+        if (!active || isRealtimeSuppressed('teams')) return
+        runFetch()
+      }, REALTIME_DEBOUNCE_MS)
     }
 
     const handleBroadcast = (e: MessageEvent) => {
       if (e.data?.event === 'teams_change') {
-        handleUpdate()
+        scheduleFetch()
       }
     }
 
     const handleStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEYS.TEAMS) {
-        handleUpdate()
+        scheduleFetch()
       }
     }
 
     if (demoBroadcastChannel) demoBroadcastChannel.addEventListener('message', handleBroadcast)
     window.addEventListener('storage', handleStorage)
-    handleUpdate()
 
     return () => {
+      active = false
+      if (debounceTimer) clearTimeout(debounceTimer)
       if (demoBroadcastChannel) demoBroadcastChannel.removeEventListener('message', handleBroadcast)
       window.removeEventListener('storage', handleStorage)
     }
@@ -636,6 +667,7 @@ const supabaseTeamsService: TeamsService = {
   ): Promise<Team> {
     if (!supabase) throw new AppError('Supabase not configured')
 
+    markLocalMutation(['teams', 'auction'])
     const { data, error } = await supabase
       .from('teams')
       .insert([
@@ -661,12 +693,14 @@ const supabaseTeamsService: TeamsService = {
       }
     ])
 
+    markLocalMutation(['teams', 'auction'])
     return data as Team
   },
 
   async updateTeam(id: string, updates: Partial<Team>): Promise<Team> {
     if (!supabase) throw new AppError('Supabase not configured')
 
+    markLocalMutation(['teams', 'auction'])
     const { data, error } = await supabase
       .from('teams')
       .update(updates)
@@ -675,12 +709,14 @@ const supabaseTeamsService: TeamsService = {
       .single()
 
     if (error) throw new AppError(error.message, { original: error })
+    markLocalMutation(['teams', 'auction'])
     return data as Team
   },
 
   async deleteTeam(id: string): Promise<void> {
     if (!supabase) throw new AppError('Supabase not configured')
 
+    markLocalMutation(['teams', 'players', 'auction'])
     await supabase
       .from('players')
       .update({ team_id: null, status: 'available', purchase_price: null })
@@ -701,6 +737,7 @@ const supabaseTeamsService: TeamsService = {
 
     const { error } = await supabase.from('teams').delete().eq('id', id)
     if (error) throw new AppError(error.message, { original: error })
+    markLocalMutation(['teams', 'players', 'auction'])
   },
 
   async getPublicTeams(seasonId: string): Promise<PublicTeam[]> {
@@ -735,6 +772,7 @@ const supabaseTeamsService: TeamsService = {
       current_purse: td.starting_purse
     }))
 
+    markLocalMutation(['teams', 'auction'])
     const { data, error } = await supabase.from('teams').insert(inserts).select()
     if (error) throw new AppError(error.message, { original: error })
 
@@ -752,13 +790,39 @@ const supabaseTeamsService: TeamsService = {
       await supabase.from('purse_transactions').insert(txInserts)
     }
 
+    markLocalMutation(['teams', 'auction'])
     return createdTeams
   },
 
   subscribeToTeams(seasonId: string, callback: (teams: Team[]) => void): () => void {
     if (!supabase) return () => {}
 
-    supabaseTeamsService.getTeams(seasonId).then(callback).catch(() => {})
+    let active = true
+    let latestReqId = 0
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+    const runFetch = () => {
+      if (!active) return
+      const reqId = ++latestReqId
+      supabaseTeamsService
+        .getTeams(seasonId)
+        .then((res) => {
+          if (active && reqId === latestReqId) {
+            callback(res)
+          }
+        })
+        .catch(() => {})
+    }
+
+    const scheduleFetch = () => {
+      if (!active || isRealtimeSuppressed('teams')) return
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null
+        if (!active || isRealtimeSuppressed('teams')) return
+        runFetch()
+      }, REALTIME_DEBOUNCE_MS)
+    }
 
     const sbChannel = supabase
       .channel(`teams_${seasonId}`)
@@ -771,16 +835,14 @@ const supabaseTeamsService: TeamsService = {
           filter: `season_id=eq.${seasonId}`
         },
         () => {
-          supabaseTeamsService.getTeams(seasonId).then(callback).catch(() => {})
+          scheduleFetch()
         }
       )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          supabaseTeamsService.getTeams(seasonId).then(callback).catch(() => {})
-        }
-      })
+      .subscribe()
 
     return () => {
+      active = false
+      if (debounceTimer) clearTimeout(debounceTimer)
       if (supabase) {
         supabase.removeChannel(sbChannel)
       }

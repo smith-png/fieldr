@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   CheckCircle,
   MagnifyingGlass,
@@ -14,6 +14,7 @@ import {
   getAllAthletes,
   getPlayers,
   getRolesForSport,
+  markLocalMutation,
   parseAthleteCode,
   type BulkRegisterResult
 } from '../../lib/data'
@@ -53,6 +54,8 @@ export const BulkRegisterPanel: React.FC<BulkRegisterPanelProps> = ({
   const [athletes, setAthletes] = useState<Athlete[]>([])
   const [seasonPlayers, setSeasonPlayers] = useState<Player[]>([])
   const [isLoadingData, setIsLoadingData] = useState<boolean>(false)
+  const hasLoadedOnceRef = useRef(false)
+  const latestReqIdRef = useRef(0)
 
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [selectedYearChip, setSelectedYearChip] = useState<'All' | AcademicYear>('All')
@@ -64,22 +67,33 @@ export const BulkRegisterPanel: React.FC<BulkRegisterPanelProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false)
   const [summaryResult, setSummaryResult] = useState<BulkRegisterResult | null>(null)
 
+  const activeSeasonId = activeSeason?.id || null
+
   const loadPanelData = useCallback(async () => {
-    if (!activeSeason) return
+    if (!activeSeasonId) return
+    const reqId = ++latestReqIdRef.current
     try {
-      setIsLoadingData(true)
+      if (!hasLoadedOnceRef.current) {
+        setIsLoadingData(true)
+      }
       const [allAthletes, currentPlayers] = await Promise.all([
         getAllAthletes(),
-        getPlayers(activeSeason.id)
+        getPlayers(activeSeasonId)
       ])
+      if (reqId !== latestReqIdRef.current) return
+      hasLoadedOnceRef.current = true
       setAthletes(allAthletes)
       setSeasonPlayers(currentPlayers)
     } catch (err: unknown) {
-      showToast(getErrorMessage(err, 'Failed to load athletes for bulk registration'), 'error')
+      if (reqId === latestReqIdRef.current) {
+        showToast(getErrorMessage(err, 'Failed to load athletes for bulk registration'), 'error')
+      }
     } finally {
-      setIsLoadingData(false)
+      if (reqId === latestReqIdRef.current) {
+        setIsLoadingData(false)
+      }
     }
-  }, [activeSeason, showToast])
+  }, [activeSeasonId, showToast])
 
   // Initialize state when panel opens
   useEffect(() => {
@@ -264,6 +278,7 @@ export const BulkRegisterPanel: React.FC<BulkRegisterPanelProps> = ({
 
     try {
       setIsSubmitting(true)
+      markLocalMutation(['players', 'athletes', 'auction'])
       const result = await bulkRegisterPlayers({
         seasonId: activeSeason.id,
         sport,
@@ -284,6 +299,7 @@ export const BulkRegisterPanel: React.FC<BulkRegisterPanelProps> = ({
         )
       }
 
+      markLocalMutation(['players', 'athletes', 'auction'])
       onClose()
       await onSuccess()
     } catch (err: unknown) {

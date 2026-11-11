@@ -29,8 +29,8 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
       <div className="p-3 rounded-full bg-error/10 text-error mb-1">
         <WarningCircle size={28} weight="fill" />
       </div>
-      <h4 className="text-base font-bold text-text tracking-tight">{title}</h4>
-      <p className="text-xs text-muted max-w-md leading-relaxed">{displayMessage}</p>
+      <h4 className="text-base font-medium text-text tracking-normal leading-snug">{title}</h4>
+      <p className="text-xs font-normal text-muted max-w-md leading-relaxed">{displayMessage}</p>
       {onRetry && (
         <Button
           variant="secondary"

@@ -158,6 +158,17 @@ export interface PurseTransaction {
   created_by?: string
 }
 
+export interface ActivityLogEntry {
+  occurred_at: string
+  action: string
+  player_name?: string | null
+  team_name?: string | null
+  amount?: number | null
+  balance_after?: number | null
+  note?: string | null
+  actor?: string | null
+}
+
 export interface ProjectorState {
   season_id: string
   mode: ProjectorMode

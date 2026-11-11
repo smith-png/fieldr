@@ -7,10 +7,14 @@ import {
   getLocal,
   setLocal,
   notifyChange,
+  demoBroadcastChannel,
   STORAGE_KEYS,
   formatAthleteCode,
   parseAthleteCode,
-  getNextAthleteCode
+  getNextAthleteCode,
+  REALTIME_DEBOUNCE_MS,
+  markLocalMutation,
+  isRealtimeSuppressed
 } from './client'
 import { deletePlayerPhotoAssets } from './storage'
 import type { AthletesPagedParams, AthletesPagedResult, AthletesService } from './types'
@@ -190,6 +194,7 @@ const demoAthletesService: AthletesService = {
       entries_count: 0
     }
 
+    markLocalMutation(['athletes', 'players'])
     athletes.push(newAthlete)
     setLocal(STORAGE_KEYS.ATHLETES, athletes)
     notifyChange('athletes_change')
@@ -211,6 +216,7 @@ const demoAthletesService: AthletesService = {
       academic_year: safeUpdates.academic_year || athletes[index].academic_year || '1st'
     }
 
+    markLocalMutation(['athletes', 'players'])
     athletes[index] = updated
     setLocal(STORAGE_KEYS.ATHLETES, athletes)
 
@@ -259,6 +265,7 @@ const demoAthletesService: AthletesService = {
     const target = athletes.find((a) => a.id === id)
     if (!target) throw new AppError('Athlete not found')
 
+    markLocalMutation(['athletes', 'players'])
     await deletePlayerPhotoAssets(target.photo_url, target.photo_thumb_url)
 
     const remaining = athletes.filter((a) => a.id !== id)
@@ -583,6 +590,7 @@ const supabaseAthletesService: AthletesService = {
     if (!trimmedName) throw new AppError('Athlete name is required')
     if (!data.academic_year) throw new AppError('Academic year is required')
 
+    markLocalMutation(['athletes', 'players'])
     const { data: created, error } = await supabase
       .from('athletes')
       .insert([
@@ -599,6 +607,7 @@ const supabaseAthletesService: AthletesService = {
       .single()
 
     if (error) throw new AppError(error.message, { original: error })
+    markLocalMutation(['athletes', 'players'])
     return {
       ...(created as Athlete),
       entries_count: 0
@@ -633,6 +642,7 @@ const supabaseAthletesService: AthletesService = {
       payload.photo_thumb_url = rest.photo_thumb_url || null
     }
 
+    markLocalMutation(['athletes', 'players'])
     const { data: updated, error } = await supabase
       .from('athletes')
       .update(payload)
@@ -665,6 +675,7 @@ const supabaseAthletesService: AthletesService = {
       }
     }
 
+    markLocalMutation(['athletes', 'players'])
     return updated as Athlete
   },
 
@@ -688,6 +699,7 @@ const supabaseAthletesService: AthletesService = {
       .eq('id', id)
       .maybeSingle()
 
+    markLocalMutation(['athletes', 'players'])
     const { error } = await supabase.from('athletes').delete().eq('id', id)
     if (error) {
       if (error.code === '23503') {
@@ -698,6 +710,7 @@ const supabaseAthletesService: AthletesService = {
       throw new AppError(error.message, { original: error })
     }
 
+    markLocalMutation(['athletes', 'players'])
     if (athleteToDelete) {
       await deletePlayerPhotoAssets(
         athleteToDelete.photo_url,
@@ -710,6 +723,75 @@ const supabaseAthletesService: AthletesService = {
 export const athletesService: AthletesService = isDemoMode
   ? demoAthletesService
   : supabaseAthletesService
+
+export function subscribeToAthletes(onUpdate: () => void): () => void {
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null
+  let active = true
+
+  const scheduleUpdate = () => {
+    if (!active || isRealtimeSuppressed('athletes')) return
+    if (debounceTimer) clearTimeout(debounceTimer)
+    debounceTimer = setTimeout(() => {
+      debounceTimer = null
+      if (!active || isRealtimeSuppressed('athletes')) return
+      onUpdate()
+    }, REALTIME_DEBOUNCE_MS)
+  }
+
+  if (isDemoMode) {
+    const handleBroadcast = (e: MessageEvent) => {
+      if (e.data?.event === 'athletes_change' || e.data?.event === 'players_change') {
+        scheduleUpdate()
+      }
+    }
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEYS.ATHLETES || e.key === STORAGE_KEYS.PLAYERS) {
+        scheduleUpdate()
+      }
+    }
+    if (demoBroadcastChannel) demoBroadcastChannel.addEventListener('message', handleBroadcast)
+    window.addEventListener('storage', handleStorage)
+
+    return () => {
+      active = false
+      if (debounceTimer) clearTimeout(debounceTimer)
+      if (demoBroadcastChannel) demoBroadcastChannel.removeEventListener('message', handleBroadcast)
+      window.removeEventListener('storage', handleStorage)
+    }
+  }
+
+  if (!supabase) return () => {}
+
+  const channel = supabase
+    .channel('admin_athletes_realtime')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'athletes'
+      },
+      () => scheduleUpdate()
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'players'
+      },
+      () => scheduleUpdate()
+    )
+    .subscribe()
+
+  return () => {
+    active = false
+    if (debounceTimer) clearTimeout(debounceTimer)
+    if (supabase) {
+      supabase.removeChannel(channel)
+    }
+  }
+}
 
 export const getAllAthletes = () => athletesService.getAllAthletes()
 export const getAthletesPaged = (params: AthletesPagedParams) =>

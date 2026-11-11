@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { Archive, Calendar, Plus, Trash, WarningCircle } from '@phosphor-icons/react'
 import type { Season, SeasonDeletionCounts } from '../../types'
 import { createSeason, deleteSeason, getSeasonDeletionPreview, setActiveSeason } from '../../lib/data'
@@ -32,6 +32,7 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
   const [confirmationName, setConfirmationName] = useState('')
   const [isDeleting, setIsDeleting] = useState(false)
+  const previewReqIdRef = useRef(0)
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -81,19 +82,26 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
   const openDeleteDialog = async (season: Season) => {
     setSeasonToDelete(season)
     setConfirmationName('')
+    const reqId = ++previewReqIdRef.current
     setIsLoadingPreview(true)
     try {
       const counts = await getSeasonDeletionPreview(season.id)
-      setDeletionCounts(counts)
+      if (reqId === previewReqIdRef.current) {
+        setDeletionCounts(counts)
+      }
     } catch {
-      setDeletionCounts({
-        teams: 0,
-        players: 0,
-        purse_transactions: 0,
-        carousel_items: 0
-      })
+      if (reqId === previewReqIdRef.current) {
+        setDeletionCounts({
+          teams: 0,
+          players: 0,
+          purse_transactions: 0,
+          carousel_items: 0
+        })
+      }
     } finally {
-      setIsLoadingPreview(false)
+      if (reqId === previewReqIdRef.current) {
+        setIsLoadingPreview(false)
+      }
     }
   }
 

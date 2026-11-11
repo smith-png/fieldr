@@ -15,7 +15,10 @@ import {
   setLocal,
   notifyChange,
   demoBroadcastChannel,
-  STORAGE_KEYS
+  STORAGE_KEYS,
+  REALTIME_DEBOUNCE_MS,
+  markLocalMutation,
+  isRealtimeSuppressed
 } from './client'
 import type { AuctionService } from './types'
 
@@ -163,6 +166,7 @@ const demoAuctionService: AuctionService = {
       settings.season_id,
       settings as unknown as Record<string, unknown>
     )
+    markLocalMutation(['auction'])
     const allSettings = getLocal<Record<string, AuctionSettings>>(DEMO_AUCTION_SETTINGS_KEY, {})
     allSettings[settings.season_id] = normalized
     setLocal(DEMO_AUCTION_SETTINGS_KEY, allSettings)
@@ -175,15 +179,35 @@ const demoAuctionService: AuctionService = {
     seasonId: string,
     callback: (settings: AuctionSettings) => void
   ): () => void {
+    let active = true
+    let latestReqId = 0
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+    const scheduleFetch = () => {
+      if (!active || isRealtimeSuppressed('auction')) return
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null
+        if (!active || isRealtimeSuppressed('auction')) return
+        const reqId = ++latestReqId
+        demoAuctionService
+          .getAuctionSettings(seasonId)
+          .then((res) => {
+            if (active && reqId === latestReqId) callback(res)
+          })
+          .catch(() => {})
+      }, REALTIME_DEBOUNCE_MS)
+    }
+
     const handleBroadcast = (e: MessageEvent) => {
       if (e.data?.event === 'auction_settings_change' || e.data?.event === 'auction_change') {
-        demoAuctionService.getAuctionSettings(seasonId).then(callback).catch(() => {})
+        scheduleFetch()
       }
     }
 
     const handleStorage = (e: StorageEvent) => {
       if (e.key === DEMO_AUCTION_SETTINGS_KEY) {
-        demoAuctionService.getAuctionSettings(seasonId).then(callback).catch(() => {})
+        scheduleFetch()
       }
     }
 
@@ -191,6 +215,8 @@ const demoAuctionService: AuctionService = {
     window.addEventListener('storage', handleStorage)
 
     return () => {
+      active = false
+      if (debounceTimer) clearTimeout(debounceTimer)
       if (demoBroadcastChannel) demoBroadcastChannel.removeEventListener('message', handleBroadcast)
       window.removeEventListener('storage', handleStorage)
     }
@@ -229,6 +255,7 @@ const demoAuctionService: AuctionService = {
       sale_price: null,
       updated_at: new Date().toISOString()
     }
+    markLocalMutation(['auction'])
     setLocal(STORAGE_KEYS.PROJECTOR, nextState)
     notifyChange('projector_change', nextState)
   },
@@ -288,6 +315,7 @@ const demoAuctionService: AuctionService = {
       current_bid: amount,
       updated_at: new Date().toISOString()
     }
+    markLocalMutation(['auction'])
     setLocal(STORAGE_KEYS.PROJECTOR, nextState)
     notifyChange('projector_change', nextState)
     notifyChange('auction_change')
@@ -311,6 +339,7 @@ const demoAuctionService: AuctionService = {
       current_bid: null,
       updated_at: new Date().toISOString()
     }
+    markLocalMutation(['auction'])
     setLocal(STORAGE_KEYS.PROJECTOR, nextState)
     notifyChange('projector_change', nextState)
     notifyChange('auction_change')
@@ -381,6 +410,7 @@ const demoAuctionService: AuctionService = {
       updated_at: new Date().toISOString()
     }
 
+    markLocalMutation(['auction', 'players', 'teams'])
     setLocal(STORAGE_KEYS.TEAMS, teams)
     setLocal(STORAGE_KEYS.PLAYERS, players)
     setLocal(STORAGE_KEYS.TRANSACTIONS, allTx)
@@ -401,6 +431,7 @@ const demoAuctionService: AuctionService = {
 
     const players = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, [])
     const pIdx = players.findIndex((p) => p.id === state.player_id)
+    markLocalMutation(['auction', 'players'])
     if (pIdx !== -1) {
       players[pIdx] = {
         ...players[pIdx],
@@ -476,6 +507,7 @@ const demoAuctionService: AuctionService = {
       setLocal(STORAGE_KEYS.TRANSACTIONS, allTx)
     }
 
+    markLocalMutation(['auction', 'players', 'teams'])
     const state = getLocal<ProjectorState | null>(STORAGE_KEYS.PROJECTOR, null)
     if (state && state.season_id === seasonId && state.player_id === newest.player_id && state.mode === 'sold') {
       const nextState: ProjectorState = {
@@ -508,6 +540,7 @@ const demoAuctionService: AuctionService = {
       current_bid: null,
       updated_at: new Date().toISOString()
     }
+    markLocalMutation(['auction'])
     setLocal(STORAGE_KEYS.PROJECTOR, nextState)
     notifyChange('projector_change', nextState)
     notifyChange('auction_change')
@@ -515,6 +548,19 @@ const demoAuctionService: AuctionService = {
   },
 
   subscribeToAuctionRealtime(_seasonId: string, onUpdate: () => void): () => void {
+    let active = true
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+    const scheduleUpdate = () => {
+      if (!active || isRealtimeSuppressed('auction')) return
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null
+        if (!active || isRealtimeSuppressed('auction')) return
+        onUpdate()
+      }, REALTIME_DEBOUNCE_MS)
+    }
+
     const handleBroadcast = (e: MessageEvent) => {
       if (
         e.data?.event === 'projector_change' ||
@@ -523,7 +569,7 @@ const demoAuctionService: AuctionService = {
         e.data?.event === 'auction_change' ||
         e.data?.event === 'auction_settings_change'
       ) {
-        onUpdate()
+        scheduleUpdate()
       }
     }
 
@@ -536,7 +582,7 @@ const demoAuctionService: AuctionService = {
         e.key === DEMO_AUCTION_SALES_KEY ||
         e.key === DEMO_AUCTION_SETTINGS_KEY
       ) {
-        onUpdate()
+        scheduleUpdate()
       }
     }
 
@@ -544,6 +590,8 @@ const demoAuctionService: AuctionService = {
     window.addEventListener('storage', handleStorage)
 
     return () => {
+      active = false
+      if (debounceTimer) clearTimeout(debounceTimer)
       if (demoBroadcastChannel) demoBroadcastChannel.removeEventListener('message', handleBroadcast)
       window.removeEventListener('storage', handleStorage)
     }
@@ -601,6 +649,7 @@ const supabaseAuctionService: AuctionService = {
       catchup_window_seconds: Math.round(Number(settings.catchup_window_seconds))
     }
 
+    markLocalMutation(['auction'])
     const { data, error } = await supabase
       .from('auction_settings')
       .upsert(payload, { onConflict: 'season_id' })
@@ -612,6 +661,7 @@ const supabaseAuctionService: AuctionService = {
       throw new AppError(error.message, { original: error })
     }
 
+    markLocalMutation(['auction'])
     return normalizeAuctionSettings(settings.season_id, data as Record<string, unknown>)
   },
 
@@ -620,6 +670,30 @@ const supabaseAuctionService: AuctionService = {
     callback: (settings: AuctionSettings) => void
   ): () => void {
     if (!supabase || !seasonId) return () => {}
+
+    let active = true
+    let latestReqId = 0
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+    const scheduleCallback = (raw?: Record<string, unknown>) => {
+      if (!active || isRealtimeSuppressed('auction')) return
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null
+        if (!active || isRealtimeSuppressed('auction')) return
+        if (raw && Object.keys(raw).length > 0) {
+          callback(normalizeAuctionSettings(seasonId, raw))
+        } else {
+          const reqId = ++latestReqId
+          supabaseAuctionService
+            .getAuctionSettings(seasonId)
+            .then((res) => {
+              if (active && reqId === latestReqId) callback(res)
+            })
+            .catch(() => {})
+        }
+      }, REALTIME_DEBOUNCE_MS)
+    }
 
     const channel = supabase
       .channel(`auction_settings_${seasonId}`)
@@ -632,20 +706,24 @@ const supabaseAuctionService: AuctionService = {
           filter: `season_id=eq.${seasonId}`
         },
         (payload) => {
-          if (payload.new && Object.keys(payload.new).length > 0) {
-            callback(normalizeAuctionSettings(seasonId, payload.new as Record<string, unknown>))
-          } else {
-            supabaseAuctionService.getAuctionSettings(seasonId).then(callback).catch(() => {})
-          }
+          scheduleCallback(payload.new as Record<string, unknown> | undefined)
         }
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          supabaseAuctionService.getAuctionSettings(seasonId).then(callback).catch(() => {})
+          const reqId = ++latestReqId
+          supabaseAuctionService
+            .getAuctionSettings(seasonId)
+            .then((res) => {
+              if (active && reqId === latestReqId) callback(res)
+            })
+            .catch(() => {})
         }
       })
 
     return () => {
+      active = false
+      if (debounceTimer) clearTimeout(debounceTimer)
       if (supabase) {
         supabase.removeChannel(channel)
       }
@@ -713,6 +791,7 @@ const supabaseAuctionService: AuctionService = {
 
   async auctionBringToStage(playerId: string): Promise<void> {
     if (!supabase) throw new AppError('Supabase not configured')
+    markLocalMutation(['auction'])
     const { error } = await supabase.rpc('auction_bring_to_stage', {
       p_player_id: playerId
     })
@@ -720,10 +799,12 @@ const supabaseAuctionService: AuctionService = {
       console.error('Supabase auction_bring_to_stage error:', error.message, error)
       throw new AppError(error.message, { original: error })
     }
+    markLocalMutation(['auction'])
   },
 
   async auctionPlaceBid(teamId: string, amount: number): Promise<void> {
     if (!supabase) throw new AppError('Supabase not configured')
+    markLocalMutation(['auction'])
     const { error } = await supabase.rpc('auction_place_bid', {
       p_team_id: teamId,
       p_amount: amount
@@ -732,10 +813,12 @@ const supabaseAuctionService: AuctionService = {
       console.error('Supabase auction_place_bid error:', error.message, error)
       throw new AppError(error.message, { original: error })
     }
+    markLocalMutation(['auction'])
   },
 
   async auctionClearBid(seasonId: string): Promise<void> {
     if (!supabase) throw new AppError('Supabase not configured')
+    markLocalMutation(['auction'])
     const { error } = await supabase.rpc('auction_clear_bid', {
       p_season_id: seasonId
     })
@@ -743,10 +826,12 @@ const supabaseAuctionService: AuctionService = {
       console.error('Supabase auction_clear_bid error:', error.message, error)
       throw new AppError(error.message, { original: error })
     }
+    markLocalMutation(['auction'])
   },
 
   async auctionSecure(seasonId: string): Promise<void> {
     if (!supabase) throw new AppError('Supabase not configured')
+    markLocalMutation(['auction', 'players', 'teams'])
     const { error } = await supabase.rpc('auction_secure', {
       p_season_id: seasonId
     })
@@ -754,10 +839,12 @@ const supabaseAuctionService: AuctionService = {
       console.error('Supabase auction_secure error:', error.message, error)
       throw new AppError(error.message, { original: error })
     }
+    markLocalMutation(['auction', 'players', 'teams'])
   },
 
   async auctionMarkUnsold(seasonId: string): Promise<void> {
     if (!supabase) throw new AppError('Supabase not configured')
+    markLocalMutation(['auction', 'players'])
     const { error } = await supabase.rpc('auction_mark_unsold', {
       p_season_id: seasonId
     })
@@ -765,10 +852,12 @@ const supabaseAuctionService: AuctionService = {
       console.error('Supabase auction_mark_unsold error:', error.message, error)
       throw new AppError(error.message, { original: error })
     }
+    markLocalMutation(['auction', 'players'])
   },
 
   async auctionUndoLastSale(seasonId: string): Promise<void> {
     if (!supabase) throw new AppError('Supabase not configured')
+    markLocalMutation(['auction', 'players', 'teams'])
     const { error } = await supabase.rpc('auction_undo_last_sale', {
       p_season_id: seasonId
     })
@@ -776,6 +865,7 @@ const supabaseAuctionService: AuctionService = {
       console.error('Supabase auction_undo_last_sale error:', error.message, error)
       throw new AppError(error.message, { original: error })
     }
+    markLocalMutation(['auction', 'players', 'teams'])
   },
 
   async auctionBackToIdle(seasonId: string): Promise<ProjectorState> {
@@ -790,6 +880,7 @@ const supabaseAuctionService: AuctionService = {
       updated_at: new Date().toISOString()
     }
 
+    markLocalMutation(['auction'])
     const { data, error } = await supabase
       .from('projector_state')
       .upsert(payload)
@@ -801,11 +892,25 @@ const supabaseAuctionService: AuctionService = {
       throw new AppError(error.message, { original: error })
     }
 
+    markLocalMutation(['auction'])
     return data as ProjectorState
   },
 
   subscribeToAuctionRealtime(seasonId: string, onUpdate: () => void): () => void {
     if (!supabase || !seasonId) return () => {}
+
+    let active = true
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+    const scheduleUpdate = () => {
+      if (!active || isRealtimeSuppressed('auction')) return
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null
+        if (!active || isRealtimeSuppressed('auction')) return
+        onUpdate()
+      }, REALTIME_DEBOUNCE_MS)
+    }
 
     const channel = supabase
       .channel(`admin_auction_live_${seasonId}`)
@@ -817,7 +922,7 @@ const supabaseAuctionService: AuctionService = {
           table: 'projector_state',
           filter: `season_id=eq.${seasonId}`
         },
-        () => onUpdate()
+        () => scheduleUpdate()
       )
       .on(
         'postgres_changes',
@@ -827,7 +932,7 @@ const supabaseAuctionService: AuctionService = {
           table: 'players',
           filter: `season_id=eq.${seasonId}`
         },
-        () => onUpdate()
+        () => scheduleUpdate()
       )
       .on(
         'postgres_changes',
@@ -837,7 +942,7 @@ const supabaseAuctionService: AuctionService = {
           table: 'teams',
           filter: `season_id=eq.${seasonId}`
         },
-        () => onUpdate()
+        () => scheduleUpdate()
       )
       .on(
         'postgres_changes',
@@ -846,7 +951,7 @@ const supabaseAuctionService: AuctionService = {
           schema: 'public',
           table: 'auction_bids'
         },
-        () => onUpdate()
+        () => scheduleUpdate()
       )
       .on(
         'postgres_changes',
@@ -855,7 +960,7 @@ const supabaseAuctionService: AuctionService = {
           schema: 'public',
           table: 'auction_sales'
         },
-        () => onUpdate()
+        () => scheduleUpdate()
       )
       .on(
         'postgres_changes',
@@ -865,15 +970,13 @@ const supabaseAuctionService: AuctionService = {
           table: 'auction_settings',
           filter: `season_id=eq.${seasonId}`
         },
-        () => onUpdate()
+        () => scheduleUpdate()
       )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          onUpdate()
-        }
-      })
+      .subscribe()
 
     return () => {
+      active = false
+      if (debounceTimer) clearTimeout(debounceTimer)
       if (supabase) {
         supabase.removeChannel(channel)
       }

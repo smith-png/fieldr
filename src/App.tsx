@@ -77,6 +77,14 @@ export default function App() {
                   }
                 />
                 <Route
+                  path="/admin/logs"
+                  element={
+                    <RouteGuard allowedRoles={['admin']}>
+                      <AdminPage />
+                    </RouteGuard>
+                  }
+                />
+                <Route
                   path="/projector"
                   element={
                     <RouteGuard allowedRoles={['admin', 'projector']}>

@@ -32,19 +32,19 @@ export const Pagination: React.FC<PaginationProps> = ({
         {totalCount !== undefined && pageSize !== undefined ? (
           <span>
             Showing{' '}
-            <span className="text-text font-bold">
+            <span className="text-text font-medium">
               {totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1}
             </span>
             -
-            <span className="text-text font-bold">
+            <span className="text-text font-medium">
               {Math.min(currentPage * pageSize, totalCount)}
             </span>{' '}
-            of <span className="text-text font-bold">{totalCount}</span>
+            of <span className="text-text font-medium">{totalCount}</span>
           </span>
         ) : (
           totalCount !== undefined && (
             <span>
-              Total: <span className="text-text font-bold">{totalCount}</span>
+              Total: <span className="text-text font-medium">{totalCount}</span>
             </span>
           )
         )}
@@ -52,8 +52,8 @@ export const Pagination: React.FC<PaginationProps> = ({
 
       <div className="flex items-center gap-3">
         <span className="text-[11px]">
-          Page <span className="text-text font-bold">{currentPage}</span> of{' '}
-          <span className="text-text font-bold">{safeTotalPages}</span>
+          Page <span className="text-text font-medium">{currentPage}</span> of{' '}
+          <span className="text-text font-medium">{safeTotalPages}</span>
         </span>
 
         <div className="flex items-center gap-1">

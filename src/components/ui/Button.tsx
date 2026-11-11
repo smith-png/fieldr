@@ -15,15 +15,15 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    'bg-btn-bg text-btn-fg hover:opacity-90 active:scale-[0.98] font-semibold shadow-sm',
+    'bg-btn-bg text-btn-fg hover:opacity-90 active:scale-[0.98] font-medium tracking-normal leading-normal shadow-sm',
   secondary:
-    'bg-surface-2 text-text hover:bg-surface border border-border active:scale-[0.98] font-medium',
+    'bg-surface-2 text-text hover:bg-surface border border-border active:scale-[0.98] font-normal tracking-normal leading-normal',
   outline:
-    'bg-transparent text-text border border-border hover:bg-surface-2 active:scale-[0.98] font-medium',
+    'bg-transparent text-text border border-border hover:bg-surface-2 active:scale-[0.98] font-normal tracking-normal leading-normal',
   ghost:
-    'bg-transparent text-muted hover:text-text hover:bg-surface-2 active:scale-[0.98] font-medium',
+    'bg-transparent text-muted hover:text-text hover:bg-surface-2 active:scale-[0.98] font-normal tracking-normal leading-normal',
   danger:
-    'bg-error text-white hover:opacity-90 active:scale-[0.98] font-semibold shadow-sm'
+    'bg-error text-white hover:opacity-90 active:scale-[0.98] font-normal tracking-normal leading-normal shadow-sm'
 }
 
 const sizeStyles: Record<ButtonSize, string> = {
@@ -49,12 +49,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     const isDisabled = disabled || isLoading
+    const iconWeight = variant === 'primary' ? 'bold' : 'regular'
 
     return (
       <button
         ref={ref}
         disabled={isDisabled}
-        className={`inline-flex items-center justify-center transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright disabled:opacity-40 disabled:pointer-events-none disabled:active:scale-100 ${
+        className={`inline-flex items-center justify-center font-sans transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright disabled:opacity-40 disabled:pointer-events-none disabled:active:scale-100 ${
           variantStyles[variant]
         } ${sizeStyles[size]} ${className}`}
         {...props}
@@ -62,11 +63,11 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         {isLoading ? (
           <Spinner size={size === 'sm' ? 'sm' : 'md'} />
         ) : (
-          LeftIcon && <LeftIcon size={size === 'sm' ? 14 : 18} weight="bold" />
+          LeftIcon && <LeftIcon size={size === 'sm' ? 14 : 18} weight={iconWeight} />
         )}
         {children}
         {!isLoading && RightIcon && (
-          <RightIcon size={size === 'sm' ? 14 : 18} weight="bold" />
+          <RightIcon size={size === 'sm' ? 14 : 18} weight={iconWeight} />
         )}
       </button>
     )

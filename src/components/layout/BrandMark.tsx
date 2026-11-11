@@ -57,7 +57,7 @@ export const BrandMark: React.FC<BrandMarkProps> = ({
             Fieldr
           </span>
           <span
-            className={`font-medium tracking-wider text-muted uppercase ${
+            className={`font-normal tracking-wider text-muted uppercase ${
               isSmall ? 'text-[9px] mt-0.5' : 'text-[11px] mt-1'
             }`}
           >

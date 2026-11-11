@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowsLeftRight,
@@ -29,7 +29,9 @@ import {
   getPlayers,
   getPlayersPaged,
   getRolesForSport,
+  markLocalMutation,
   searchAthletes,
+  subscribeToAthletes,
   unassignPlayerFromTeam,
   updatePlayer
 } from '../../lib/data'
@@ -65,7 +67,20 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
   const [totalCount, setTotalCount] = useState(0)
   const [pagedPlayers, setPagedPlayers] = useState<Player[]>([])
   const [seasonPlayersList, setSeasonPlayersList] = useState<Player[]>(players)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+
+  const activeSeasonId = activeSeason?.id || null
+  const loadedSeasonIdRef = useRef<string | null>(null)
+  const latestReqIdRef = useRef(0)
+  const latestSeasonReqIdRef = useRef(0)
+  const isMountedRef = useRef(true)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('')
@@ -74,6 +89,11 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
   const [selectedRole, setSelectedRole] = useState<string>('all')
   const [filterSportRoles, setFilterSportRoles] = useState<string[]>([])
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
+  const prevFiltersRef = useRef({
+    sport: 'all',
+    role: 'all',
+    status: 'all'
+  })
 
   // Modals & Drawers
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
@@ -114,14 +134,17 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
   }, [players])
 
   const refreshSeasonPlayers = useCallback(async () => {
-    if (!activeSeason) return
+    if (!activeSeasonId) return
+    const reqId = ++latestSeasonReqIdRef.current
     try {
-      const all = await getPlayers(activeSeason.id)
-      setSeasonPlayersList(all)
+      const all = await getPlayers(activeSeasonId)
+      if (isMountedRef.current && reqId === latestSeasonReqIdRef.current) {
+        setSeasonPlayersList(all)
+      }
     } catch {
       // ignore
     }
-  }, [activeSeason])
+  }, [activeSeasonId])
 
   const isAthleteRegisteredForSport = useCallback(
     (athleteId: string | undefined, athleteCode: number | undefined, targetSport: string): boolean => {
@@ -218,13 +241,12 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
 
     try {
       setIsImporting(true)
+      markLocalMutation(['players', 'athletes', 'auction'])
       await bulkCreatePlayers(validRows)
       showToast(`Imported ${validRows.length} players successfully`, 'success')
       setIsCsvModalOpen(false)
       setCsvRows([])
-      await loadPagedPlayers()
-      await refreshSeasonPlayers()
-      await onRefresh()
+      await Promise.all([loadPagedPlayers(), onRefresh()])
     } catch (err: unknown) {
       showToast(getErrorMessage(err, 'Import failed'), 'error')
     } finally {
@@ -249,18 +271,32 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
     [showToast]
   )
 
-  // Debounce main table search query by 300ms
+  // Debounce main table search query by 300ms; only reset page when search text actually changes
   useEffect(() => {
+    const trimmed = searchQuery.trim()
+    if (trimmed === debouncedSearch) return
     const handler = setTimeout(() => {
-      setDebouncedSearch(searchQuery.trim())
+      setDebouncedSearch(trimmed)
       setCurrentPage(1)
     }, 300)
     return () => clearTimeout(handler)
-  }, [searchQuery])
+  }, [searchQuery, debouncedSearch])
 
-  // Reset page when sport, role or status filter changes
+  // Reset page only when sport, role or status filter actually changes
   useEffect(() => {
-    setCurrentPage(1)
+    const prev = prevFiltersRef.current
+    if (
+      prev.sport !== selectedSport ||
+      prev.role !== selectedRole ||
+      prev.status !== selectedStatus
+    ) {
+      prevFiltersRef.current = {
+        sport: selectedSport,
+        role: selectedRole,
+        status: selectedStatus
+      }
+      setCurrentPage(1)
+    }
   }, [selectedSport, selectedRole, selectedStatus])
 
   // Load filter roles when selectedSport changes
@@ -286,13 +322,20 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
     }
   }, [selectedSport, sports])
 
-  // Load paged players
+  // Load paged players: show skeleton ONLY on first load or when activeSeasonId changes
   const loadPagedPlayers = useCallback(async () => {
-    if (!activeSeason) return
+    if (!activeSeasonId) {
+      setIsLoading(false)
+      return
+    }
+    const reqId = ++latestReqIdRef.current
+    const isInitialOrSeasonSwitch = loadedSeasonIdRef.current !== activeSeasonId
     try {
-      setIsLoading(true)
+      if (isInitialOrSeasonSwitch) {
+        setIsLoading(true)
+      }
       const res = await getPlayersPaged({
-        seasonId: activeSeason.id,
+        seasonId: activeSeasonId,
         page: currentPage,
         pageSize,
         sport: selectedSport === 'all' ? undefined : selectedSport,
@@ -300,19 +343,46 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
         status: selectedStatus === 'all' ? undefined : (selectedStatus as PlayerStatus),
         search: debouncedSearch || undefined
       })
+      if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
+      loadedSeasonIdRef.current = activeSeasonId
       setPagedPlayers(res.players)
       setTotalPages(res.totalPages)
       setTotalCount(res.totalCount)
     } catch (err: unknown) {
-      showToast(getErrorMessage(err, 'Failed to load players'), 'error')
+      if (isMountedRef.current && reqId === latestReqIdRef.current) {
+        showToast(getErrorMessage(err, 'Failed to load players'), 'error')
+      }
     } finally {
-      setIsLoading(false)
+      if (isMountedRef.current && reqId === latestReqIdRef.current) {
+        setIsLoading(false)
+      }
     }
-  }, [activeSeason, currentPage, pageSize, selectedSport, selectedRole, selectedStatus, debouncedSearch, showToast])
+  }, [
+    activeSeasonId,
+    currentPage,
+    pageSize,
+    selectedSport,
+    selectedRole,
+    selectedStatus,
+    debouncedSearch,
+    showToast
+  ])
 
   useEffect(() => {
     loadPagedPlayers()
   }, [loadPagedPlayers])
+
+  // Debounced (500ms) realtime subscription for external changes; cancelled on unmount
+  useEffect(() => {
+    if (!activeSeasonId) return
+    const unsubscribe = subscribeToAthletes(() => {
+      loadPagedPlayers()
+      refreshSeasonPlayers()
+    })
+    return () => {
+      unsubscribe()
+    }
+  }, [activeSeasonId, loadPagedPlayers, refreshSeasonPlayers])
 
   // Available roles for currently selected form sport loaded from shared helper
   const [availableRoles, setAvailableRoles] = useState<string[]>([])
@@ -414,10 +484,9 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
         })
         showToast('Player registered', 'success')
       }
+      markLocalMutation(['players', 'athletes', 'auction'])
       setIsDrawerOpen(false)
-      await loadPagedPlayers()
-      await refreshSeasonPlayers()
-      await onRefresh()
+      await Promise.all([loadPagedPlayers(), onRefresh()])
     } catch (err: unknown) {
       showToast(getErrorMessage(err, 'Failed to save player'), 'error')
     } finally {
@@ -429,12 +498,11 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
   const handleDeletePlayer = async () => {
     if (!deleteConfirmPlayer) return
     try {
+      markLocalMutation(['players', 'athletes', 'auction'])
       await deletePlayer(deleteConfirmPlayer.id)
       showToast('Player entry removed', 'success')
       setDeleteConfirmPlayer(null)
-      await loadPagedPlayers()
-      await refreshSeasonPlayers()
-      await onRefresh()
+      await Promise.all([loadPagedPlayers(), onRefresh()])
     } catch (err: unknown) {
       showToast(getErrorMessage(err, 'Failed to delete player'), 'error')
     }
@@ -447,14 +515,13 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
 
     const priceNum = assignPrice ? parseInt(assignPrice, 10) : undefined
     try {
+      markLocalMutation(['players', 'teams', 'auction'])
       await assignPlayerToTeam(assignmentPlayer.id, assignTeamId, priceNum)
       showToast('Player assigned to team', 'success')
       setAssignmentPlayer(null)
       setAssignTeamId('')
       setAssignPrice('')
-      await loadPagedPlayers()
-      await refreshSeasonPlayers()
-      await onRefresh()
+      await Promise.all([loadPagedPlayers(), onRefresh()])
     } catch (err: unknown) {
       showToast(getErrorMessage(err, 'Assignment failed'), 'error')
     }
@@ -464,12 +531,11 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
   const handleExecuteUnassign = async () => {
     if (!assignmentPlayer) return
     try {
+      markLocalMutation(['players', 'teams', 'auction'])
       await unassignPlayerFromTeam(assignmentPlayer.id, unassignRefund)
       showToast('Player unassigned and returned to available pool', 'success')
       setAssignmentPlayer(null)
-      await loadPagedPlayers()
-      await refreshSeasonPlayers()
-      await onRefresh()
+      await Promise.all([loadPagedPlayers(), onRefresh()])
     } catch (err: unknown) {
       showToast(getErrorMessage(err, 'Unassignment failed'), 'error')
     }
@@ -689,14 +755,14 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="border-b border-border bg-surface-2 text-muted font-mono uppercase tracking-wider text-[11px]">
-                <th className="py-3 px-4">ID</th>
-                <th className="py-3 px-4">Name</th>
-                <th className="py-3 px-4">Sport</th>
-                <th className="py-3 px-4">Role</th>
-                <th className="py-3 px-4">Year</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4">Team</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+                <th className="py-3 px-4 font-normal">ID</th>
+                <th className="py-3 px-4 font-normal">Name</th>
+                <th className="py-3 px-4 font-normal">Sport</th>
+                <th className="py-3 px-4 font-normal">Role</th>
+                <th className="py-3 px-4 font-normal">Year</th>
+                <th className="py-3 px-4 font-normal">Status</th>
+                <th className="py-3 px-4 font-normal">Team</th>
+                <th className="py-3 px-4 font-normal text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -1128,9 +1194,8 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
         activeSeason={activeSeason}
         sports={sports}
         onSuccess={async () => {
-          await loadPagedPlayers()
-          await refreshSeasonPlayers()
-          await onRefresh()
+          markLocalMutation(['players', 'athletes', 'auction'])
+          await Promise.all([loadPagedPlayers(), onRefresh()])
         }}
         onCreateNewAthlete={
           onGoToTab
@@ -1377,11 +1442,11 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
             <table className="w-full text-left text-xs">
               <thead className="bg-surface-2 text-muted font-mono uppercase text-[10px] sticky top-0">
                 <tr>
-                  <th className="p-2.5">Athlete Code</th>
-                  <th className="p-2.5">Name</th>
-                  <th className="p-2.5">Sport</th>
-                  <th className="p-2.5">Role</th>
-                  <th className="p-2.5">Validation</th>
+                  <th className="p-2.5 font-normal">Athlete Code</th>
+                  <th className="p-2.5 font-normal">Name</th>
+                  <th className="p-2.5 font-normal">Sport</th>
+                  <th className="p-2.5 font-normal">Role</th>
+                  <th className="p-2.5 font-normal">Validation</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">

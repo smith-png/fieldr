@@ -19,6 +19,8 @@ import {
   getAthleteById,
   getAthleteEntries,
   getAthletesPaged,
+  markLocalMutation,
+  subscribeToAthletes,
   updateAthlete,
   uploadPlayerPhotos
 } from '../../lib/data'
@@ -48,13 +50,19 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
   const [totalPages, setTotalPages] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
   const [athletes, setAthletes] = useState<Athlete[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const hasLoadedOnceRef = useRef(false)
+  const latestReqIdRef = useRef(0)
+  const detailReqIdRef = useRef(0)
+  const isMountedRef = useRef(true)
 
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
 
   // Detail View state
   const [selectedAthlete, setSelectedAthlete] = useState<Athlete | null>(null)
+  const selectedAthleteRef = useRef<Athlete | null>(null)
+  selectedAthleteRef.current = selectedAthlete
   const [athleteEntries, setAthleteEntries] = useState<AthleteCareerEntry[]>([])
   const [isLoadingDetail, setIsLoadingDetail] = useState(false)
 
@@ -78,30 +86,48 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
   // Register to sport panel state (single-athlete case of BulkRegisterPanel)
   const [isRegisterToSportOpen, setIsRegisterToSportOpen] = useState(false)
 
-  // Debounce search input by 300ms
   useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  // Debounce search input by 300ms; only reset page when search text actually changes
+  useEffect(() => {
+    const trimmed = searchQuery.trim()
+    if (trimmed === debouncedSearch) return
     const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery.trim())
+      setDebouncedSearch(trimmed)
       setCurrentPage(1)
     }, 300)
     return () => clearTimeout(timer)
-  }, [searchQuery])
+  }, [searchQuery, debouncedSearch])
 
   const loadAthletes = useCallback(async () => {
+    const reqId = ++latestReqIdRef.current
     try {
-      setIsLoading(true)
+      if (!hasLoadedOnceRef.current) {
+        setIsLoading(true)
+      }
       const res = await getAthletesPaged({
         page: currentPage,
         pageSize,
         search: debouncedSearch || undefined
       })
+      if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
+      hasLoadedOnceRef.current = true
       setAthletes(res.athletes)
       setTotalPages(res.totalPages)
       setTotalCount(res.totalCount)
     } catch (err: unknown) {
-      showToast(getErrorMessage(err, 'Failed to load athletes'), 'error')
+      if (isMountedRef.current && reqId === latestReqIdRef.current) {
+        showToast(getErrorMessage(err, 'Failed to load athletes'), 'error')
+      }
     } finally {
-      setIsLoading(false)
+      if (isMountedRef.current && reqId === latestReqIdRef.current) {
+        setIsLoading(false)
+      }
     }
   }, [currentPage, pageSize, debouncedSearch, showToast])
 
@@ -109,24 +135,50 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
     loadAthletes()
   }, [loadAthletes])
 
-  const openAthleteDetail = async (athlete: Athlete) => {
-    setSelectedAthlete(athlete)
-    try {
-      setIsLoadingDetail(true)
-      const [freshProfile, entries] = await Promise.all([
-        getAthleteById(athlete.id),
-        getAthleteEntries(athlete.id)
-      ])
-      if (freshProfile) {
-        setSelectedAthlete(freshProfile)
+  const openAthleteDetail = useCallback(
+    async (athlete: Athlete, options?: { silent?: boolean }) => {
+      const isSameAthlete = selectedAthleteRef.current?.id === athlete.id
+      const showSkeleton = !options?.silent && !isSameAthlete
+      setSelectedAthlete(athlete)
+      const reqId = ++detailReqIdRef.current
+      try {
+        if (showSkeleton) {
+          setIsLoadingDetail(true)
+        }
+        const [freshProfile, entries] = await Promise.all([
+          getAthleteById(athlete.id),
+          getAthleteEntries(athlete.id)
+        ])
+        if (!isMountedRef.current || reqId !== detailReqIdRef.current) return
+        if (freshProfile) {
+          setSelectedAthlete(freshProfile)
+        }
+        setAthleteEntries(entries)
+      } catch (err: unknown) {
+        if (isMountedRef.current && reqId === detailReqIdRef.current) {
+          showToast(getErrorMessage(err, 'Failed to load athlete details'), 'error')
+        }
+      } finally {
+        if (isMountedRef.current && reqId === detailReqIdRef.current) {
+          setIsLoadingDetail(false)
+        }
       }
-      setAthleteEntries(entries)
-    } catch (err: unknown) {
-      showToast(getErrorMessage(err, 'Failed to load athlete details'), 'error')
-    } finally {
-      setIsLoadingDetail(false)
+    },
+    [showToast]
+  )
+
+  // Debounced (500ms) realtime subscription for external changes; cancelled on unmount
+  useEffect(() => {
+    const unsubscribe = subscribeToAthletes(() => {
+      loadAthletes()
+      if (selectedAthleteRef.current) {
+        openAthleteDetail(selectedAthleteRef.current, { silent: true })
+      }
+    })
+    return () => {
+      unsubscribe()
     }
-  }
+  }, [loadAthletes, openAthleteDetail])
 
   const openCreateForm = () => {
     setEditingAthlete(null)
@@ -213,9 +265,9 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
         })
         showToast('Athlete created', 'success')
       }
+      markLocalMutation(['athletes', 'players'])
       setIsFormOpen(false)
-      await loadAthletes()
-      await onRefresh()
+      await Promise.all([loadAthletes(), onRefresh()])
     } catch (err: unknown) {
       showToast(getErrorMessage(err, 'Failed to save athlete'), 'error')
     } finally {
@@ -235,14 +287,14 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
     if (!deleteTarget) return
     try {
       setIsDeleting(true)
+      markLocalMutation(['athletes', 'players'])
       await deleteAthlete(deleteTarget.id)
       showToast('Athlete deleted', 'success')
       if (selectedAthlete?.id === deleteTarget.id) {
         setSelectedAthlete(null)
       }
       setDeleteTarget(null)
-      await loadAthletes()
-      await onRefresh()
+      await Promise.all([loadAthletes(), onRefresh()])
     } catch (err: unknown) {
       showToast(getErrorMessage(err, 'Failed to delete athlete'), 'error')
       setDeleteTarget(null)
@@ -386,10 +438,10 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="border-b border-border bg-surface-2 text-muted font-mono uppercase tracking-wider text-[11px]">
-                    <th className="py-3 px-4">Season Name</th>
-                    <th className="py-3 px-4">Sport</th>
-                    <th className="py-3 px-4">Role</th>
-                    <th className="py-3 px-4">Academic Year</th>
+                    <th className="py-3 px-4 font-normal">Season Name</th>
+                    <th className="py-3 px-4 font-normal">Sport</th>
+                    <th className="py-3 px-4 font-normal">Role</th>
+                    <th className="py-3 px-4 font-normal">Academic Year</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -477,13 +529,13 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="border-b border-border bg-surface-2 text-muted font-mono uppercase tracking-wider text-[11px]">
-                    <th className="py-3 px-4">Photo</th>
-                    <th className="py-3 px-4">Name</th>
-                    <th className="py-3 px-4">Code</th>
-                    <th className="py-3 px-4">Academic Year</th>
-                    <th className="py-3 px-4">Roll No</th>
-                    <th className="py-3 px-4">Sport Entries</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
+                    <th className="py-3 px-4 font-normal">Photo</th>
+                    <th className="py-3 px-4 font-normal">Name</th>
+                    <th className="py-3 px-4 font-normal">Code</th>
+                    <th className="py-3 px-4 font-normal">Academic Year</th>
+                    <th className="py-3 px-4 font-normal">Roll No</th>
+                    <th className="py-3 px-4 font-normal">Sport Entries</th>
+                    <th className="py-3 px-4 font-normal text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -823,11 +875,14 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
         sports={sports}
         initialAthlete={selectedAthlete}
         onSuccess={async () => {
-          if (selectedAthlete) {
-            await openAthleteDetail(selectedAthlete)
-          }
-          await loadAthletes()
-          await onRefresh()
+          markLocalMutation(['athletes', 'players'])
+          await Promise.all([
+            selectedAthlete
+              ? openAthleteDetail(selectedAthlete, { silent: true })
+              : Promise.resolve(),
+            loadAthletes(),
+            onRefresh()
+          ])
         }}
         onCreateNewAthlete={() => {
           setIsRegisterToSportOpen(false)

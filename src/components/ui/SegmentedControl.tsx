@@ -65,18 +65,18 @@ export function SegmentedControl<T extends string>({
             tabIndex={isSelected ? 0 : -1}
             onClick={() => onChange(opt.value)}
             onKeyDown={(e) => handleKeyDown(e, idx)}
-            className={`min-h-[36px] px-3.5 py-1.5 rounded-lg flex items-center gap-2 text-xs font-mono tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright ${
+            className={`min-h-[36px] px-3.5 py-1.5 rounded-lg flex items-center gap-2 text-xs font-sans tracking-normal leading-normal transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright ${
               size === 'sm' ? 'text-[11px] py-1 px-2.5 min-h-[30px]' : ''
             } ${
               isSelected
-                ? 'bg-surface text-text font-bold border border-border shadow-sm'
-                : 'text-muted hover:text-text hover:bg-surface/50 border border-transparent'
+                ? 'bg-surface text-text font-medium border border-border shadow-sm'
+                : 'text-muted font-normal hover:text-text hover:bg-surface/50 border border-transparent'
             }`}
           >
-            {IconComponent && <IconComponent size={size === 'sm' ? 14 : 16} weight={isSelected ? 'bold' : 'regular'} />}
+            {IconComponent && <IconComponent size={size === 'sm' ? 14 : 16} weight="regular" />}
             <span>{opt.label}</span>
             {opt.badge !== undefined && (
-              <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-surface-2 text-muted">
+              <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-mono font-normal bg-surface-2 text-muted">
                 {opt.badge}
               </span>
             )}

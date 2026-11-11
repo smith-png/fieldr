@@ -1,4 +1,5 @@
 import type {
+  ActivityLogEntry,
   Athlete,
   AthleteCareerEntry,
   AuctionBid,
@@ -259,3 +260,10 @@ export interface AuctionService {
   subscribeToAuctionRealtime(seasonId: string, onUpdate: () => void): () => void
 }
 
+export interface LogsService {
+  getAdminActivityLog(
+    seasonId: string,
+    limit?: number,
+    offset?: number
+  ): Promise<ActivityLogEntry[]>
+}

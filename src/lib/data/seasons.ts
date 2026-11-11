@@ -6,7 +6,8 @@ import {
   getLocal,
   setLocal,
   notifyChange,
-  STORAGE_KEYS
+  STORAGE_KEYS,
+  markLocalMutation
 } from './client'
 import type { SeasonsService } from './types'
 
@@ -74,6 +75,7 @@ const demoSeasonsService: SeasonsService = {
       created_at: new Date().toISOString()
     }
 
+    markLocalMutation(['players', 'teams', 'auction'])
     seasons.unshift(newSeason)
     setLocal(STORAGE_KEYS.SEASONS, seasons)
     notifyChange('seasons_change')
@@ -90,6 +92,7 @@ const demoSeasonsService: SeasonsService = {
       throw new AppError('An archived season cannot be made active')
     }
 
+    markLocalMutation(['players', 'teams', 'auction'])
     const updated = seasons.map((s) => ({
       ...s,
       is_active: s.id === id
@@ -149,6 +152,7 @@ const demoSeasonsService: SeasonsService = {
     const carousel = getLocal<CarouselItem[]>(STORAGE_KEYS.CAROUSEL, [])
     setLocal(STORAGE_KEYS.CAROUSEL, carousel.filter((c) => c.season_id !== seasonId))
 
+    markLocalMutation(['players', 'teams', 'auction'])
     const remainingSeasons = seasons.filter((s) => s.id !== seasonId)
     setLocal(STORAGE_KEYS.SEASONS, remainingSeasons)
 
@@ -237,6 +241,7 @@ const supabaseSeasonsService: SeasonsService = {
       throw new AppError('End date must be on or after start date')
     }
 
+    markLocalMutation(['players', 'teams', 'auction'])
     const { data, error } = await supabase
       .from('seasons')
       .insert([
@@ -253,6 +258,7 @@ const supabaseSeasonsService: SeasonsService = {
       .single()
 
     if (error) throw new AppError(error.message, { original: error })
+    markLocalMutation(['players', 'teams', 'auction'])
     return data as Season
   },
 
@@ -272,6 +278,7 @@ const supabaseSeasonsService: SeasonsService = {
       throw new AppError('An archived season cannot be made active')
     }
 
+    markLocalMutation(['players', 'teams', 'auction'])
     const { data: currentActive } = await supabase
       .from('seasons')
       .select('id')
@@ -308,6 +315,7 @@ const supabaseSeasonsService: SeasonsService = {
         original: actError
       })
     }
+    markLocalMutation(['players', 'teams', 'auction'])
   },
 
   async getSeasonDeletionPreview(seasonId: string): Promise<SeasonDeletionCounts> {
@@ -333,6 +341,7 @@ const supabaseSeasonsService: SeasonsService = {
   async deleteSeason(seasonId: string): Promise<void> {
     if (!supabase) throw new AppError('Supabase not configured')
 
+    markLocalMutation(['players', 'teams', 'auction'])
     const { error } = await supabase.rpc('delete_season', {
       p_season_id: seasonId
     })
@@ -340,6 +349,7 @@ const supabaseSeasonsService: SeasonsService = {
     if (error) {
       throw new AppError(error.message, { original: error })
     }
+    markLocalMutation(['players', 'teams', 'auction'])
   }
 }
 

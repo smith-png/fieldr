@@ -142,11 +142,11 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-border text-muted font-mono uppercase tracking-wider bg-surface-2 text-[11px]">
-                  <th className="py-3 px-4 font-medium">Team</th>
-                  <th className="py-3 px-4 font-medium">Sport</th>
-                  <th className="py-3 px-4 font-medium text-right">Starting Purse</th>
-                  <th className="py-3 px-4 font-medium text-right">Current Balance</th>
-                  <th className="py-3 px-4 font-medium text-right">Purse Controls</th>
+                  <th className="py-3 px-4 font-normal">Team</th>
+                  <th className="py-3 px-4 font-normal">Sport</th>
+                  <th className="py-3 px-4 font-normal text-right">Starting Purse</th>
+                  <th className="py-3 px-4 font-normal text-right">Current Balance</th>
+                  <th className="py-3 px-4 font-normal text-right">Purse Controls</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">

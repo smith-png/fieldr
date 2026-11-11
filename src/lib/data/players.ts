@@ -19,7 +19,10 @@ import {
   STORAGE_KEYS,
   formatAthleteCode,
   parseAthleteCode,
-  getNextAthleteCode
+  getNextAthleteCode,
+  REALTIME_DEBOUNCE_MS,
+  markLocalMutation,
+  isRealtimeSuppressed
 } from './client'
 import { getActiveSeason } from './seasons'
 import type {
@@ -293,6 +296,7 @@ const demoPlayersService: PlayersService = {
       created_at: new Date().toISOString()
     }
 
+    markLocalMutation(['players', 'athletes', 'auction'])
     allPlayers.push(newPlayer)
     setLocal(STORAGE_KEYS.PLAYERS, allPlayers)
     notifyChange('players_change')
@@ -364,6 +368,7 @@ const demoPlayersService: PlayersService = {
       createdList.push(newPlayer)
     }
 
+    markLocalMutation(['players', 'athletes', 'auction'])
     setLocal(STORAGE_KEYS.ATHLETES, allAthletes)
     allPlayers.push(...createdList)
     setLocal(STORAGE_KEYS.PLAYERS, allPlayers)
@@ -454,6 +459,7 @@ const demoPlayersService: PlayersService = {
     }
 
     if (registered.length > 0) {
+      markLocalMutation(['players', 'athletes', 'auction'])
       allPlayers.push(...registered)
       setLocal(STORAGE_KEYS.PLAYERS, allPlayers)
       notifyChange('players_change')
@@ -489,6 +495,7 @@ const demoPlayersService: PlayersService = {
       playing_role: updates.playing_role !== undefined ? updates.playing_role : current.playing_role,
       base_points: updates.base_points !== undefined ? updates.base_points : current.base_points
     }
+    markLocalMutation(['players', 'athletes', 'auction'])
     allPlayers[index] = updated
     setLocal(STORAGE_KEYS.PLAYERS, allPlayers)
     notifyChange('players_change')
@@ -499,6 +506,7 @@ const demoPlayersService: PlayersService = {
     const allPlayers = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, [])
     const targetPlayer = allPlayers.find((p) => p.id === id)
     const filteredPlayers = allPlayers.filter((p) => p.id !== id)
+    markLocalMutation(['players', 'athletes', 'auction'])
     setLocal(STORAGE_KEYS.PLAYERS, filteredPlayers)
 
     const projector = getLocal<ProjectorState>(STORAGE_KEYS.PROJECTOR, {
@@ -583,6 +591,7 @@ const demoPlayersService: PlayersService = {
     player.status = 'sold'
     player.purchase_price = purchasePrice > 0 ? purchasePrice : null
 
+    markLocalMutation(['players', 'teams', 'auction'])
     setLocal(STORAGE_KEYS.PLAYERS, allPlayers)
     setLocal(STORAGE_KEYS.TEAMS, allTeams)
 
@@ -612,6 +621,7 @@ const demoPlayersService: PlayersService = {
     player.status = 'available'
     player.purchase_price = null
 
+    markLocalMutation(['players', 'teams', 'auction'])
     setLocal(STORAGE_KEYS.PLAYERS, allPlayers)
     notifyChange('players_change')
     notifyChange('teams_change')
@@ -619,27 +629,51 @@ const demoPlayersService: PlayersService = {
   },
 
   subscribeToPlayers(seasonId: string, callback: (players: Player[]) => void): () => void {
-    const handleUpdate = () => {
-      demoPlayersService.getPlayers(seasonId).then(callback).catch(() => {})
+    let active = true
+    let latestReqId = 0
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+    const runFetch = () => {
+      if (!active) return
+      const reqId = ++latestReqId
+      demoPlayersService
+        .getPlayers(seasonId)
+        .then((res) => {
+          if (active && reqId === latestReqId) {
+            callback(res)
+          }
+        })
+        .catch(() => {})
+    }
+
+    const scheduleFetch = () => {
+      if (!active || isRealtimeSuppressed('players')) return
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null
+        if (!active || isRealtimeSuppressed('players')) return
+        runFetch()
+      }, REALTIME_DEBOUNCE_MS)
     }
 
     const handleBroadcast = (e: MessageEvent) => {
       if (e.data?.event === 'players_change' || e.data?.event === 'athletes_change') {
-        handleUpdate()
+        scheduleFetch()
       }
     }
 
     const handleStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEYS.PLAYERS || e.key === STORAGE_KEYS.ATHLETES) {
-        handleUpdate()
+        scheduleFetch()
       }
     }
 
     if (demoBroadcastChannel) demoBroadcastChannel.addEventListener('message', handleBroadcast)
     window.addEventListener('storage', handleStorage)
-    handleUpdate()
 
     return () => {
+      active = false
+      if (debounceTimer) clearTimeout(debounceTimer)
       if (demoBroadcastChannel) demoBroadcastChannel.removeEventListener('message', handleBroadcast)
       window.removeEventListener('storage', handleStorage)
     }
@@ -927,6 +961,7 @@ const supabasePlayersService: PlayersService = {
     }
 
     // Save inserts ONLY into players: athlete_id, season_id, sport, playing_role, base_points, academic_year
+    markLocalMutation(['players', 'athletes', 'auction'])
     const { data, error } = await supabase
       .from('players')
       .insert([
@@ -951,6 +986,7 @@ const supabasePlayersService: PlayersService = {
       throw new AppError(error.message, { original: error })
     }
 
+    markLocalMutation(['players', 'athletes', 'auction'])
     return mapJoinedPlayer(data as Record<string, unknown>)
   },
 
@@ -972,12 +1008,14 @@ const supabasePlayersService: PlayersService = {
 
     if (rowsToInsert.length === 0) return []
 
+    markLocalMutation(['players', 'athletes', 'auction'])
     const { data, error } = await supabase
       .from('players')
       .insert(rowsToInsert)
       .select('*, athletes(id, athlete_code, name, photo_url, photo_thumb_url, roll_no, academic_year)')
 
     if (error) throw new AppError(error.message, { original: error })
+    markLocalMutation(['players', 'athletes', 'auction'])
     return ((data as Array<Record<string, unknown>>) || []).map((r) => mapJoinedPlayer(r))
   },
 
@@ -1053,12 +1091,14 @@ const supabasePlayersService: PlayersService = {
     }))
 
     // Execute one batch insert into players
+    markLocalMutation(['players', 'athletes', 'auction'])
     const { data, error } = await supabase
       .from('players')
       .insert(rowsToInsert)
       .select('*, athletes(id, athlete_code, name, photo_url, photo_thumb_url, roll_no, academic_year)')
 
     if (!error) {
+      markLocalMutation(['players', 'athletes', 'auction'])
       const registered = ((data as Array<Record<string, unknown>>) || []).map((r) =>
         mapJoinedPlayer(r)
       )
@@ -1070,6 +1110,7 @@ const supabasePlayersService: PlayersService = {
     if (validEntries.length > 1) {
       const registered: Player[] = []
       for (const entry of validEntries) {
+        markLocalMutation(['players', 'athletes', 'auction'])
         const { data: singleData, error: singleErr } = await supabase
           .from('players')
           .insert([
@@ -1101,6 +1142,7 @@ const supabasePlayersService: PlayersService = {
           registered.push(mapJoinedPlayer(singleData as Record<string, unknown>))
         }
       }
+      markLocalMutation(['players', 'athletes', 'auction'])
       if (registered.length > 0 || skipped.length > 0) {
         return { registered, skipped }
       }
@@ -1118,6 +1160,7 @@ const supabasePlayersService: PlayersService = {
     if (updates.base_points !== undefined) payload.base_points = updates.base_points
     if (updates.academic_year !== undefined) payload.academic_year = updates.academic_year
 
+    markLocalMutation(['players', 'athletes', 'auction'])
     const { data, error } = await supabase
       .from('players')
       .update(payload)
@@ -1134,12 +1177,14 @@ const supabasePlayersService: PlayersService = {
       throw new AppError(error.message, { original: error })
     }
 
+    markLocalMutation(['players', 'athletes', 'auction'])
     return mapJoinedPlayer(data as Record<string, unknown>)
   },
 
   async deletePlayer(id: string): Promise<void> {
     if (!supabase) throw new AppError('Supabase not configured')
 
+    markLocalMutation(['players', 'athletes', 'auction'])
     const { data: pState } = await supabase
       .from('projector_state')
       .select('*')
@@ -1155,6 +1200,7 @@ const supabasePlayersService: PlayersService = {
 
     const { error } = await supabase.from('players').delete().eq('id', id)
     if (error) throw new AppError(error.message, { original: error })
+    markLocalMutation(['players', 'athletes', 'auction'])
   },
 
   async exportPlayersForSport(seasonId: string, sport?: string): Promise<Player[]> {
@@ -1174,12 +1220,14 @@ const supabasePlayersService: PlayersService = {
 
     if (!supabase) throw new AppError('Supabase not configured')
 
+    markLocalMutation(['players', 'teams', 'auction'])
     const { error: rpcErr } = await supabase.rpc('assign_player_to_team', {
       p_player_id: playerId,
       p_team_id: teamId,
       p_price: purchasePrice
     })
     if (rpcErr) throw new AppError(rpcErr.message, { original: rpcErr })
+    markLocalMutation(['players', 'teams', 'auction'])
 
     const { data: updatedPlayer, error: pErr } = await supabase
       .from('players')
@@ -1217,10 +1265,12 @@ const supabasePlayersService: PlayersService = {
       .single()
     const prevTeamId = pData?.team_id
 
+    markLocalMutation(['players', 'teams', 'auction'])
     const { error: rpcErr } = await supabase.rpc('unassign_player_from_team', {
       p_player_id: playerId
     })
     if (rpcErr) throw new AppError(rpcErr.message, { original: rpcErr })
+    markLocalMutation(['players', 'teams', 'auction'])
 
     const { data: updatedPlayer, error: pErr } = await supabase
       .from('players')
@@ -1250,7 +1300,32 @@ const supabasePlayersService: PlayersService = {
   subscribeToPlayers(seasonId: string, callback: (players: Player[]) => void): () => void {
     if (!supabase) return () => {}
 
-    supabasePlayersService.getPlayers(seasonId).then(callback).catch(() => {})
+    let active = true
+    let latestReqId = 0
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+    const runFetch = () => {
+      if (!active) return
+      const reqId = ++latestReqId
+      supabasePlayersService
+        .getPlayers(seasonId)
+        .then((res) => {
+          if (active && reqId === latestReqId) {
+            callback(res)
+          }
+        })
+        .catch(() => {})
+    }
+
+    const scheduleFetch = () => {
+      if (!active || isRealtimeSuppressed('players')) return
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null
+        if (!active || isRealtimeSuppressed('players')) return
+        runFetch()
+      }, REALTIME_DEBOUNCE_MS)
+    }
 
     const sbChannel = supabase
       .channel(`players_${seasonId}`)
@@ -1263,16 +1338,14 @@ const supabasePlayersService: PlayersService = {
           filter: `season_id=eq.${seasonId}`
         },
         () => {
-          supabasePlayersService.getPlayers(seasonId).then(callback).catch(() => {})
+          scheduleFetch()
         }
       )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          supabasePlayersService.getPlayers(seasonId).then(callback).catch(() => {})
-        }
-      })
+      .subscribe()
 
     return () => {
+      active = false
+      if (debounceTimer) clearTimeout(debounceTimer)
       if (supabase) {
         supabase.removeChannel(sbChannel)
       }

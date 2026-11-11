@@ -10,4 +10,4 @@ export * from './athletes'
 export * from './site'
 export * from './storage'
 export * from './auction'
-
+export * from './logs'

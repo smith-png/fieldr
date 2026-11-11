@@ -25,7 +25,7 @@ export const ToastItem: React.FC<ToastItemProps> = ({
     <div
       role="status"
       aria-live="polite"
-      className="pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-surface text-text shadow-xl text-xs font-mono tracking-wide max-w-sm transition-all"
+      className="pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-surface text-text shadow-xl text-xs font-sans font-normal tracking-wide max-w-sm transition-all"
     >
       {type === 'success' && (
         <CheckCircle size={18} weight="fill" className="text-accent-bright shrink-0" />

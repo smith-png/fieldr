@@ -80,7 +80,7 @@ export const Dialog: React.FC<DialogProps> = ({
               {title && (
                 <h3
                   id="dialog-title"
-                  className="text-lg font-bold text-text tracking-tight"
+                  className="text-lg font-syne font-bold text-text tracking-tight leading-snug"
                 >
                   {title}
                 </h3>
@@ -88,7 +88,7 @@ export const Dialog: React.FC<DialogProps> = ({
               {description && (
                 <p
                   id="dialog-description"
-                  className="text-xs text-muted mt-1 leading-relaxed"
+                  className="text-xs font-light text-muted mt-1 leading-relaxed"
                 >
                   {description}
                 </p>

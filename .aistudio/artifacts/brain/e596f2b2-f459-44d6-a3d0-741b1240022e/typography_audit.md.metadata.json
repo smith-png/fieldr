@@ -1,0 +1,5 @@
+{
+  "summary":  "Complete read-only typography audit of the Fieldr codebase covering font loading, global CSS rules, element-specific font families and weights, portals, and shared components.",
+  "updatedAt":  "2026-11-11T10:09:39.468692675Z",
+  "userFacing":  true
+}

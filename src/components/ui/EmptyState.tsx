@@ -29,9 +29,9 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
           <IconComponent size={28} weight="regular" />
         </div>
       )}
-      <h4 className="text-base font-bold text-text tracking-tight">{title}</h4>
+      <h4 className="text-base font-medium text-text tracking-normal leading-snug">{title}</h4>
       {description && (
-        <p className="text-xs text-muted max-w-sm leading-relaxed">{description}</p>
+        <p className="text-xs font-normal text-muted max-w-sm leading-relaxed">{description}</p>
       )}
       {action ? (
         <div className="mt-2">{action}</div>
@@ -39,7 +39,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
         <button
           type="button"
           onClick={onAction}
-          className="mt-2 text-xs font-semibold px-4 py-2 rounded-xl bg-accent text-on-accent hover:opacity-90 transition-opacity"
+          className="mt-2 text-xs font-medium px-4 py-2 rounded-xl bg-accent text-on-accent hover:opacity-90 transition-opacity"
         >
           {actionLabel}
         </button>
