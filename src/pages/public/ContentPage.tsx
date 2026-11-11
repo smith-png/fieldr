@@ -4,6 +4,7 @@ import { ArrowLeft } from '@phosphor-icons/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
+import { CreditsSection } from '../../components/credits/CreditsSection'
 import { getActiveSeason, getSiteSettings } from '../../lib/data'
 import type { PageContentSetting, Season } from '../../types'
 
@@ -91,6 +92,8 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
             </div>
           )}
         </div>
+
+        {pageKey === 'about_page' && <CreditsSection />}
       </main>
 
       <SiteFooter />

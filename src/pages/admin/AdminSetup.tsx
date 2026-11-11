@@ -43,6 +43,7 @@ import {
   SegmentedControl
 } from '../../components/ui'
 import { SecuredSequence } from '../../components/projector/SecuredSequence'
+import { CreditsSetupCard } from '../../components/admin/CreditsSetupCard'
 import type {
   AuctionSettings,
   CarouselItem,
@@ -53,7 +54,7 @@ import type {
   Team
 } from '../../types'
 
-type SetupTab = 'carousel' | 'pages' | 'sports' | 'auction'
+type SetupTab = 'carousel' | 'pages' | 'sports' | 'auction' | 'credits'
 
 interface AdminSetupProps {
   activeSeason?: Season | null
@@ -758,7 +759,8 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
               { value: 'carousel', label: 'Carousel' },
               { value: 'pages', label: 'Pages' },
               { value: 'sports', label: 'Sports' },
-              { value: 'auction', label: 'Auction' }
+              { value: 'auction', label: 'Auction' },
+              { value: 'credits', label: 'Credits' }
             ]}
           />
         }
@@ -1599,6 +1601,9 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
           )}
         </div>
       )}
+
+      {/* Tab 5: Credits */}
+      {activeTab === 'credits' && <CreditsSetupCard />}
 
       {/* Full-Screen Preview Overlay for Secured Animation */}
       {isPreviewOpen && (

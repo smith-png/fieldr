@@ -240,3 +240,16 @@ export interface SiteSettings {
   }
   [key: string]: unknown
 }
+
+export type CreditKind = 'core' | 'contributor'
+
+export interface CreditPerson {
+  id: string
+  kind: CreditKind
+  name: string
+  role?: string | null
+  description?: string | null
+  photo_url?: string | null
+  sort_order: number
+  created_at: string
+}
