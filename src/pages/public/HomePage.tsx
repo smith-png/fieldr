@@ -13,19 +13,30 @@ import {
   getPublicPlayersBySeason,
   subscribeToCarouselItems
 } from '../../lib/data'
+import { hasDataChanged, publicCache } from '../../lib/publicCache'
 import { matchesSport } from '../../lib/utils'
 import type { CarouselItem, Season } from '../../types'
 import type { SportSlug } from '../../lib/sports'
 
+const DEFAULT_COUNTS: Record<SportSlug, number> = {
+  cricket: 0,
+  futsal: 0,
+  volleyball: 0
+}
+
 export const HomePage: React.FC = () => {
+  const initialSeason = publicCache.activeSeason.value
+  const initialCounts =
+    (initialSeason && publicCache.playerCountsBySeason.get(initialSeason.id)) ||
+    DEFAULT_COUNTS
+  const initialCarousel = publicCache.carouselItems.loaded
+    ? publicCache.carouselItems.value
+    : FALLBACK_CAROUSEL_TEXTS
+
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [activeSeason, setActiveSeason] = useState<Season | null>(null)
-  const [carouselItems, setCarouselItems] = useState<string[] | null>(FALLBACK_CAROUSEL_TEXTS)
-  const [playerCounts, setPlayerCounts] = useState<Record<SportSlug, number>>({
-    cricket: 0,
-    futsal: 0,
-    volleyball: 0
-  })
+  const [activeSeason, setActiveSeason] = useState<Season | null>(initialSeason)
+  const [carouselItems, setCarouselItems] = useState<string[] | null>(initialCarousel)
+  const [playerCounts, setPlayerCounts] = useState<Record<SportSlug, number>>(initialCounts)
   const shouldReduceMotion = useReducedMotion()
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
 
@@ -34,36 +45,49 @@ export const HomePage: React.FC = () => {
 
     async function loadData() {
       // 1. Load active season (safe fallback null)
-      let active: Season | null = null
+      let active: Season | null = publicCache.activeSeason.value
       try {
         active = await getActiveSeason()
-        if (mounted) setActiveSeason(active)
+        const prevSeason = publicCache.activeSeason.value
+        const seasonChanged =
+          !publicCache.activeSeason.loaded || hasDataChanged(prevSeason, active)
+        publicCache.activeSeason = { loaded: true, value: active }
+        if (mounted && seasonChanged) {
+          setActiveSeason(active)
+        }
       } catch (err) {
         console.error('Failed to load active season on home page:', err)
-        if (mounted) setActiveSeason(null)
+        if (mounted && !publicCache.activeSeason.loaded) {
+          setActiveSeason(null)
+        }
       }
 
       // 2. Load player counts (safe fallback 0)
       if (active && active.id) {
         try {
           const players = await getPublicPlayersBySeason(active.id)
-          if (mounted) {
-            const list = Array.isArray(players) ? players : []
-            setPlayerCounts({
-              cricket: list.filter((p) => p && matchesSport(p.sport, 'cricket')).length,
-              futsal: list.filter((p) => p && matchesSport(p.sport, 'futsal')).length,
-              volleyball: list.filter((p) => p && matchesSport(p.sport, 'volleyball')).length
-            })
+          const list = Array.isArray(players) ? players : []
+          publicCache.playersBySeason.set(active.id, list)
+          const nextCounts: Record<SportSlug, number> = {
+            cricket: list.filter((p) => p && matchesSport(p.sport, 'cricket')).length,
+            futsal: list.filter((p) => p && matchesSport(p.sport, 'futsal')).length,
+            volleyball: list.filter((p) => p && matchesSport(p.sport, 'volleyball')).length
+          }
+          const prevCounts = publicCache.playerCountsBySeason.get(active.id)
+          const countsChanged = !prevCounts || hasDataChanged(prevCounts, nextCounts)
+          publicCache.playerCountsBySeason.set(active.id, nextCounts)
+          if (mounted && countsChanged) {
+            setPlayerCounts(nextCounts)
           }
         } catch (err) {
           console.error('Failed to load player counts on home page:', err)
-          if (mounted) {
-            setPlayerCounts({ cricket: 0, futsal: 0, volleyball: 0 })
+          if (mounted && !publicCache.playerCountsBySeason.has(active.id)) {
+            setPlayerCounts(DEFAULT_COUNTS)
           }
         }
       } else {
         if (mounted) {
-          setPlayerCounts({ cricket: 0, futsal: 0, volleyball: 0 })
+          setPlayerCounts(DEFAULT_COUNTS)
         }
       }
 
@@ -71,18 +95,26 @@ export const HomePage: React.FC = () => {
       try {
         const items = await getCarouselItems(true)
         if (mounted) {
-          if (!items || !Array.isArray(items) || items.length === 0) {
-            setCarouselItems(FALLBACK_CAROUSEL_TEXTS)
-          } else {
+          let nextTexts = FALLBACK_CAROUSEL_TEXTS
+          if (items && Array.isArray(items) && items.length > 0) {
             const texts = items
               .map((i: CarouselItem) => (i && typeof i.text === 'string' ? i.text.trim() : ''))
               .filter((t: string) => t.length > 0)
-            setCarouselItems(texts.length > 0 ? texts : FALLBACK_CAROUSEL_TEXTS)
+            if (texts.length > 0) {
+              nextTexts = texts
+            }
+          }
+          const prevTexts = publicCache.carouselItems.value
+          const changed =
+            !publicCache.carouselItems.loaded || hasDataChanged(prevTexts, nextTexts)
+          publicCache.carouselItems = { loaded: true, value: nextTexts }
+          if (changed) {
+            setCarouselItems(nextTexts)
           }
         }
       } catch (err) {
         console.error('Home page ticker load error, applying fallback:', err)
-        if (mounted) {
+        if (mounted && !publicCache.carouselItems.loaded) {
           setCarouselItems(FALLBACK_CAROUSEL_TEXTS)
         }
       }
@@ -94,14 +126,17 @@ export const HomePage: React.FC = () => {
     const unsubscribeCarousel = subscribeToCarouselItems((items) => {
       if (!mounted) return
       try {
-        if (!items || !Array.isArray(items) || items.length === 0) {
-          setCarouselItems(FALLBACK_CAROUSEL_TEXTS)
-        } else {
+        let nextTexts = FALLBACK_CAROUSEL_TEXTS
+        if (items && Array.isArray(items) && items.length > 0) {
           const texts = items
             .map((i: CarouselItem) => (i && typeof i.text === 'string' ? i.text.trim() : ''))
             .filter((t: string) => t.length > 0)
-          setCarouselItems(texts.length > 0 ? texts : FALLBACK_CAROUSEL_TEXTS)
+          if (texts.length > 0) {
+            nextTexts = texts
+          }
         }
+        publicCache.carouselItems = { loaded: true, value: nextTexts }
+        setCarouselItems(nextTexts)
       } catch (err) {
         console.error('Error in realtime carousel update, applying fallback:', err)
         setCarouselItems(FALLBACK_CAROUSEL_TEXTS)

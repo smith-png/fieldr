@@ -238,7 +238,8 @@ export interface StorageService {
     file: File
   ): Promise<{ photoUrl: string; thumbUrl: string }>
   deletePlayerPhotoAssets(photoUrl?: string, thumbUrl?: string): Promise<void>
-  uploadAsset(file: File, folder?: string): Promise<string>
+  uploadAsset(file: File, folder?: string, maxLongSide?: number): Promise<string>
+  deleteStorageAsset(assetUrl?: string | null): Promise<void>
 }
 
 export interface AuctionService {

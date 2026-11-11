@@ -60,9 +60,10 @@ export interface Team {
   name: string
   short_code: string
   color: string
-  logo_url?: string
-  owner_display_name?: string
-  owner_user_id?: string
+  logo_url?: string | null
+  owner_display_name?: string | null
+  owner_photo_url?: string | null
+  owner_user_id?: string | null
   starting_purse: number
   current_purse: number
   created_at?: string
@@ -75,8 +76,9 @@ export interface PublicTeam {
   name: string
   short_code: string
   color: string
-  logo_url?: string
-  owner_display_name?: string
+  logo_url?: string | null
+  owner_display_name?: string | null
+  owner_photo_url?: string | null
   created_at?: string
 }
 

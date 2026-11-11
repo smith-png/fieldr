@@ -12,7 +12,15 @@ import {
   WarningCircle
 } from '@phosphor-icons/react'
 import type { Season, Sport, Team } from '../../types'
-import { bulkCreateTeams, createTeam, deleteTeam, updateTeam, uploadAsset } from '../../lib/data'
+import {
+  bulkCreateTeams,
+  createTeam,
+  deleteStorageAsset,
+  deleteTeam,
+  isDemoMode,
+  updateTeam,
+  uploadAsset
+} from '../../lib/data'
 import { useToast } from '../../lib/ToastContext'
 import { Button, Dialog, EmptyState, PageHeader } from '../../components/ui'
 
@@ -41,9 +49,11 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
   const [sport, setSport] = useState('')
   const [color, setColor] = useState('#047554')
   const [ownerDisplayName, setOwnerDisplayName] = useState('')
+  const [ownerPhotoUrl, setOwnerPhotoUrl] = useState('')
   const [startingPurse, setStartingPurse] = useState('1000')
   const [logoUrl, setLogoUrl] = useState('')
   const [isUploading, setIsUploading] = useState(false)
+  const [isUploadingOwnerPhoto, setIsUploadingOwnerPhoto] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // CSV Import state
@@ -117,6 +127,10 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
   }
 
   const confirmBulkImport = async () => {
+    if (isDemoMode) {
+      error('Modifications are disabled in demo mode.')
+      return
+    }
     const validRows = csvRows.filter((r) => r.valid)
     if (validRows.length === 0) return
 
@@ -142,6 +156,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
     setSport(sports[0]?.name || 'Cricket')
     setColor('#047554')
     setOwnerDisplayName('')
+    setOwnerPhotoUrl('')
     setStartingPurse('1000')
     setLogoUrl('')
     setIsModalOpen(true)
@@ -154,18 +169,44 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
     setSport(team.sport)
     setColor(team.color)
     setOwnerDisplayName(team.owner_display_name || '')
+    setOwnerPhotoUrl(team.owner_photo_url || '')
     setStartingPurse(String(team.starting_purse))
     setLogoUrl(team.logo_url || '')
     setIsModalOpen(true)
   }
 
+  const handleCloseModal = async () => {
+    const initialLogo = editingTeam?.logo_url || ''
+    const initialOwnerPhoto = editingTeam?.owner_photo_url || ''
+
+    if (logoUrl && logoUrl !== initialLogo) {
+      await deleteStorageAsset(logoUrl)
+    }
+    if (ownerPhotoUrl && ownerPhotoUrl !== initialOwnerPhoto) {
+      await deleteStorageAsset(ownerPhotoUrl)
+    }
+    setIsModalOpen(false)
+  }
+
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
+
+    if (isDemoMode) {
+      error('Uploads are disabled in demo mode.')
+      return
+    }
+
+    const previousLogo = logoUrl
+    const initialLogo = editingTeam?.logo_url || ''
 
     try {
       setIsUploading(true)
-      const url = await uploadAsset(file, 'team-logos')
+      const url = await uploadAsset(file, 'team-logos', 400)
+      if (previousLogo && previousLogo !== initialLogo && previousLogo !== url) {
+        await deleteStorageAsset(previousLogo)
+      }
       setLogoUrl(url)
       success('Logo compressed and uploaded successfully')
     } catch (err: unknown) {
@@ -176,8 +217,58 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
     }
   }
 
+  const handleOwnerPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+
+    if (isDemoMode) {
+      error('Uploads are disabled in demo mode.')
+      return
+    }
+
+    const previousOwnerPhoto = ownerPhotoUrl
+    const initialOwnerPhoto = editingTeam?.owner_photo_url || ''
+
+    try {
+      setIsUploadingOwnerPhoto(true)
+      const url = await uploadAsset(file, 'team-owners', 600)
+      if (
+        previousOwnerPhoto &&
+        previousOwnerPhoto !== initialOwnerPhoto &&
+        previousOwnerPhoto !== url
+      ) {
+        await deleteStorageAsset(previousOwnerPhoto)
+      }
+      setOwnerPhotoUrl(url)
+      success('Owner photo compressed and uploaded successfully')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Upload failed'
+      error(msg)
+    } finally {
+      setIsUploadingOwnerPhoto(false)
+    }
+  }
+
+  const handleRemoveOwnerPhoto = async () => {
+    if (isDemoMode) {
+      error('Modifications are disabled in demo mode.')
+      return
+    }
+    const currentPhoto = ownerPhotoUrl
+    const initialOwnerPhoto = editingTeam?.owner_photo_url || ''
+    if (currentPhoto && currentPhoto !== initialOwnerPhoto) {
+      await deleteStorageAsset(currentPhoto)
+    }
+    setOwnerPhotoUrl('')
+  }
+
   const handleSaveTeam = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isDemoMode) {
+      error('Modifications are disabled in demo mode.')
+      return
+    }
     if (!activeSeason) {
       error('No active season found')
       return
@@ -188,17 +279,33 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
       return
     }
 
+    const nextLogoUrl = logoUrl.trim() || null
+    const nextOwnerPhotoUrl = ownerPhotoUrl.trim() || null
+    const nextOwnerName = ownerDisplayName.trim() || null
+
     try {
       setIsSubmitting(true)
       if (editingTeam) {
+        const previousSavedLogo = editingTeam.logo_url || null
+        const previousSavedOwnerPhoto = editingTeam.owner_photo_url || null
+
         await updateTeam(editingTeam.id, {
           name: name.trim(),
           short_code: shortCode.trim().toUpperCase(),
           sport,
           color,
-          owner_display_name: ownerDisplayName.trim() || undefined,
-          logo_url: logoUrl || undefined
+          owner_display_name: nextOwnerName,
+          owner_photo_url: nextOwnerPhotoUrl,
+          logo_url: nextLogoUrl
         })
+
+        if (previousSavedLogo && previousSavedLogo !== nextLogoUrl) {
+          await deleteStorageAsset(previousSavedLogo)
+        }
+        if (previousSavedOwnerPhoto && previousSavedOwnerPhoto !== nextOwnerPhotoUrl) {
+          await deleteStorageAsset(previousSavedOwnerPhoto)
+        }
+
         success(`Team "${name}" updated`)
       } else {
         await createTeam({
@@ -207,9 +314,10 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
           short_code: shortCode.trim().toUpperCase(),
           sport,
           color,
-          owner_display_name: ownerDisplayName.trim() || undefined,
+          owner_display_name: nextOwnerName,
+          owner_photo_url: nextOwnerPhotoUrl,
           starting_purse: Number(startingPurse) || 1000,
-          logo_url: logoUrl || undefined
+          logo_url: nextLogoUrl
         })
         success(`Team "${name}" created successfully`)
       }
@@ -226,10 +334,22 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
 
   const handleDeleteTeam = async () => {
     if (!deleteConfirmTeam) return
+    if (isDemoMode) {
+      error('Modifications are disabled in demo mode.')
+      return
+    }
 
     try {
       setIsSubmitting(true)
+      const logoToDelete = deleteConfirmTeam.logo_url
+      const ownerPhotoToDelete = deleteConfirmTeam.owner_photo_url
       await deleteTeam(deleteConfirmTeam.id)
+      if (logoToDelete) {
+        await deleteStorageAsset(logoToDelete)
+      }
+      if (ownerPhotoToDelete) {
+        await deleteStorageAsset(ownerPhotoToDelete)
+      }
       success(`Team "${deleteConfirmTeam.name}" deleted and assigned players released`)
       setDeleteConfirmTeam(null)
       await onRefresh()
@@ -378,7 +498,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
       {/* Create / Edit Team Dialog */}
       <Dialog
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={handleCloseModal}
         title={editingTeam ? 'Edit Team Details' : 'Create Franchise Team'}
         size="lg"
       >
@@ -468,19 +588,73 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
             )}
           </div>
 
-          <div>
-            <label className="block font-mono text-muted uppercase tracking-wider mb-1.5">
-              Team Owner Name
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                value={ownerDisplayName}
-                onChange={(e) => setOwnerDisplayName(e.target.value)}
-                placeholder="e.g. Marcus Vance"
-                className="w-full px-3.5 py-2.5 bg-bg border border-border rounded-xl text-xs text-text focus:outline-none focus:border-accent-bright"
-              />
-              <User size={16} className="absolute right-3.5 top-2.5 text-muted" />
+          {/* Owner Name and Owner Photo side by side */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+            <div>
+              <label className="block font-mono text-muted uppercase tracking-wider mb-1.5">
+                Team Owner Name
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={ownerDisplayName}
+                  onChange={(e) => setOwnerDisplayName(e.target.value)}
+                  placeholder="e.g. Marcus Vance"
+                  className="w-full px-3.5 py-2.5 bg-bg border border-border rounded-xl text-xs text-text focus:outline-none focus:border-accent-bright"
+                />
+                <User size={16} className="absolute right-3.5 top-2.5 text-muted" />
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-mono text-muted uppercase tracking-wider mb-1.5">
+                Owner Photo
+              </label>
+              <div className="flex items-center gap-2.5">
+                {ownerPhotoUrl ? (
+                  <div className="w-10 h-10 rounded-xl overflow-hidden border border-border bg-surface-2 shrink-0">
+                    <img
+                      src={ownerPhotoUrl}
+                      alt="Owner photo preview"
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-10 h-10 rounded-xl border border-border bg-surface-2 flex items-center justify-center text-muted shrink-0">
+                    <User size={18} />
+                  </div>
+                )}
+
+                <label className="flex-1 min-h-[40px] px-3 py-2 rounded-xl bg-surface-2 border border-border hover:border-accent-bright text-center cursor-pointer flex items-center justify-center gap-1.5 text-xs text-text transition-colors">
+                  <UploadSimple size={15} />
+                  <span>
+                    {isUploadingOwnerPhoto
+                      ? 'Compressing...'
+                      : ownerPhotoUrl
+                      ? 'Replace photo'
+                      : 'Upload photo'}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleOwnerPhotoUpload}
+                    disabled={isUploadingOwnerPhoto || isSubmitting}
+                    className="hidden"
+                  />
+                </label>
+
+                {ownerPhotoUrl && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveOwnerPhoto}
+                    disabled={isUploadingOwnerPhoto || isSubmitting}
+                    className="min-h-[40px] px-2.5 py-2 rounded-xl border border-border bg-surface-2 hover:bg-error/10 text-muted hover:text-error text-xs transition-colors shrink-0"
+                  >
+                    Remove photo
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -513,9 +687,9 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                 <span>{isUploading ? 'Compressing...' : 'Upload crest image'}</span>
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp"
                   onChange={handleLogoUpload}
-                  disabled={isUploading}
+                  disabled={isUploading || isSubmitting}
                   className="hidden"
                 />
               </label>
@@ -527,7 +701,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
               type="button"
               variant="secondary"
               size="sm"
-              onClick={() => setIsModalOpen(false)}
+              onClick={handleCloseModal}
             >
               Cancel
             </Button>
@@ -535,7 +709,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
               type="submit"
               variant="primary"
               size="sm"
-              disabled={isSubmitting || isUploading}
+              disabled={isSubmitting || isUploading || isUploadingOwnerPhoto}
               isLoading={isSubmitting}
             >
               {editingTeam ? 'Update Team' : 'Create Team'}

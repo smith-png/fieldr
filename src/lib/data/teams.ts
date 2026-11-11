@@ -224,6 +224,7 @@ const demoTeamsService: TeamsService = {
       color: t.color,
       logo_url: t.logo_url,
       owner_display_name: t.owner_display_name,
+      owner_photo_url: t.owner_photo_url,
       created_at: t.created_at
     }))
   },
@@ -647,7 +648,7 @@ const supabaseTeamsService: TeamsService = {
     const { data, error } = await supabase
       .from('teams')
       .select(
-        'id, season_id, sport, name, short_code, color, logo_url, owner_display_name, owner_user_id, starting_purse, current_purse, created_at'
+        'id, season_id, sport, name, short_code, color, logo_url, owner_display_name, owner_photo_url, owner_user_id, starting_purse, current_purse, created_at'
       )
       .eq('season_id', seasonId)
       .order('name', { ascending: true })
@@ -751,7 +752,9 @@ const supabaseTeamsService: TeamsService = {
 
     const { data, error } = await supabase
       .from('public_teams')
-      .select('id, season_id, sport, name, short_code, color, logo_url, owner_display_name, created_at')
+      .select(
+        'id, season_id, sport, name, short_code, color, logo_url, owner_display_name, owner_photo_url, created_at'
+      )
       .eq('season_id', targetSeasonId)
       .order('name', { ascending: true })
 

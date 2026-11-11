@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { getCreditsPeople } from '../../lib/data'
+import { hasDataChanged, publicCache } from '../../lib/publicCache'
 import type { CreditPerson } from '../../types'
 
 export function getPersonInitials(name: string): string {
@@ -47,21 +48,29 @@ export const CreditAvatar: React.FC<{
 }
 
 export const CreditsSection: React.FC = () => {
-  const [people, setPeople] = useState<CreditPerson[]>([])
-  const [loaded, setLoaded] = useState(false)
+  const [people, setPeople] = useState<CreditPerson[]>(
+    publicCache.creditsPeople.loaded ? publicCache.creditsPeople.value : []
+  )
+  const [loaded, setLoaded] = useState<boolean>(publicCache.creditsPeople.loaded)
 
   useEffect(() => {
     let mounted = true
     getCreditsPeople()
       .then((rows) => {
+        const prev = publicCache.creditsPeople.value
+        const wasLoaded = publicCache.creditsPeople.loaded
+        const changed = !wasLoaded || hasDataChanged(prev, rows)
+        publicCache.creditsPeople = { loaded: true, value: rows }
         if (mounted) {
-          setPeople(rows)
+          if (changed) {
+            setPeople(rows)
+          }
           setLoaded(true)
         }
       })
       .catch((err) => {
         console.error('Failed to load credits:', err)
-        if (mounted) {
+        if (mounted && !publicCache.creditsPeople.loaded) {
           setPeople([])
           setLoaded(true)
         }

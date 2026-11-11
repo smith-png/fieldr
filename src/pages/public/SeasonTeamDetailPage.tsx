@@ -13,59 +13,156 @@ import {
   getRolesForSport,
   getSeason
 } from '../../lib/data'
+import {
+  hasDataChanged,
+  publicCache,
+  type SeasonTeamDetailCacheEntry
+} from '../../lib/publicCache'
+import { getInitials } from '../../lib/utils'
 import type { PublicPlayer, PublicTeam, Season } from '../../types'
+
+function getTeamCacheKey(seasonId?: string, teamId?: string): string {
+  return `${seasonId || ''}::${teamId || ''}`
+}
+
+function getCachedTeamDetail(
+  seasonId?: string,
+  teamId?: string
+): SeasonTeamDetailCacheEntry | undefined {
+  if (!seasonId || !teamId) return undefined
+  const key = getTeamCacheKey(seasonId, teamId)
+  const direct = publicCache.seasonTeamDetails.get(key)
+  if (direct) return direct
+
+  const cachedTeams = publicCache.teamsBySeason.get(seasonId)
+  const cachedPlayers = publicCache.playersBySeason.get(seasonId)
+  const foundTeam = cachedTeams?.find((t) => t.id === teamId)
+  if (foundTeam && cachedPlayers) {
+    const knownSeason =
+      publicCache.seasonDetails.get(seasonId)?.season ||
+      publicCache.seasonCards.value.find((c) => c.season.id === seasonId)?.season ||
+      (publicCache.activeSeason.value?.id === seasonId
+        ? publicCache.activeSeason.value
+        : null)
+    const cachedSportRoles =
+      publicCache.rosterSportInfo.get(foundTeam.sport.toLowerCase())?.roles || []
+    return {
+      season: knownSeason,
+      team: foundTeam,
+      teamPlayers: cachedPlayers.filter((p) => p.team_id === teamId),
+      allPlayers: cachedPlayers,
+      sportRoles: cachedSportRoles
+    }
+  }
+  return undefined
+}
 
 export const SeasonTeamDetailPage: React.FC = () => {
   const { id, teamId } = useParams<{ id: string; teamId: string }>()
   const navigate = useNavigate()
+  const initialCached = getCachedTeamDetail(id, teamId)
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [activeSeason, setActiveSeason] = useState<Season | null>(null)
-  const [season, setSeason] = useState<Season | null>(null)
-  const [team, setTeam] = useState<PublicTeam | null>(null)
-  const [teamPlayers, setTeamPlayers] = useState<PublicPlayer[]>([])
-  const [allPlayers, setAllPlayers] = useState<PublicPlayer[]>([])
-  const [sportRoles, setSportRoles] = useState<string[]>([])
+  const [activeSeason, setActiveSeason] = useState<Season | null>(
+    publicCache.activeSeason.value
+  )
+  const [season, setSeason] = useState<Season | null>(initialCached?.season ?? null)
+  const [team, setTeam] = useState<PublicTeam | null>(initialCached?.team ?? null)
+  const [teamPlayers, setTeamPlayers] = useState<PublicPlayer[]>(
+    initialCached?.teamPlayers ?? []
+  )
+  const [allPlayers, setAllPlayers] = useState<PublicPlayer[]>(
+    initialCached?.allPlayers ?? []
+  )
+  const [sportRoles, setSportRoles] = useState<string[]>(
+    initialCached?.sportRoles ?? []
+  )
+  const [failedOwnerPhotoUrl, setFailedOwnerPhotoUrl] = useState<string | null>(null)
 
-  const [isLoading, setIsLoading] = useState(true)
-  const [hasError, setHasError] = useState(false)
+  const [isLoading, setIsLoading] = useState<boolean>(!initialCached)
+  const [hasError, setHasError] = useState<boolean>(false)
 
   const loadData = async () => {
     if (!id || !teamId) return
-    setIsLoading(true)
+    const key = getTeamCacheKey(id, teamId)
+    const cached = getCachedTeamDetail(id, teamId)
+
+    if (cached) {
+      setSeason(cached.season)
+      setTeam(cached.team)
+      setTeamPlayers(cached.teamPlayers)
+      setAllPlayers(cached.allPlayers)
+      setSportRoles(cached.sportRoles)
+      setIsLoading(false)
+    } else {
+      setIsLoading(true)
+    }
     setHasError(false)
 
     try {
       const active = await getActiveSeason()
-      setActiveSeason(active)
+      const prevActive = publicCache.activeSeason.value
+      const activeChanged =
+        !publicCache.activeSeason.loaded || hasDataChanged(prevActive, active)
+      publicCache.activeSeason = { loaded: true, value: active }
+      if (activeChanged) {
+        setActiveSeason(active)
+      }
 
-      const s = await getSeason(id)
-      setSeason(s)
+      const [s, publicTeams] = await Promise.all([
+        getSeason(id),
+        getPublicTeams(id)
+      ])
+      publicCache.teamsBySeason.set(id, publicTeams)
 
-      const publicTeams = await getPublicTeams(id)
-      const foundTeam = publicTeams.find((t) => t.id === teamId)
+      const foundTeam = publicTeams.find((t) => t.id === teamId) || null
       if (!foundTeam) {
+        const notFoundEntry: SeasonTeamDetailCacheEntry = {
+          season: s,
+          team: null,
+          teamPlayers: [],
+          allPlayers: [],
+          sportRoles: []
+        }
+        publicCache.seasonTeamDetails.set(key, notFoundEntry)
+        setSeason(s)
         setTeam(null)
         return
       }
-
-      setTeam(foundTeam)
 
       const [seasonPlayers, roles] = await Promise.all([
         getPublicPlayersBySeason(id),
         getRolesForSport(foundTeam.sport)
       ])
+      publicCache.playersBySeason.set(id, seasonPlayers)
 
-      setAllPlayers(seasonPlayers)
-      setTeamPlayers(seasonPlayers.filter((p) => p.team_id === teamId))
-      setSportRoles(roles)
+      const nextEntry: SeasonTeamDetailCacheEntry = {
+        season: s,
+        team: foundTeam,
+        teamPlayers: seasonPlayers.filter((p) => p.team_id === teamId),
+        allPlayers: seasonPlayers,
+        sportRoles: roles
+      }
+      const prevEntry = publicCache.seasonTeamDetails.get(key) ?? cached
+      const changed = !prevEntry || hasDataChanged(prevEntry, nextEntry)
+      publicCache.seasonTeamDetails.set(key, nextEntry)
+
+      if (changed) {
+        setSeason(s)
+        setTeam(foundTeam)
+        setAllPlayers(seasonPlayers)
+        setTeamPlayers(nextEntry.teamPlayers)
+        setSportRoles(roles)
+      }
     } catch (err) {
       console.error(
         'Failed to load season team detail data:',
         err instanceof Error ? err.message : err,
         err
       )
-      setHasError(true)
+      if (!cached) {
+        setHasError(true)
+      }
     } finally {
       setIsLoading(false)
     }
@@ -74,6 +171,12 @@ export const SeasonTeamDetailPage: React.FC = () => {
   useEffect(() => {
     loadData()
   }, [id, teamId])
+
+  const ownerName = team?.owner_display_name?.trim() || ''
+  const ownerPhotoUrl = team?.owner_photo_url?.trim() || ''
+  const showOwnerPhoto =
+    Boolean(ownerPhotoUrl) && failedOwnerPhotoUrl !== ownerPhotoUrl
+  const showOwnerSection = Boolean(ownerName) || showOwnerPhoto
 
   return (
     <div className="min-h-screen bg-bg text-text flex flex-col justify-between selection:bg-accent-bright selection:text-on-accent relative">
@@ -116,35 +219,74 @@ export const SeasonTeamDetailPage: React.FC = () => {
         ) : (
           <div className="flex flex-col gap-8">
             {/* Team Header */}
-            <div className="p-6 sm:p-8 rounded-3xl bg-surface border border-border flex flex-col sm:flex-row items-center sm:items-start gap-6 shadow-sm">
-              <div
-                className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl flex items-center justify-center overflow-hidden border border-border font-syne font-extrabold text-white text-2xl shrink-0"
-                style={{ backgroundColor: team.color || 'var(--accent)' }}
-              >
-                {team.logo_url ? (
-                  <img src={team.logo_url} alt={team.name} className="w-full h-full object-cover" />
-                ) : (
-                  <span>{team.short_code}</span>
-                )}
-              </div>
-
-              <div className="flex-1 text-center sm:text-left">
-                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-1.5">
-                  <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-surface-2 border border-border text-text">
-                    {team.short_code} &bull; {team.sport}
-                  </span>
+            <div className="p-6 sm:p-8 rounded-3xl bg-surface border border-border flex flex-col md:flex-row items-center md:items-center justify-between gap-6 shadow-sm">
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 flex-1 min-w-0">
+                <div
+                  className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl flex items-center justify-center overflow-hidden border border-border font-syne font-extrabold text-white text-2xl shrink-0"
+                  style={{ backgroundColor: team.color || 'var(--accent)' }}
+                >
+                  {team.logo_url ? (
+                    <img
+                      src={team.logo_url}
+                      alt={team.name}
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span>{team.short_code}</span>
+                  )}
                 </div>
 
-                <h1 className="font-syne font-extrabold text-3xl sm:text-4xl text-text tracking-tight">
-                  {team.name}
-                </h1>
+                <div className="flex-1 text-center sm:text-left min-w-0">
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-1.5">
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-surface-2 border border-border text-text">
+                      {team.short_code} &bull; {team.sport}
+                    </span>
+                  </div>
 
-                <div className="mt-3 flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs text-muted">
-                  <span>Owner: <strong className="text-text">{team.owner_display_name || 'Unassigned'}</strong></span>
-                  <span>&bull;</span>
-                  <span>Roster Squad: {teamPlayers.length} Players</span>
+                  <h1 className="font-syne font-extrabold text-3xl sm:text-4xl text-text tracking-tight">
+                    {team.name}
+                  </h1>
+
+                  <div className="mt-3 flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs text-muted">
+                    <span>Roster Squad: {teamPlayers.length} Players</span>
+                  </div>
                 </div>
               </div>
+
+              {showOwnerSection && (
+                <div className="flex flex-col sm:flex-row items-center gap-4 pt-5 md:pt-0 border-t md:border-t-0 md:border-l border-border md:pl-8 w-full md:w-auto justify-center md:justify-start shrink-0">
+                  <div className="w-24 h-24 rounded-2xl overflow-hidden bg-surface-2 border border-border flex items-center justify-center shrink-0 select-none">
+                    {showOwnerPhoto ? (
+                      <img
+                        src={ownerPhotoUrl}
+                        alt={ownerName || 'Franchise Owner'}
+                        referrerPolicy="no-referrer"
+                        onError={() => setFailedOwnerPhotoUrl(ownerPhotoUrl)}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span
+                        aria-hidden="true"
+                        className="font-syne font-bold text-2xl text-muted tracking-tight uppercase"
+                      >
+                        {getInitials(ownerName)}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="text-center sm:text-left">
+                    <span className="block text-[11px] font-mono uppercase tracking-wider text-muted">
+                      Franchise Owner
+                    </span>
+                    {ownerName && (
+                      <span className="font-syne font-bold text-lg text-text tracking-tight block mt-0.5">
+                        {ownerName}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Team Roster Squad */}

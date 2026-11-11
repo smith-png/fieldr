@@ -6,29 +6,39 @@ import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
 import { EmptyState, ErrorState, Spinner } from '../../components/ui'
 import { getActiveSeason, getPublicPlayersBySeason, getPublicTeams, getSeasons } from '../../lib/data'
+import { hasDataChanged, publicCache, type SeasonCardCacheItem } from '../../lib/publicCache'
 import { sortSeasons } from '../../lib/utils'
 import type { Season } from '../../types'
 
-interface SeasonCardData {
-  season: Season
-  teamCount: number
-  playerCount: number
-}
-
 export const SeasonPage: React.FC = () => {
   const navigate = useNavigate()
+  const hasCached = publicCache.seasonCards.loaded
+
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [activeSeason, setActiveSeason] = useState<Season | null>(null)
-  const [seasonCards, setSeasonCards] = useState<SeasonCardData[]>([])
-  const [isLoading, setIsLoading] = useState<boolean>(true)
+  const [activeSeason, setActiveSeason] = useState<Season | null>(
+    publicCache.activeSeason.value
+  )
+  const [seasonCards, setSeasonCards] = useState<SeasonCardCacheItem[]>(
+    hasCached ? publicCache.seasonCards.value : []
+  )
+  const [isLoading, setIsLoading] = useState<boolean>(!hasCached)
   const [hasError, setHasError] = useState<boolean>(false)
 
   const loadData = async () => {
-    setIsLoading(true)
+    const isWarm = publicCache.seasonCards.loaded
+    if (!isWarm) {
+      setIsLoading(true)
+    }
     setHasError(false)
     try {
       const active = await getActiveSeason()
-      setActiveSeason(active)
+      const prevSeason = publicCache.activeSeason.value
+      const seasonChanged =
+        !publicCache.activeSeason.loaded || hasDataChanged(prevSeason, active)
+      publicCache.activeSeason = { loaded: true, value: active }
+      if (seasonChanged) {
+        setActiveSeason(active)
+      }
 
       const allSeasons = sortSeasons(await getSeasons())
 
@@ -37,6 +47,8 @@ export const SeasonPage: React.FC = () => {
           getPublicTeams(s.id),
           getPublicPlayersBySeason(s.id)
         ])
+        publicCache.teamsBySeason.set(s.id, teams)
+        publicCache.playersBySeason.set(s.id, players)
         return {
           season: s,
           teamCount: teams.length,
@@ -45,14 +57,21 @@ export const SeasonPage: React.FC = () => {
       })
 
       const cards = await Promise.all(cardPromises)
-      setSeasonCards(cards)
+      const prevCards = publicCache.seasonCards.value
+      const cardsChanged = !isWarm || hasDataChanged(prevCards, cards)
+      publicCache.seasonCards = { loaded: true, value: cards }
+      if (cardsChanged) {
+        setSeasonCards(cards)
+      }
     } catch (err) {
       console.error(
         'Failed to load seasons page data:',
         err instanceof Error ? err.message : err,
         err
       )
-      setHasError(true)
+      if (!publicCache.seasonCards.loaded) {
+        setHasError(true)
+      }
     } finally {
       setIsLoading(false)
     }

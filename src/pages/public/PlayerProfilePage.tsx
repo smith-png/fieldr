@@ -6,42 +6,86 @@ import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
 import { EmptyState, ErrorState, Spinner } from '../../components/ui'
 import { getAthleteByCode, getAthleteCareer, formatAthleteCode, getActiveSeason } from '../../lib/data'
+import { hasDataChanged, publicCache, type PlayerProfileCacheEntry } from '../../lib/publicCache'
 import type { Athlete, AthleteCareerEntry, Season } from '../../types'
+
+function getProfileCacheKey(code?: string): string {
+  return (code || '').trim().toLowerCase()
+}
 
 export const PlayerProfilePage: React.FC = () => {
   const { code } = useParams<{ code: string }>()
+  const cacheKey = getProfileCacheKey(code)
+  const initialCached = cacheKey ? publicCache.playerProfiles.get(cacheKey) : undefined
+
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [activeSeason, setActiveSeason] = useState<Season | null>(null)
-  const [athlete, setAthlete] = useState<Athlete | null>(null)
-  const [career, setCareer] = useState<AthleteCareerEntry[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [hasError, setHasError] = useState(false)
+  const [activeSeason, setActiveSeason] = useState<Season | null>(
+    publicCache.activeSeason.value
+  )
+  const [athlete, setAthlete] = useState<Athlete | null>(
+    initialCached?.athlete ?? null
+  )
+  const [career, setCareer] = useState<AthleteCareerEntry[]>(
+    initialCached?.career ?? []
+  )
+  const [isLoading, setIsLoading] = useState<boolean>(!initialCached)
+  const [hasError, setHasError] = useState<boolean>(false)
 
   const loadData = async () => {
     if (!code) return
-    setIsLoading(true)
+    const key = getProfileCacheKey(code)
+    const cached = publicCache.playerProfiles.get(key)
+
+    if (cached) {
+      setAthlete(cached.athlete)
+      setCareer(cached.career)
+      setIsLoading(false)
+    } else {
+      setIsLoading(true)
+    }
     setHasError(false)
 
     try {
       const active = await getActiveSeason()
-      setActiveSeason(active)
+      const prevActive = publicCache.activeSeason.value
+      const activeChanged =
+        !publicCache.activeSeason.loaded || hasDataChanged(prevActive, active)
+      publicCache.activeSeason = { loaded: true, value: active }
+      if (activeChanged) {
+        setActiveSeason(active)
+      }
 
       const profile = await getAthleteByCode(code)
       if (!profile) {
+        const emptyEntry: PlayerProfileCacheEntry = { athlete: null, career: [] }
+        publicCache.playerProfiles.set(key, emptyEntry)
         setAthlete(null)
+        setCareer([])
         return
       }
 
-      setAthlete(profile)
       const history = await getAthleteCareer(profile.id)
-      setCareer(history)
+      const nextEntry: PlayerProfileCacheEntry = {
+        athlete: profile,
+        career: history
+      }
+      const prevEntry = publicCache.playerProfiles.get(key)
+      const changed = !prevEntry || hasDataChanged(prevEntry, nextEntry)
+      publicCache.playerProfiles.set(key, nextEntry)
+
+      if (changed) {
+        setAthlete(profile)
+        setCareer(history)
+      }
     } catch (err) {
       console.error(
         'Failed to load athlete profile data:',
         err instanceof Error ? err.message : err,
         err
       )
-      setHasError(true)
+      if (!cached) {
+        setHasError(true)
+      }
     } finally {
       setIsLoading(false)
     }

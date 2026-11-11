@@ -2,10 +2,26 @@ import { AppError } from '../errors'
 import {
   blobToDataUrl,
   createThumbnailBlob,
+  resizeAndCompressImage,
   validateImageFile
 } from '../imageCompression'
 import { isDemoMode, supabase } from './client'
 import type { StorageService } from './types'
+
+function generateUniqueStorageFileName(folder: string): string {
+  const uniqueId =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`
+  return `${folder}/${uniqueId}.jpg`
+}
+
+export function extractFieldrAssetPath(url?: string | null): string | null {
+  if (!url || typeof url !== 'string' || !url.includes('/fieldr-assets/')) return null
+  const parts = url.split('/fieldr-assets/')
+  const raw = parts[1]?.split('?')[0]
+  return raw ? decodeURIComponent(raw) : null
+}
 
 const demoStorageService: StorageService = {
   async uploadPlayerPhotos(
@@ -27,10 +43,12 @@ const demoStorageService: StorageService = {
     // In demo mode, base64 strings are stored directly on the player record
   },
 
-  async uploadAsset(file: File, _folder = 'assets'): Promise<string> {
-    validateImageFile(file)
-    const thumbBlob = await createThumbnailBlob(file, 400, 0.85)
-    return blobToDataUrl(thumbBlob)
+  async uploadAsset(_file: File, _folder = 'assets', _maxLongSide = 400): Promise<string> {
+    throw new AppError('Uploads are disabled in demo mode.')
+  },
+
+  async deleteStorageAsset(_assetUrl?: string | null): Promise<void> {
+    // No-op in demo mode
   }
 }
 
@@ -91,14 +109,8 @@ const supabaseStorageService: StorageService = {
     if (!supabase) return
 
     const filesToDelete: string[] = []
-    const extractPath = (url?: string) => {
-      if (!url || !url.includes('/fieldr-assets/')) return null
-      const parts = url.split('/fieldr-assets/')
-      return parts[1] ? decodeURIComponent(parts[1]) : null
-    }
-
-    const p1 = extractPath(photoUrl)
-    const p2 = extractPath(thumbUrl)
+    const p1 = extractFieldrAssetPath(photoUrl)
+    const p2 = extractFieldrAssetPath(thumbUrl)
     if (p1) filesToDelete.push(p1)
     if (p2 && p2 !== p1) filesToDelete.push(p2)
 
@@ -111,29 +123,37 @@ const supabaseStorageService: StorageService = {
     }
   },
 
-  async uploadAsset(file: File, folder = 'assets'): Promise<string> {
-    validateImageFile(file)
-    const thumbBlob = await createThumbnailBlob(file, 400, 0.85)
+  async uploadAsset(file: File, folder = 'assets', maxLongSide = 400): Promise<string> {
+    if (!supabase) throw new AppError('Supabase not configured')
 
-    if (!supabase) return blobToDataUrl(thumbBlob)
+    validateImageFile(file)
+    const compressedBlob = await resizeAndCompressImage(file, maxLongSide, 0.85)
+    const filename = generateUniqueStorageFileName(folder)
+
+    const { error: uploadError } = await supabase.storage
+      .from('fieldr-assets')
+      .upload(filename, compressedBlob, {
+        contentType: 'image/jpeg',
+        upsert: false
+      })
+
+    if (uploadError) {
+      throw new AppError(uploadError.message, { original: uploadError })
+    }
+
+    const { data } = supabase.storage.from('fieldr-assets').getPublicUrl(filename)
+    return data.publicUrl
+  },
+
+  async deleteStorageAsset(assetUrl?: string | null): Promise<void> {
+    if (!supabase || !assetUrl) return
+    const path = extractFieldrAssetPath(assetUrl)
+    if (!path) return
 
     try {
-      const filename = `${folder}/${Date.now()}-${Math.random().toString(36).substring(2, 8)}.jpg`
-      const { error: uploadError } = await supabase.storage
-        .from('fieldr-assets')
-        .upload(filename, thumbBlob, {
-          contentType: 'image/jpeg',
-          upsert: true
-        })
-
-      if (uploadError) {
-        return blobToDataUrl(thumbBlob)
-      }
-
-      const { data } = supabase.storage.from('fieldr-assets').getPublicUrl(filename)
-      return data.publicUrl
-    } catch {
-      return blobToDataUrl(thumbBlob)
+      await supabase.storage.from('fieldr-assets').remove([path])
+    } catch (err) {
+      console.error('Failed to delete asset from storage:', err)
     }
   }
 }
@@ -171,5 +191,7 @@ export async function uploadPlayerPhotos(
 
 export const deletePlayerPhotoAssets = (p?: string, t?: string) =>
   storageService.deletePlayerPhotoAssets(p, t)
-export const uploadAsset = (file: File, folder = 'assets') =>
-  storageService.uploadAsset(file, folder)
+export const uploadAsset = (file: File, folder = 'assets', maxLongSide = 400) =>
+  storageService.uploadAsset(file, folder, maxLongSide)
+export const deleteStorageAsset = (assetUrl?: string | null) =>
+  storageService.deleteStorageAsset(assetUrl)

@@ -21,25 +21,53 @@ import {
   getSeason,
   getSports
 } from '../../lib/data'
+import { hasDataChanged, publicCache, type SeasonDetailCacheEntry } from '../../lib/publicCache'
 import { matchesSport } from '../../lib/utils'
 import type { PublicPlayer, PublicTeam, Season, Sport } from '../../types'
 
 type SeasonTab = 'overview' | 'teams' | 'players'
 
+function getCachedSeasonDetail(id?: string): SeasonDetailCacheEntry | undefined {
+  if (!id) return undefined
+  const direct = publicCache.seasonDetails.get(id)
+  if (direct) return direct
+
+  const cardSeason =
+    publicCache.seasonCards.value.find((c) => c.season.id === id)?.season ||
+    (publicCache.activeSeason.value?.id === id ? publicCache.activeSeason.value : null)
+  const cachedTeams = publicCache.teamsBySeason.get(id)
+  const cachedPlayers = publicCache.playersBySeason.get(id)
+
+  if (cardSeason && cachedTeams && cachedPlayers) {
+    return {
+      season: cardSeason,
+      sports: publicCache.sports.value,
+      teams: cachedTeams,
+      players: cachedPlayers
+    }
+  }
+  return undefined
+}
+
 export const SeasonDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const initialCached = getCachedSeasonDetail(id)
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [activeSeason, setActiveSeason] = useState<Season | null>(null)
-  const [season, setSeason] = useState<Season | null>(null)
-  const [sports, setSports] = useState<Sport[]>([])
-  const [teams, setTeams] = useState<PublicTeam[]>([])
-  const [players, setPlayers] = useState<PublicPlayer[]>([])
+  const [activeSeason, setActiveSeason] = useState<Season | null>(
+    publicCache.activeSeason.value
+  )
+  const [season, setSeason] = useState<Season | null>(initialCached?.season ?? null)
+  const [sports, setSports] = useState<Sport[]>(
+    initialCached?.sports ?? publicCache.sports.value
+  )
+  const [teams, setTeams] = useState<PublicTeam[]>(initialCached?.teams ?? [])
+  const [players, setPlayers] = useState<PublicPlayer[]>(initialCached?.players ?? [])
 
   const [activeTab, setActiveTab] = useState<SeasonTab>('overview')
-  const [isLoading, setIsLoading] = useState(true)
-  const [hasError, setHasError] = useState(false)
+  const [isLoading, setIsLoading] = useState<boolean>(!initialCached)
+  const [hasError, setHasError] = useState<boolean>(false)
 
   // Filters for players
   const [playerSportFilter, setPlayerSportFilter] = useState('all')
@@ -48,20 +76,40 @@ export const SeasonDetailPage: React.FC = () => {
 
   const loadData = async () => {
     if (!id) return
-    setIsLoading(true)
+    const cached = getCachedSeasonDetail(id)
+    if (cached) {
+      setSeason(cached.season)
+      setSports(cached.sports)
+      setTeams(cached.teams)
+      setPlayers(cached.players)
+      setIsLoading(false)
+    } else {
+      setIsLoading(true)
+    }
     setHasError(false)
 
     try {
       const active = await getActiveSeason()
-      setActiveSeason(active)
+      const prevActive = publicCache.activeSeason.value
+      const activeChanged =
+        !publicCache.activeSeason.loaded || hasDataChanged(prevActive, active)
+      publicCache.activeSeason = { loaded: true, value: active }
+      if (activeChanged) {
+        setActiveSeason(active)
+      }
 
       const s = await getSeason(id)
       if (!s) {
+        const emptyEntry: SeasonDetailCacheEntry = {
+          season: null,
+          sports: [],
+          teams: [],
+          players: []
+        }
+        publicCache.seasonDetails.set(id, emptyEntry)
         setSeason(null)
         return
       }
-
-      setSeason(s)
 
       const [sportsData, teamsData, playersData] = await Promise.all([
         getSports(),
@@ -69,16 +117,35 @@ export const SeasonDetailPage: React.FC = () => {
         getPublicPlayersBySeason(id)
       ])
 
-      setSports(sportsData)
-      setTeams(teamsData)
-      setPlayers(playersData)
+      publicCache.sports = { loaded: true, value: sportsData }
+      publicCache.teamsBySeason.set(id, teamsData)
+      publicCache.playersBySeason.set(id, playersData)
+
+      const nextEntry: SeasonDetailCacheEntry = {
+        season: s,
+        sports: sportsData,
+        teams: teamsData,
+        players: playersData
+      }
+      const prevEntry = publicCache.seasonDetails.get(id) ?? cached
+      const changed = !prevEntry || hasDataChanged(prevEntry, nextEntry)
+      publicCache.seasonDetails.set(id, nextEntry)
+
+      if (changed) {
+        setSeason(s)
+        setSports(sportsData)
+        setTeams(teamsData)
+        setPlayers(playersData)
+      }
     } catch (err) {
       console.error(
         'Failed to load season detail data:',
         err instanceof Error ? err.message : err,
         err
       )
-      setHasError(true)
+      if (!cached) {
+        setHasError(true)
+      }
     } finally {
       setIsLoading(false)
     }

@@ -5,32 +5,120 @@ import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
 import { getActiveSeason, getPublicPlayersBySeason, getPublicTeams } from '../../lib/data'
+import { hasDataChanged, publicCache } from '../../lib/publicCache'
 import type { PublicPlayer, PublicTeam, Season } from '../../types'
 
+function getCachedTeamsPageState(): {
+  hasCache: boolean
+  season: Season | null
+  teams: PublicTeam[]
+  players: PublicPlayer[]
+} {
+  if (!publicCache.activeSeason.loaded) {
+    return { hasCache: false, season: null, teams: [], players: [] }
+  }
+  const season = publicCache.activeSeason.value
+  if (!season) {
+    return { hasCache: true, season: null, teams: [], players: [] }
+  }
+  const cachedTeams = publicCache.teamsBySeason.get(season.id)
+  const cachedPlayers = publicCache.playersBySeason.get(season.id)
+  if (cachedTeams && cachedPlayers) {
+    return {
+      hasCache: true,
+      season,
+      teams: cachedTeams,
+      players: cachedPlayers
+    }
+  }
+  return {
+    hasCache: false,
+    season,
+    teams: cachedTeams || [],
+    players: cachedPlayers || []
+  }
+}
+
+function getTeamCardTintStyle(color?: string | null): React.CSSProperties | undefined {
+  const clean = color?.trim()
+  if (!clean) return undefined
+
+  const hexMatch = clean.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/)
+  if (hexMatch) {
+    const hex = hexMatch[1]
+    const r =
+      hex.length === 3
+        ? parseInt(hex[0] + hex[0], 16)
+        : parseInt(hex.slice(0, 2), 16)
+    const g =
+      hex.length === 3
+        ? parseInt(hex[1] + hex[1], 16)
+        : parseInt(hex.slice(2, 4), 16)
+    const b =
+      hex.length === 3
+        ? parseInt(hex[2] + hex[2], 16)
+        : parseInt(hex.slice(4, 6), 16)
+
+    return {
+      backgroundImage: `linear-gradient(135deg, rgba(${r}, ${g}, ${b}, 0.15) 0%, rgba(${r}, ${g}, ${b}, 0.05) 42%, rgba(${r}, ${g}, ${b}, 0) 72%)`
+    }
+  }
+
+  return {
+    backgroundImage: `linear-gradient(135deg, color-mix(in srgb, ${clean} 15%, transparent) 0%, color-mix(in srgb, ${clean} 5%, transparent) 42%, transparent 72%)`
+  }
+}
+
 export const TeamsPage: React.FC = () => {
+  const initial = getCachedTeamsPageState()
+
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [activeSeason, setActiveSeason] = useState<Season | null>(null)
-  const [teams, setTeams] = useState<PublicTeam[]>([])
-  const [players, setPlayers] = useState<PublicPlayer[]>([])
-  const [isLoading, setIsLoading] = useState<boolean>(true)
+  const [activeSeason, setActiveSeason] = useState<Season | null>(initial.season)
+  const [teams, setTeams] = useState<PublicTeam[]>(initial.teams)
+  const [players, setPlayers] = useState<PublicPlayer[]>(initial.players)
+  const [isLoading, setIsLoading] = useState<boolean>(!initial.hasCache)
 
   useEffect(() => {
     let mounted = true
+    const cached = getCachedTeamsPageState()
+    if (cached.hasCache) {
+      setIsLoading(false)
+    } else {
+      setIsLoading(true)
+    }
+
     async function loadData() {
       try {
-        setIsLoading(true)
         const season = await getActiveSeason()
-        if (mounted) setActiveSeason(season)
+        const prevSeason = publicCache.activeSeason.value
+        const seasonChanged =
+          !publicCache.activeSeason.loaded || hasDataChanged(prevSeason, season)
+        publicCache.activeSeason = { loaded: true, value: season }
+        if (mounted && seasonChanged) {
+          setActiveSeason(season)
+        }
 
         if (season) {
           const [teamList, playerList] = await Promise.all([
             getPublicTeams(season.id),
             getPublicPlayersBySeason(season.id)
           ])
+          const prevTeams = publicCache.teamsBySeason.get(season.id)
+          const prevPlayers = publicCache.playersBySeason.get(season.id)
+          const teamsChanged = !prevTeams || hasDataChanged(prevTeams, teamList)
+          const playersChanged =
+            !prevPlayers || hasDataChanged(prevPlayers, playerList)
+
+          publicCache.teamsBySeason.set(season.id, teamList)
+          publicCache.playersBySeason.set(season.id, playerList)
+
           if (mounted) {
-            setTeams(teamList)
-            setPlayers(playerList)
+            if (teamsChanged) setTeams(teamList)
+            if (playersChanged) setPlayers(playerList)
           }
+        } else if (mounted && teams.length > 0) {
+          setTeams([])
+          setPlayers([])
         }
       } catch (err) {
         console.error(
@@ -105,10 +193,11 @@ export const TeamsPage: React.FC = () => {
                 <Link
                   key={team.id}
                   to={`/season/${team.season_id}/teams/${team.id}`}
+                  style={getTeamCardTintStyle(team.color)}
                   className="group bg-surface border border-border hover:border-accent-bright rounded-2xl p-6 transition-colors flex flex-col justify-between shadow-sm"
                 >
                   <div>
-                    {/* Header with Logo and Color Badge */}
+                    {/* Header with Logo and Team Name */}
                     <div className="flex items-start justify-between gap-4 mb-4">
                       <div className="flex items-center gap-3">
                         {team.logo_url ? (
@@ -131,11 +220,6 @@ export const TeamsPage: React.FC = () => {
                             <span className="font-mono text-xs uppercase tracking-wider text-muted">
                               {team.sport}
                             </span>
-                            <span
-                              className="w-2.5 h-2.5 rounded-full inline-block border border-border"
-                              style={{ backgroundColor: team.color || 'var(--accent-bright)' }}
-                              title={`Team color: ${team.color}`}
-                            />
                           </div>
                           <h3 className="font-syne font-bold text-xl text-text group-hover:text-accent-bright transition-colors tracking-tight">
                             {team.name}

@@ -6,6 +6,7 @@ import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
 import { CreditsSection } from '../../components/credits/CreditsSection'
 import { getActiveSeason, getSiteSettings } from '../../lib/data'
+import { hasDataChanged, publicCache } from '../../lib/publicCache'
 import type { PageContentSetting, Season } from '../../types'
 
 interface ContentPageProps {
@@ -13,23 +14,76 @@ interface ContentPageProps {
   fallbackTitle: string
 }
 
+function getCachedPageContent(pageKey: 'help_page' | 'about_page'): {
+  hasCache: boolean
+  value: PageContentSetting | null
+} {
+  if (publicCache.pageContent.has(pageKey)) {
+    return {
+      hasCache: true,
+      value: publicCache.pageContent.get(pageKey) ?? null
+    }
+  }
+  if (publicCache.siteSettings.loaded) {
+    const val = (publicCache.siteSettings.value[pageKey] as PageContentSetting | undefined) ?? null
+    return {
+      hasCache: true,
+      value: val
+    }
+  }
+  return { hasCache: false, value: null }
+}
+
 export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle }) => {
+  const initialCached = getCachedPageContent(pageKey)
+
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [activeSeason, setActiveSeason] = useState<Season | null>(null)
-  const [content, setContent] = useState<PageContentSetting | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [activeSeason, setActiveSeason] = useState<Season | null>(
+    publicCache.activeSeason.value
+  )
+  const [content, setContent] = useState<PageContentSetting | null>(initialCached.value)
+  const [isLoading, setIsLoading] = useState<boolean>(!initialCached.hasCache)
 
   useEffect(() => {
     let mounted = true
+    const cached = getCachedPageContent(pageKey)
+
+    if (cached.hasCache) {
+      setContent(cached.value)
+      setIsLoading(false)
+    } else {
+      setIsLoading(true)
+    }
+
     async function loadData() {
       try {
-        setIsLoading(true)
-        const season = await getActiveSeason()
-        if (mounted) setActiveSeason(season)
+        const [season, settings] = await Promise.all([
+          getActiveSeason(),
+          getSiteSettings()
+        ])
 
-        const settings = await getSiteSettings()
-        if (mounted && settings[pageKey]) {
-          setContent(settings[pageKey] as PageContentSetting)
+        const prevSeason = publicCache.activeSeason.value
+        const seasonChanged =
+          !publicCache.activeSeason.loaded || hasDataChanged(prevSeason, season)
+        publicCache.activeSeason = { loaded: true, value: season }
+        if (mounted && seasonChanged) {
+          setActiveSeason(season)
+        }
+
+        publicCache.siteSettings = { loaded: true, value: settings }
+        const helpVal = (settings.help_page as PageContentSetting | undefined) ?? null
+        const aboutVal = (settings.about_page as PageContentSetting | undefined) ?? null
+        const prevPageVal = publicCache.pageContent.get(pageKey)
+        const nextPageVal = (settings[pageKey] as PageContentSetting | undefined) ?? null
+
+        publicCache.pageContent.set('help_page', helpVal)
+        publicCache.pageContent.set('about_page', aboutVal)
+
+        if (
+          mounted &&
+          (!cached.hasCache || hasDataChanged(prevPageVal ?? null, nextPageVal))
+        ) {
+          setContent(nextPageVal)
         }
       } catch (err) {
         console.error(
@@ -41,6 +95,7 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
         if (mounted) setIsLoading(false)
       }
     }
+
     loadData()
     return () => {
       mounted = false
