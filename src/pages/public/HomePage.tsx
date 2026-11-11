@@ -192,16 +192,6 @@ export const HomePage: React.FC = () => {
               </div>
             ))}
           </motion.div>
-
-          {/* Supporting Copy */}
-          <motion.p
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            className="text-base sm:text-lg md:text-xl text-muted max-w-xl mt-6 leading-relaxed"
-          >
-            Teams, purses and players, run from one control room and shown live on the big screen.
-          </motion.p>
         </main>
       </ErrorBoundary>
 

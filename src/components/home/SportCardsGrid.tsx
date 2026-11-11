@@ -39,9 +39,6 @@ export const SportCardsGrid: React.FC<SportCardsGridProps> = ({ playerCounts }) 
             Explore rosters by sport
           </h2>
         </div>
-        <p className="text-sm text-muted max-w-md">
-          Review scout profiles, academic batches, and playing roles across all active disciplines.
-        </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
