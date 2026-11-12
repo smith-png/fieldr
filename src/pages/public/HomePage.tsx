@@ -11,8 +11,7 @@ import {
   FALLBACK_CAROUSEL_TEXTS,
   getActiveSeason,
   getCarouselItems,
-  getPublicPlayersBySeason,
-  subscribeToCarouselItems
+  getPublicPlayersBySeason
 } from '../../lib/data'
 import { hasDataChanged, publicCache } from '../../lib/publicCache'
 import { matchesSport } from '../../lib/utils'
@@ -123,30 +122,8 @@ export const HomePage: React.FC = () => {
 
     loadData()
 
-    // Subscribe to realtime changes with defensive parsing and fallback
-    const unsubscribeCarousel = subscribeToCarouselItems((items) => {
-      if (!mounted) return
-      try {
-        let nextTexts = FALLBACK_CAROUSEL_TEXTS
-        if (items && Array.isArray(items) && items.length > 0) {
-          const texts = items
-            .map((i: CarouselItem) => (i && typeof i.text === 'string' ? i.text.trim() : ''))
-            .filter((t: string) => t.length > 0)
-          if (texts.length > 0) {
-            nextTexts = texts
-          }
-        }
-        publicCache.carouselItems = { loaded: true, value: nextTexts }
-        setCarouselItems(nextTexts)
-      } catch (err) {
-        console.error('Error in realtime carousel update, applying fallback:', err)
-        setCarouselItems(FALLBACK_CAROUSEL_TEXTS)
-      }
-    })
-
     return () => {
       mounted = false
-      unsubscribeCarousel()
     }
   }, [])
 

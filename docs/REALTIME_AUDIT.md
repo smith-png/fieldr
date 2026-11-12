@@ -1,41 +1,58 @@
-# Realtime Subscriptions Audit
+# Supabase Realtime Subscriptions Audit
 
-## 1. Realtime Subscriptions & Helpers Across the Project
+## 1 & 2. All Realtime Subscriptions and Unmount Cleanup
 
-| File name | Page or component | Table or channel listened to | Used by (PUBLIC signed-out page, ADMIN page, or PROJECTOR) | Unsubscribes on page close (yes or no) |
-| :--- | :--- | :--- | :--- | :--- |
-| `src/lib/data/client.ts` | `demoBroadcastChannel` (module-level helper) | `BroadcastChannel('fieldr-projector-sync')` (demo mode only) | PUBLIC signed-out page, ADMIN page, PROJECTOR | No (module-level channel instance in demo mode; individual subscribers remove their message listeners on unmount) |
-| `src/lib/data/site.ts` | `subscribeToCarouselItems` | Supabase channel `fieldr-carousel-realtime` on table `public.carousel_items` (`event: '*'`); in demo mode `BroadcastChannel('fieldr-projector-sync')` (`carousel_change`) + `window` `storage` | PUBLIC signed-out page (`HomePage`) | Yes (`supabase.removeChannel(realtimeChannel)` / `removeEventListener`) |
-| `src/lib/data/teams.ts` | `subscribeToTeams` | Supabase channel `teams_${seasonId}` on table `public.teams` (`event: '*'`, `season_id=eq.${seasonId}`); in demo mode `BroadcastChannel('fieldr-projector-sync')` (`teams_change`) + `window` `storage` | ADMIN page (`AdminPage`), PROJECTOR (`ProjectorPage`) | Yes (`supabase.removeChannel(sbChannel)` / `removeEventListener`) |
-| `src/lib/data/players.ts` | `subscribeToPlayers` | Supabase channel `players_${seasonId}` on table `public.players` (`event: '*'`, `season_id=eq.${seasonId}`); in demo mode `BroadcastChannel('fieldr-projector-sync')` (`players_change`) + `window` `storage` | ADMIN page (`AdminPage`), PROJECTOR (`ProjectorPage`) | Yes (`supabase.removeChannel(sbChannel)` / `removeEventListener`) |
-| `src/lib/data/projector.ts` | `subscribeToProjector` | Supabase channel `projector_state_${seasonId}` on table `public.projector_state` (`event: '*'`, `season_id=eq.${seasonId}`); in demo mode `BroadcastChannel('fieldr-projector-sync')` (`projector_change`) + `window` `storage` | ADMIN page (`AdminPage`), PROJECTOR (`ProjectorPage`) | Yes (`supabase.removeChannel(sbChannel)` / `removeEventListener`) |
-| `src/lib/data/athletes.ts` | `subscribeToAthletes` | Supabase channel `admin_athletes_realtime` on tables `public.athletes` (`event: '*'`) and `public.players` (`event: '*'); in demo mode `BroadcastChannel('fieldr-projector-sync')` (`athletes_change`, `players_change`) + `window` `storage` | ADMIN page (`AdminAthletes`, `AdminPlayers`) | Yes (`supabase.removeChannel(channel)` / `removeEventListener`) |
-| `src/lib/data/auction.ts` | `subscribeToAuctionSettings` | Supabase channel `auction_settings_${seasonId}` on table `public.auction_settings` (`event: '*'`, `season_id=eq.${seasonId}`); in demo mode `BroadcastChannel('fieldr-projector-sync')` (`auction_settings_change`) + `window` `storage` | PROJECTOR (`ProjectorPage`) | Yes (`supabase.removeChannel(channel)` / `removeEventListener`) |
-| `src/lib/data/auction.ts` | `subscribeToAuctionRealtime` | Supabase channel `admin_auction_live_${seasonId}` on tables `public.projector_state`, `public.players`, `public.teams`, `public.auction_bids`, `public.auction_sales`, and `public.auction_settings` (`event: '*'`); in demo mode `BroadcastChannel('fieldr-projector-sync')` + `window` `storage` | ADMIN page (`AdminAuction`) | Yes (`supabase.removeChannel(channel)` / `removeEventListener`) |
-| `src/pages/public/HomePage.tsx` | `HomePage` | Calls `subscribeToCarouselItems` -> channel `fieldr-carousel-realtime` (`public.carousel_items`) | PUBLIC signed-out page | Yes |
-| `src/pages/public/ProjectorPage.tsx` | `ProjectorPage` | Calls `subscribeToProjector` (`projector_state_${seasonId}` -> `public.projector_state`), `subscribeToAuctionSettings` (`auction_settings_${seasonId}` -> `public.auction_settings`), `subscribeToTeams` (`teams_${seasonId}` -> `public.teams`), and `subscribeToPlayers` (`players_${seasonId}` -> `public.players`) | PROJECTOR | Yes |
-| `src/pages/admin/AdminPage.tsx` | `AdminPage` (admin layout shell for all `/admin/*` views) | Calls `subscribeToProjector` (`projector_state_${seasonId}` -> `public.projector_state`), `subscribeToPlayers` (`players_${seasonId}` -> `public.players`), and `subscribeToTeams` (`teams_${seasonId}` -> `public.teams`) | ADMIN page | Yes |
-| `src/pages/admin/AdminAuction.tsx` | `AdminAuction` (mounted inside `AdminPage` on `/admin/auction`) | Calls `subscribeToAuctionRealtime` -> channel `admin_auction_live_${seasonId}` (`public.projector_state`, `public.players`, `public.teams`, `public.auction_bids`, `public.auction_sales`, `public.auction_settings`) | ADMIN page | Yes |
-| `src/pages/admin/AdminAthletes.tsx` | `AdminAthletes` (mounted inside `AdminPage` on `/admin/athletes`) | Calls `subscribeToAthletes` -> channel `admin_athletes_realtime` (`public.athletes`, `public.players`) | ADMIN page | Yes |
-| `src/pages/admin/AdminPlayers.tsx` | `AdminPlayers` (mounted inside `AdminPage` on `/admin/players`) | Calls `subscribeToAthletes` -> channel `admin_athletes_realtime` (`public.athletes`, `public.players`) | ADMIN page | Yes |
+### A. Supabase `postgres_changes` Channel Definitions (`src/lib/data/`)
+
+| Helper File | Function | Channel Name | Table(s) / Filter | Used By (Page / Component) | Context | Unsubscribes / Removes Channel on Unmount |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `src/lib/data/site.ts` (L391–409) | `subscribeToCarouselItems` | `fieldr-carousel-realtime` | `public.carousel_items` (`event: '*'`) | `src/pages/public/HomePage.tsx` (L126–149) | Public Page (`Home`) | **Yes** (`supabase.removeChannel(realtimeChannel)` in `useEffect` cleanup) |
+| `src/lib/data/projector.ts` (L241–267) | `subscribeToProjector` | `projector_state_${seasonId}` | `public.projector_state` (`season_id=eq.${seasonId}`) | `src/pages/admin/AdminPage.tsx` (L165–179)<br>`src/pages/public/ProjectorPage.tsx` (L589–630) | Admin Pages, Auction Room, Projector | **Yes** (`supabase.removeChannel(sbChannel)` in `useEffect` cleanup) |
+| `src/lib/data/players.ts` (L1340–1362) | `subscribeToPlayers` | `players_${seasonId}` | `public.players` (`season_id=eq.${seasonId}`) | `src/pages/admin/AdminPage.tsx` (L168–179)<br>`src/pages/public/ProjectorPage.tsx` (L611–630) | Admin Pages, Auction Room, Projector | **Yes** (`supabase.removeChannel(sbChannel)` in `useEffect` cleanup) |
+| `src/lib/data/teams.ts` (L830–853) | `subscribeToTeams` | `teams_${seasonId}` | `public.teams` (`season_id=eq.${seasonId}`) | `src/pages/admin/AdminPage.tsx` (L171–179)<br>`src/pages/public/ProjectorPage.tsx` (L600–630) | Admin Pages, Auction Room, Projector | **Yes** (`supabase.removeChannel(sbChannel)` in `useEffect` cleanup) |
+| `src/lib/data/athletes.ts` (L765–793) | `subscribeToAthletes` | `admin_athletes_realtime` | `public.athletes` (`event: '*'`)<br>`public.players` (`event: '*'`) | `src/pages/admin/AdminAthletes.tsx` (L172–176)<br>`src/pages/admin/AdminPlayers.tsx` (L378–383) | Admin Pages (`Athletes` tab, `Players` tab) | **Yes** (`supabase.removeChannel(channel)` in `useEffect` cleanup) |
+| `src/lib/data/auction.ts` (L698–730) | `subscribeToAuctionSettings` | `auction_settings_${seasonId}` | `public.auction_settings` (`season_id=eq.${seasonId}`) | `src/pages/public/ProjectorPage.tsx` (L593–630) | Projector | **Yes** (`supabase.removeChannel(channel)` in `useEffect` cleanup) |
+| `src/lib/data/auction.ts` (L915–983) | `subscribeToAuctionRealtime` | `admin_auction_live_${seasonId}` | `public.auction_state` (`season_id=eq.${seasonId}`)<br>`public.auction_bids` (`season_id=eq.${seasonId}`)<br>`public.auction_settings` (`season_id=eq.${seasonId}`)<br>`public.teams` (`season_id=eq.${seasonId}`)<br>`public.players` (`season_id=eq.${seasonId}`)<br>`public.projector_state` (`season_id=eq.${seasonId}`) | `src/pages/admin/AdminAuction.tsx` (L179–184) | Auction Room (`AdminAuction` tab inside `AdminPage`) | **Yes** (`supabase.removeChannel(channel)` in `useEffect` cleanup) |
+
+### B. Supabase Broadcast / Presence Usage
+- **Supabase Broadcast (`.on('broadcast', ...)`):** None used anywhere in the project.
+- **Supabase Presence (`.on('presence', ...)`):** None used anywhere in the project.
+- **Browser `BroadcastChannel` (local demo mode only):** `src/lib/data/client.ts` (L17–20) creates `new BroadcastChannel('fieldr-projector-sync')` only when `isDemoMode === true` (when `VITE_SUPABASE_URL` or `VITE_SUPABASE_ANON_KEY` is missing). All demo listeners remove their `message` event listener on unmount.
 
 ---
 
-## 2. Realtime WebSocket Connections & Channels per Browser Tab
+## 3. WebSocket Connections and Realtime Channels per Open Browser Tab
 
-Because the app uses a single shared `SupabaseClient` instance (`@supabase/supabase-js`), Supabase Realtime opens **at most 1 underlying WebSocket connection per browser tab** and multiplexes all subscribed channels over that socket.
+Because the app shares a single `SupabaseClient` instance (`src/lib/data/client.ts`), `@supabase/supabase-js` multiplexes all active realtime channels in a browser tab over **at most 1 WebSocket connection** (`0` WebSocket connections if no channel is subscribed on that page).
 
-| Page | Underlying WebSocket connections opened | Active Supabase Realtime channels (topics) subscribed | Details |
+| Page | Route(s) | WebSocket Connections per Tab | Active Realtime Channels Multiplexed on that WebSocket |
 | :--- | :--- | :--- | :--- |
-| **Public Home** (`/`) | **1** | **1 channel** (1 `postgres_changes` listener) | Subscribes to `fieldr-carousel-realtime` (`public.carousel_items`). |
-| **Public Teams page** (`/teams` and `/season/:id/teams/:teamId`) | **0** | **0 channels** | Does not open any realtime subscriptions (fetches via REST only). |
-| **Rosters page** (`/rosters` and `/rosters/:sport`) | **0** | **0 channels** | Does not open any realtime subscriptions (fetches via REST only). |
-| **The Projector** (`/projector`) | **1** | **4 channels** (4 `postgres_changes` listeners) | Subscribes to `projector_state_${seasonId}`, `auction_settings_${seasonId}`, `teams_${seasonId}`, and `players_${seasonId}`. |
-| **The Auction Room** (`/admin/auction`) | **1** | **4 channels** (9 `postgres_changes` listeners) | `AdminPage` subscribes to 3 channels (`projector_state_${seasonId}`, `players_${seasonId}`, `teams_${seasonId}`) and `AdminAuction` subscribes to 1 channel (`admin_auction_live_${seasonId}` with 6 `postgres_changes` listeners on `projector_state`, `players`, `teams`, `auction_bids`, `auction_sales`, and `auction_settings`). |
+| **Home** | `/` | **1** | **1 channel:** `fieldr-carousel-realtime` (`carousel_items`) |
+| **Rosters** | `/rosters`, `/rosters/:sport` | **0** | **0 channels** |
+| **Teams** | `/teams` | **0** | **0 channels** |
+| **Team page** | `/season/:id/teams/:teamId` | **0** | **0 channels** |
+| **Season** | `/season`, `/season/:id` | **0** | **0 channels** |
+| **Help** | `/help` | **0** | **0 channels** |
+| **About** | `/about` | **0** | **0 channels** |
+| **Handbook** | `/handbook` | **0** | **0 channels** |
+| **Admin pages** (Dashboard, Seasons, Teams, Purses, Projector Control, Setup, Logs) | `/admin`, `/admin/logs` | **1** | **3 channels** (mounted by parent `AdminPage.tsx`):<br>1. `projector_state_${seasonId}`<br>2. `players_${seasonId}`<br>3. `teams_${seasonId}` |
+| **Admin pages** (Athletes tab or Players tab) | `/admin` (`Athletes` / `Players` tab) | **1** | **4 channels** (3 from parent `AdminPage.tsx` + 1 from active tab):<br>1. `projector_state_${seasonId}`<br>2. `players_${seasonId}`<br>3. `teams_${seasonId}`<br>4. `admin_athletes_realtime` (`athletes`, `players`) |
+| **Auction Room** | `/admin` (`Auction` tab) | **1** | **4 channels** (3 from parent `AdminPage.tsx` + 1 from `AdminAuction.tsx`):<br>1. `projector_state_${seasonId}`<br>2. `players_${seasonId}`<br>3. `teams_${seasonId}`<br>4. `admin_auction_live_${seasonId}` (`auction_state`, `auction_bids`, `auction_settings`, `teams`, `players`, `projector_state`) |
+| **Projector** | `/projector` | **1** | **4 channels** (mounted by `ProjectorPage.tsx`):<br>1. `projector_state_${seasonId}`<br>2. `auction_settings_${seasonId}`<br>3. `teams_${seasonId}`<br>4. `players_${seasonId}` |
 
 ---
 
-## 3. Supabase Client Instantiation
+## 4. Supabase Client Instantiation
 
-- The Supabase client is **created once and shared** across the entire application.
-- `createClient(supabaseUrl, supabaseAnonKey)` is called in one place only: `src/lib/data/client.ts` (lines 12–14), where it is exported as the module singleton `export const supabase: SupabaseClient | null`. All other data modules import and reuse this single instance.
+- **Created once and shared:** `createClient(supabaseUrl, supabaseAnonKey)` is called in **one place only** — `src/lib/data/client.ts` (lines 12–14) — and exported as the singleton `supabase` instance imported across the entire application.
+
+---
+
+## 5. Pages / Components Using Realtime That Do Not Need It
+
+1. **Public Home Page (`src/pages/public/HomePage.tsx`, line 126 — `subscribeToCarouselItems`):**
+   - Opens a live WebSocket connection (`fieldr-carousel-realtime` on `public.carousel_items`) for every signed-out visitor on `/`. Homepage ticker text is static configuration edited only occasionally in Admin Setup; fetching once on page load (with the existing in-memory cache) is sufficient and avoids opening a WebSocket connection for every public homepage visitor.
+2. **Admin Shell (`src/pages/admin/AdminPage.tsx`, lines 165–173) when viewing non-live Admin tabs (`Seasons`, `Setup`, `Activity Log`):**
+   - `AdminPage.tsx` keeps `subscribeToProjector`, `subscribeToPlayers`, and `subscribeToTeams` open across all admin tabs, including static configuration/audit tabs (`AdminSetup`, `AdminSeasons`, `AdminLogs`) that do not need live projector/player/team streaming.
+   - Additionally, when the **Auction Room** (`AdminAuction.tsx`) is open, `AdminAuction` subscribes to `admin_auction_live_${seasonId}` (which already listens to `teams`, `players`, and `projector_state`), duplicating the 3 table listeners already active in the parent `AdminPage.tsx`.
+   - Similarly, when `AdminPlayers.tsx` is open, `subscribeToAthletes` listens to `public.players`, duplicating the `players_${seasonId}` subscription already active in the parent `AdminPage.tsx`.
