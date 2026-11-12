@@ -184,10 +184,10 @@ export const HomePage: React.FC = () => {
                   }
                 : undefined
             }
-            className="flex flex-col gap-0 select-none my-2 transition-transform duration-200 ease-out"
+            className="flex flex-col gap-0 select-none my-2 w-full max-w-full transition-transform duration-200 ease-out"
           >
             {heroLines.map((line, index) => (
-              <div key={line} className="overflow-hidden">
+              <div key={line} className="overflow-hidden w-full max-w-full py-1 pr-2">
                 <motion.h1
                   initial={{ y: '100%', opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
@@ -196,7 +196,7 @@ export const HomePage: React.FC = () => {
                     delay: 0.1 + index * 0.12,
                     ease: [0.22, 1, 0.36, 1]
                   }}
-                  className={`font-syne font-extrabold text-6xl sm:text-8xl md:text-9xl lg:text-[10.5rem] tracking-tighter leading-[0.88] ${
+                  className={`font-syne font-extrabold text-[clamp(2.25rem,11vw,8.25rem)] tracking-tight leading-[0.95] whitespace-nowrap ${
                     index === 2
                       ? 'text-text'
                       : index === 1

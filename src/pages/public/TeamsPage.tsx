@@ -60,12 +60,16 @@ function getTeamCardTintStyle(color?: string | null): React.CSSProperties | unde
         : parseInt(hex.slice(4, 6), 16)
 
     return {
-      backgroundImage: `linear-gradient(135deg, rgba(${r}, ${g}, ${b}, 0.15) 0%, rgba(${r}, ${g}, ${b}, 0.05) 42%, rgba(${r}, ${g}, ${b}, 0) 72%)`
+      backgroundImage: `linear-gradient(135deg, rgba(${r}, ${g}, ${b}, 0.15) 0%, rgba(${r}, ${g}, ${b}, 0.05) 42%, rgba(${r}, ${g}, ${b}, 0) 72%)`,
+      borderColor: `rgba(${r}, ${g}, ${b}, 0.35)`,
+      backgroundClip: 'padding-box'
     }
   }
 
   return {
-    backgroundImage: `linear-gradient(135deg, color-mix(in srgb, ${clean} 15%, transparent) 0%, color-mix(in srgb, ${clean} 5%, transparent) 42%, transparent 72%)`
+    backgroundImage: `linear-gradient(135deg, color-mix(in srgb, ${clean} 15%, transparent) 0%, color-mix(in srgb, ${clean} 5%, transparent) 42%, transparent 72%)`,
+    borderColor: `color-mix(in srgb, ${clean} 35%, transparent)`,
+    backgroundClip: 'padding-box'
   }
 }
 
@@ -221,7 +225,7 @@ export const TeamsPage: React.FC = () => {
                         key={team.id}
                         to={`/season/${team.season_id}/teams/${team.id}`}
                         style={getTeamCardTintStyle(team.color)}
-                        className="group bg-surface border border-border hover:border-accent-bright rounded-2xl p-6 transition-colors flex flex-col justify-between shadow-sm"
+                        className="group relative overflow-hidden rounded-2xl bg-surface bg-clip-padding border border-border hover:border-accent-bright p-6 transition-colors flex flex-col justify-between shadow-sm"
                       >
                         <div>
                           {/* Header with Logo and Team Name */}
