@@ -16,8 +16,6 @@ import { LoginPage } from './pages/public/LoginPage'
 import { AdminPage } from './pages/admin/AdminPage'
 import { ProjectorPage } from './pages/public/ProjectorPage'
 import { TeamsPage } from './pages/public/TeamsPage'
-import { SeasonPage } from './pages/public/SeasonPage'
-import { SeasonDetailPage } from './pages/public/SeasonDetailPage'
 import { SeasonTeamDetailPage } from './pages/public/SeasonTeamDetailPage'
 import { PlayerProfilePage } from './pages/public/PlayerProfilePage'
 import { RostersPage } from './pages/public/RostersPage'
@@ -57,8 +55,8 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<HomePage />} />
                 <Route path="/teams" element={<TeamsPage />} />
-                <Route path="/season" element={<SeasonPage />} />
-                <Route path="/season/:id" element={<SeasonDetailPage />} />
+                <Route path="/season" element={<Navigate to="/teams" replace />} />
+                <Route path="/season/:id" element={<Navigate to="/teams" replace />} />
                 <Route path="/season/:id/teams/:teamId" element={<SeasonTeamDetailPage />} />
                 <Route path="/players/:code" element={<PlayerProfilePage />} />
                 <Route path="/rosters" element={<RostersPage />} />

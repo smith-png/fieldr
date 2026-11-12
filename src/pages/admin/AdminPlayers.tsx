@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowsLeftRight,
-  CheckCircle,
   DownloadSimple,
   Funnel,
   IdentificationBadge,
@@ -10,18 +9,15 @@ import {
   PencilSimple,
   Plus,
   Trash,
-  UploadSimple,
   User,
   UserMinus,
   UserPlus,
   Users,
-  WarningCircle,
   X
 } from '@phosphor-icons/react'
 import type { AcademicYear, AdminTab, Athlete, Player, PlayerStatus, Season, Sport, Team } from '../../types'
 import {
   assignPlayerToTeam,
-  bulkCreatePlayers,
   createPlayer,
   deletePlayer,
   exportPlayersForSport,
@@ -31,7 +27,6 @@ import {
   getRolesForSport,
   markLocalMutation,
   searchAthletes,
-  subscribeToAthletes,
   unassignPlayerFromTeam,
   updatePlayer
 } from '../../lib/data'
@@ -48,6 +43,8 @@ interface AdminPlayersProps {
   sports: Sport[]
   onRefresh: () => Promise<void>
   onGoToTab?: (tab: AdminTab) => void
+  externalRefreshTrigger?: number
+  onCreateNewAthlete?: () => void
 }
 
 export const AdminPlayers: React.FC<AdminPlayersProps> = ({
@@ -56,7 +53,9 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
   teams,
   sports,
   onRefresh,
-  onGoToTab
+  onGoToTab,
+  externalRefreshTrigger = 0,
+  onCreateNewAthlete
 }) => {
   const { showToast } = useToast()
 
@@ -122,13 +121,6 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
   const [athleteResults, setAthleteResults] = useState<Athlete[]>([])
   const [isSearchingAthletes, setIsSearchingAthletes] = useState(false)
 
-  // CSV Import state
-  const [isCsvModalOpen, setIsCsvModalOpen] = useState(false)
-  const [csvRows, setCsvRows] = useState<
-    Array<Omit<Player, 'id' | 'player_code' | 'created_at'> & { valid: boolean; error?: string }>
-  >([])
-  const [isImporting, setIsImporting] = useState(false)
-
   useEffect(() => {
     setSeasonPlayersList(players)
   }, [players])
@@ -159,100 +151,6 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
     },
     [seasonPlayersList, editingPlayer]
   )
-
-  const downloadPlayersTemplate = () => {
-    const header = 'athlete_code,sport,playing_role,base_points\n'
-    const example = '0001,Cricket,Batter,500\n'
-    const blob = new Blob([header + example], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `players_template_${activeSeason?.name || 'season'}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !activeSeason) return
-
-    const reader = new FileReader()
-    reader.onload = async (event) => {
-      const content = event.target?.result as string
-      if (!content) return
-
-      const lines = content.split('\n').map((l) => l.trim()).filter(Boolean)
-      if (lines.length <= 1) {
-        showToast('CSV is empty or missing headers', 'error')
-        return
-      }
-
-      const rows: Array<
-        Omit<Player, 'id' | 'player_code' | 'created_at'> & { valid: boolean; error?: string }
-      > = []
-
-      for (let i = 1; i < lines.length; i++) {
-        const parts = lines[i].split(',').map((p) => p.trim())
-        if (parts.length < 3) continue
-
-        const [codeOrName, sportVal, roleVal, pointsVal] = parts
-        let matchedAth: Athlete | undefined
-        try {
-          const matches = await searchAthletes(codeOrName)
-          const parsedCode = parseInt(codeOrName.replace(/^FLD-?/i, ''), 10)
-          matchedAth =
-            matches.find((a) => !isNaN(parsedCode) && a.athlete_code === parsedCode) ||
-            matches.find((a) => a.name.toLowerCase() === codeOrName.toLowerCase())
-        } catch {
-          matchedAth = undefined
-        }
-
-        let rowError: string | undefined
-        if (!matchedAth) rowError = 'Athlete profile not found'
-        else if (!sportVal) rowError = 'Sport is required'
-        else if (isAthleteRegisteredForSport(matchedAth.id, matchedAth.athlete_code, sportVal)) {
-          rowError = 'Already registered for this sport in this season'
-        }
-
-        rows.push({
-          season_id: activeSeason.id,
-          athlete_id: matchedAth?.id,
-          athlete_code: matchedAth?.athlete_code,
-          name: matchedAth?.name || codeOrName,
-          sport: sportVal || 'Cricket',
-          playing_role: roleVal || 'Player',
-          academic_year: (matchedAth?.academic_year || '1st') as AcademicYear,
-          base_points: parseInt(pointsVal, 10) || 100,
-          status: 'available',
-          valid: !rowError,
-          error: rowError
-        })
-      }
-
-      setCsvRows(rows)
-      setIsCsvModalOpen(true)
-    }
-    reader.readAsText(file)
-  }
-
-  const confirmBulkImport = async () => {
-    const validRows = csvRows.filter((r) => r.valid)
-    if (validRows.length === 0) return
-
-    try {
-      setIsImporting(true)
-      markLocalMutation(['players', 'athletes', 'auction'])
-      await bulkCreatePlayers(validRows)
-      showToast(`Imported ${validRows.length} players successfully`, 'success')
-      setIsCsvModalOpen(false)
-      setCsvRows([])
-      await Promise.all([loadPagedPlayers(), onRefresh()])
-    } catch (err: unknown) {
-      showToast(getErrorMessage(err, 'Import failed'), 'error')
-    } finally {
-      setIsImporting(false)
-    }
-  }
 
   const handleSearchAthletes = useCallback(
     async (q: string) => {
@@ -372,17 +270,12 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
     loadPagedPlayers()
   }, [loadPagedPlayers])
 
-  // Debounced (500ms) realtime subscription for external changes; cancelled on unmount
+  // Refresh when parent athletes section signals an athlete update/realtime event
   useEffect(() => {
-    if (!activeSeasonId) return
-    const unsubscribe = subscribeToAthletes(() => {
-      loadPagedPlayers()
-      refreshSeasonPlayers()
-    })
-    return () => {
-      unsubscribe()
-    }
-  }, [activeSeasonId, loadPagedPlayers, refreshSeasonPlayers])
+    if (!activeSeasonId || externalRefreshTrigger === 0) return
+    loadPagedPlayers()
+    refreshSeasonPlayers()
+  }, [activeSeasonId, externalRefreshTrigger, loadPagedPlayers, refreshSeasonPlayers])
 
   // Available roles for currently selected form sport loaded from shared helper
   const [availableRoles, setAvailableRoles] = useState<string[]>([])
@@ -641,17 +534,6 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
         subtitle="Manage per-season sport entries, base points, and franchise squad assignments."
         actions={
           <>
-            <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-surface-2 border border-border text-text text-xs font-medium hover:bg-surface transition-colors cursor-pointer min-h-[40px]">
-              <UploadSimple size={16} weight="bold" />
-              <span>Import CSV</span>
-              <input
-                type="file"
-                accept=".csv"
-                onChange={handleCsvUpload}
-                className="hidden"
-              />
-            </label>
-
             <Button
               variant="secondary"
               size="md"
@@ -938,12 +820,16 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                         <IdentificationBadge size={16} className="text-accent-bright" />
                         <span>Step 1: Select Athlete Profile *</span>
                       </label>
-                      {onGoToTab && (
+                      {(onCreateNewAthlete || onGoToTab) && (
                         <button
                           type="button"
                           onClick={() => {
                             setIsDrawerOpen(false)
-                            onGoToTab('athletes')
+                            if (onCreateNewAthlete) {
+                              onCreateNewAthlete()
+                            } else {
+                              onGoToTab?.('athletes')
+                            }
                           }}
                           className="text-xs font-medium text-accent-bright hover:underline"
                         >
@@ -1198,10 +1084,14 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
           await Promise.all([loadPagedPlayers(), onRefresh()])
         }}
         onCreateNewAthlete={
-          onGoToTab
+          onCreateNewAthlete || onGoToTab
             ? () => {
                 setIsBulkDrawerOpen(false)
-                onGoToTab('athletes')
+                if (onCreateNewAthlete) {
+                  onCreateNewAthlete()
+                } else {
+                  onGoToTab?.('athletes')
+                }
               }
             : undefined
         }
@@ -1413,86 +1303,6 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
             </div>
           </div>
         )}
-      </Dialog>
-
-      {/* CSV Bulk Import Modal */}
-      <Dialog
-        isOpen={isCsvModalOpen}
-        onClose={() => !isImporting && setIsCsvModalOpen(false)}
-        title="CSV Roster Players Import"
-        description={`Previewing ${csvRows.length} player entries.`}
-        size="lg"
-      >
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-muted">
-              Valid entries: <strong className="text-text">{csvRows.filter((r) => r.valid).length}</strong> / {csvRows.length}
-            </span>
-            <button
-              type="button"
-              onClick={downloadPlayersTemplate}
-              className="text-accent-bright hover:underline flex items-center gap-1"
-            >
-              <DownloadSimple size={14} />
-              <span>Download Sample Template</span>
-            </button>
-          </div>
-
-          <div className="max-h-60 overflow-y-auto border border-border rounded-xl">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-surface-2 text-muted font-mono uppercase text-[10px] sticky top-0">
-                <tr>
-                  <th className="p-2.5 font-normal">Athlete Code</th>
-                  <th className="p-2.5 font-normal">Name</th>
-                  <th className="p-2.5 font-normal">Sport</th>
-                  <th className="p-2.5 font-normal">Role</th>
-                  <th className="p-2.5 font-normal">Validation</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {csvRows.map((r, i) => (
-                  <tr key={i} className={r.valid ? '' : 'bg-error/5'}>
-                    <td className="p-2.5 font-mono tabular-nums">{r.athlete_code ? formatAthleteCode(r.athlete_code) : '—'}</td>
-                    <td className="p-2.5 font-medium">{r.name}</td>
-                    <td className="p-2.5">{r.sport}</td>
-                    <td className="p-2.5">{r.playing_role}</td>
-                    <td className="p-2.5">
-                      {r.valid ? (
-                        <span className="text-accent-bright flex items-center gap-1 text-[11px]">
-                          <CheckCircle size={14} /> Ready
-                        </span>
-                      ) : (
-                        <span className="text-error flex items-center gap-1 text-[11px]">
-                          <WarningCircle size={14} /> {r.error}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setIsCsvModalOpen(false)}
-              disabled={isImporting}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={confirmBulkImport}
-              disabled={isImporting || csvRows.filter((r) => r.valid).length === 0}
-              isLoading={isImporting}
-            >
-              Import {csvRows.filter((r) => r.valid).length} Players
-            </Button>
-          </div>
-        </div>
       </Dialog>
     </div>
   )

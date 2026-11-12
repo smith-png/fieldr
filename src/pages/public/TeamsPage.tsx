@@ -69,6 +69,8 @@ function getTeamCardTintStyle(color?: string | null): React.CSSProperties | unde
   }
 }
 
+const SPORT_ORDER = ['Cricket', 'Futsal', 'Volleyball']
+
 export const TeamsPage: React.FC = () => {
   const initial = getCachedTeamsPageState()
 
@@ -136,6 +138,13 @@ export const TeamsPage: React.FC = () => {
     }
   }, [])
 
+  const groupedSports = SPORT_ORDER.map((sportName) => ({
+    sport: sportName,
+    teams: teams.filter(
+      (t) => t.sport.trim().toLowerCase() === sportName.toLowerCase()
+    )
+  })).filter((group) => group.teams.length > 0)
+
   return (
     <div className="min-h-screen bg-bg text-text flex flex-col justify-between selection:bg-accent-bright selection:text-on-accent relative">
       <HeaderBar onOpenMenu={() => setIsMenuOpen(true)} />
@@ -155,8 +164,14 @@ export const TeamsPage: React.FC = () => {
               Registered Teams
             </h1>
           </div>
-          <div className="text-sm font-mono text-muted">
-            Total Franchises: <span className="text-text font-semibold">{teams.length}</span>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-mono text-muted">
+            <span>
+              Total Franchises: <span className="text-text font-semibold tabular-nums">{teams.length}</span>
+            </span>
+            <span className="text-border">·</span>
+            <span>
+              Registered Players: <span className="text-text font-semibold tabular-nums">{players.length}</span>
+            </span>
           </div>
         </div>
 
@@ -186,80 +201,95 @@ export const TeamsPage: React.FC = () => {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {teams.map((team) => {
-              const assignedCount = players.filter((p) => p.team_id === team.id).length
-              return (
-                <Link
-                  key={team.id}
-                  to={`/season/${team.season_id}/teams/${team.id}`}
-                  style={getTeamCardTintStyle(team.color)}
-                  className="group bg-surface border border-border hover:border-accent-bright rounded-2xl p-6 transition-colors flex flex-col justify-between shadow-sm"
-                >
-                  <div>
-                    {/* Header with Logo and Team Name */}
-                    <div className="flex items-start justify-between gap-4 mb-4">
-                      <div className="flex items-center gap-3">
-                        {team.logo_url ? (
-                          <img
-                            src={team.logo_url}
-                            alt={team.name}
-                            referrerPolicy="no-referrer"
-                            className="w-12 h-12 rounded-xl object-contain bg-surface-2 border border-border p-1"
-                          />
-                        ) : (
-                          <div
-                            className="w-12 h-12 rounded-xl border border-border flex items-center justify-center font-syne font-bold text-base text-white shadow-inner"
-                            style={{ backgroundColor: team.color || 'var(--accent-bright)' }}
-                          >
-                            {team.short_code}
-                          </div>
-                        )}
+          <div className="space-y-10">
+            {groupedSports.map((group) => (
+              <section key={group.sport} className="space-y-4">
+                <div className="flex items-baseline gap-3">
+                  <h2 className="font-syne font-bold text-2xl text-text tracking-tight">
+                    {group.sport}
+                  </h2>
+                  <span className="font-mono text-xs text-muted tabular-nums">
+                    {group.teams.length} {group.teams.length === 1 ? 'team' : 'teams'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {group.teams.map((team) => {
+                    const assignedCount = players.filter((p) => p.team_id === team.id).length
+                    return (
+                      <Link
+                        key={team.id}
+                        to={`/season/${team.season_id}/teams/${team.id}`}
+                        style={getTeamCardTintStyle(team.color)}
+                        className="group bg-surface border border-border hover:border-accent-bright rounded-2xl p-6 transition-colors flex flex-col justify-between shadow-sm"
+                      >
                         <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs uppercase tracking-wider text-muted">
-                              {team.sport}
+                          {/* Header with Logo and Team Name */}
+                          <div className="flex items-start justify-between gap-4 mb-4">
+                            <div className="flex items-center gap-3">
+                              {team.logo_url ? (
+                                <img
+                                  src={team.logo_url}
+                                  alt={team.name}
+                                  referrerPolicy="no-referrer"
+                                  className="w-12 h-12 rounded-xl object-contain bg-surface-2 border border-border p-1"
+                                />
+                              ) : (
+                                <div
+                                  className="w-12 h-12 rounded-xl border border-border flex items-center justify-center font-syne font-bold text-base text-white shadow-inner"
+                                  style={{ backgroundColor: team.color || 'var(--accent-bright)' }}
+                                >
+                                  {team.short_code}
+                                </div>
+                              )}
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-xs uppercase tracking-wider text-muted">
+                                    {team.sport}
+                                  </span>
+                                </div>
+                                <h3 className="font-syne font-bold text-xl text-text group-hover:text-accent-bright transition-colors tracking-tight">
+                                  {team.name}
+                                </h3>
+                              </div>
+                            </div>
+
+                            <span className="font-mono text-xs px-2.5 py-1 rounded bg-surface-2 border border-border text-muted">
+                              {team.short_code}
                             </span>
                           </div>
-                          <h3 className="font-syne font-bold text-xl text-text group-hover:text-accent-bright transition-colors tracking-tight">
-                            {team.name}
-                          </h3>
+
+                          {/* Owner Info */}
+                          <div className="py-3 border-y border-border text-xs text-muted">
+                            <span className="block text-[11px] uppercase tracking-wider text-muted">
+                              Franchise Owner
+                            </span>
+                            <span className="text-text font-medium">
+                              {team.owner_display_name || 'Unassigned franchise'}
+                            </span>
+                          </div>
                         </div>
-                      </div>
 
-                      <span className="font-mono text-xs px-2.5 py-1 rounded bg-surface-2 border border-border text-muted">
-                        {team.short_code}
-                      </span>
-                    </div>
-
-                    {/* Owner Info */}
-                    <div className="py-3 border-y border-border text-xs text-muted">
-                      <span className="block text-[11px] uppercase tracking-wider text-muted">
-                        Franchise Owner
-                      </span>
-                      <span className="text-text font-medium">
-                        {team.owner_display_name || 'Unassigned franchise'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Squad Metrics */}
-                  <div className="flex items-center justify-between pt-4 mt-2">
-                    <div className="flex items-center gap-2 text-xs text-muted">
-                      <Users size={16} className="text-accent-bright" />
-                      <span>Roster Size:</span>
-                      <span className="font-mono font-bold text-text tabular-nums">
-                        {assignedCount} {assignedCount === 1 ? 'player' : 'players'}
-                      </span>
-                    </div>
-                    <span className="inline-flex items-center gap-1 text-xs font-medium text-accent-bright">
-                      <span>View Squad</span>
-                      <CaretRight size={14} weight="bold" className="group-hover:translate-x-0.5 transition-transform" />
-                    </span>
-                  </div>
-                </Link>
-              )
-            })}
+                        {/* Squad Metrics */}
+                        <div className="flex items-center justify-between pt-4 mt-2">
+                          <div className="flex items-center gap-2 text-xs text-muted">
+                            <Users size={16} className="text-accent-bright" />
+                            <span>Roster Size:</span>
+                            <span className="font-mono font-bold text-text tabular-nums">
+                              {assignedCount} {assignedCount === 1 ? 'player' : 'players'}
+                            </span>
+                          </div>
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-accent-bright">
+                            <span>View Squad</span>
+                            <CaretRight size={14} weight="bold" className="group-hover:translate-x-0.5 transition-transform" />
+                          </span>
+                        </div>
+                      </Link>
+                    )
+                  })}
+                </div>
+              </section>
+            ))}
           </div>
         )}
       </main>

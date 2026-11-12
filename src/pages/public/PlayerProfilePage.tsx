@@ -207,12 +207,9 @@ export const PlayerProfilePage: React.FC = () => {
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <Link
-                              to={`/season/${entry.season_id}`}
-                              className="font-syne font-bold text-base text-text hover:text-accent-bright transition-colors"
-                            >
+                            <span className="font-syne font-bold text-base text-text">
                               {entry.season_name}
-                            </Link>
+                            </span>
                             {entry.is_season_active && (
                               <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-accent-bright/15 text-accent-bright border border-accent-bright/30">
                                 Active

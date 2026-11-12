@@ -35,12 +35,16 @@ interface AdminAthletesProps {
   activeSeason: Season | null
   sports: Sport[]
   onRefresh: () => Promise<void>
+  onRealtimeUpdate?: () => void
+  createRequestTrigger?: number
 }
 
 export const AdminAthletes: React.FC<AdminAthletesProps> = ({
   activeSeason,
   sports,
-  onRefresh
+  onRefresh,
+  onRealtimeUpdate,
+  createRequestTrigger = 0
 }) => {
   const { showToast } = useToast()
 
@@ -168,19 +172,23 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
   )
 
   // Debounced (500ms) realtime subscription for external changes; cancelled on unmount
+  const onRealtimeUpdateRef = useRef(onRealtimeUpdate)
+  onRealtimeUpdateRef.current = onRealtimeUpdate
+
   useEffect(() => {
     const unsubscribe = subscribeToAthletes(() => {
       loadAthletes()
       if (selectedAthleteRef.current) {
         openAthleteDetail(selectedAthleteRef.current, { silent: true })
       }
+      onRealtimeUpdateRef.current?.()
     })
     return () => {
       unsubscribe()
     }
   }, [loadAthletes, openAthleteDetail])
 
-  const openCreateForm = () => {
+  const openCreateForm = useCallback(() => {
     setEditingAthlete(null)
     setName('')
     setAcademicYear('1st')
@@ -189,7 +197,14 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
     setPhotoUrl('')
     setPhotoThumbUrl('')
     setIsFormOpen(true)
-  }
+  }, [])
+
+  useEffect(() => {
+    if (createRequestTrigger > 0) {
+      setSelectedAthlete(null)
+      openCreateForm()
+    }
+  }, [createRequestTrigger, openCreateForm])
 
   const openEditForm = (athlete: Athlete) => {
     setEditingAthlete(athlete)
@@ -267,6 +282,7 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
       }
       markLocalMutation(['athletes', 'players'])
       setIsFormOpen(false)
+      onRealtimeUpdateRef.current?.()
       await Promise.all([loadAthletes(), onRefresh()])
     } catch (err: unknown) {
       showToast(getErrorMessage(err, 'Failed to save athlete'), 'error')
@@ -294,6 +310,7 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
         setSelectedAthlete(null)
       }
       setDeleteTarget(null)
+      onRealtimeUpdateRef.current?.()
       await Promise.all([loadAthletes(), onRefresh()])
     } catch (err: unknown) {
       showToast(getErrorMessage(err, 'Failed to delete athlete'), 'error')
@@ -529,7 +546,6 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="border-b border-border bg-surface-2 text-muted font-mono uppercase tracking-wider text-[11px]">
-                    <th className="py-3 px-4 font-normal">Photo</th>
                     <th className="py-3 px-4 font-normal">Name</th>
                     <th className="py-3 px-4 font-normal">Code</th>
                     <th className="py-3 px-4 font-normal">Academic Year</th>
@@ -542,12 +558,12 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
                   {isLoading ? (
                     Array.from({ length: 6 }).map((_, i) => (
                       <tr key={i} className="animate-pulse">
-                        <td colSpan={7} className="py-4 px-4 h-12 bg-surface-2/40" />
+                        <td colSpan={6} className="py-4 px-4 h-12 bg-surface-2/40" />
                       </tr>
                     ))
                   ) : athletes.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="p-6">
+                      <td colSpan={6} className="p-6">
                         <EmptyState
                           icon={IdentificationBadge}
                           title="No athletes found"
@@ -566,22 +582,6 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
                           onClick={() => openAthleteDetail(athlete)}
                           className="hover:bg-surface-2/60 transition-colors cursor-pointer font-sans"
                         >
-                          {/* Photo Thumbnail */}
-                          <td className="py-3 px-4">
-                            {athlete.photo_thumb_url || athlete.photo_url ? (
-                              <img
-                                src={athlete.photo_thumb_url || athlete.photo_url}
-                                alt={athlete.name}
-                                referrerPolicy="no-referrer"
-                                className="w-9 h-9 rounded-xl object-cover bg-surface-2 border border-border"
-                              />
-                            ) : (
-                              <div className="w-9 h-9 rounded-xl bg-surface-2 border border-border flex items-center justify-center text-muted">
-                                <User size={16} />
-                              </div>
-                            )}
-                          </td>
-
                           {/* Name */}
                           <td className="py-3.5 px-4 font-medium text-text">
                             <span className="hover:text-accent-bright transition-colors">
@@ -876,6 +876,7 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
         initialAthlete={selectedAthlete}
         onSuccess={async () => {
           markLocalMutation(['athletes', 'players'])
+          onRealtimeUpdateRef.current?.()
           await Promise.all([
             selectedAthlete
               ? openAthleteDetail(selectedAthlete, { silent: true })

@@ -18,8 +18,7 @@ import {
   ShieldCheck,
   SignOut,
   Sun,
-  Television,
-  Users,
+   Television,
   X,
   type Icon
 } from '@phosphor-icons/react'
@@ -76,10 +75,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   const tabs: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <ChartPieSlice size={18} weight="bold" /> },
     { id: 'athletes', label: 'Athletes', icon: <IdentificationBadge size={18} weight="bold" /> },
-    { id: 'players', label: 'Players', icon: <Users size={18} weight="bold" /> },
     { id: 'teams', label: 'Teams', icon: <ShieldCheck size={18} weight="bold" /> },
     { id: 'auction', label: 'Auction', icon: <Gavel size={18} weight="bold" /> },
-    { id: 'purses', label: 'Purses', icon: <Coins size={18} weight="bold" /> },
     { id: 'logs', label: 'Logs', icon: <ClockCounterClockwise size={18} weight="bold" /> },
     { id: 'seasons', label: 'Seasons', icon: <Calendar size={18} weight="bold" /> },
     { id: 'projector', label: 'Projector', icon: <ProjectorScreen size={18} weight="bold" /> },
@@ -174,7 +171,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               >
                 {seasons.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name} {s.is_active ? '(Active)' : s.is_archived ? '[Archived]' : ''}
+                    {s.name} {s.is_active ? '(Active)' : ''}
                   </option>
                 ))}
               </select>
@@ -388,7 +385,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 >
                   {seasons.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name} {s.is_active ? '(Active)' : s.is_archived ? '[Archived]' : ''}
+                      {s.name} {s.is_active ? '(Active)' : ''}
                     </option>
                   ))}
                 </select>

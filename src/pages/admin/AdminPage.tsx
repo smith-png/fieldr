@@ -54,11 +54,16 @@ export const AdminPage: React.FC = () => {
     }
   }, [location.pathname])
 
+  const [athletesRealtimeTick, setAthletesRealtimeTick] = useState(0)
+  const [createAthleteTrigger, setCreateAthleteTrigger] = useState(0)
+
   const handleSelectTab = (tab: AdminTab) => {
-    setCurrentTab(tab)
-    if (tab === 'logs' && location.pathname !== '/admin/logs') {
+    const nextTab: AdminTab =
+      tab === 'players' ? 'athletes' : tab === 'purses' ? 'teams' : tab
+    setCurrentTab(nextTab)
+    if (nextTab === 'logs' && location.pathname !== '/admin/logs') {
       navigate('/admin/logs')
-    } else if (tab !== 'logs' && location.pathname === '/admin/logs') {
+    } else if (nextTab !== 'logs' && location.pathname === '/admin/logs') {
       navigate('/admin')
     }
   }
@@ -104,7 +109,6 @@ export const AdminPage: React.FC = () => {
           prev.id === active.id &&
           prev.name === active.name &&
           prev.is_active === active.is_active &&
-          prev.is_archived === active.is_archived &&
           prev.start_date === active.start_date &&
           prev.end_date === active.end_date &&
           prev.description === active.description
@@ -224,13 +228,21 @@ export const AdminPage: React.FC = () => {
         />
       )}
 
-      {currentTab === 'teams' && (
-        <AdminTeams
-          activeSeason={activeSeason}
-          teams={teams}
-          sports={sports}
-          onRefresh={loadAllData}
-        />
+      {(currentTab === 'teams' || currentTab === 'purses') && (
+        <div className="space-y-12">
+          <AdminTeams
+            activeSeason={activeSeason}
+            teams={teams}
+            sports={sports}
+            onRefresh={loadAllData}
+          />
+          <AdminPurses
+            activeSeason={activeSeason}
+            teams={teams}
+            transactions={transactions}
+            onRefresh={loadAllData}
+          />
+        </div>
       )}
 
       {currentTab === 'auction' && (
@@ -244,32 +256,26 @@ export const AdminPage: React.FC = () => {
         />
       )}
 
-      {currentTab === 'athletes' && (
-        <AdminAthletes
-          activeSeason={activeSeason}
-          sports={sports}
-          onRefresh={loadAllData}
-        />
-      )}
-
-      {currentTab === 'players' && (
-        <AdminPlayers
-          activeSeason={activeSeason}
-          players={players}
-          teams={teams}
-          sports={sports}
-          onRefresh={loadAllData}
-          onGoToTab={handleSelectTab}
-        />
-      )}
-
-      {currentTab === 'purses' && (
-        <AdminPurses
-          activeSeason={activeSeason}
-          teams={teams}
-          transactions={transactions}
-          onRefresh={loadAllData}
-        />
+      {(currentTab === 'athletes' || currentTab === 'players') && (
+        <div className="space-y-12">
+          <AdminAthletes
+            activeSeason={activeSeason}
+            sports={sports}
+            onRefresh={loadAllData}
+            onRealtimeUpdate={() => setAthletesRealtimeTick((c) => c + 1)}
+            createRequestTrigger={createAthleteTrigger}
+          />
+          <AdminPlayers
+            activeSeason={activeSeason}
+            players={players}
+            teams={teams}
+            sports={sports}
+            onRefresh={loadAllData}
+            onGoToTab={handleSelectTab}
+            externalRefreshTrigger={athletesRealtimeTick}
+            onCreateNewAthlete={() => setCreateAthleteTrigger((c) => c + 1)}
+          />
+        </div>
       )}
 
       {currentTab === 'logs' && (

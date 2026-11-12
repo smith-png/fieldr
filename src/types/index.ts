@@ -26,7 +26,6 @@ export interface Season {
   id: string
   name: string
   is_active: boolean
-  is_archived?: boolean
   start_date?: string
   end_date?: string
   description?: string

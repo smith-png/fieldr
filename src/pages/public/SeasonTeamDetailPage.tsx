@@ -28,6 +28,36 @@ function getTeamCacheKey(seasonId?: string, teamId?: string): string {
   return `${seasonId || ''}::${teamId || ''}`
 }
 
+function getTeamCardTintStyle(color?: string | null): React.CSSProperties | undefined {
+  const clean = color?.trim()
+  if (!clean) return undefined
+
+  const hexMatch = clean.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/)
+  if (hexMatch) {
+    const hex = hexMatch[1]
+    const r =
+      hex.length === 3
+        ? parseInt(hex[0] + hex[0], 16)
+        : parseInt(hex.slice(0, 2), 16)
+    const g =
+      hex.length === 3
+        ? parseInt(hex[1] + hex[1], 16)
+        : parseInt(hex.slice(2, 4), 16)
+    const b =
+      hex.length === 3
+        ? parseInt(hex[2] + hex[2], 16)
+        : parseInt(hex.slice(4, 6), 16)
+
+    return {
+      backgroundImage: `linear-gradient(135deg, rgba(${r}, ${g}, ${b}, 0.15) 0%, rgba(${r}, ${g}, ${b}, 0.05) 42%, rgba(${r}, ${g}, ${b}, 0) 72%)`
+    }
+  }
+
+  return {
+    backgroundImage: `linear-gradient(135deg, color-mix(in srgb, ${clean} 15%, transparent) 0%, color-mix(in srgb, ${clean} 5%, transparent) 42%, transparent 72%)`
+  }
+}
+
 function getCachedTeamDetail(
   seasonId?: string,
   teamId?: string
@@ -244,11 +274,11 @@ export const SeasonTeamDetailPage: React.FC = () => {
       <main className="flex-1 max-w-6xl mx-auto w-full px-6 md:px-12 pt-32 sm:pt-40 pb-20">
         <div className="mb-6">
           <Link
-            to={`/season/${id}`}
+            to="/teams"
             className="inline-flex items-center gap-1.5 text-xs font-medium text-muted hover:text-text transition-colors"
           >
             <CaretLeft size={16} />
-            <span>Back to {season?.name || 'Season'}</span>
+            <span>Back to Teams</span>
           </Link>
         </div>
 
@@ -267,13 +297,16 @@ export const SeasonTeamDetailPage: React.FC = () => {
             icon={ShieldCheck}
             title="Team Not Found"
             description="The requested franchise team does not exist for this season."
-            actionLabel="Return to Season"
-            onAction={() => navigate(`/season/${id}`)}
+            actionLabel="Return to Teams"
+            onAction={() => navigate('/teams')}
           />
         ) : (
           <div className="flex flex-col gap-8">
             {/* Team Header */}
-            <div className="p-6 sm:p-8 rounded-3xl bg-surface border border-border flex flex-col md:flex-row items-center md:items-center justify-between gap-6 shadow-sm">
+            <div
+              style={getTeamCardTintStyle(team.color)}
+              className="p-6 sm:p-8 rounded-3xl bg-surface border border-border flex flex-col md:flex-row items-center md:items-center justify-between gap-6 shadow-sm"
+            >
               <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 flex-1 min-w-0">
                 <div
                   className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl flex items-center justify-center overflow-hidden border border-border font-syne font-extrabold text-white text-2xl shrink-0"
@@ -607,7 +640,9 @@ export const SeasonTeamDetailPage: React.FC = () => {
                                   academic_year: p.academic_year,
                                   season_id: p.season_id,
                                   photo_url: p.photo_url,
-                                  photo_thumb_url: p.photo_thumb_url
+                                  photo_thumb_url: p.photo_thumb_url,
+                                  purchase_price: p.purchase_price,
+                                  base_points: p.base_points
                                 }}
                                 team={team}
                                 otherSports={otherSports}

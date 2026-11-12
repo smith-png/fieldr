@@ -1,5 +1,6 @@
 import type { CarouselItem, Player, ProjectorState, PurseTransaction, Season, SeasonDeletionCounts, Team } from '../../types'
 import { AppError } from '../errors'
+import { publicCache } from '../publicCache'
 import {
   isDemoMode,
   supabase,
@@ -10,6 +11,20 @@ import {
   markLocalMutation
 } from './client'
 import type { SeasonsService } from './types'
+
+function invalidateSeasonCaches(): void {
+  publicCache.activeSeason = { loaded: false, value: null }
+  publicCache.seasonCards = { loaded: false, value: [] }
+  publicCache.seasonDetails.clear()
+  publicCache.seasonTeamDetails.clear()
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem('fieldr_seasons_updated_at', String(Date.now()))
+    } catch {
+      // ignore storage errors
+    }
+  }
+}
 
 const demoSeasonsService: SeasonsService = {
   async getSeasons(): Promise<Season[]> {
@@ -44,8 +59,7 @@ const demoSeasonsService: SeasonsService = {
     name: string,
     startDate?: string,
     endDate?: string,
-    description?: string,
-    isArchived = false
+    description?: string
   ): Promise<Season> {
     const trimmedName = name.trim()
     if (!trimmedName) {
@@ -67,8 +81,7 @@ const demoSeasonsService: SeasonsService = {
     const newSeason: Season = {
       id: `season-${Date.now()}`,
       name: trimmedName,
-      is_active: !isArchived && seasons.length === 0,
-      is_archived: isArchived,
+      is_active: seasons.length === 0,
       start_date: startDate || undefined,
       end_date: endDate || undefined,
       description: description?.trim() || undefined,
@@ -78,8 +91,36 @@ const demoSeasonsService: SeasonsService = {
     markLocalMutation(['players', 'teams', 'auction'])
     seasons.unshift(newSeason)
     setLocal(STORAGE_KEYS.SEASONS, seasons)
+    invalidateSeasonCaches()
     notifyChange('seasons_change')
     return newSeason
+  },
+
+  async renameSeason(seasonId: string, name: string): Promise<void> {
+    const trimmedName = name.trim()
+    if (trimmedName.length < 1 || trimmedName.length > 60) {
+      throw new AppError('Season name must be between 1 and 60 characters')
+    }
+
+    const seasons = getLocal<Season[]>(STORAGE_KEYS.SEASONS, [])
+    const target = seasons.find((s) => s.id === seasonId)
+    if (!target) {
+      throw new AppError('Season not found')
+    }
+
+    const duplicate = seasons.some(
+      (s) => s.id !== seasonId && s.name.toLowerCase() === trimmedName.toLowerCase()
+    )
+    if (duplicate) {
+      throw new AppError(`A season named "${trimmedName}" already exists`)
+    }
+
+    const updated = seasons.map((s) =>
+      s.id === seasonId ? { ...s, name: trimmedName } : s
+    )
+    setLocal(STORAGE_KEYS.SEASONS, updated)
+    invalidateSeasonCaches()
+    notifyChange('seasons_change')
   },
 
   async setActiveSeason(id: string): Promise<void> {
@@ -87,9 +128,6 @@ const demoSeasonsService: SeasonsService = {
     const target = seasons.find((s) => s.id === id)
     if (!target) {
       throw new AppError('Season not found')
-    }
-    if (target.is_archived) {
-      throw new AppError('An archived season cannot be made active')
     }
 
     markLocalMutation(['players', 'teams', 'auction'])
@@ -108,6 +146,7 @@ const demoSeasonsService: SeasonsService = {
     })
     setLocal(STORAGE_KEYS.PROJECTOR, { ...projector, season_id: id })
 
+    invalidateSeasonCaches()
     notifyChange('seasons_change')
     notifyChange('projector_change')
   },
@@ -156,6 +195,7 @@ const demoSeasonsService: SeasonsService = {
     const remainingSeasons = seasons.filter((s) => s.id !== seasonId)
     setLocal(STORAGE_KEYS.SEASONS, remainingSeasons)
 
+    invalidateSeasonCaches()
     notifyChange('seasons_change')
     notifyChange('teams_change')
     notifyChange('players_change')
@@ -163,7 +203,7 @@ const demoSeasonsService: SeasonsService = {
 }
 
 const SEASON_COLS =
-  'id, name, is_active, is_archived, start_date, end_date, description, created_at'
+  'id, name, is_active, start_date, end_date, description, created_at'
 
 const supabaseSeasonsService: SeasonsService = {
   async getSeasons(): Promise<Season[]> {
@@ -230,8 +270,7 @@ const supabaseSeasonsService: SeasonsService = {
     name: string,
     startDate?: string,
     endDate?: string,
-    description?: string,
-    isArchived = false
+    description?: string
   ): Promise<Season> {
     if (!supabase) throw new AppError('Supabase not configured')
 
@@ -248,18 +287,43 @@ const supabaseSeasonsService: SeasonsService = {
         {
           name: trimmedName,
           is_active: false,
-          is_archived: isArchived,
           start_date: startDate || null,
           end_date: endDate || null,
           description: description?.trim() || null
         }
       ])
-      .select()
+      .select(SEASON_COLS)
       .single()
 
     if (error) throw new AppError(error.message, { original: error })
     markLocalMutation(['players', 'teams', 'auction'])
+    invalidateSeasonCaches()
     return data as Season
+  },
+
+  async renameSeason(seasonId: string, name: string): Promise<void> {
+    if (!supabase) throw new AppError('Supabase not configured')
+
+    const trimmedName = name.trim()
+    if (trimmedName.length < 1 || trimmedName.length > 60) {
+      throw new AppError('Season name must be between 1 and 60 characters')
+    }
+
+    markLocalMutation(['players', 'teams', 'auction'])
+    const { data, error } = await supabase.rpc('rename_season', {
+      p_season_id: seasonId,
+      p_name: trimmedName
+    })
+
+    if (error) {
+      throw new AppError(error.message, { original: error })
+    }
+    if (data && typeof data === 'object' && 'error' in data && (data as { error?: unknown }).error) {
+      throw new AppError(String((data as { error: unknown }).error))
+    }
+
+    markLocalMutation(['players', 'teams', 'auction'])
+    invalidateSeasonCaches()
   },
 
   async setActiveSeason(id: string): Promise<void> {
@@ -267,15 +331,12 @@ const supabaseSeasonsService: SeasonsService = {
 
     const { data: seasonToActivate, error: checkError } = await supabase
       .from('seasons')
-      .select('is_archived')
+      .select('id')
       .eq('id', id)
       .single()
 
     if (checkError || !seasonToActivate) {
       throw new AppError('Season not found')
-    }
-    if (seasonToActivate.is_archived) {
-      throw new AppError('An archived season cannot be made active')
     }
 
     markLocalMutation(['players', 'teams', 'auction'])
@@ -316,6 +377,7 @@ const supabaseSeasonsService: SeasonsService = {
       })
     }
     markLocalMutation(['players', 'teams', 'auction'])
+    invalidateSeasonCaches()
   },
 
   async getSeasonDeletionPreview(seasonId: string): Promise<SeasonDeletionCounts> {
@@ -350,6 +412,7 @@ const supabaseSeasonsService: SeasonsService = {
       throw new AppError(error.message, { original: error })
     }
     markLocalMutation(['players', 'teams', 'auction'])
+    invalidateSeasonCaches()
   }
 }
 
@@ -364,9 +427,10 @@ export const createSeason = (
   name: string,
   start?: string,
   end?: string,
-  description?: string,
-  isArchived?: boolean
-) => seasonsService.createSeason(name, start, end, description, isArchived)
+  description?: string
+) => seasonsService.createSeason(name, start, end, description)
+export const renameSeason = (seasonId: string, name: string) =>
+  seasonsService.renameSeason(seasonId, name)
 export const setActiveSeason = (id: string) => seasonsService.setActiveSeason(id)
 export const getSeasonDeletionPreview = (seasonId: string) =>
   seasonsService.getSeasonDeletionPreview(seasonId)

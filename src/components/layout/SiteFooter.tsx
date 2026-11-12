@@ -34,13 +34,6 @@ export const SiteFooter: React.FC = () => {
           </Link>
           <span className="text-border">·</span>
           <Link
-            to="/season"
-            className="hover:text-text transition-colors"
-          >
-            Season
-          </Link>
-          <span className="text-border">·</span>
-          <Link
             to="/rules"
             className="hover:text-text transition-colors"
           >

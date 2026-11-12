@@ -56,10 +56,17 @@ export const RosterPlayerCard: React.FC<RosterPlayerCardProps> = ({
           <div className="font-syne font-bold text-sm text-text block truncate mt-0.5">
             {player.playing_role}
           </div>
-          {player.base_points !== undefined && player.base_points !== null && (
+          {player.purchase_price !== undefined && player.purchase_price !== null ? (
             <div className="font-mono text-xs text-points font-semibold tabular-nums mt-0.5">
-              Base: {player.base_points.toLocaleString()} PTS
+              {player.purchase_price.toLocaleString()} PTS
             </div>
+          ) : (
+            player.base_points !== undefined &&
+            player.base_points !== null && (
+              <div className="font-mono text-xs text-points font-semibold tabular-nums mt-0.5">
+                Base: {player.base_points.toLocaleString()} PTS
+              </div>
+            )
           )}
         </div>
       </div>

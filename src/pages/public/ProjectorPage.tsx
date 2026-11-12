@@ -568,17 +568,88 @@ const PlayerSpotlightSceneContent: React.FC<{
   )
 }
 
-const TeamRosterSceneContent: React.FC<{
+const TeamsAndPursesSceneContent: React.FC<{
   team: Team
   rosterPlayers: Player[]
 }> = ({ team, rosterPlayers }) => {
+  const count = rosterPlayers.length
+
+  // Dynamic layout & sizing scaling so it fits on one screen without scrolling
+  const isCompactHeader = count > 10
+  const gridClass =
+    count <= 4
+      ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4'
+      : count <= 8
+      ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3'
+      : count <= 14
+      ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2'
+      : count <= 20
+      ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2'
+      : 'grid-cols-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 gap-1.5'
+
+  const cardPadding =
+    count <= 4
+      ? 'p-3.5 sm:p-4'
+      : count <= 8
+      ? 'p-2.5 sm:p-3'
+      : count <= 14
+      ? 'p-2 sm:p-2.5'
+      : 'p-1.5 sm:p-2'
+
+  const thumbSize =
+    count <= 4
+      ? 'w-14 h-14'
+      : count <= 8
+      ? 'w-11 h-11'
+      : count <= 14
+      ? 'w-9 h-9'
+      : 'w-7 h-7 sm:w-8 sm:h-8'
+
+  const iconSize = count <= 4 ? 24 : count <= 8 ? 20 : count <= 14 ? 16 : 14
+  const nameSize =
+    count <= 4
+      ? 'text-base sm:text-lg'
+      : count <= 8
+      ? 'text-sm sm:text-base'
+      : count <= 14
+      ? 'text-xs sm:text-sm'
+      : 'text-[11px] sm:text-xs'
+
+  const roleSize =
+    count <= 4
+      ? 'text-xs sm:text-sm'
+      : count <= 8
+      ? 'text-xs'
+      : count <= 14
+      ? 'text-[11px]'
+      : 'text-[10px]'
+
+  const priceSize =
+    count <= 4
+      ? 'text-xs sm:text-sm'
+      : count <= 8
+      ? 'text-xs'
+      : count <= 14
+      ? 'text-[11px]'
+      : 'text-[10px]'
+
   return (
-    <>
+    <div className="flex flex-col justify-between w-full h-full max-h-[calc(100vh-140px)] overflow-hidden gap-4">
       {/* Franchise Header Banner */}
-      <div className="p-8 rounded-2xl bg-surface border border-border shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-        <div className="flex items-center gap-6">
+      <div
+        className={`rounded-2xl bg-surface border border-border shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all shrink-0 ${
+          isCompactHeader ? 'p-4 sm:p-5' : 'p-6 sm:p-8'
+        }`}
+        style={{
+          borderTop: `4px solid ${team.color || 'var(--accent-bright)'}`,
+          boxShadow: team.color ? `0 0 28px ${team.color}18` : undefined
+        }}
+      >
+        <div className="flex items-center gap-4 sm:gap-6 min-w-0">
           <div
-            className="w-20 h-20 rounded-2xl flex items-center justify-center font-syne font-extrabold text-2xl text-white overflow-hidden border border-border shrink-0 shadow-sm"
+            className={`rounded-2xl flex items-center justify-center font-syne font-extrabold text-white overflow-hidden border border-border shrink-0 shadow-sm transition-all ${
+              isCompactHeader ? 'w-14 h-14 text-xl' : 'w-18 h-18 sm:w-20 sm:h-20 text-2xl'
+            }`}
             style={{ backgroundColor: team.color || 'var(--accent-bright)' }}
           >
             {team.logo_url ? (
@@ -592,18 +663,26 @@ const TeamRosterSceneContent: React.FC<{
               <span>{team.short_code}</span>
             )}
           </div>
-          <div>
-            <div className="flex items-center gap-3">
-              <h2 className="font-syne font-bold text-4xl sm:text-5xl text-text tracking-tight">
+          <div className="min-w-0">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h2
+                className={`font-syne font-bold text-text tracking-tight truncate ${
+                  isCompactHeader ? 'text-2xl sm:text-3xl lg:text-4xl' : 'text-3xl sm:text-4xl lg:text-5xl'
+                }`}
+              >
                 {team.name}
               </h2>
-              <span className="font-mono text-sm text-muted font-semibold">
+              <span className="font-mono text-sm sm:text-base text-muted font-bold">
                 · {team.short_code}
               </span>
             </div>
-            <div className="text-sm text-muted mt-1 flex items-center gap-3">
-              <span>
-                Sport: <strong className="text-text">{team.sport}</strong>
+            <div className="text-xs sm:text-sm text-muted mt-1 flex items-center gap-3 flex-wrap">
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="w-2.5 h-2.5 rounded-full inline-block border border-border shrink-0"
+                  style={{ backgroundColor: team.color || 'var(--accent-bright)' }}
+                />
+                <span>Sport: <strong className="text-text">{team.sport}</strong></span>
               </span>
               {team.owner_display_name && (
                 <>
@@ -617,65 +696,74 @@ const TeamRosterSceneContent: React.FC<{
           </div>
         </div>
 
-        <div className="text-left md:text-right font-mono">
-          <span className="text-xs uppercase tracking-wider text-muted block">
+        <div className="text-left md:text-right font-mono shrink-0">
+          <span className="text-xs uppercase tracking-wider text-muted block font-mono">
             Remaining Purse
           </span>
-          <div className="font-syne font-extrabold text-4xl text-points tabular-nums mt-0.5">
-            <AnimatedCounter value={team.current_purse} /> PTS
+          <div
+            className={`font-mono font-bold text-points tabular-nums mt-0.5 flex items-baseline md:justify-end gap-1.5 ${
+              isCompactHeader ? 'text-2xl sm:text-3xl lg:text-4xl' : 'text-3xl sm:text-4xl lg:text-5xl'
+            }`}
+          >
+            <AnimatedCounter value={team.current_purse} />
+            <span className="text-sm sm:text-base font-mono font-semibold">PTS</span>
           </div>
         </div>
       </div>
 
-      {/* Assigned Players List */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between font-mono text-xs uppercase tracking-wider text-muted">
-          <span>Drafted Squad ({rosterPlayers.length} Players)</span>
+      {/* Acquired Players Grid */}
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div className="flex items-center justify-between font-mono text-xs uppercase tracking-wider text-muted mb-2 shrink-0">
+          <span>Acquired Squad ({rosterPlayers.length} {rosterPlayers.length === 1 ? 'Player' : 'Players'})</span>
         </div>
 
         {rosterPlayers.length === 0 ? (
-          <div className="py-16 text-center text-sm font-mono text-muted border border-dashed border-border rounded-2xl bg-surface/50">
-            No athletes drafted to this franchise roster yet.
+          <div className="py-16 text-center text-sm font-mono text-muted border border-dashed border-border rounded-2xl bg-surface/50 my-auto">
+            No athletes acquired to this franchise squad yet.
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className={`grid ${gridClass} overflow-hidden my-auto w-full`}>
             {rosterPlayers.map((player) => (
               <div
                 key={player.id}
-                className="p-4 rounded-2xl bg-surface border border-border flex items-center gap-4 shadow-sm"
+                className={`${cardPadding} rounded-xl bg-surface border border-border flex items-center gap-2.5 sm:gap-3 shadow-sm min-w-0`}
               >
-                <div className="w-12 h-12 rounded-xl bg-surface-2 border border-border overflow-hidden shrink-0 flex items-center justify-center">
-                  {player.photo_url ? (
+                <div
+                  className={`${thumbSize} rounded-lg bg-surface-2 border border-border overflow-hidden shrink-0 flex items-center justify-center`}
+                >
+                  {player.photo_url || player.photo_thumb_url ? (
                     <img
-                      src={player.photo_url}
+                      src={player.photo_url || player.photo_thumb_url}
                       alt={player.name}
                       referrerPolicy="no-referrer"
                       loading="eager"
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <User size={20} className="text-muted" />
+                    <User size={iconSize} className="text-muted" />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h4 className="font-syne font-bold text-base text-text truncate">
+                  <h4 className={`font-syne font-bold text-text truncate ${nameSize}`}>
                     {player.name}
                   </h4>
-                  <div className="text-xs text-accent-bright font-medium">
-                    {player.playing_role} · {getAcademicYearLabel(player.academic_year || '1st')}
+                  <div className={`text-accent-bright font-medium truncate ${roleSize}`}>
+                    {player.playing_role}
                   </div>
-                  {player.purchase_price ? (
-                    <div className="font-mono text-xs text-points tabular-nums mt-0.5">
-                      Draft Price: {player.purchase_price.toLocaleString()} PTS
-                    </div>
-                  ) : null}
+                  <div className={`font-mono text-points tabular-nums font-semibold truncate ${priceSize}`}>
+                    {player.purchase_price
+                      ? `${player.purchase_price.toLocaleString()} PTS`
+                      : player.base_points
+                      ? `Base: ${player.base_points.toLocaleString()} PTS`
+                      : '—'}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
-    </>
+    </div>
   )
 }
 
@@ -862,8 +950,9 @@ export const ProjectorPage: React.FC = () => {
     async (seasonId: string) => {
       if (!seasonId) return
       try {
-        const [latestPState, latestSettings, pubTeams, fullTeams, latestPlayers] =
+        const [seasonsList, latestPState, latestSettings, pubTeams, fullTeams, latestPlayers] =
           await Promise.all([
+            getSeasons().catch(() => []),
             getProjectorState(seasonId),
             getAuctionSettings(seasonId),
             getPublicTeams(seasonId).catch(() => []),
@@ -871,6 +960,13 @@ export const ProjectorPage: React.FC = () => {
             getPlayers(seasonId)
           ])
 
+        const updatedSeason =
+          seasonsList.find((s) => s.id === seasonId) ||
+          seasonsList.find((s) => s.is_active) ||
+          null
+        if (updatedSeason) {
+          setActiveSeason(updatedSeason)
+        }
         setAuctionSettings(latestSettings)
         auctionSettingsRef.current = latestSettings
         setTeams(mergeTeamsWithPublicView(pubTeams, fullTeams))
@@ -992,11 +1088,17 @@ export const ProjectorPage: React.FC = () => {
   // Active scene entities
   const rawSpotlightPlayer = players.find((p) => p.id === projectorState.player_id)
   const rosterTeam = teams.find((t) => t.id === projectorState.team_id)
-  const rosterPlayers = rosterTeam ? players.filter((p) => p.team_id === rosterTeam.id) : []
 
   // Auto slideshow lists and active slides (timers only run in player_auto / roster_auto)
   const isPlayerAuto = projectorState.mode === PROJECTOR_MODES.PLAYER_AUTO
-  const isRosterAuto = projectorState.mode === PROJECTOR_MODES.ROSTER_AUTO
+  const isRosterAuto =
+    projectorState.mode === PROJECTOR_MODES.ROSTER_AUTO ||
+    (projectorState.mode === PROJECTOR_MODES.TEAMS && !projectorState.team_id)
+
+  const isTeamsAndPursesMode =
+    projectorState.mode === PROJECTOR_MODES.TEAMS ||
+    projectorState.mode === PROJECTOR_MODES.ROSTER ||
+    projectorState.mode === PROJECTOR_MODES.ROSTER_AUTO
 
   const autoPlayers = useMemo(
     () =>
@@ -1006,10 +1108,19 @@ export const ProjectorPage: React.FC = () => {
     [isPlayerAuto, players, projectorState.auto_sport, projectorState.auto_filter]
   )
 
+  const sportFilteredTeams = useMemo(
+    () => getAutoSlideshowTeams(teams, projectorState.auto_sport),
+    [teams, projectorState.auto_sport]
+  )
+
   const autoTeams = useMemo(
     () =>
-      isRosterAuto ? getAutoSlideshowTeams(teams, projectorState.auto_sport) : [],
-    [isRosterAuto, teams, projectorState.auto_sport]
+      isRosterAuto
+        ? sportFilteredTeams.length > 0
+          ? sportFilteredTeams
+          : teams
+        : [],
+    [isRosterAuto, sportFilteredTeams, teams]
   )
 
   const playerAutoSlideshow = useAutoSlideshow(
@@ -1026,9 +1137,141 @@ export const ProjectorPage: React.FC = () => {
 
   const rawAutoSpotlightPlayer = playerAutoSlideshow.currentItem
   const autoRosterTeam = rosterAutoSlideshow.currentItem
-  const autoRosterPlayers = autoRosterTeam
-    ? players.filter((p) => p.team_id === autoRosterTeam.id)
-    : []
+
+  const currentDisplayTeam = useMemo(() => {
+    if (isRosterAuto) {
+      return autoRosterTeam || autoTeams[0] || teams[0] || null
+    }
+    return (
+      rosterTeam ||
+      teams.find((t) => t.id === projectorState.team_id) ||
+      sportFilteredTeams[0] ||
+      teams[0] ||
+      null
+    )
+  }, [
+    isRosterAuto,
+    autoRosterTeam,
+    autoTeams,
+    rosterTeam,
+    projectorState.team_id,
+    sportFilteredTeams,
+    teams
+  ])
+
+  const currentDisplayTeamPlayers = useMemo(() => {
+    if (!currentDisplayTeam) return []
+    return players.filter((p) => p.team_id === currentDisplayTeam.id)
+  }, [currentDisplayTeam, players])
+
+  const [teamAnimationMode, setTeamAnimationMode] = useState<'fade' | 'slide' | 'zoom'>(() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const saved = window.localStorage.getItem('fieldr_projector_team_animation')
+      if (saved === 'slide' || saved === 'zoom' || saved === 'fade') return saved
+    }
+    return 'fade'
+  })
+
+  const [playerAnimationMode, setPlayerAnimationMode] = useState<'fade' | 'slide' | 'zoom'>(() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const saved = window.localStorage.getItem('fieldr_projector_player_animation')
+      if (saved === 'slide' || saved === 'zoom' || saved === 'fade') return saved
+    }
+    return 'fade'
+  })
+
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'fieldr_projector_team_animation' && e.newValue) {
+        if (e.newValue === 'slide' || e.newValue === 'zoom' || e.newValue === 'fade') {
+          setTeamAnimationMode(e.newValue)
+        }
+      }
+      if (e.key === 'fieldr_projector_player_animation' && e.newValue) {
+        if (e.newValue === 'slide' || e.newValue === 'zoom' || e.newValue === 'fade') {
+          setPlayerAnimationMode(e.newValue)
+        }
+      }
+      if (e.key === 'fieldr_seasons_updated_at') {
+        getSeasons()
+          .then((seasonsList) => {
+            const active = seasonsList.find((s) => s.is_active) || seasonsList[0] || null
+            if (active) {
+              setActiveSeason(active)
+            }
+          })
+          .catch(() => {})
+      }
+    }
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [])
+
+  const teamTransitionDuration = auctionSettings?.bid_update_ms
+    ? auctionSettings.bid_update_ms / 1000
+    : 0.4
+
+  const teamTransitionVariants = useMemo(() => {
+    if (shouldReduceMotion) {
+      return {
+        initial: { opacity: 0 },
+        animate: { opacity: 1 },
+        exit: { opacity: 0 }
+      }
+    }
+    switch (teamAnimationMode) {
+      case 'slide':
+        return {
+          initial: { opacity: 0, x: 80 },
+          animate: { opacity: 1, x: 0 },
+          exit: { opacity: 0, x: -80 }
+        }
+      case 'zoom':
+        return {
+          initial: { opacity: 0, scale: 0.94 },
+          animate: { opacity: 1, scale: 1 },
+          exit: { opacity: 0, scale: 1.04 }
+        }
+      case 'fade':
+      default:
+        return {
+          initial: { opacity: 0 },
+          animate: { opacity: 1 },
+          exit: { opacity: 0 }
+        }
+    }
+  }, [teamAnimationMode, shouldReduceMotion])
+
+  const playerTransitionVariants = useMemo(() => {
+    if (shouldReduceMotion) {
+      return {
+        initial: { opacity: 0 },
+        animate: { opacity: 1 },
+        exit: { opacity: 0 }
+      }
+    }
+    switch (playerAnimationMode) {
+      case 'slide':
+        return {
+          initial: { opacity: 0, x: 80 },
+          animate: { opacity: 1, x: 0 },
+          exit: { opacity: 0, x: -80 }
+        }
+      case 'zoom':
+        return {
+          initial: { opacity: 0, scale: 0.94 },
+          animate: { opacity: 1, scale: 1 },
+          exit: { opacity: 0, scale: 1.04 }
+        }
+      case 'fade':
+      default:
+        return {
+          initial: { opacity: 0 },
+          animate: { opacity: 1 },
+          exit: { opacity: 0 }
+        }
+    }
+  }, [playerAnimationMode, shouldReduceMotion])
 
   // Auction / Sold / Unsold entities
   const rawStagePlayer = players.find((p) => p.id === projectorState.player_id)
@@ -1107,13 +1350,6 @@ export const ProjectorPage: React.FC = () => {
       : { opacity: 0, scale: 1.02 }
   }
 
-  // Slide transition: crossfade with a slight upward drift over 600ms using only opacity and transform;
-  // with prefers-reduced-motion use fade only.
-  const autoSlideVariants = {
-    initial: shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 18 },
-    animate: shouldReduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 },
-    exit: shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -18 }
-  }
 
   return (
     <div
@@ -1627,102 +1863,40 @@ export const ProjectorPage: React.FC = () => {
             </motion.div>
           )}
 
-          {/* ================= SCENE 5: TEAMS & PURSES ================= */}
-          {projectorState.mode === 'teams' && (
+          {/* ================= SCENE 2: TEAMS & PURSES ================= */}
+          {isTeamsAndPursesMode && (
             <motion.div
-              key="scene-teams"
+              key="scene-teams-and-purses"
               variants={sceneVariants}
               initial="initial"
               animate="animate"
               exit="exit"
               transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-              className="flex flex-col justify-center w-full h-full my-auto"
+              className="flex flex-col justify-center w-full h-full max-w-6xl my-auto overflow-hidden"
             >
-              {/* Scene Title */}
-              <div className="flex items-end justify-between pb-6 mb-8 border-b border-border">
-                <div>
-                  <span className="font-mono text-xs sm:text-sm uppercase tracking-widest text-accent-bright block mb-1.5">
-                    Auditorium Leaderboard
-                  </span>
-                  <h2 className="font-syne font-extrabold text-4xl sm:text-5xl md:text-6xl text-text tracking-tight">
-                    Franchise Purses
-                  </h2>
-                </div>
-                <div className="text-right font-mono text-xs sm:text-sm text-muted tabular-nums">
-                  <span>{teams.length} Teams Registered</span>
-                </div>
-              </div>
-
-              {/* Teams Grid */}
-              {teams.length === 0 ? (
-                <div className="py-24 text-center text-lg text-muted font-mono">
-                  No franchise teams registered in this tournament yet.
-                </div>
+              {currentDisplayTeam ? (
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    key={currentDisplayTeam.id}
+                    variants={teamTransitionVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    transition={{
+                      duration: teamTransitionDuration,
+                      ease: [0.22, 1, 0.36, 1]
+                    }}
+                    className="flex flex-col justify-between w-full h-full overflow-hidden"
+                  >
+                    <TeamsAndPursesSceneContent
+                      team={currentDisplayTeam}
+                      rosterPlayers={currentDisplayTeamPlayers}
+                    />
+                  </motion.div>
+                </AnimatePresence>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 sm:gap-8">
-                  {teams.map((team) => (
-                    <div
-                      key={team.id}
-                      className="p-6 sm:p-8 rounded-2xl bg-surface border border-border flex flex-col justify-between gap-6 shadow-sm relative overflow-hidden"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex items-center gap-4 min-w-0">
-                          <div
-                            className="w-16 h-16 rounded-2xl flex items-center justify-center font-syne font-extrabold text-xl text-white overflow-hidden border border-border shrink-0 shadow-sm"
-                            style={{ backgroundColor: team.color || 'var(--accent-bright)' }}
-                          >
-                            {team.logo_url ? (
-                              <img
-                                src={team.logo_url}
-                                alt={team.name}
-                                referrerPolicy="no-referrer"
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <span>{team.short_code}</span>
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <h3 className="font-syne font-bold text-2xl sm:text-3xl text-text tracking-tight leading-snug truncate">
-                              {team.name}
-                            </h3>
-                            <div className="text-xs sm:text-sm text-muted mt-0.5 flex items-center gap-2">
-                              <span>{team.sport}</span>
-                              <span
-                                className="w-2.5 h-2.5 rounded-full inline-block border border-border"
-                                style={{ backgroundColor: team.color || 'var(--accent-bright)' }}
-                              />
-                            </div>
-                          </div>
-                        </div>
-
-                        <span className="font-mono text-sm text-muted font-semibold shrink-0">
-                          {team.short_code}
-                        </span>
-                      </div>
-
-                      {/* Owner & Animated Purse */}
-                      <div className="pt-4 border-t border-border flex flex-col gap-2">
-                        {team.owner_display_name && (
-                          <div className="text-xs text-muted truncate">
-                            Owner: <span className="text-text font-medium">{team.owner_display_name}</span>
-                          </div>
-                        )}
-                        <div className="flex items-baseline justify-between mt-1">
-                          <span className="text-xs font-mono uppercase tracking-wider text-muted">
-                            Purse Balance
-                          </span>
-                          <div className="flex items-baseline gap-1.5 text-points">
-                            <AnimatedCounter
-                              value={team.current_purse}
-                              className="font-syne font-extrabold text-3xl sm:text-4xl md:text-5xl tabular-nums"
-                            />
-                            <span className="font-mono text-xs font-semibold">PTS</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                <div className="py-24 text-center font-mono text-2xl text-muted">
+                  No teams registered for {projectorState.auto_sport || 'Sport'}
                 </div>
               )}
             </motion.div>
@@ -1731,19 +1905,34 @@ export const ProjectorPage: React.FC = () => {
           {/* ================= SCENE 6: PLAYER SPOTLIGHT ================= */}
           {projectorState.mode === PROJECTOR_MODES.PLAYER && (
             <motion.div
-              key={`scene-player-${spotlightPlayer?.id || 'none'}`}
+              key="scene-player"
               variants={sceneVariants}
               initial="initial"
               animate="animate"
               exit="exit"
               transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-              className="flex flex-col lg:flex-row items-center justify-center gap-10 md:gap-16 lg:gap-24 w-full max-w-6xl my-auto"
+              className="flex flex-col items-center justify-center w-full max-w-6xl my-auto"
             >
               {spotlightPlayer ? (
-                <PlayerSpotlightSceneContent
-                  player={spotlightPlayer}
-                  shouldReduceMotion={shouldReduceMotion}
-                />
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    key={spotlightPlayer.id}
+                    variants={playerTransitionVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    transition={{
+                      duration: teamTransitionDuration,
+                      ease: [0.22, 1, 0.36, 1]
+                    }}
+                    className="flex flex-col lg:flex-row items-center justify-center gap-10 md:gap-16 lg:gap-24 w-full"
+                  >
+                    <PlayerSpotlightSceneContent
+                      player={spotlightPlayer}
+                      shouldReduceMotion={shouldReduceMotion}
+                    />
+                  </motion.div>
+                </AnimatePresence>
               ) : (
                 <div className="text-center font-mono text-xl text-muted">
                   No player currently selected in Spotlight.
@@ -1767,11 +1956,14 @@ export const ProjectorPage: React.FC = () => {
                 <AnimatePresence mode="wait" initial={false}>
                   <motion.div
                     key={autoSpotlightPlayer.id}
-                    variants={autoSlideVariants}
+                    variants={playerTransitionVariants}
                     initial="initial"
                     animate="animate"
                     exit="exit"
-                    transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                    transition={{
+                      duration: teamTransitionDuration,
+                      ease: [0.22, 1, 0.36, 1]
+                    }}
                     className="flex flex-col lg:flex-row items-center justify-center gap-10 md:gap-16 lg:gap-24 w-full"
                   >
                     <PlayerSpotlightSceneContent
@@ -1789,65 +1981,7 @@ export const ProjectorPage: React.FC = () => {
             </motion.div>
           )}
 
-          {/* ================= SCENE 7: TEAM ROSTER ================= */}
-          {projectorState.mode === PROJECTOR_MODES.ROSTER && (
-            <motion.div
-              key={`scene-roster-${rosterTeam?.id || 'none'}`}
-              variants={sceneVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-              className="flex flex-col justify-center w-full h-full max-w-6xl my-auto"
-            >
-              {rosterTeam ? (
-                <TeamRosterSceneContent
-                  team={rosterTeam}
-                  rosterPlayers={rosterPlayers}
-                />
-              ) : (
-                <div className="text-center font-mono text-xl text-muted">
-                  No team selected for Roster showcase.
-                </div>
-              )}
-            </motion.div>
-          )}
 
-          {/* ================= SCENE 7B: TEAM ROSTER AUTO SLIDESHOW ================= */}
-          {projectorState.mode === PROJECTOR_MODES.ROSTER_AUTO && (
-            <motion.div
-              key="scene-roster-auto"
-              variants={sceneVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-              className="flex flex-col justify-center w-full h-full max-w-6xl my-auto"
-            >
-              {autoRosterTeam ? (
-                <AnimatePresence mode="wait" initial={false}>
-                  <motion.div
-                    key={autoRosterTeam.id}
-                    variants={autoSlideVariants}
-                    initial="initial"
-                    animate="animate"
-                    exit="exit"
-                    transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-                    className="flex flex-col justify-center w-full h-full"
-                  >
-                    <TeamRosterSceneContent
-                      team={autoRosterTeam}
-                      rosterPlayers={autoRosterPlayers}
-                    />
-                  </motion.div>
-                </AnimatePresence>
-              ) : (
-                <div className="py-24 text-center font-mono text-2xl text-muted">
-                  No teams for {projectorState.auto_sport || 'Sport'}
-                </div>
-              )}
-            </motion.div>
-          )}
         </AnimatePresence>
       </main>
     </div>

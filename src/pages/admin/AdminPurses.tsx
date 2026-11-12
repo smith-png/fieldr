@@ -112,12 +112,17 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
     : []
 
   return (
-    <div className="flex flex-col gap-8">
-      <PageHeader
-        label="Financial Ledger"
-        title="Purses & Balances"
-        subtitle="Manage franchise points, credit/debit balances with audit logs, and enforce strict zero-deficit rules."
-        actions={
+    <section className="flex flex-col gap-6 pt-4 border-t border-border">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="font-syne font-bold text-xl text-text tracking-tight">
+            Purses &amp; Balances
+          </h2>
+          <p className="text-xs text-muted mt-1">
+            Manage franchise points, credit/debit balances with audit logs, and enforce strict zero-deficit rules.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
           <Button
             variant="secondary"
             size="md"
@@ -126,8 +131,8 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
           >
             Reset All Purses
           </Button>
-        }
-      />
+        </div>
+      </div>
 
       {/* Purses Table */}
       {teams.length === 0 ? (
@@ -425,6 +430,6 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
           </div>
         </div>
       </Dialog>
-    </div>
+    </section>
   )
 }

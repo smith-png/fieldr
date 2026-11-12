@@ -38,9 +38,9 @@ export interface SeasonsService {
     name: string,
     startDate?: string,
     endDate?: string,
-    description?: string,
-    isArchived?: boolean
+    description?: string
   ): Promise<Season>
+  renameSeason(seasonId: string, name: string): Promise<void>
   setActiveSeason(id: string): Promise<void>
   getSeasonDeletionPreview(seasonId: string): Promise<SeasonDeletionCounts>
   deleteSeason(seasonId: string): Promise<void>

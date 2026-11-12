@@ -1,7 +1,13 @@
 import React, { useRef, useState } from 'react'
-import { Archive, Calendar, Plus, Trash, WarningCircle } from '@phosphor-icons/react'
+import { Calendar, PencilSimple, Plus, Trash, WarningCircle } from '@phosphor-icons/react'
 import type { Season, SeasonDeletionCounts } from '../../types'
-import { createSeason, deleteSeason, getSeasonDeletionPreview, setActiveSeason } from '../../lib/data'
+import {
+  createSeason,
+  deleteSeason,
+  getSeasonDeletionPreview,
+  renameSeason,
+  setActiveSeason
+} from '../../lib/data'
 import { useToast } from '../../lib/ToastContext'
 import { Button, Dialog, PageHeader } from '../../components/ui'
 
@@ -23,8 +29,12 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [description, setDescription] = useState('')
-  const [isArchived, setIsArchived] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Rename modal state
+  const [seasonToRename, setSeasonToRename] = useState<Season | null>(null)
+  const [renameInput, setRenameInput] = useState('')
+  const [isRenaming, setIsRenaming] = useState(false)
 
   // Delete modal state
   const [seasonToDelete, setSeasonToDelete] = useState<Season | null>(null)
@@ -50,14 +60,12 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
         trimmedName,
         startDate || undefined,
         endDate || undefined,
-        description || undefined,
-        isArchived
+        description || undefined
       )
       setName('')
       setStartDate('')
       setEndDate('')
       setDescription('')
-      setIsArchived(false)
       success(`Season "${created.name}" created successfully`)
       await onRefresh()
     } catch (err: unknown) {
@@ -76,6 +84,35 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to set active season'
       error(msg)
+    }
+  }
+
+  const openRenameDialog = (season: Season) => {
+    setSeasonToRename(season)
+    setRenameInput(season.name)
+  }
+
+  const handleRenameSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!seasonToRename) return
+    const trimmed = renameInput.trim()
+    if (trimmed.length < 1 || trimmed.length > 60) {
+      error('Season name must be between 1 and 60 characters')
+      return
+    }
+
+    try {
+      setIsRenaming(true)
+      await renameSeason(seasonToRename.id, trimmed)
+      success(`Season renamed to "${trimmed}"`)
+      setSeasonToRename(null)
+      setRenameInput('')
+      await onRefresh()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to rename season'
+      error(msg)
+    } finally {
+      setIsRenaming(false)
     }
   }
 
@@ -190,19 +227,6 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
               />
             </div>
 
-            <div className="flex items-start gap-2.5 pt-1">
-              <input
-                type="checkbox"
-                id="is_archived"
-                checked={isArchived}
-                onChange={(e) => setIsArchived(e.target.checked)}
-                className="mt-0.5 w-4 h-4 rounded border-border text-accent-bright focus:ring-0 cursor-pointer accent-accent-bright"
-              />
-              <label htmlFor="is_archived" className="text-xs text-text cursor-pointer select-none leading-relaxed">
-                Past season (archive) &mdash; <span className="text-muted">Preserves rosters without activating live auction mode</span>
-              </label>
-            </div>
-
             <div className="flex justify-end pt-2">
               <Button
                 type="submit"
@@ -226,7 +250,6 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
 
           {seasons.map((season) => {
             const isActive = season.is_active || season.id === activeSeason?.id
-            const isArchivedSeason = !!season.is_archived
             const isOnlySeason = seasons.length <= 1
 
             return (
@@ -243,16 +266,10 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
                     className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border border-border ${
                       isActive
                         ? 'bg-accent text-on-accent'
-                        : isArchivedSeason
-                        ? 'bg-surface-2 text-points'
                         : 'bg-surface-2 text-muted'
                     }`}
                   >
-                    {isArchivedSeason ? (
-                      <Archive size={18} weight="regular" />
-                    ) : (
-                      <Calendar size={18} weight={isActive ? 'fill' : 'regular'} />
-                    )}
+                    <Calendar size={18} weight={isActive ? 'fill' : 'regular'} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -262,11 +279,6 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
                       {isActive && (
                         <span className="text-[11px] font-mono uppercase text-accent-bright font-semibold">
                           · Active
-                        </span>
-                      )}
-                      {isArchivedSeason && (
-                        <span className="text-[11px] font-mono uppercase text-points font-semibold">
-                          · Archived
                         </span>
                       )}
                     </div>
@@ -290,7 +302,7 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                  {!isActive && !isArchivedSeason && (
+                  {!isActive && (
                     <Button
                       type="button"
                       variant="secondary"
@@ -300,6 +312,17 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
                       Set as Active
                     </Button>
                   )}
+
+                  {/* Rename Button */}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    leftIcon={PencilSimple}
+                    onClick={() => openRenameDialog(season)}
+                  >
+                    Rename
+                  </Button>
 
                   {/* Delete Button */}
                   <button
@@ -323,6 +346,59 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
           })}
         </div>
       </div>
+
+      {/* Rename Season Dialog */}
+      {seasonToRename && (
+        <Dialog
+          isOpen={true}
+          onClose={() => !isRenaming && setSeasonToRename(null)}
+          title="Rename Season"
+          description="Update the display name for this tournament season (1 to 60 characters)."
+          size="sm"
+        >
+          <form onSubmit={handleRenameSubmit} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-mono uppercase tracking-wider text-muted">
+                Season Name
+              </label>
+              <input
+                type="text"
+                value={renameInput}
+                onChange={(e) => setRenameInput(e.target.value)}
+                maxLength={60}
+                autoFocus
+                required
+                className="px-3.5 py-2.5 bg-bg border border-border rounded-xl text-xs text-text placeholder-muted focus:outline-none focus:border-accent-bright"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setSeasonToRename(null)}
+                disabled={isRenaming}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                disabled={
+                  isRenaming ||
+                  renameInput.trim().length < 1 ||
+                  renameInput.trim().length > 60
+                }
+                isLoading={isRenaming}
+              >
+                Save
+              </Button>
+            </div>
+          </form>
+        </Dialog>
+      )}
 
       {/* Delete Confirmation Dialog */}
       {seasonToDelete && (
