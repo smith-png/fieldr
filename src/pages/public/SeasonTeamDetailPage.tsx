@@ -1,24 +1,27 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { CaretLeft, ShieldCheck, Users } from '@phosphor-icons/react'
+import { ArrowsClockwise, CaretLeft, ShieldCheck, SignOut, Users } from '@phosphor-icons/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
 import { EmptyState, ErrorState, Spinner } from '../../components/ui'
 import { RosterPlayerCard } from '../../components/roster/RosterPlayerCard'
 import {
+  formatAthleteCode,
   getActiveSeason,
   getPublicPlayersBySeason,
   getPublicTeams,
   getRolesForSport,
-  getSeason
+  getSeason,
+  supabase
 } from '../../lib/data'
 import {
   hasDataChanged,
   publicCache,
   type SeasonTeamDetailCacheEntry
 } from '../../lib/publicCache'
-import { getInitials } from '../../lib/utils'
+import { formatPoints, getInitials } from '../../lib/utils'
+import { useAuth } from '../../lib/AuthContext'
 import type { PublicPlayer, PublicTeam, Season } from '../../types'
 
 function getTeamCacheKey(seasonId?: string, teamId?: string): string {
@@ -60,6 +63,7 @@ function getCachedTeamDetail(
 export const SeasonTeamDetailPage: React.FC = () => {
   const { id, teamId } = useParams<{ id: string; teamId: string }>()
   const navigate = useNavigate()
+  const { user, logout } = useAuth()
   const initialCached = getCachedTeamDetail(id, teamId)
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -82,6 +86,44 @@ export const SeasonTeamDetailPage: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState<boolean>(!initialCached)
   const [hasError, setHasError] = useState<boolean>(false)
+
+  // Owner Panel State
+  const [ownerOverview, setOwnerOverview] = useState<any | null>(null)
+  const [isLoadingOverview, setIsLoadingOverview] = useState<boolean>(false)
+
+  const fetchOwnerOverview = async () => {
+    if (!user || user.role !== 'owner' || !teamId || !supabase) {
+      setOwnerOverview(null)
+      return
+    }
+    try {
+      setIsLoadingOverview(true)
+      const { data, error } = await supabase.rpc('owner_team_overview')
+      if (error) {
+        console.error('owner_team_overview error:', error)
+        setOwnerOverview(null)
+        return
+      }
+      const items = Array.isArray(data) ? data : data ? [data] : []
+      const matched = items.find(
+        (item: any) => String(item.team_id || item.id) === String(teamId)
+      )
+      setOwnerOverview(matched || null)
+    } catch (err) {
+      console.error('Failed to load owner overview:', err)
+      setOwnerOverview(null)
+    } finally {
+      setIsLoadingOverview(false)
+    }
+  }
+
+  useEffect(() => {
+    if (user?.role === 'owner' && teamId) {
+      fetchOwnerOverview()
+    } else {
+      setOwnerOverview(null)
+    }
+  }, [user?.role, user?.id, teamId])
 
   const loadData = async () => {
     if (!id || !teamId) return
@@ -327,6 +369,172 @@ export const SeasonTeamDetailPage: React.FC = () => {
                 />
               </div>
             )}
+
+            {/* Owner Panel (Visible ONLY to signed-in owner of this specific franchise) */}
+            {ownerOverview && (() => {
+              const rawPlayers =
+                ownerOverview.players ??
+                ownerOverview.players_bought ??
+                ownerOverview.bought_players ??
+                ownerOverview.squad ??
+                []
+              let list: any[] = []
+              if (typeof rawPlayers === 'string') {
+                try {
+                  list = JSON.parse(rawPlayers)
+                } catch {
+                  list = []
+                }
+              } else if (Array.isArray(rawPlayers)) {
+                list = rawPlayers
+              }
+
+              const boughtPlayers = list.map((p: any) => ({
+                athlete_code: formatAthleteCode(p.athlete_code ?? p.player_code ?? p.code ?? p.id),
+                name: String(p.name || p.player_name || 'Unnamed Player'),
+                playing_role: String(p.playing_role || p.role || 'Player'),
+                purchase_price: Number(p.purchase_price ?? p.price ?? p.amount ?? 0)
+              }))
+
+              const purseSpent =
+                ownerOverview.purse_spent ??
+                ownerOverview.spent ??
+                ownerOverview.spent_purse ??
+                (ownerOverview.initial_purse != null && ownerOverview.current_purse != null
+                  ? Math.max(0, Number(ownerOverview.initial_purse) - Number(ownerOverview.current_purse))
+                  : boughtPlayers.reduce((sum, p) => sum + p.purchase_price, 0))
+
+              const currentPurse =
+                ownerOverview.current_purse ??
+                ownerOverview.purse_remaining ??
+                ownerOverview.remaining_purse ??
+                0
+
+              const rosterCount =
+                ownerOverview.roster_count ??
+                ownerOverview.player_count ??
+                boughtPlayers.length
+
+              return (
+                <div className="bg-surface border border-accent-bright/35 rounded-2xl p-6 sm:p-8 mb-10 shadow-sm relative overflow-hidden font-dm-sans">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-border">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono uppercase tracking-wider bg-accent-bright/15 text-accent-bright font-semibold">
+                          CONFIDENTIAL FRANCHISE PORTAL
+                        </span>
+                      </div>
+                      <h2 className="font-syne font-bold text-2xl sm:text-3xl text-text tracking-tight">
+                        Owner Panel
+                      </h2>
+                      <p className="text-xs text-muted mt-1">
+                        Purse status and acquired roster for {team?.name || 'this team'}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 self-start sm:self-center">
+                      <button
+                        type="button"
+                        onClick={fetchOwnerOverview}
+                        disabled={isLoadingOverview}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-surface-2 hover:bg-surface border border-border text-xs font-medium text-text transition-colors disabled:opacity-50 cursor-pointer"
+                      >
+                        <ArrowsClockwise
+                          size={14}
+                          className={isLoadingOverview ? 'animate-spin' : ''}
+                        />
+                        <span>Refresh</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => logout()}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-surface-2 hover:bg-surface border border-border text-xs font-medium text-muted hover:text-text transition-colors cursor-pointer"
+                      >
+                        <SignOut size={14} />
+                        <span>Sign out</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 3 Metrics */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 my-6">
+                    <div className="bg-surface-2 border border-border rounded-xl p-4">
+                      <span className="text-[11px] font-mono uppercase tracking-wider text-muted block mb-1">
+                        Purse Spent
+                      </span>
+                      <span className="font-mono text-2xl font-bold text-text tabular-nums">
+                        {formatPoints(purseSpent)}
+                      </span>
+                    </div>
+
+                    <div className="bg-surface-2 border border-border rounded-xl p-4">
+                      <span className="text-[11px] font-mono uppercase tracking-wider text-muted block mb-1">
+                        Purse Remaining
+                      </span>
+                      <span className="font-mono text-2xl font-bold text-accent-bright tabular-nums">
+                        {formatPoints(currentPurse)}
+                      </span>
+                    </div>
+
+                    <div className="bg-surface-2 border border-border rounded-xl p-4">
+                      <span className="text-[11px] font-mono uppercase tracking-wider text-muted block mb-1">
+                        Roster Count
+                      </span>
+                      <span className="font-mono text-2xl font-bold text-text tabular-nums">
+                        {rosterCount}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Players Bought */}
+                  <div>
+                    <h3 className="font-syne font-bold text-base text-text mb-3">
+                      Players Bought ({boughtPlayers.length})
+                    </h3>
+
+                    {boughtPlayers.length === 0 ? (
+                      <div className="p-6 text-center rounded-xl bg-surface-2 border border-border text-xs text-muted">
+                        No players acquired yet.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded-xl border border-border">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="border-b border-border bg-surface-2 font-mono text-[11px] text-muted uppercase tracking-wider">
+                              <th className="py-2.5 px-4 font-medium">Code</th>
+                              <th className="py-2.5 px-4 font-medium">Athlete Name</th>
+                              <th className="py-2.5 px-4 font-medium">Role</th>
+                              <th className="py-2.5 px-4 font-medium text-right">Purchase Price</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border">
+                            {boughtPlayers.map((bp, idx) => (
+                              <tr
+                                key={`${bp.athlete_code}-${idx}`}
+                                className="hover:bg-surface-2/60 transition-colors"
+                              >
+                                <td className="py-3 px-4 font-mono font-bold text-accent-bright tabular-nums">
+                                  {bp.athlete_code}
+                                </td>
+                                <td className="py-3 px-4 font-medium text-text">
+                                  {bp.name}
+                                </td>
+                                <td className="py-3 px-4 text-muted">
+                                  {bp.playing_role}
+                                </td>
+                                <td className="py-3 px-4 font-mono text-text font-semibold text-right tabular-nums">
+                                  {formatPoints(bp.purchase_price)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Team Roster Squad */}
             <div>

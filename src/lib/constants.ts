@@ -81,7 +81,8 @@ export const PUBLIC_SQUAD_SELECT_COLUMNS =
 
 export const USER_ROLES = {
   ADMIN: 'admin',
-  PROJECTOR: 'projector'
+  PROJECTOR: 'projector',
+  OWNER: 'owner'
 } as const
 
 export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES]

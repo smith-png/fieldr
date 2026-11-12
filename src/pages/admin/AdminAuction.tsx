@@ -839,29 +839,31 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
             {queueTab === 'queue' ? (
               <div className="flex flex-col gap-3">
                 {/* Add player search box */}
-                <div className="relative">
-                  <MagnifyingGlass
-                    size={16}
-                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
-                  />
-                  <input
-                    type="text"
-                    value={addPlayerSearch}
-                    onChange={(e) => setAddPlayerSearch(e.target.value)}
-                    placeholder="Add player by name or code..."
-                    disabled={isPending}
-                    className="w-full min-h-[44px] pl-10 pr-9 py-2 bg-bg border border-border rounded-xl text-xs sm:text-sm text-text focus:outline-none focus:border-accent-bright"
-                  />
-                  {addPlayerSearch && (
-                    <button
-                      type="button"
-                      onClick={() => setAddPlayerSearch('')}
-                      aria-label="Clear search"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text"
-                    >
-                      <X size={14} weight="bold" />
-                    </button>
-                  )}
+                <div>
+                  <div className="relative">
+                    <MagnifyingGlass
+                      size={16}
+                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+                    />
+                    <input
+                      type="text"
+                      value={addPlayerSearch}
+                      onChange={(e) => setAddPlayerSearch(e.target.value)}
+                      placeholder="Add player by name or code..."
+                      disabled={isPending}
+                      className="w-full min-h-[44px] pl-10 pr-9 py-2 bg-bg border border-border rounded-xl text-xs sm:text-sm text-text focus:outline-none focus:border-accent-bright"
+                    />
+                    {addPlayerSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setAddPlayerSearch('')}
+                        aria-label="Clear search"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text"
+                      >
+                        <X size={14} weight="bold" />
+                      </button>
+                    )}
+                  </div>
 
                   {addPlayerSearch.trim().length > 0 && (
                     <div className="mt-1.5 rounded-xl bg-bg border border-border shadow-lg overflow-hidden divide-y divide-border max-h-56 overflow-y-auto">
@@ -1265,14 +1267,18 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
                         {stagePlayer.name}
                       </h2>
 
-                      <div className="mt-2.5 flex flex-wrap items-center justify-center sm:justify-start gap-3 text-xs text-muted">
-                        <span className="font-semibold text-text">{stagePlayer.playing_role}</span>
-                        <span>·</span>
+                      {/* Large Role Label directly under player name */}
+                      <div className="font-syne font-bold text-lg sm:text-xl text-text mt-1 tracking-tight">
+                        {stagePlayer.playing_role}
+                      </div>
+
+                      {/* Small monospace line below role in amber */}
+                      <div className="font-mono text-xs text-points font-semibold tabular-nums mt-0.5">
+                        Base: {stagePlayer.base_points.toLocaleString()} PTS
+                      </div>
+
+                      <div className="mt-2 flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs text-muted">
                         <span>{stagePlayer.academic_year} Year</span>
-                        <span>·</span>
-                        <span className="font-mono font-bold text-points tabular-nums">
-                          Base: {stagePlayer.base_points.toLocaleString()} PTS
-                        </span>
                       </div>
                     </div>
                   </div>

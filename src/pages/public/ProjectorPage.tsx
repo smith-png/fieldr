@@ -507,25 +507,33 @@ const PlayerSpotlightSceneContent: React.FC<{
       {/* Player Credentials & Stats */}
       <div className="flex flex-col gap-6 text-left max-w-2xl">
         <div>
-          {/* Sport & Role Eyebrow */}
+          {/* Sport Eyebrow */}
           <div className="flex items-center gap-3 text-sm md:text-base font-mono uppercase tracking-widest text-accent-bright font-semibold mb-3">
             <span>
               #{formatAthleteCode(player.player_code || player.athlete_code)}
             </span>
             <span className="text-muted">/</span>
             <span>{player.sport}</span>
-            <span className="text-muted">/</span>
-            <span>{player.playing_role}</span>
           </div>
 
           {/* Huge Name Display */}
           <h2 className="font-syne font-extrabold text-5xl sm:text-7xl md:text-8xl text-text tracking-tighter leading-[0.95]">
             {player.name}
           </h2>
+
+          {/* Large Role Label directly under player name */}
+          <div className="font-syne font-bold text-2xl sm:text-4xl md:text-5xl text-text tracking-tight mt-3 sm:mt-4">
+            {player.playing_role}
+          </div>
+
+          {/* Small monospace line below the role in amber */}
+          <div className="font-mono text-sm sm:text-base text-points font-semibold tabular-nums mt-1.5">
+            Base: {player.base_points.toLocaleString()} PTS
+          </div>
         </div>
 
         {/* Metadata Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 pt-6 border-t border-border font-mono">
+        <div className="grid grid-cols-2 gap-6 pt-6 border-t border-border font-mono">
           <div>
             <span className="text-xs text-muted uppercase tracking-wider block">
               Academic Year
@@ -545,15 +553,6 @@ const PlayerSpotlightSceneContent: React.FC<{
               </span>
             </div>
           )}
-
-          <div>
-            <span className="text-xs text-muted uppercase tracking-wider block">
-              Base Auction Price
-            </span>
-            <span className="font-syne font-extrabold text-2xl md:text-3xl text-points tabular-nums mt-1 block">
-              {player.base_points.toLocaleString()} PTS
-            </span>
-          </div>
         </div>
 
         {player.notes && (

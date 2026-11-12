@@ -53,9 +53,14 @@ export const RosterPlayerCard: React.FC<RosterPlayerCardProps> = ({
           <h3 className="font-syne font-bold text-base text-text group-hover:text-accent-bright truncate">
             {player.name}
           </h3>
-          <span className="text-xs text-muted block truncate">
+          <div className="font-syne font-bold text-sm text-text block truncate mt-0.5">
             {player.playing_role}
-          </span>
+          </div>
+          {player.base_points !== undefined && player.base_points !== null && (
+            <div className="font-mono text-xs text-points font-semibold tabular-nums mt-0.5">
+              Base: {player.base_points.toLocaleString()} PTS
+            </div>
+          )}
         </div>
       </div>
 

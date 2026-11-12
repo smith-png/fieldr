@@ -84,11 +84,19 @@ export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({ player, team
         <div className="p-6">
           <div className="mb-4">
             <span className="text-xs font-mono uppercase tracking-widest text-accent-bright block mb-1">
-              {player.sport} · {player.playing_role}
+              {player.sport}
             </span>
             <h2 className="font-syne font-extrabold text-2xl text-text tracking-tight">
               {player.name}
             </h2>
+            <div className="font-syne font-bold text-lg text-text mt-1">
+              {player.playing_role}
+            </div>
+            {player.base_points !== undefined && player.base_points !== null && (
+              <div className="font-mono text-xs text-points font-semibold tabular-nums mt-0.5">
+                Base: {player.base_points.toLocaleString()} PTS
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4 py-4 border-y border-border text-xs">

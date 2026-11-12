@@ -5,7 +5,8 @@ import {
   getCurrentUser,
   isDemoMode,
   signIn as apiSignIn,
-  signOut as apiSignOut
+  signOut as apiSignOut,
+  supabase
 } from './data'
 
 interface AuthContextType {
@@ -15,6 +16,7 @@ interface AuthContextType {
   login: (email: string, pass: string) => Promise<AuthUser>
   quickDemoLogin: (role: UserRole) => Promise<AuthUser>
   logout: () => Promise<void>
+  refreshUser: () => Promise<AuthUser | null>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -22,6 +24,17 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+
+  const refreshUser = async (): Promise<AuthUser | null> => {
+    try {
+      const curr = await getCurrentUser()
+      setUser(curr)
+      return curr
+    } catch {
+      setUser(null)
+      return null
+    }
+  }
 
   useEffect(() => {
     let mounted = true
@@ -35,6 +48,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .catch(() => {
         if (mounted) setIsLoading(false)
       })
+
+    if (supabase) {
+      const {
+        data: { subscription }
+      } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        if (!mounted) return
+        if (session?.user) {
+          try {
+            const curr = await getCurrentUser()
+            if (mounted) setUser(curr)
+          } catch {
+            if (mounted) setUser(null)
+          }
+        } else {
+          if (mounted) setUser(null)
+        }
+      })
+      return () => {
+        mounted = false
+        subscription.unsubscribe()
+      }
+    }
 
     return () => {
       mounted = false
@@ -69,7 +104,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isDemo: isDemoMode,
         login,
         quickDemoLogin,
-        logout
+        logout,
+        refreshUser
       }}
     >
       {children}

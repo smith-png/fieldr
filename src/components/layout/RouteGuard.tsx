@@ -25,6 +25,10 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({ children, allowedRoles }
   }
 
   if (!allowedRoles.includes(user.role)) {
+    // If owner tries to access admin or any restricted route, send to /teams
+    if (user.role === 'owner') {
+      return <Navigate to="/teams" replace />
+    }
     // If projector tries to access admin, send to /projector
     if (user.role === 'projector') {
       return <Navigate to="/projector" replace />

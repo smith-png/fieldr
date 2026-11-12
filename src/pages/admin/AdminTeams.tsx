@@ -1,7 +1,10 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import {
   CheckCircle,
   DownloadSimple,
+  Eye,
+  EyeSlash,
+  Key,
   PencilSimple,
   Plus,
   ShieldCheck,
@@ -18,11 +21,45 @@ import {
   deleteStorageAsset,
   deleteTeam,
   isDemoMode,
+  manageOwnerLogin,
   updateTeam,
   uploadAsset
 } from '../../lib/data'
+import { getErrorMessage } from '../../lib/errors'
 import { useToast } from '../../lib/ToastContext'
 import { Button, Dialog, EmptyState, PageHeader } from '../../components/ui'
+
+const SPORT_ORDER = ['Cricket', 'Futsal', 'Volleyball']
+
+function getTeamCardTintStyle(color?: string | null): React.CSSProperties | undefined {
+  const clean = color?.trim()
+  if (!clean) return undefined
+
+  const hexMatch = clean.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/)
+  if (hexMatch) {
+    const hex = hexMatch[1]
+    const r =
+      hex.length === 3
+        ? parseInt(hex[0] + hex[0], 16)
+        : parseInt(hex.slice(0, 2), 16)
+    const g =
+      hex.length === 3
+        ? parseInt(hex[1] + hex[1], 16)
+        : parseInt(hex.slice(2, 4), 16)
+    const b =
+      hex.length === 3
+        ? parseInt(hex[2] + hex[2], 16)
+        : parseInt(hex.slice(4, 6), 16)
+
+    return {
+      backgroundImage: `linear-gradient(135deg, rgba(${r}, ${g}, ${b}, 0.15) 0%, rgba(${r}, ${g}, ${b}, 0.05) 42%, rgba(${r}, ${g}, ${b}, 0) 72%)`
+    }
+  }
+
+  return {
+    backgroundImage: `linear-gradient(135deg, color-mix(in srgb, ${clean} 15%, transparent) 0%, color-mix(in srgb, ${clean} 5%, transparent) 42%, transparent 72%)`
+  }
+}
 
 interface AdminTeamsProps {
   activeSeason: Season | null
@@ -62,6 +99,139 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
     Array<Omit<Team, 'id' | 'current_purse' | 'created_at'> & { valid: boolean; error?: string }>
   >([])
   const [isImporting, setIsImporting] = useState(false)
+
+  // Owner Login management state
+  const [loginModalTeam, setLoginModalTeam] = useState<Team | null>(null)
+  const [currentLoginId, setCurrentLoginId] = useState<string | null>(null)
+  const [isLoadingLoginStatus, setIsLoadingLoginStatus] = useState(false)
+  const [loginIdInput, setLoginIdInput] = useState('')
+  const [passwordInput, setPasswordInput] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [isSavingLogin, setIsSavingLogin] = useState(false)
+  const [isConfirmingRemove, setIsConfirmingRemove] = useState(false)
+  const [isRemovingLogin, setIsRemovingLogin] = useState(false)
+
+  const openOwnerLoginModal = async (team: Team) => {
+    setLoginModalTeam(team)
+    setLoginIdInput('')
+    setPasswordInput('')
+    setShowPassword(false)
+    setIsConfirmingRemove(false)
+    setCurrentLoginId(null)
+    setIsLoadingLoginStatus(true)
+
+    try {
+      const res = await manageOwnerLogin({
+        action: 'status',
+        team_id: team.id
+      })
+      setCurrentLoginId(res.login_id || null)
+      if (res.login_id) {
+        setLoginIdInput(res.login_id)
+      }
+    } catch (err: unknown) {
+      error(getErrorMessage(err, 'Failed to check owner login status'))
+    } finally {
+      setIsLoadingLoginStatus(false)
+    }
+  }
+
+  const closeOwnerLoginModal = () => {
+    if (isSavingLogin || isRemovingLogin) return
+    setLoginModalTeam(null)
+    setLoginIdInput('')
+    setPasswordInput('')
+    setShowPassword(false)
+    setCurrentLoginId(null)
+    setIsConfirmingRemove(false)
+  }
+
+  const handleSaveLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!loginModalTeam) return
+
+    const cleanLoginId = loginIdInput.trim().toLowerCase()
+    if (!/^[a-z0-9._-]{3,30}$/.test(cleanLoginId)) {
+      error('Login ID must be 3 to 30 characters and contain only lowercase letters, numbers, dot, dash, or underscore.')
+      return
+    }
+
+    if (passwordInput.length < 8) {
+      error('Password must be at least 8 characters.')
+      return
+    }
+
+    try {
+      setIsSavingLogin(true)
+      const res = await manageOwnerLogin({
+        action: 'set',
+        team_id: loginModalTeam.id,
+        login_id: cleanLoginId,
+        password: passwordInput
+      })
+
+      // Never display or store the password after saving
+      setPasswordInput('')
+      setCurrentLoginId(cleanLoginId)
+      success(res.message || 'Owner login saved successfully')
+      closeOwnerLoginModal()
+    } catch (err: unknown) {
+      error(getErrorMessage(err, 'Failed to save owner login'))
+    } finally {
+      setIsSavingLogin(false)
+    }
+  }
+
+  const handleConfirmRemoveLogin = async () => {
+    if (!loginModalTeam) return
+
+    try {
+      setIsRemovingLogin(true)
+      const res = await manageOwnerLogin({
+        action: 'remove',
+        team_id: loginModalTeam.id
+      })
+
+      success(res.message || 'Owner login removed successfully')
+      closeOwnerLoginModal()
+    } catch (err: unknown) {
+      error(getErrorMessage(err, 'Failed to remove owner login'))
+    } finally {
+      setIsRemovingLogin(false)
+      setIsConfirmingRemove(false)
+    }
+  }
+
+  // Group teams by sport in requested order: Cricket, Futsal, Volleyball
+  const groupedSports = useMemo(() => {
+    const map = new Map<string, Team[]>()
+    for (const team of teams) {
+      const rawSport = team.sport?.trim() || 'Other'
+      const canonical =
+        SPORT_ORDER.find((s) => s.toLowerCase() === rawSport.toLowerCase()) || rawSport
+      if (!map.has(canonical)) {
+        map.set(canonical, [])
+      }
+      map.get(canonical)!.push(team)
+    }
+
+    const orderedKeys: string[] = []
+    for (const s of SPORT_ORDER) {
+      if (map.has(s) && map.get(s)!.length > 0) {
+        orderedKeys.push(s)
+      }
+    }
+    for (const [key, list] of map.entries()) {
+      if (!orderedKeys.includes(key) && list.length > 0) {
+        orderedKeys.push(key)
+      }
+    }
+
+    return orderedKeys.map((sportName) => ({
+      sport: sportName,
+      teams: map.get(sportName)!
+    }))
+  }, [teams])
 
   const downloadTeamsTemplate = () => {
     const header = 'sport,name,short_code,color,starting_purse,owner_display_name\n'
@@ -391,7 +561,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
         }
       />
 
-      {/* Teams Grid */}
+      {/* Teams Grid Grouped by Sport */}
       {teams.length === 0 ? (
         <EmptyState
           icon={ShieldCheck}
@@ -401,96 +571,121 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
           onAction={openCreateModal}
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {teams.map((team) => (
-            <div
-              key={team.id}
-              className="p-6 rounded-2xl bg-surface border border-border hover:border-accent-bright transition-colors flex flex-col justify-between gap-4 shadow-sm"
-            >
-              <div>
-                <div className="flex items-start justify-between gap-3 mb-4">
-                  <div className="flex items-center gap-3 min-w-0">
-                    {/* Team Logo or Initial Badge */}
-                    {team.logo_url ? (
-                      <img
-                        src={team.logo_url}
-                        alt={`${team.name} emblem`}
-                        referrerPolicy="no-referrer"
-                        className="w-12 h-12 rounded-xl object-contain bg-surface-2 border border-border p-1 shrink-0"
-                      />
-                    ) : (
-                      <div
-                        className="w-12 h-12 rounded-xl flex items-center justify-center border border-border shrink-0 font-syne font-bold text-base text-white shadow-inner"
-                        style={{ backgroundColor: team.color || 'var(--accent-bright)' }}
-                      >
-                        {team.short_code}
+        <div className="space-y-10">
+          {groupedSports.map((group) => (
+            <section key={group.sport} className="space-y-4">
+              <div className="flex items-center gap-3">
+                <h3 className="font-syne font-bold text-lg text-text tracking-tight">
+                  {group.sport}
+                </h3>
+                <span className="font-mono text-xs text-muted tabular-nums">
+                  {group.teams.length} {group.teams.length === 1 ? 'team' : 'teams'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {group.teams.map((team) => (
+                  <div
+                    key={team.id}
+                    style={getTeamCardTintStyle(team.color)}
+                    className="p-6 rounded-2xl bg-surface border border-border hover:border-accent-bright transition-colors flex flex-col justify-between gap-4 shadow-sm"
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-3 mb-4">
+                        <div className="flex items-center gap-3 min-w-0">
+                          {/* Team Logo or Initial Badge */}
+                          {team.logo_url ? (
+                            <img
+                              src={team.logo_url}
+                              alt={`${team.name} emblem`}
+                              referrerPolicy="no-referrer"
+                              className="w-12 h-12 rounded-xl object-contain bg-surface-2 border border-border p-1 shrink-0"
+                            />
+                          ) : (
+                            <div
+                              className="w-12 h-12 rounded-xl flex items-center justify-center border border-border shrink-0 font-syne font-bold text-base text-white shadow-inner"
+                              style={{ backgroundColor: team.color || 'var(--accent-bright)' }}
+                            >
+                              {team.short_code}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-xs uppercase tracking-wider text-muted">
+                                {team.sport}
+                              </span>
+                              <span
+                                className="w-2.5 h-2.5 rounded-full inline-block border border-border"
+                                style={{ backgroundColor: team.color || 'var(--accent-bright)' }}
+                                title={`Team color: ${team.color}`}
+                              />
+                            </div>
+                            <h3 className="font-syne font-bold text-xl text-text tracking-tight truncate">
+                              {team.name}
+                            </h3>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => openOwnerLoginModal(team)}
+                            aria-label={`Owner login for ${team.name}`}
+                            title="Owner login"
+                            className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 transition-colors"
+                          >
+                            <Key size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(team)}
+                            aria-label={`Edit ${team.name}`}
+                            className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 transition-colors"
+                          >
+                            <PencilSimple size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteConfirmTeam(team)}
+                            aria-label={`Delete ${team.name}`}
+                            className="p-2 rounded-lg border border-border text-muted hover:text-error hover:bg-error/10 transition-colors"
+                          >
+                            <Trash size={15} />
+                          </button>
+                        </div>
                       </div>
-                    )}
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs uppercase tracking-wider text-muted">
-                          {team.sport}
+
+                      {/* Owner Info */}
+                      <div className="py-3 border-y border-border text-xs flex items-center justify-between gap-2">
+                        <div>
+                          <span className="block text-[11px] font-mono uppercase tracking-wider text-muted">
+                            Franchise Owner
+                          </span>
+                          <span className="text-text font-medium">
+                            {team.owner_display_name || 'Unassigned'}
+                          </span>
+                        </div>
+                        <span className="font-mono text-xs text-muted">
+                          {team.short_code}
                         </span>
-                        <span
-                          className="w-2.5 h-2.5 rounded-full inline-block border border-border"
-                          style={{ backgroundColor: team.color || 'var(--accent-bright)' }}
-                          title={`Team color: ${team.color}`}
-                        />
                       </div>
-                      <h3 className="font-syne font-bold text-xl text-text tracking-tight truncate">
-                        {team.name}
-                      </h3>
+                    </div>
+
+                    {/* Financial Metric */}
+                    <div className="bg-surface-2 rounded-xl p-3 border border-border flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs text-muted">
+                        <Wallet size={15} className="text-points" />
+                        <span>Current Purse</span>
+                      </div>
+                      <div className="font-mono text-sm font-bold text-points tabular-nums">
+                        {team.current_purse.toLocaleString()} PTS
+                      </div>
                     </div>
                   </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => openEditModal(team)}
-                      aria-label={`Edit ${team.name}`}
-                      className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 transition-colors"
-                    >
-                      <PencilSimple size={15} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeleteConfirmTeam(team)}
-                      aria-label={`Delete ${team.name}`}
-                      className="p-2 rounded-lg border border-border text-muted hover:text-error hover:bg-error/10 transition-colors"
-                    >
-                      <Trash size={15} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Owner Info */}
-                <div className="py-3 border-y border-border text-xs flex items-center justify-between gap-2">
-                  <div>
-                    <span className="block text-[11px] font-mono uppercase tracking-wider text-muted">
-                      Franchise Owner
-                    </span>
-                    <span className="text-text font-medium">
-                      {team.owner_display_name || 'Unassigned'}
-                    </span>
-                  </div>
-                  <span className="font-mono text-xs text-muted">
-                    {team.short_code}
-                  </span>
-                </div>
+                ))}
               </div>
-
-              {/* Financial Metric */}
-              <div className="bg-surface-2 rounded-xl p-3 border border-border flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs text-muted">
-                  <Wallet size={15} className="text-points" />
-                  <span>Current Purse</span>
-                </div>
-                <div className="font-mono text-sm font-bold text-points tabular-nums">
-                  {team.current_purse.toLocaleString()} PTS
-                </div>
-              </div>
-            </div>
+            </section>
           ))}
         </div>
       )}
@@ -830,6 +1025,163 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
               Import {csvRows.filter((r) => r.valid).length} Teams
             </Button>
           </div>
+        </div>
+      </Dialog>
+
+      {/* Owner Login Dialog */}
+      <Dialog
+        isOpen={Boolean(loginModalTeam)}
+        onClose={closeOwnerLoginModal}
+        title={`Owner login for ${loginModalTeam?.name || ''}`}
+        size="md"
+      >
+        <div className="space-y-5">
+          {/* Status Header */}
+          <div className="p-4 rounded-xl bg-surface-2 border border-border flex items-center justify-between text-xs">
+            <span className="text-muted">Current login ID:</span>
+            {isLoadingLoginStatus ? (
+              <span className="font-mono text-muted animate-pulse">Loading status...</span>
+            ) : currentLoginId ? (
+              <span className="font-mono font-bold text-accent-bright bg-surface px-2.5 py-1 rounded-lg border border-border">
+                {currentLoginId}
+              </span>
+            ) : (
+              <span className="font-mono text-muted bg-surface px-2.5 py-1 rounded-lg border border-border">
+                No login yet
+              </span>
+            )}
+          </div>
+
+          <form onSubmit={handleSaveLogin} className="space-y-4">
+            <div>
+              <label
+                htmlFor="owner-login-id"
+                className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5"
+              >
+                Login ID
+              </label>
+              <input
+                id="owner-login-id"
+                type="text"
+                value={loginIdInput}
+                onChange={(e) => setLoginIdInput(e.target.value.toLowerCase())}
+                placeholder="e.g. strikers_owner"
+                required
+                disabled={isLoadingLoginStatus || isSavingLogin || isRemovingLogin}
+                className="w-full px-4 py-2.5 bg-bg border border-border rounded-xl font-mono text-xs sm:text-sm text-text placeholder-muted focus:outline-none focus:border-accent-bright disabled:opacity-50"
+              />
+              <span className="block text-[11px] text-muted mt-1">
+                3 to 30 characters (lowercase letters, numbers, dot, dash, underscore)
+              </span>
+            </div>
+
+            <div>
+              <label
+                htmlFor="owner-login-password"
+                className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5"
+              >
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  id="owner-login-password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  placeholder={currentLoginId ? 'Enter new password to reset' : 'Minimum 8 characters'}
+                  required
+                  disabled={isLoadingLoginStatus || isSavingLogin || isRemovingLogin}
+                  className="w-full pl-4 pr-11 py-2.5 bg-bg border border-border rounded-xl font-mono text-xs sm:text-sm text-text placeholder-muted focus:outline-none focus:border-accent-bright disabled:opacity-50"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  tabIndex={-1}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text p-1 transition-colors"
+                >
+                  {showPassword ? <EyeSlash size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              <span className="block text-[11px] text-muted mt-1">
+                Minimum 8 characters
+              </span>
+            </div>
+
+            {/* Remove confirmation step banner */}
+            {isConfirmingRemove && (
+              <div className="p-3.5 rounded-xl bg-error/10 border border-error/30 text-xs text-text space-y-2">
+                <div className="font-semibold text-error">Remove owner login?</div>
+                <p className="text-muted">
+                  The team owner will no longer be able to log in to manage this franchise.
+                </p>
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={isRemovingLogin}
+                    onClick={() => setIsConfirmingRemove(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="sm"
+                    isLoading={isRemovingLogin}
+                    disabled={isRemovingLogin}
+                    onClick={handleConfirmRemoveLogin}
+                  >
+                    Confirm Remove
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-3 pt-3 border-t border-border">
+              {currentLoginId && !isConfirmingRemove ? (
+                <Button
+                  type="button"
+                  variant="danger"
+                  size="sm"
+                  disabled={isLoadingLoginStatus || isSavingLogin || isRemovingLogin}
+                  onClick={() => setIsConfirmingRemove(true)}
+                >
+                  Remove login
+                </Button>
+              ) : (
+                <div />
+              )}
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={isSavingLogin || isRemovingLogin}
+                  onClick={closeOwnerLoginModal}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  isLoading={isSavingLogin}
+                  disabled={
+                    isLoadingLoginStatus ||
+                    isSavingLogin ||
+                    isRemovingLogin ||
+                    !loginIdInput.trim() ||
+                    passwordInput.length < 8
+                  }
+                >
+                  Save login
+                </Button>
+              </div>
+            </div>
+          </form>
         </div>
       </Dialog>
     </div>

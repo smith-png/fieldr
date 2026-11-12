@@ -25,6 +25,7 @@ import { RosterSportPage } from './pages/public/RosterSportPage'
 import { ContentPage } from './pages/public/ContentPage'
 import { HandbookPage } from './pages/public/HandbookPage'
 import { RulesPage } from './pages/public/RulesPage'
+import { OwnerLoginPage } from './pages/public/OwnerLoginPage'
 
 export default function App() {
   return (
@@ -73,6 +74,7 @@ export default function App() {
                 <Route path="/rules" element={<RulesPage />} />
                 <Route path="/handbook" element={<HandbookPage />} />
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/owner-login" element={<OwnerLoginPage />} />
                 <Route
                   path="/admin"
                   element={

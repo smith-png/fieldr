@@ -161,6 +161,17 @@ export const PlayerProfilePage: React.FC = () => {
                   {athlete.name}
                 </h1>
 
+                {career.length > 0 && (
+                  <>
+                    <div className="font-syne font-bold text-lg sm:text-xl text-text mt-1.5 tracking-tight">
+                      {career[0].playing_role}
+                    </div>
+                    <div className="font-mono text-xs text-points font-semibold tabular-nums mt-0.5">
+                      Base: {career[0].base_points.toLocaleString()} PTS
+                    </div>
+                  </>
+                )}
+
                 <div className="mt-3 flex flex-wrap items-center justify-center sm:justify-start gap-4 text-xs text-muted">
                   <div className="flex items-center gap-1.5">
                     <IdentificationBadge size={16} className="text-accent-bright" />
@@ -209,10 +220,16 @@ export const PlayerProfilePage: React.FC = () => {
                             )}
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-3 text-xs text-muted mt-1">
+                          <div className="font-syne font-bold text-base text-text mt-1 tracking-tight">
+                            {entry.playing_role}
+                          </div>
+
+                          <div className="font-mono text-xs text-points font-semibold tabular-nums mt-0.5">
+                            Base: {entry.base_points.toLocaleString()} PTS
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-muted mt-1.5">
                             <span className="font-medium text-text">{entry.sport}</span>
-                            <span>&bull;</span>
-                            <span>Role: {entry.playing_role}</span>
                             <span>&bull;</span>
                             <span className="font-mono">{entry.academic_year} Year</span>
                           </div>
