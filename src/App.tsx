@@ -5,6 +5,7 @@
 
 import React from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { SpeedInsights } from '@vercel/speed-insights/react'
 import { AuthProvider } from './lib/AuthContext'
 import { ToastProvider } from './lib/ToastContext'
 import { ThemeProvider } from './lib/theme'
@@ -100,6 +101,7 @@ export default function App() {
           </AuthProvider>
         </BrowserRouter>
       </ThemeProvider>
+      <SpeedInsights />
     </ErrorBoundary>
   )
 }
