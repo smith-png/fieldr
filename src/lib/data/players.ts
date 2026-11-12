@@ -77,7 +77,14 @@ function mapJoinedPlayer(row: Record<string, unknown>, pubRow?: PublicPlayer, at
   }
 }
 
-const demoPlayersService: PlayersService = {
+type PlayersServiceWithRefund = Omit<PlayersService, 'unassignPlayerFromTeam'> & {
+  unassignPlayerFromTeam(
+    playerId: string,
+    refundToPurse?: boolean
+  ): Promise<{ player: Player; team: Team | null }>
+}
+
+const demoPlayersService: PlayersServiceWithRefund = {
   async getPlayers(seasonId: string): Promise<Player[]> {
     try {
       if (!seasonId) return []
@@ -601,7 +608,8 @@ const demoPlayersService: PlayersService = {
   },
 
   async unassignPlayerFromTeam(
-    playerId: string
+    playerId: string,
+    _refundToPurse: boolean = true
   ): Promise<{ player: Player; team: Team | null }> {
     const allPlayers = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, [])
     const allTeams = getLocal<Team[]>(STORAGE_KEYS.TEAMS, [])
@@ -698,7 +706,7 @@ interface PublicSquadRow {
   team_logo_url?: string | null
 }
 
-const supabasePlayersService: PlayersService = {
+const supabasePlayersService: PlayersServiceWithRefund = {
   // Admin and projector lookup: merges public_players view with players table
   async getPlayers(seasonId: string): Promise<Player[]> {
     try {
@@ -1254,7 +1262,8 @@ const supabasePlayersService: PlayersService = {
   },
 
   async unassignPlayerFromTeam(
-    playerId: string
+    playerId: string,
+    refundToPurse: boolean = true
   ): Promise<{ player: Player; team: Team | null }> {
     if (!supabase) throw new AppError('Supabase not configured')
 
@@ -1267,7 +1276,8 @@ const supabasePlayersService: PlayersService = {
 
     markLocalMutation(['players', 'teams', 'auction'])
     const { error: rpcErr } = await supabase.rpc('unassign_player_from_team', {
-      p_player_id: playerId
+      p_player_id: playerId,
+      p_refund: Boolean(refundToPurse)
     })
     if (rpcErr) throw new AppError(rpcErr.message, { original: rpcErr })
     markLocalMutation(['players', 'teams', 'auction'])
@@ -1406,7 +1416,7 @@ const supabasePlayersService: PlayersService = {
   }
 }
 
-export const playersService: PlayersService = isDemoMode
+export const playersService: PlayersServiceWithRefund = isDemoMode
   ? demoPlayersService
   : supabasePlayersService
 
@@ -1471,8 +1481,8 @@ export const exportPlayersForSport = (seasonId: string, sport?: string) =>
   playersService.exportPlayersForSport(seasonId, sport)
 export const assignPlayerToTeam = (playerId: string, teamId: string, price?: number) =>
   playersService.assignPlayerToTeam(playerId, teamId, price || 0)
-export const unassignPlayerFromTeam = (playerId: string, _refundToPurse?: boolean) =>
-  playersService.unassignPlayerFromTeam(playerId)
+export const unassignPlayerFromTeam = (playerId: string, refundToPurse: boolean = true) =>
+  playersService.unassignPlayerFromTeam(playerId, Boolean(refundToPurse))
 export const subscribeToPlayers = (
   seasonId: string,
   callback: (players: Player[]) => void

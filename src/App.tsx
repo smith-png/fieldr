@@ -22,6 +22,7 @@ import { PlayerProfilePage } from './pages/public/PlayerProfilePage'
 import { RostersPage } from './pages/public/RostersPage'
 import { RosterSportPage } from './pages/public/RosterSportPage'
 import { ContentPage } from './pages/public/ContentPage'
+import { HandbookPage } from './pages/public/HandbookPage'
 
 export default function App() {
   return (
@@ -67,6 +68,7 @@ export default function App() {
                   path="/about"
                   element={<ContentPage pageKey="about_page" fallbackTitle="About Fieldr" />}
                 />
+                <Route path="/handbook" element={<HandbookPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route
                   path="/admin"

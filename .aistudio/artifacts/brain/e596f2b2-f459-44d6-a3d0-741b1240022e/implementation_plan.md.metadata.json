@@ -1,6 +1,0 @@
-{
-  "summary":  "Updated implementation plan incorporating team assignment with optional price deductions/refunds, atomic Supabase RPC schema and setup guide, conditional demo-only login buttons, Doto/DotGothic16 dot-matrix typography, client-side canvas photo compression, and robust projector lifecycle handling.",
-  "updatedAt":  "2026-11-09T13:00:57.935829479Z",
-  "requestFeedback":  true,
-  "userFacing":  true
-}

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
+import { HomeBackdrop } from '../../components/home/HomeBackdrop'
 import { TickerStrip } from '../../components/home/TickerStrip'
 import { SportCardsGrid } from '../../components/home/SportCardsGrid'
 import { SiteFooter } from '../../components/layout/SiteFooter'
@@ -164,6 +165,9 @@ export const HomePage: React.FC = () => {
       onMouseMove={handleMouseMove}
       className="min-h-screen bg-bg text-text flex flex-col justify-between selection:bg-accent-bright selection:text-white relative overflow-x-hidden"
     >
+      {/* Muted inline vector sports backdrop */}
+      <HomeBackdrop />
+
       {/* Scroll-aware fixed Header tile */}
       <HeaderBar onOpenMenu={() => setIsMenuOpen(true)} />
 
@@ -176,7 +180,7 @@ export const HomePage: React.FC = () => {
 
       {/* Main Hero Container wrapped in ErrorBoundary */}
       <ErrorBoundary name="HeroSection" fallback={null}>
-        <main className="flex-1 flex flex-col justify-center px-6 md:px-16 lg:px-24 pt-32 sm:pt-40 pb-16 max-w-7xl mx-auto w-full">
+        <main className="relative z-10 flex-1 flex flex-col justify-center px-6 md:px-16 lg:px-24 pt-32 sm:pt-40 pb-16 max-w-7xl mx-auto w-full">
           {/* Eyebrow */}
           <motion.div
             initial={{ opacity: 0, y: 15 }}
@@ -233,17 +237,23 @@ export const HomePage: React.FC = () => {
 
       {/* Stadium Dot-Matrix Ticker wrapped in ErrorBoundary */}
       <ErrorBoundary name="TickerSection" fallback={null}>
-        <TickerStrip items={carouselItems ?? undefined} />
+        <div className="relative z-10">
+          <TickerStrip items={carouselItems ?? undefined} />
+        </div>
       </ErrorBoundary>
 
       {/* Rosters Section wrapped in ErrorBoundary */}
       <ErrorBoundary name="RostersSection" fallback={null}>
-        <SportCardsGrid playerCounts={playerCounts} />
+        <div className="relative z-10">
+          <SportCardsGrid playerCounts={playerCounts} />
+        </div>
       </ErrorBoundary>
 
       {/* Calm, unpinned site footer wrapped in ErrorBoundary */}
       <ErrorBoundary name="FooterSection" fallback={null}>
-        <SiteFooter />
+        <div className="relative z-10">
+          <SiteFooter />
+        </div>
       </ErrorBoundary>
     </div>
   )

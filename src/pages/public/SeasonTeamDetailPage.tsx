@@ -78,6 +78,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
     initialCached?.sportRoles ?? []
   )
   const [failedOwnerPhotoUrl, setFailedOwnerPhotoUrl] = useState<string | null>(null)
+  const [isOwnerPhotoOpen, setIsOwnerPhotoOpen] = useState<boolean>(false)
 
   const [isLoading, setIsLoading] = useState<boolean>(!initialCached)
   const [hasError, setHasError] = useState<boolean>(false)
@@ -178,6 +179,17 @@ export const SeasonTeamDetailPage: React.FC = () => {
     Boolean(ownerPhotoUrl) && failedOwnerPhotoUrl !== ownerPhotoUrl
   const showOwnerSection = Boolean(ownerName) || showOwnerPhoto
 
+  useEffect(() => {
+    if (!isOwnerPhotoOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsOwnerPhotoOpen(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOwnerPhotoOpen])
+
   return (
     <div className="min-h-screen bg-bg text-text flex flex-col justify-between selection:bg-accent-bright selection:text-on-accent relative">
       <HeaderBar onOpenMenu={() => setIsMenuOpen(true)} />
@@ -255,32 +267,42 @@ export const SeasonTeamDetailPage: React.FC = () => {
               </div>
 
               {showOwnerSection && (
-                <div className="flex flex-col sm:flex-row items-center gap-4 pt-5 md:pt-0 border-t md:border-t-0 md:border-l border-border md:pl-8 w-full md:w-auto justify-center md:justify-start shrink-0">
-                  <div className="w-24 h-24 rounded-2xl overflow-hidden bg-surface-2 border border-border flex items-center justify-center shrink-0 select-none">
-                    {showOwnerPhoto ? (
+                <div className="flex flex-col md:flex-row items-center gap-5 md:gap-6 pt-6 md:pt-0 border-t md:border-t-0 md:border-l border-border md:pl-8 w-full md:w-auto justify-center md:justify-start shrink-0">
+                  {showOwnerPhoto ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsOwnerPhotoOpen(true)}
+                      aria-label={`View full size photo of ${ownerName || 'Franchise Owner'}`}
+                      className="w-44 md:w-56 aspect-[4/5] rounded-2xl overflow-hidden bg-surface-2 border border-border flex items-center justify-center shrink-0 select-none cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                    >
                       <img
                         src={ownerPhotoUrl}
                         alt={ownerName || 'Franchise Owner'}
                         referrerPolicy="no-referrer"
-                        onError={() => setFailedOwnerPhotoUrl(ownerPhotoUrl)}
+                        onError={() => {
+                          setIsOwnerPhotoOpen(false)
+                          setFailedOwnerPhotoUrl(ownerPhotoUrl)
+                        }}
                         className="w-full h-full object-cover"
                       />
-                    ) : (
+                    </button>
+                  ) : (
+                    <div className="w-44 md:w-56 aspect-[4/5] rounded-2xl overflow-hidden bg-surface-2 border border-border flex items-center justify-center shrink-0 select-none">
                       <span
                         aria-hidden="true"
-                        className="font-syne font-bold text-2xl text-muted tracking-tight uppercase"
+                        className="font-syne font-bold text-4xl md:text-5xl text-muted tracking-tight uppercase"
                       >
                         {getInitials(ownerName)}
                       </span>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
-                  <div className="text-center sm:text-left">
+                  <div className="text-center md:text-left">
                     <span className="block text-[11px] font-mono uppercase tracking-wider text-muted">
-                      Franchise Owner
+                      FRANCHISE OWNER
                     </span>
                     {ownerName && (
-                      <span className="font-syne font-bold text-lg text-text tracking-tight block mt-0.5">
+                      <span className="font-syne font-bold text-xl md:text-2xl text-text tracking-tight block mt-1">
                         {ownerName}
                       </span>
                     )}
@@ -288,6 +310,23 @@ export const SeasonTeamDetailPage: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {isOwnerPhotoOpen && showOwnerPhoto && (
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-label={ownerName || 'Franchise Owner photo'}
+                onClick={() => setIsOwnerPhotoOpen(false)}
+                className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 sm:p-8 cursor-pointer"
+              >
+                <img
+                  src={ownerPhotoUrl}
+                  alt={ownerName || 'Franchise Owner'}
+                  referrerPolicy="no-referrer"
+                  className="max-w-full max-h-[90vh] w-auto h-auto object-contain rounded-2xl border border-border"
+                />
+              </div>
+            )}
 
             {/* Team Roster Squad */}
             <div>
