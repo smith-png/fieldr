@@ -36,15 +36,3 @@ export function formatPoints(value: number | null | undefined): string {
   return Number(value ?? 0).toLocaleString()
 }
 
-/**
- * Sorts seasons so the active season appears first, followed by newest created_at first.
- */
-export function sortSeasons<T extends { is_active?: boolean; created_at: string }>(
-  seasons: readonly T[]
-): T[] {
-  return [...seasons].sort((a, b) => {
-    if (a.is_active && !b.is_active) return -1
-    if (!a.is_active && b.is_active) return 1
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  })
-}

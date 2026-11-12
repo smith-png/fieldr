@@ -138,61 +138,6 @@ const demoSiteService: SiteService = {
     }
   },
 
-  async reorderCarouselItems(
-    orderedItems: { id: string; sort_order: number }[]
-  ): Promise<void> {
-    invalidateCarouselCache()
-
-    const all = getLocal<CarouselItem[]>(STORAGE_KEYS.CAROUSEL, DEFAULT_CAROUSEL)
-    for (const item of orderedItems) {
-      const match = all.find((i) => i.id === item.id)
-      if (match) match.sort_order = item.sort_order
-    }
-    setLocal(STORAGE_KEYS.CAROUSEL, all)
-    notifyChange('carousel_change')
-  },
-
-  subscribeToCarouselItems(callback: (items: CarouselItem[]) => void): () => void {
-    let isUnsubscribed = false
-
-    const refresh = async () => {
-      try {
-        invalidateCarouselCache()
-        const items = await demoSiteService.getCarouselItems(true)
-        if (!isUnsubscribed) {
-          callback(items)
-        }
-      } catch {
-        // ignore background refresh failure
-      }
-    }
-
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEYS.CAROUSEL) {
-        refresh()
-      }
-    }
-    const handleMessage = (e: MessageEvent) => {
-      if (e.data?.event === 'carousel_change') {
-        refresh()
-      }
-    }
-    window.addEventListener('storage', handleStorage)
-    if (demoBroadcastChannel) {
-      demoBroadcastChannel.addEventListener('message', handleMessage)
-    }
-
-    refresh()
-
-    return () => {
-      isUnsubscribed = true
-      window.removeEventListener('storage', handleStorage)
-      if (demoBroadcastChannel) {
-        demoBroadcastChannel.removeEventListener('message', handleMessage)
-      }
-    }
-  },
-
   async getSiteSettings(): Promise<SiteSettings> {
     return getLocal<SiteSettings>(STORAGE_KEYS.SETTINGS, DEFAULT_SETTINGS)
   },
@@ -355,60 +300,6 @@ const supabaseSiteService: SiteService = {
     if (err2) throw new AppError(err2.message, { original: err2 })
   },
 
-  async reorderCarouselItems(
-    orderedItems: { id: string; sort_order: number }[]
-  ): Promise<void> {
-    invalidateCarouselCache()
-
-    if (!supabase) return
-
-    for (const item of orderedItems) {
-      const { error } = await supabase
-        .from('carousel_items')
-        .update({ sort_order: item.sort_order })
-        .eq('id', item.id)
-      if (error) throw new AppError(error.message, { original: error })
-    }
-  },
-
-  subscribeToCarouselItems(callback: (items: CarouselItem[]) => void): () => void {
-    let isUnsubscribed = false
-
-    const refresh = async () => {
-      try {
-        invalidateCarouselCache()
-        const items = await supabaseSiteService.getCarouselItems(true)
-        if (!isUnsubscribed) {
-          callback(items)
-        }
-      } catch {
-        // ignore background refresh failure
-      }
-    }
-
-    if (!supabase) return () => {}
-
-    const realtimeChannel = supabase
-      .channel('fieldr-carousel-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'carousel_items' },
-        () => {
-          refresh()
-        }
-      )
-      .subscribe()
-
-    refresh()
-
-    return () => {
-      isUnsubscribed = true
-      if (supabase) {
-        supabase.removeChannel(realtimeChannel)
-      }
-    }
-  },
-
   async getSiteSettings(): Promise<SiteSettings> {
     if (!supabase) return DEFAULT_SETTINGS
 
@@ -464,12 +355,6 @@ export async function swapCarouselItems(
   return siteService.swapCarouselItems(id1, id2)
 }
 
-export const reorderCarouselItems = (
-  orderedItems: { id: string; sort_order: number }[]
-) => siteService.reorderCarouselItems(orderedItems)
-export const subscribeToCarouselItems = (
-  callback: (items: CarouselItem[]) => void
-) => siteService.subscribeToCarouselItems(callback)
 export const getSiteSettings = () => siteService.getSiteSettings()
 export const updateSiteSetting = (key: string, value: unknown) =>
   siteService.updateSiteSetting(key, value)

@@ -172,9 +172,6 @@ export interface PlayersService {
     playerData: Omit<Player, 'id' | 'player_code' | 'created_at'>,
     options?: { photoFile?: File }
   ): Promise<Player>
-  bulkCreatePlayers(
-    playersData: Array<Omit<Player, 'id' | 'player_code' | 'created_at'>>
-  ): Promise<Player[]>
   bulkRegisterPlayers(params: BulkRegisterParams): Promise<BulkRegisterResult>
   updatePlayer(id: string, updates: Partial<Player>): Promise<Player>
   deletePlayer(id: string): Promise<void>
@@ -224,8 +221,6 @@ export interface SiteService {
   updateCarouselItem(id: string, updates: Partial<CarouselItem>): Promise<CarouselItem>
   deleteCarouselItem(id: string): Promise<void>
   swapCarouselItems(id1: string, id2: string): Promise<void>
-  reorderCarouselItems(orderedItems: { id: string; sort_order: number }[]): Promise<void>
-  subscribeToCarouselItems(callback: (items: CarouselItem[]) => void): () => void
   getSiteSettings(): Promise<SiteSettings>
   updateSiteSetting(key: string, value: unknown): Promise<void>
   invalidateCarouselCache(): void

@@ -310,80 +310,6 @@ const demoPlayersService: PlayersServiceWithRefund = {
     return newPlayer
   },
 
-  async bulkCreatePlayers(
-    playersData: Array<Omit<Player, 'id' | 'player_code' | 'created_at'>>
-  ): Promise<Player[]> {
-    const allPlayers = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, [])
-    const allAthletes = getLocal<Athlete[]>(STORAGE_KEYS.ATHLETES, [])
-    const createdList: Player[] = []
-
-    for (let i = 0; i < playersData.length; i++) {
-      const pd = playersData[i]
-      let athlete: Athlete | undefined
-
-      if (pd.athlete_id) {
-        athlete = allAthletes.find((a) => a.id === pd.athlete_id)
-      } else if (pd.athlete_code) {
-        athlete = allAthletes.find((a) => a.athlete_code === pd.athlete_code)
-      }
-
-      if (!athlete) {
-        const existing = allAthletes.find(
-          (a) => a.name.trim().toLowerCase() === pd.name.trim().toLowerCase()
-        )
-        if (existing) {
-          athlete = existing
-        } else {
-          const nextCode = getNextAthleteCode(allAthletes)
-          athlete = {
-            id: `ath-${Date.now()}-${nextCode}`,
-            athlete_code: nextCode,
-            name: pd.name.trim(),
-            academic_year: pd.academic_year || '1st',
-            photo_url: pd.photo_url,
-            photo_thumb_url: pd.photo_thumb_url,
-            roll_no: pd.roll_no?.trim(),
-            notes: pd.notes?.trim(),
-            created_at: new Date().toISOString()
-          }
-          allAthletes.push(athlete)
-        }
-      }
-
-      const isDup = allPlayers
-        .concat(createdList)
-        .some(
-          (p) =>
-            p.season_id === pd.season_id &&
-            p.athlete_id === athlete!.id &&
-            p.sport.toLowerCase() === pd.sport.toLowerCase()
-        )
-      if (isDup) continue
-
-      const newPlayer: Player = {
-        ...pd,
-        athlete_id: athlete.id,
-        athlete_code: athlete.athlete_code,
-        name: athlete.name,
-        photo_url: athlete.photo_url,
-        photo_thumb_url: athlete.photo_thumb_url,
-        id: `player-${Date.now()}-${i}`,
-        player_code: formatAthleteCode(athlete.athlete_code),
-        academic_year: pd.academic_year || athlete.academic_year || '1st',
-        created_at: new Date().toISOString()
-      }
-      createdList.push(newPlayer)
-    }
-
-    markLocalMutation(['players', 'athletes', 'auction'])
-    setLocal(STORAGE_KEYS.ATHLETES, allAthletes)
-    allPlayers.push(...createdList)
-    setLocal(STORAGE_KEYS.PLAYERS, allPlayers)
-    notifyChange('athletes_change')
-    notifyChange('players_change')
-    return createdList
-  },
-
   async bulkRegisterPlayers(params: BulkRegisterParams): Promise<BulkRegisterResult> {
     const { seasonId, sport, basePoints, entries } = params
     if (!seasonId) throw new AppError('No active tournament season selected.')
@@ -998,35 +924,6 @@ const supabasePlayersService: PlayersServiceWithRefund = {
     return mapJoinedPlayer(data as Record<string, unknown>)
   },
 
-  async bulkCreatePlayers(
-    playersData: Array<Omit<Player, 'id' | 'player_code' | 'created_at'>>
-  ): Promise<Player[]> {
-    if (!supabase) throw new AppError('Supabase not configured')
-
-    const rowsToInsert = playersData
-      .filter((p) => !!p.athlete_id)
-      .map((p) => ({
-        athlete_id: p.athlete_id,
-        season_id: p.season_id,
-        sport: p.sport,
-        playing_role: p.playing_role,
-        base_points: p.base_points,
-        academic_year: p.academic_year
-      }))
-
-    if (rowsToInsert.length === 0) return []
-
-    markLocalMutation(['players', 'athletes', 'auction'])
-    const { data, error } = await supabase
-      .from('players')
-      .insert(rowsToInsert)
-      .select('*, athletes(id, athlete_code, name, photo_url, photo_thumb_url, roll_no, academic_year)')
-
-    if (error) throw new AppError(error.message, { original: error })
-    markLocalMutation(['players', 'athletes', 'auction'])
-    return ((data as Array<Record<string, unknown>>) || []).map((r) => mapJoinedPlayer(r))
-  },
-
   async bulkRegisterPlayers(params: BulkRegisterParams): Promise<BulkRegisterResult> {
     if (!supabase) throw new AppError('Supabase not configured')
     const { seasonId, sport, basePoints, entries } = params
@@ -1469,9 +1366,6 @@ export const createPlayer = (
   data: Omit<Player, 'id' | 'player_code' | 'created_at'>,
   options?: { photoFile?: File }
 ) => playersService.createPlayer(data, options)
-export const bulkCreatePlayers = (
-  list: Array<Omit<Player, 'id' | 'player_code' | 'created_at'>>
-) => playersService.bulkCreatePlayers(list)
 export const bulkRegisterPlayers = (params: BulkRegisterParams) =>
   playersService.bulkRegisterPlayers(params)
 export const updatePlayer = (id: string, updates: Partial<Player>) =>

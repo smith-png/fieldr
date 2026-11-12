@@ -234,14 +234,3 @@ export function useProjectorTheme(): {
   return { projectorTheme, setProjectorTheme, toggleProjectorTheme }
 }
 
-export function useForceDarkTheme(): void {
-  const { preference } = useTheme()
-
-  useEffect(() => {
-    applyThemeToDom('dark', false)
-    return () => {
-      const restored = resolveTheme(preference)
-      applyThemeToDom(restored, false)
-    }
-  }, [preference])
-}

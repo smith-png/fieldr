@@ -9,7 +9,7 @@ import {
 import type { PurseTransaction, PurseTransactionType, Season, Team } from '../../types'
 import { executePurseTransaction, resetAllPurses } from '../../lib/data'
 import { useToast } from '../../lib/ToastContext'
-import { Button, Dialog, EmptyState, PageHeader } from '../../components/ui'
+import { Button, Dialog, EmptyState } from '../../components/ui'
 
 interface AdminPursesProps {
   activeSeason: Season | null

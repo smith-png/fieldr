@@ -108,9 +108,6 @@ button, input, select, textarea {
   font-family: 'DotGothic16', monospace;
 }
 
-.font-serif-accent {
-  font-family: 'Instrument Serif', Georgia, serif;
-}
 
 /* Instant theme switch without flicker */
 .no-transitions,

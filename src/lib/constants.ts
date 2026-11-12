@@ -6,7 +6,7 @@ export const PLAYER_STATUS = {
 
 export type PlayerStatus = (typeof PLAYER_STATUS)[keyof typeof PLAYER_STATUS]
 
-export const PLAYER_STATUS_VALUES: readonly PlayerStatus[] = [
+const PLAYER_STATUS_VALUES: readonly PlayerStatus[] = [
   PLAYER_STATUS.AVAILABLE,
   PLAYER_STATUS.SOLD,
   PLAYER_STATUS.UNSOLD
@@ -26,7 +26,7 @@ export const PROJECTOR_MODES = {
 
 export type ProjectorMode = (typeof PROJECTOR_MODES)[keyof typeof PROJECTOR_MODES]
 
-export const PROJECTOR_MODE_VALUES: readonly ProjectorMode[] = [
+const PROJECTOR_MODE_VALUES: readonly ProjectorMode[] = [
   PROJECTOR_MODES.IDLE,
   PROJECTOR_MODES.TEAMS,
   PROJECTOR_MODES.PLAYER,
@@ -48,7 +48,7 @@ export const PROJECTOR_AUTO_FILTERS = {
 export type ProjectorAutoFilter =
   (typeof PROJECTOR_AUTO_FILTERS)[keyof typeof PROJECTOR_AUTO_FILTERS]
 
-export const PROJECTOR_AUTO_FILTER_VALUES: readonly ProjectorAutoFilter[] = [
+const PROJECTOR_AUTO_FILTER_VALUES: readonly ProjectorAutoFilter[] = [
   PROJECTOR_AUTO_FILTERS.ALL,
   PROJECTOR_AUTO_FILTERS.AVAILABLE,
   PROJECTOR_AUTO_FILTERS.SOLD,
@@ -62,7 +62,7 @@ export const PROJECTOR_AUTO_INTERVAL = {
   CHIPS: [5, 8, 10, 15] as const
 } as const
 
-export const PURSE_TX_TYPES = {
+const PURSE_TX_TYPES = {
   INITIAL: 'initial',
   ADD: 'add',
   DEDUCT: 'deduct',
@@ -79,7 +79,7 @@ export const PUBLIC_PLAYER_SELECT_COLUMNS =
 export const PUBLIC_SQUAD_SELECT_COLUMNS =
   'player_id, season_id, sport, player_code, name, photo_thumb_url, photo_url, academic_year, playing_role, purchase_price, team_id, team_name, team_short_code, team_color, team_logo_url' as const
 
-export const USER_ROLES = {
+const USER_ROLES = {
   ADMIN: 'admin',
   PROJECTOR: 'projector',
   OWNER: 'owner'
@@ -87,7 +87,7 @@ export const USER_ROLES = {
 
 export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES]
 
-export const ADMIN_TABS = {
+const ADMIN_TABS = {
   DASHBOARD: 'dashboard',
   ATHLETES: 'athletes',
   PLAYERS: 'players',

@@ -6,7 +6,6 @@ import {
   CaretRight,
   ChartPieSlice,
   ClockCounterClockwise,
-  Coins,
   Gavel,
   Gear,
   House,
