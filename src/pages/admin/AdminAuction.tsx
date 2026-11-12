@@ -1,18 +1,22 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowCounterClockwise,
+  ArrowDown,
   ArrowRight,
+  ArrowUp,
   CheckCircle,
   ClockCounterClockwise,
   Coins,
   Gavel,
   MagnifyingGlass,
+  Plus,
   Prohibit,
   ShieldCheck,
   Sparkle,
   Trash,
   User,
   Users,
+  X,
   XCircle
 } from '@phosphor-icons/react'
 import type {
@@ -26,6 +30,7 @@ import type {
   Team
 } from '../../types'
 import {
+  type AuctionQueueEntry,
   auctionBackToIdle,
   auctionBringToStage,
   auctionClearBid,
@@ -35,12 +40,18 @@ import {
   auctionUndoLastSale,
   formatAthleteCode,
   getAuctionBidsForPlayer,
+  getAuctionQueue,
   getAuctionSettings,
   getDefaultAuctionSettings,
   getPlayers,
   getProjectorState,
   getRecentAuctionSales,
   getTeams,
+  queueAddByCodes,
+  queueAddPlayer,
+  queueClear,
+  queueMove,
+  queueRemove,
   subscribeToAuctionRealtime
 } from '../../lib/data'
 import { useToast } from '../../lib/ToastContext'
@@ -82,9 +93,13 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
     return sports[0]?.name || 'Cricket'
   })
 
-  // Queue filters
+  // Queue state & controls
+  const [queueEntries, setQueueEntries] = useState<AuctionQueueEntry[]>([])
   const [queueTab, setQueueTab] = useState<QueueTab>('queue')
-  const [queueSearch, setQueueSearch] = useState<string>('')
+  const [addPlayerSearch, setAddPlayerSearch] = useState<string>('')
+  const [bulkCodesInput, setBulkCodesInput] = useState<string>('')
+  const [bulkResultMessage, setBulkResultMessage] = useState<string | null>(null)
+  const [soldSearch, setSoldSearch] = useState<string>('')
   const queueListRef = useRef<HTMLDivElement | null>(null)
   const queueScrollTopRef = useRef<number>(0)
 
@@ -98,6 +113,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
   const [isSecureConfirmOpen, setIsSecureConfirmOpen] = useState<boolean>(false)
   const [isUnsoldConfirmOpen, setIsUnsoldConfirmOpen] = useState<boolean>(false)
   const [isUndoSaleConfirmOpen, setIsUndoSaleConfirmOpen] = useState<boolean>(false)
+  const [isClearQueueConfirmOpen, setIsClearQueueConfirmOpen] = useState<boolean>(false)
 
   // Keep props synced if parent refreshes
   useEffect(() => {
@@ -139,13 +155,18 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
     if (!activeSeason?.id) return
     const reqId = ++latestFetchReqIdRef.current
     try {
-      const [freshState, freshPlayers, freshTeams, freshSettings, freshSales] = await Promise.all([
-        getProjectorState(activeSeason.id),
-        getPlayers(activeSeason.id),
-        getTeams(activeSeason.id),
-        getAuctionSettings(activeSeason.id),
-        getRecentAuctionSales(activeSeason.id, 10)
-      ])
+      const [freshState, freshPlayers, freshTeams, freshSettings, freshSales, freshQueue] =
+        await Promise.all([
+          getProjectorState(activeSeason.id),
+          getPlayers(activeSeason.id),
+          getTeams(activeSeason.id),
+          getAuctionSettings(activeSeason.id),
+          getRecentAuctionSales(activeSeason.id, 10),
+          getAuctionQueue(activeSeason.id).catch((err) => {
+            console.error('Failed to fetch auction queue:', err)
+            return [] as AuctionQueueEntry[]
+          })
+        ])
       if (!isMountedRef.current || reqId !== latestFetchReqIdRef.current) return
 
       const bids = freshState.player_id
@@ -158,6 +179,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
       setTeams(freshTeams)
       setAuctionSettings(freshSettings)
       setRecentSales(freshSales)
+      setQueueEntries(freshQueue)
       setPlayerBids(bids)
     } catch (err) {
       if (isMountedRef.current && reqId === latestFetchReqIdRef.current) {
@@ -268,10 +290,65 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
     })
   }, [players, selectedSportName, sports])
 
-  const queueAvailableOrUnsold = useMemo(
-    () => sportPlayers.filter((p) => p.status === 'available' || p.status === 'unsold'),
-    [sportPlayers]
+  // Queued players for the active season and selected sport, ordered by sort_order
+  const queuedPlayersForSport = useMemo(() => {
+    const target = selectedSportName.toLowerCase()
+    const matchedSportObj = sports.find(
+      (s) => s.name.toLowerCase() === target || s.id.toLowerCase() === target
+    )
+    const targetId = matchedSportObj?.id.toLowerCase() || target
+    const playerById = new Map<string, Player>()
+    for (const p of players) {
+      playerById.set(p.id, p)
+    }
+
+    return queueEntries
+      .filter((entry) => {
+        if (activeSeason?.id && entry.season_id && entry.season_id !== activeSeason.id) {
+          return false
+        }
+        const entrySport = (entry.sport || entry.player?.sport || '').toLowerCase()
+        return entrySport === target || entrySport === targetId
+      })
+      .slice()
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((entry) => {
+        const enriched = playerById.get(entry.player_id)
+        if (enriched && entry.player) {
+          return {
+            ...entry.player,
+            ...enriched
+          }
+        }
+        return enriched || entry.player
+      })
+      .filter((p): p is Player => Boolean(p))
+  }, [queueEntries, activeSeason?.id, selectedSportName, sports, players])
+
+  const queuedPlayerIds = useMemo(
+    () => new Set(queuedPlayersForSport.map((p) => p.id)),
+    [queuedPlayersForSport]
   )
+
+  // Matching players for the "Add player" search box (same season & sport, available or unsold, not already queued)
+  const matchingAddablePlayers = useMemo(() => {
+    const q = addPlayerSearch.trim().toLowerCase().replace(/^#/, '')
+    if (!q) return []
+
+    return sportPlayers
+      .filter((p) => {
+        if (p.status !== 'available' && p.status !== 'unsold') return false
+        if (queuedPlayerIds.has(p.id)) return false
+        const formattedCode = formatAthleteCode(p.player_code || p.athlete_code).toLowerCase()
+        const rawCode = String(p.player_code || '').toLowerCase()
+        return (
+          p.name.toLowerCase().includes(q) ||
+          formattedCode.includes(q) ||
+          rawCode.includes(q)
+        )
+      })
+      .slice(0, 8)
+  }, [addPlayerSearch, sportPlayers, queuedPlayerIds])
 
   const queueSoldPlayers = useMemo(
     () => sportPlayers.filter((p) => p.status === 'sold'),
@@ -279,15 +356,17 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
   )
 
   const displayedQueuePlayers = useMemo(() => {
-    const source = queueTab === 'queue' ? queueAvailableOrUnsold : queueSoldPlayers
-    const q = queueSearch.trim().toLowerCase()
-    if (!q) return source
+    if (queueTab === 'queue') {
+      return queuedPlayersForSport
+    }
+    const q = soldSearch.trim().toLowerCase()
+    if (!q) return queueSoldPlayers
 
-    return source.filter((p) => {
+    return queueSoldPlayers.filter((p) => {
       const code = formatAthleteCode(p.athlete_code || p.player_code).toLowerCase()
       return p.name.toLowerCase().includes(q) || code.includes(q)
     })
-  }, [queueTab, queueAvailableOrUnsold, queueSoldPlayers, queueSearch])
+  }, [queueTab, queuedPlayersForSport, queueSoldPlayers, soldSearch])
 
   // Preserve Queue list scroll position across stage updates and realtime refreshes
   useLayoutEffect(() => {
@@ -443,6 +522,163 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
     }
   }
 
+  // Queue RPC handlers
+  const handleQueueAddSinglePlayer = async (player: Player) => {
+    if (isPending) return
+    try {
+      setIsPending(true)
+      await queueAddPlayer(player.id)
+      setAddPlayerSearch('')
+      await fetchLiveAuctionState()
+      success(`Added ${player.name} to queue`)
+    } catch (err: unknown) {
+      error(err instanceof Error ? err.message : 'Failed to add player to queue')
+    } finally {
+      setIsPending(false)
+    }
+  }
+
+  const handleQueueBulkAdd = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!activeSeason || isPending) return
+
+    const codes = bulkCodesInput
+      .split(',')
+      .map((s) => s.trim().replace(/^#/, ''))
+      .filter(Boolean)
+
+    if (codes.length === 0) return
+
+    // Pre-compute client-side classification in case the RPC returns only a count or minimal payload
+    const preNotFound: string[] = []
+    const preAlreadyQueued: string[] = []
+    const preNotAvailable: string[] = []
+    let preAdded = 0
+    const seenInBatch = new Set<string>()
+
+    for (const rawCode of codes) {
+      const normCode = rawCode.toLowerCase()
+      const matched = sportPlayers.find(
+        (p) =>
+          (p.player_code || '').toLowerCase() === normCode ||
+          formatAthleteCode(p.player_code || p.athlete_code).toLowerCase() === normCode
+      )
+      if (!matched) {
+        preNotFound.push(rawCode)
+      } else if (queuedPlayerIds.has(matched.id) || seenInBatch.has(matched.id)) {
+        preAlreadyQueued.push(rawCode)
+      } else if (matched.status !== 'available' && matched.status !== 'unsold') {
+        preNotAvailable.push(rawCode)
+      } else {
+        seenInBatch.add(matched.id)
+        preAdded++
+      }
+    }
+
+    try {
+      setIsPending(true)
+      const res = await queueAddByCodes(activeSeason.id, selectedSportName, codes)
+      await fetchLiveAuctionState()
+
+      const hasDetailedRpcBreakdown =
+        res.notFound.length > 0 ||
+        res.alreadyQueued.length > 0 ||
+        res.notAvailable.length > 0 ||
+        res.addedCount > 0
+
+      const finalAdded = hasDetailedRpcBreakdown ? res.addedCount : preAdded
+      const finalNotFound =
+        res.notFound.length > 0 || hasDetailedRpcBreakdown ? res.notFound : preNotFound
+      const finalAlreadyQueued =
+        res.alreadyQueued.length > 0 || hasDetailedRpcBreakdown
+          ? res.alreadyQueued
+          : preAlreadyQueued
+      const finalNotAvailable =
+        res.notAvailable.length > 0 || hasDetailedRpcBreakdown
+          ? res.notAvailable
+          : preNotAvailable
+
+      const parts: string[] = []
+      if (
+        finalAdded > 0 ||
+        (finalNotFound.length === 0 &&
+          finalAlreadyQueued.length === 0 &&
+          finalNotAvailable.length === 0)
+      ) {
+        parts.push(`${finalAdded} added.`)
+      }
+      if (finalNotFound.length > 0) {
+        parts.push(`Not found: ${finalNotFound.join(', ')}.`)
+      }
+      if (finalAlreadyQueued.length > 0) {
+        parts.push(`Already queued: ${finalAlreadyQueued.join(', ')}.`)
+      }
+      if (finalNotAvailable.length > 0) {
+        parts.push(`Not available: ${finalNotAvailable.join(', ')}.`)
+      }
+
+      const summary = parts.join(' ')
+      setBulkResultMessage(summary)
+      if (finalAdded > 0) {
+        setBulkCodesInput('')
+        success(summary)
+      } else {
+        error(summary)
+      }
+    } catch (err: unknown) {
+      error(err instanceof Error ? err.message : 'Failed to bulk add players to queue')
+    } finally {
+      setIsPending(false)
+    }
+  }
+
+  const handleQueueRemovePlayer = async (playerId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (isPending) return
+    try {
+      setIsPending(true)
+      await queueRemove(playerId)
+      await fetchLiveAuctionState()
+    } catch (err: unknown) {
+      error(err instanceof Error ? err.message : 'Failed to remove player from queue')
+    } finally {
+      setIsPending(false)
+    }
+  }
+
+  const handleQueueMovePlayer = async (
+    playerId: string,
+    direction: 'up' | 'down',
+    e: React.MouseEvent
+  ) => {
+    e.stopPropagation()
+    if (isPending) return
+    try {
+      setIsPending(true)
+      await queueMove(playerId, direction)
+      await fetchLiveAuctionState()
+    } catch (err: unknown) {
+      error(err instanceof Error ? err.message : 'Failed to reorder queue')
+    } finally {
+      setIsPending(false)
+    }
+  }
+
+  const handleConfirmClearQueue = async () => {
+    if (!activeSeason || isPending) return
+    try {
+      setIsPending(true)
+      await queueClear(activeSeason.id, selectedSportName)
+      setIsClearQueueConfirmOpen(false)
+      await fetchLiveAuctionState()
+      success(`Cleared ${selectedSportName} queue`)
+    } catch (err: unknown) {
+      error(err instanceof Error ? err.message : 'Failed to clear queue')
+    } finally {
+      setIsPending(false)
+    }
+  }
+
   if (!activeSeason) {
     return (
       <EmptyState
@@ -549,7 +785,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
         {/* 2. LEFT COLUMN: QUEUE */}
         <div className="lg:col-span-5 rounded-2xl bg-surface border border-border flex flex-col overflow-hidden shadow-sm">
           <div className="p-4 sm:p-5 border-b border-border flex flex-col gap-3.5 shrink-0 bg-surface z-10">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2">
                 <Users size={18} className="text-accent-bright" weight="bold" />
                 <h2 className="font-syne font-bold text-base sm:text-lg text-text">
@@ -557,47 +793,165 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
                 </h2>
               </div>
 
-              {/* Queue vs Sold Sub-tabs */}
-              <div className="flex items-center gap-1 bg-surface-2 p-1 rounded-xl border border-border">
-                <button
-                  type="button"
-                  onClick={() => setQueueTab('queue')}
-                  className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-['DM_Sans',sans-serif] transition-colors ${
-                    queueTab === 'queue'
-                      ? 'bg-surface text-text font-medium border border-border shadow-sm'
-                      : 'text-muted hover:text-text font-normal'
-                  }`}
-                >
-                  Queue ({queueAvailableOrUnsold.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setQueueTab('sold')}
-                  className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-['DM_Sans',sans-serif] transition-colors ${
-                    queueTab === 'sold'
-                      ? 'bg-surface text-text font-medium border border-border shadow-sm'
-                      : 'text-muted hover:text-text font-normal'
-                  }`}
-                >
-                  Sold ({queueSoldPlayers.length})
-                </button>
+              <div className="flex items-center gap-2">
+                {queueTab === 'queue' && queuedPlayersForSport.length > 0 && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    leftIcon={Trash}
+                    disabled={isPending}
+                    onClick={() => setIsClearQueueConfirmOpen(true)}
+                    className="min-h-[40px] px-3 text-xs"
+                  >
+                    Clear queue
+                  </Button>
+                )}
+
+                {/* Queue vs Sold Sub-tabs */}
+                <div className="flex items-center gap-1 bg-surface-2 p-1 rounded-xl border border-border">
+                  <button
+                    type="button"
+                    onClick={() => setQueueTab('queue')}
+                    className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-['DM_Sans',sans-serif] transition-colors ${
+                      queueTab === 'queue'
+                        ? 'bg-surface text-text font-medium border border-border shadow-sm'
+                        : 'text-muted hover:text-text font-normal'
+                    }`}
+                  >
+                    Queue ({queuedPlayersForSport.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQueueTab('sold')}
+                    className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-['DM_Sans',sans-serif] transition-colors ${
+                      queueTab === 'sold'
+                        ? 'bg-surface text-text font-medium border border-border shadow-sm'
+                        : 'text-muted hover:text-text font-normal'
+                    }`}
+                  >
+                    Sold ({queueSoldPlayers.length})
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* Search Box (name or 4-digit code) */}
-            <div className="relative">
-              <MagnifyingGlass
-                size={16}
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
-              />
-              <input
-                type="text"
-                value={queueSearch}
-                onChange={(e) => setQueueSearch(e.target.value)}
-                placeholder="Search by player name or 4-digit code..."
-                className="w-full min-h-[48px] pl-10 pr-4 py-2.5 bg-bg border border-border rounded-xl text-xs sm:text-sm text-text focus:outline-none focus:border-accent-bright"
-              />
-            </div>
+            {queueTab === 'queue' ? (
+              <div className="flex flex-col gap-3">
+                {/* Add player search box */}
+                <div className="relative">
+                  <MagnifyingGlass
+                    size={16}
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+                  />
+                  <input
+                    type="text"
+                    value={addPlayerSearch}
+                    onChange={(e) => setAddPlayerSearch(e.target.value)}
+                    placeholder="Add player by name or code..."
+                    disabled={isPending}
+                    className="w-full min-h-[44px] pl-10 pr-9 py-2 bg-bg border border-border rounded-xl text-xs sm:text-sm text-text focus:outline-none focus:border-accent-bright"
+                  />
+                  {addPlayerSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setAddPlayerSearch('')}
+                      aria-label="Clear search"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text"
+                    >
+                      <X size={14} weight="bold" />
+                    </button>
+                  )}
+
+                  {addPlayerSearch.trim().length > 0 && (
+                    <div className="mt-1.5 rounded-xl bg-bg border border-border shadow-lg overflow-hidden divide-y divide-border max-h-56 overflow-y-auto">
+                      {matchingAddablePlayers.length === 0 ? (
+                        <div className="px-3.5 py-3 text-xs text-muted text-center">
+                          No matching available or unsold players to add.
+                        </div>
+                      ) : (
+                        matchingAddablePlayers.map((candidate) => {
+                          const candidateCode = formatAthleteCode(
+                            candidate.player_code || candidate.athlete_code
+                          )
+                          return (
+                            <button
+                              key={candidate.id}
+                              type="button"
+                              disabled={isPending}
+                              onClick={() => handleQueueAddSinglePlayer(candidate)}
+                              className="w-full px-3.5 py-2.5 text-left hover:bg-surface-2 flex items-center justify-between gap-3 transition-colors disabled:opacity-50"
+                            >
+                              <div className="min-w-0 flex-1 flex items-center gap-2">
+                                <span className="font-mono text-xs font-bold text-accent-bright shrink-0">
+                                  #{candidateCode}
+                                </span>
+                                <span className="font-syne font-bold text-xs sm:text-sm text-text truncate">
+                                  {candidate.name}
+                                </span>
+                                <span className="text-xs text-muted truncate">
+                                  · {candidate.playing_role}
+                                </span>
+                              </div>
+                              <span className="inline-flex items-center gap-1 text-xs font-mono text-accent-bright shrink-0">
+                                <Plus size={12} weight="bold" />
+                                <span>Queue</span>
+                              </span>
+                            </button>
+                          )
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Bulk add single-line input for IDs separated by commas */}
+                <form onSubmit={handleQueueBulkAdd} className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={bulkCodesInput}
+                      onChange={(e) => {
+                        setBulkCodesInput(e.target.value)
+                        if (bulkResultMessage) setBulkResultMessage(null)
+                      }}
+                      placeholder="Bulk add IDs (e.g. 0002, 0003, 0005)"
+                      disabled={isPending}
+                      className="flex-1 min-h-[44px] px-3.5 py-2 bg-bg border border-border rounded-xl font-mono text-xs sm:text-sm text-text focus:outline-none focus:border-accent-bright"
+                    />
+                    <Button
+                      type="submit"
+                      variant="secondary"
+                      size="md"
+                      disabled={isPending || !bulkCodesInput.trim()}
+                      className="min-h-[44px] px-4 shrink-0 text-xs"
+                    >
+                      Add
+                    </Button>
+                  </div>
+                  {bulkResultMessage && (
+                    <div className="text-xs font-mono text-muted px-1">
+                      {bulkResultMessage}
+                    </div>
+                  )}
+                </form>
+              </div>
+            ) : (
+              /* Sold Tab Search Box */
+              <div className="relative">
+                <MagnifyingGlass
+                  size={16}
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+                />
+                <input
+                  type="text"
+                  value={soldSearch}
+                  onChange={(e) => setSoldSearch(e.target.value)}
+                  placeholder="Search sold players by name or code..."
+                  className="w-full min-h-[44px] pl-10 pr-4 py-2 bg-bg border border-border rounded-xl text-xs sm:text-sm text-text focus:outline-none focus:border-accent-bright"
+                />
+              </div>
+            )}
           </div>
 
           {/* Queue Player List */}
@@ -611,12 +965,12 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
             {displayedQueuePlayers.length === 0 ? (
               <div className="p-10 text-center text-xs text-muted">
                 {queueTab === 'queue'
-                  ? 'No available or unsold athletes matching your filter in this sport.'
+                  ? 'Queue is empty. Add players above.'
                   : 'No sold athletes in this sport yet.'}
               </div>
             ) : (
-              displayedQueuePlayers.map((player) => {
-                const code = formatAthleteCode(player.athlete_code || player.player_code)
+              displayedQueuePlayers.map((player, index) => {
+                const code = formatAthleteCode(player.player_code || player.athlete_code)
                 const isOnStage = stagePlayer?.id === player.id && !isIdleState
                 const soldTeam = player.team_id
                   ? teams.find((t) => t.id === player.team_id)
@@ -625,9 +979,14 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
                 return (
                   <div
                     key={player.id}
+                    onClick={() => {
+                      if (queueTab === 'queue' && !isPending && !isOnStage) {
+                        void handleBringToStage(player)
+                      }
+                    }}
                     className={`p-4 flex items-center justify-between gap-3 transition-colors ${
-                      isOnStage ? 'bg-accent-bright/10' : 'hover:bg-surface-2/60'
-                    }`}
+                      queueTab === 'queue' && !isOnStage ? 'cursor-pointer' : ''
+                    } ${isOnStage ? 'bg-accent-bright/10' : 'hover:bg-surface-2/60'}`}
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       {/* Photo thumbnail */}
@@ -677,16 +1036,51 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
 
                     {/* Action / Sold Status */}
                     {queueTab === 'queue' ? (
-                      <Button
-                        type="button"
-                        variant={isOnStage ? 'secondary' : 'primary'}
-                        size="lg"
-                        disabled={isPending || isOnStage}
-                        onClick={() => handleBringToStage(player)}
-                        className="shrink-0 min-h-[48px] px-4 text-xs font-['DM_Sans',sans-serif] !font-normal"
+                      <div
+                        className="flex items-center gap-1.5 shrink-0"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        {isOnStage ? 'On Stage' : 'Bring to stage'}
-                      </Button>
+                        <button
+                          type="button"
+                          title="Move up"
+                          aria-label={`Move ${player.name} up`}
+                          disabled={isPending || index === 0}
+                          onClick={(e) => handleQueueMovePlayer(player.id, 'up', e)}
+                          className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                        >
+                          <ArrowUp size={14} weight="bold" />
+                        </button>
+                        <button
+                          type="button"
+                          title="Move down"
+                          aria-label={`Move ${player.name} down`}
+                          disabled={isPending || index === displayedQueuePlayers.length - 1}
+                          onClick={(e) => handleQueueMovePlayer(player.id, 'down', e)}
+                          className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                        >
+                          <ArrowDown size={14} weight="bold" />
+                        </button>
+                        <button
+                          type="button"
+                          title="Remove from queue"
+                          aria-label={`Remove ${player.name} from queue`}
+                          disabled={isPending}
+                          onClick={(e) => handleQueueRemovePlayer(player.id, e)}
+                          className="p-2 rounded-lg border border-border text-muted hover:text-error hover:border-error/40 hover:bg-error/10 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                        >
+                          <X size={14} weight="bold" />
+                        </button>
+                        <Button
+                          type="button"
+                          variant={isOnStage ? 'secondary' : 'primary'}
+                          size="lg"
+                          disabled={isPending || isOnStage}
+                          onClick={() => handleBringToStage(player)}
+                          className="shrink-0 min-h-[44px] px-3.5 text-xs font-['DM_Sans',sans-serif] !font-normal"
+                        >
+                          {isOnStage ? 'On Stage' : 'Bring to stage'}
+                        </Button>
+                      </div>
                     ) : (
                       <div className="text-right shrink-0">
                         {soldTeam && (
@@ -1446,6 +1840,45 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
               className="min-h-[48px]"
             >
               Undo Last Sale
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* CONFIRM DIALOG: CLEAR QUEUE */}
+      <Dialog
+        isOpen={isClearQueueConfirmOpen}
+        onClose={() => !isPending && setIsClearQueueConfirmOpen(false)}
+        title={`Clear ${selectedSportName} Queue`}
+        size="sm"
+      >
+        <div className="space-y-5">
+          <p className="text-sm text-text leading-relaxed">
+            Clear all <strong className="font-semibold">{queuedPlayersForSport.length}</strong>{' '}
+            players from the <strong className="font-semibold">{selectedSportName}</strong> queue?
+          </p>
+
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border">
+            <Button
+              type="button"
+              variant="secondary"
+              size="lg"
+              disabled={isPending}
+              onClick={() => setIsClearQueueConfirmOpen(false)}
+              className="min-h-[48px]"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              size="lg"
+              isLoading={isPending}
+              disabled={isPending}
+              onClick={handleConfirmClearQueue}
+              className="min-h-[48px]"
+            >
+              Clear Queue
             </Button>
           </div>
         </div>

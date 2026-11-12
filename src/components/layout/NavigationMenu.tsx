@@ -44,6 +44,7 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
     { title: 'Home', path: '/', visible: true },
     { title: 'Teams', path: '/teams', visible: true },
     { title: 'Season', path: '/season', visible: true },
+    { title: 'Auction Rules', path: '/rules', visible: true },
     { title: 'Dashboard', path: '/admin', visible: !!user },
     { title: 'Projector', path: '/projector', visible: user?.role === 'admin' || user?.role === 'projector' }
   ]
@@ -85,7 +86,7 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
           role="dialog"
           aria-modal="true"
           aria-label="Navigation Menu"
-          className="fixed inset-0 z-50 overflow-hidden p-6 md:p-12 text-white"
+          className="fixed inset-0 z-50 overflow-hidden text-white"
         >
           {/* Expanding Circle Background in deep sage (--menu-bg) */}
           <motion.div
@@ -111,7 +112,10 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
 
           {/* Menu Content Wrapper Above Circle */}
           <motion.div
-            className="relative z-10 w-full h-full flex flex-col justify-between"
+            className="relative z-10 w-full h-full overflow-y-auto px-6 py-6 md:px-12 md:py-8"
+            style={{
+              paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 32px)'
+            }}
             initial={{ opacity: 0 }}
             animate={{
               opacity: 1,
@@ -128,158 +132,160 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
               }
             }}
           >
-            {/* Top Row: Close button positioned identically to the top-left icon */}
-            <div className="flex items-center justify-between">
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Close menu"
-                className="w-[52px] h-[52px] rounded-[22%] bg-white/10 border border-white/15 flex items-center justify-center text-white hover:text-white hover:border-accent-bright transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
-              >
-                <X size={24} weight="bold" />
-              </button>
+            <div className="w-full min-h-full flex flex-col justify-between">
+              {/* Top Row: Close button positioned identically to the top-left icon */}
+              <div className="flex items-center justify-between shrink-0 mb-8 md:mb-10">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Close menu"
+                  className="w-[52px] h-[52px] rounded-[22%] bg-white/10 border border-white/15 flex items-center justify-center text-white hover:text-white hover:border-accent-bright transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                >
+                  <X size={24} weight="bold" />
+                </button>
 
-              {user && (
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/15 text-xs text-white/80">
-                  <span className="w-1.5 h-1.5 rounded-full bg-accent-bright" />
-                  <span className="font-medium tracking-wide uppercase">{user.role}</span>
-                  <span className="text-white/40">·</span>
-                  <span className="text-white/70">{user.email}</span>
-                </div>
-              )}
-            </div>
+                {user && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/15 text-xs text-white/80">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent-bright" />
+                    <span className="font-medium tracking-wide uppercase">{user.role}</span>
+                    <span className="text-white/40">·</span>
+                    <span className="text-white/70">{user.email}</span>
+                  </div>
+                )}
+              </div>
 
-            {/* Staggered Navigation Links */}
-            <div className="flex flex-col gap-5 md:gap-7 max-w-2xl my-auto">
-              {links.filter((l) => l.visible).map((link, idx) => (
+              {/* Staggered Navigation Links */}
+              <div className="flex flex-col gap-[20px] lg:gap-[28px] max-w-2xl my-auto">
+                {links.filter((l) => l.visible).map((link, idx) => (
+                  <motion.div
+                    key={link.path}
+                    initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 35 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{
+                      duration: 0.5,
+                      delay: shouldReduceMotion ? 0 : 0.15 + idx * 0.08,
+                      ease: [0.22, 1, 0.36, 1]
+                    }}
+                  >
+                    <Link
+                      to={link.path}
+                      onClick={onClose}
+                      className="group flex items-center gap-4 text-[clamp(1.65rem,5.5vw,4.5rem)] font-syne font-bold tracking-tight leading-none text-white/85 hover:text-white transition-colors transition-transform transform hover:translate-x-3 whitespace-nowrap"
+                    >
+                      <span>{link.title}</span>
+                      <ArrowRight
+                        size={32}
+                        weight="regular"
+                        className="opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-[opacity,transform] text-accent-bright shrink-0"
+                      />
+                    </Link>
+                  </motion.div>
+                ))}
+
+                {/* Auth Action */}
                 <motion.div
-                  key={link.path}
                   initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 35 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{
                     duration: 0.5,
-                    delay: shouldReduceMotion ? 0 : 0.15 + idx * 0.08,
+                    delay: shouldReduceMotion ? 0 : 0.15 + links.length * 0.08,
                     ease: [0.22, 1, 0.36, 1]
                   }}
+                  className="mt-6 pt-6 border-t border-white/15"
                 >
-                  <Link
-                    to={link.path}
-                    onClick={onClose}
-                    className="group flex items-center gap-4 text-3xl sm:text-6xl md:text-7xl font-syne font-bold tracking-tight leading-tight text-white/85 hover:text-white transition-colors transition-transform transform hover:translate-x-3"
-                  >
-                    <span>{link.title}</span>
-                    <ArrowRight
-                      size={36}
-                      weight="regular"
-                      className="opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-[opacity,transform] text-accent-bright"
-                    />
-                  </Link>
+                  {user ? (
+                    <button
+                      type="button"
+                      onClick={handleSignOut}
+                      className="group flex items-center gap-3 text-2xl sm:text-3xl font-sans font-light text-white/60 hover:text-error transition-colors transition-transform transform hover:translate-x-2"
+                    >
+                      <span>Sign out</span>
+                      <ArrowRight
+                        size={24}
+                        weight="regular"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      />
+                    </button>
+                  ) : (
+                    <Link
+                      to="/login"
+                      onClick={onClose}
+                      className="group flex items-center gap-3 text-2xl sm:text-3xl font-sans font-medium text-white/90 hover:text-white transition-colors transition-transform transform hover:translate-x-2"
+                    >
+                      <span>Sign in</span>
+                      <ArrowRight
+                        size={24}
+                        weight="regular"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-accent-bright"
+                      />
+                    </Link>
+                  )}
                 </motion.div>
-              ))}
 
-              {/* Auth Action */}
-              <motion.div
-                initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 35 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{
-                  duration: 0.5,
-                  delay: shouldReduceMotion ? 0 : 0.15 + links.length * 0.08,
-                  ease: [0.22, 1, 0.36, 1]
-                }}
-                className="pt-4 border-t border-white/15"
-              >
-                {user ? (
-                  <button
-                    type="button"
-                    onClick={handleSignOut}
-                    className="group flex items-center gap-3 text-2xl sm:text-3xl font-sans font-light text-white/60 hover:text-error transition-colors transition-transform transform hover:translate-x-2"
-                  >
-                    <span>Sign out</span>
-                    <ArrowRight
-                      size={24}
-                      weight="regular"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
-                    />
-                  </button>
-                ) : (
-                  <Link
-                    to="/login"
-                    onClick={onClose}
-                    className="group flex items-center gap-3 text-2xl sm:text-3xl font-sans font-medium text-white/90 hover:text-white transition-colors transition-transform transform hover:translate-x-2"
-                  >
-                    <span>Sign in</span>
-                    <ArrowRight
-                      size={24}
-                      weight="regular"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-accent-bright"
-                    />
-                  </Link>
-                )}
-              </motion.div>
-
-              {/* Appearance Segmented Control */}
-              <motion.div
-                initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 35 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{
-                  duration: 0.5,
-                  delay: shouldReduceMotion ? 0 : 0.15 + (links.length + 1) * 0.08,
-                  ease: [0.22, 1, 0.36, 1]
-                }}
-                className="pt-4"
-              >
-                <span
-                  id="appearance-label"
-                  className="text-xs font-sans font-medium uppercase tracking-wide text-white/60 block mb-2.5"
+                {/* Appearance Segmented Control */}
+                <motion.div
+                  initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 35 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: 0.5,
+                    delay: shouldReduceMotion ? 0 : 0.15 + (links.length + 1) * 0.08,
+                    ease: [0.22, 1, 0.36, 1]
+                  }}
+                  className="pt-4"
                 >
-                  Appearance
-                </span>
-                <div
-                  role="radiogroup"
-                  aria-labelledby="appearance-label"
-                  className="inline-flex items-center p-1 bg-white/10 border border-white/15 rounded-xl gap-1"
-                >
-                  {appearanceOptions.map((opt, idx) => {
-                    const IconComponent = opt.icon
-                    const isSelected = preference === opt.value
-                    return (
-                      <button
-                        key={opt.value}
-                        ref={(el) => {
-                          optionRefs.current[idx] = el
-                        }}
-                        type="button"
-                        role="radio"
-                        aria-checked={isSelected}
-                        tabIndex={isSelected ? 0 : -1}
-                        onClick={() => setPreference(opt.value)}
-                        onKeyDown={(e) => handleKeyDownAppearance(e, idx)}
-                        className={`min-h-[44px] min-w-[44px] px-3.5 py-2 rounded-lg flex items-center gap-2 text-xs font-sans tracking-normal transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright ${
-                          isSelected
-                            ? 'bg-white/25 text-white font-medium border border-white/30 shadow-sm'
-                            : 'text-white/65 font-normal hover:text-white hover:bg-white/10 border border-transparent'
-                        }`}
-                      >
-                        <IconComponent size={16} weight="regular" />
-                        <span>{opt.label}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-              </motion.div>
-            </div>
-
-            {/* Footer Metadata */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-6 border-t border-white/15 text-xs text-white/60">
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-white/90">
-                  {activeSeason?.name || 'Fieldr Tournaments'}
-                </span>
-                <span>·</span>
-                <span>Tournament Console</span>
+                  <span
+                    id="appearance-label"
+                    className="text-xs font-sans font-medium uppercase tracking-wide text-white/60 block mb-2.5"
+                  >
+                    Appearance
+                  </span>
+                  <div
+                    role="radiogroup"
+                    aria-labelledby="appearance-label"
+                    className="inline-flex items-center p-1 bg-white/10 border border-white/15 rounded-xl gap-1"
+                  >
+                    {appearanceOptions.map((opt, idx) => {
+                      const IconComponent = opt.icon
+                      const isSelected = preference === opt.value
+                      return (
+                        <button
+                          key={opt.value}
+                          ref={(el) => {
+                            optionRefs.current[idx] = el
+                          }}
+                          type="button"
+                          role="radio"
+                          aria-checked={isSelected}
+                          tabIndex={isSelected ? 0 : -1}
+                          onClick={() => setPreference(opt.value)}
+                          onKeyDown={(e) => handleKeyDownAppearance(e, idx)}
+                          className={`min-h-[44px] min-w-[44px] px-3.5 py-2 rounded-lg flex items-center gap-2 text-xs font-sans tracking-normal transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright ${
+                            isSelected
+                              ? 'bg-white/25 text-white font-medium border border-white/30 shadow-sm'
+                              : 'text-white/65 font-normal hover:text-white hover:bg-white/10 border border-transparent'
+                          }`}
+                        >
+                          <IconComponent size={16} weight="regular" />
+                          <span>{opt.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </motion.div>
               </div>
-              <div className="font-sans font-medium tracking-wide text-accent-bright uppercase">
-                Draft. Bid. Win.
+
+              {/* Footer Metadata */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-6 border-t border-white/15 text-xs text-white/60 shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-white/90">
+                    {activeSeason?.name || 'Fieldr Tournaments'}
+                  </span>
+                  <span>·</span>
+                  <span>Tournament Console</span>
+                </div>
+                <div className="font-sans font-medium tracking-wide text-accent-bright uppercase">
+                  Draft. Bid. Win.
+                </div>
               </div>
             </div>
           </motion.div>

@@ -255,3 +255,10 @@ export interface CreditPerson {
   sort_order: number
   created_at: string
 }
+
+export interface RulesDocument {
+  id: string
+  title: string
+  file_path: string
+  created_at: string
+}

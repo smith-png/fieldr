@@ -18,7 +18,8 @@ import {
   STORAGE_KEYS,
   REALTIME_DEBOUNCE_MS,
   markLocalMutation,
-  isRealtimeSuppressed
+  isRealtimeSuppressed,
+  formatAthleteCode
 } from './client'
 import type { AuctionService } from './types'
 
@@ -972,6 +973,16 @@ const supabaseAuctionService: AuctionService = {
         },
         () => scheduleUpdate()
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'auction_queue',
+          filter: `season_id=eq.${seasonId}`
+        },
+        () => scheduleUpdate()
+      )
       .subscribe()
 
     return () => {
@@ -1016,3 +1027,274 @@ export const auctionBackToIdle = (seasonId: string) =>
   auctionService.auctionBackToIdle(seasonId)
 export const subscribeToAuctionRealtime = (seasonId: string, onUpdate: () => void) =>
   auctionService.subscribeToAuctionRealtime(seasonId, onUpdate)
+
+export interface AuctionQueueEntry {
+  season_id: string
+  sport: string
+  player_id: string
+  sort_order: number
+  player: Player | null
+}
+
+export interface QueueBulkAddResult {
+  addedCount: number
+  notFound: string[]
+  alreadyQueued: string[]
+  notAvailable: string[]
+  message: string
+}
+
+function mapJoinedQueuePlayer(rawPlayer: unknown): Player | null {
+  if (!rawPlayer || typeof rawPlayer !== 'object') return null
+  const row = rawPlayer as Record<string, unknown>
+  const athRaw = Array.isArray(row.athletes) ? row.athletes[0] : row.athletes
+  const ath =
+    athRaw && typeof athRaw === 'object' ? (athRaw as Record<string, unknown>) : null
+
+  const athleteCode =
+    typeof ath?.athlete_code === 'number'
+      ? ath.athlete_code
+      : typeof row.athlete_code === 'number'
+      ? row.athlete_code
+      : undefined
+
+  const playerCode =
+    typeof row.player_code === 'string' && row.player_code.trim()
+      ? row.player_code.trim()
+      : formatAthleteCode(athleteCode ?? 1)
+
+  return {
+    id: String(row.id || ''),
+    season_id: String(row.season_id || ''),
+    athlete_id: row.athlete_id ? String(row.athlete_id) : ath?.id ? String(ath.id) : undefined,
+    athlete_code: athleteCode,
+    player_code: playerCode,
+    name: String(ath?.name ?? row.name ?? 'Athlete'),
+    sport: String(row.sport || ''),
+    playing_role: String(row.playing_role || ''),
+    academic_year: (ath?.academic_year || row.academic_year || '1st') as Player['academic_year'],
+    roll_no:
+      ath?.roll_no !== undefined && ath?.roll_no !== null
+        ? String(ath.roll_no)
+        : row.roll_no !== undefined && row.roll_no !== null
+        ? String(row.roll_no)
+        : undefined,
+    notes:
+      row.notes !== undefined && row.notes !== null
+        ? String(row.notes)
+        : undefined,
+    photo_url:
+      ath?.photo_url !== undefined && ath?.photo_url !== null
+        ? String(ath.photo_url)
+        : row.photo_url !== undefined && row.photo_url !== null
+        ? String(row.photo_url)
+        : undefined,
+    photo_thumb_url:
+      ath?.photo_thumb_url !== undefined && ath?.photo_thumb_url !== null
+        ? String(ath.photo_thumb_url)
+        : row.photo_thumb_url !== undefined && row.photo_thumb_url !== null
+        ? String(row.photo_thumb_url)
+        : undefined,
+    base_points: typeof row.base_points === 'number' ? row.base_points : Number(row.base_points) || 0,
+    status: (row.status || 'available') as Player['status'],
+    team_id: row.team_id ? String(row.team_id) : null,
+    purchase_price:
+      typeof row.purchase_price === 'number'
+        ? row.purchase_price
+        : row.purchase_price !== null && row.purchase_price !== undefined
+        ? Number(row.purchase_price)
+        : null,
+    created_at: row.created_at ? String(row.created_at) : undefined
+  }
+}
+
+export async function getAuctionQueue(
+  seasonId: string,
+  sport?: string
+): Promise<AuctionQueueEntry[]> {
+  if (!supabase || !seasonId) return []
+
+  const buildQuery = (selectCols: string) => {
+    let q = supabase!
+      .from('auction_queue')
+      .select(selectCols)
+      .eq('season_id', seasonId)
+      .order('sort_order', { ascending: true })
+    if (sport && sport.trim()) {
+      q = q.ilike('sport', sport.trim())
+    }
+    return q
+  }
+
+  let { data, error } = await buildQuery(
+    'season_id, sport, player_id, sort_order, players(*, athletes(id, athlete_code, name, photo_url, photo_thumb_url, roll_no, academic_year))'
+  )
+
+  if (error) {
+    const fallback = await buildQuery('season_id, sport, player_id, sort_order, players(*)')
+    data = fallback.data
+    error = fallback.error
+  }
+
+  if (error) {
+    console.error('Supabase getAuctionQueue error:', error.message, error)
+    throw new AppError(error.message, { original: error })
+  }
+
+  const rows = ((data || []) as unknown) as Array<Record<string, unknown>>
+  return rows
+    .map((r) => {
+      const joinedRaw = Array.isArray(r.players) ? r.players[0] : r.players
+      return {
+        season_id: String(r.season_id || seasonId),
+        sport: String(r.sport || sport || ''),
+        player_id: String(r.player_id || ''),
+        sort_order: typeof r.sort_order === 'number' ? r.sort_order : Number(r.sort_order) || 0,
+        player: mapJoinedQueuePlayer(joinedRaw)
+      }
+    })
+    .sort((a, b) => a.sort_order - b.sort_order)
+}
+
+export async function queueAddPlayer(playerId: string): Promise<void> {
+  if (!supabase) throw new AppError('Supabase not configured')
+  markLocalMutation(['auction'])
+  const { error } = await supabase.rpc('queue_add_player', {
+    p_player_id: playerId
+  })
+  if (error) {
+    throw new AppError(error.message, { original: error })
+  }
+  markLocalMutation(['auction'])
+}
+
+function toStringArray(val: unknown): string[] {
+  if (!Array.isArray(val)) return []
+  return val.map((item) => String(item ?? '').trim()).filter(Boolean)
+}
+
+export function buildQueueBulkAddSummary(raw: unknown): QueueBulkAddResult {
+  if (typeof raw === 'string' && raw.trim()) {
+    const matchCount = raw.match(/(\d+)\s+added/i)
+    return {
+      addedCount: matchCount ? Number(matchCount[1]) : 0,
+      notFound: [],
+      alreadyQueued: [],
+      notAvailable: [],
+      message: raw.trim()
+    }
+  }
+
+  const unwrapped = Array.isArray(raw) ? raw[0] : raw
+  const obj =
+    unwrapped && typeof unwrapped === 'object'
+      ? (unwrapped as Record<string, unknown>)
+      : {}
+
+  let addedCount = 0
+  if (typeof obj.added === 'number') {
+    addedCount = obj.added
+  } else if (Array.isArray(obj.added)) {
+    addedCount = obj.added.length
+  } else if (typeof obj.added_count === 'number') {
+    addedCount = obj.added_count
+  } else if (typeof obj.inserted === 'number') {
+    addedCount = obj.inserted
+  } else if (typeof obj.count === 'number') {
+    addedCount = obj.count
+  }
+
+  const notFound = toStringArray(obj.not_found ?? obj.notFound ?? obj.missing)
+  const alreadyQueued = toStringArray(
+    obj.already_queued ?? obj.alreadyQueued ?? obj.duplicate ?? obj.duplicates
+  )
+  const notAvailable = toStringArray(
+    obj.not_available ?? obj.notAvailable ?? obj.unavailable ?? obj.sold
+  )
+
+  const parts: string[] = []
+  if (
+    addedCount > 0 ||
+    (notFound.length === 0 && alreadyQueued.length === 0 && notAvailable.length === 0)
+  ) {
+    parts.push(`${addedCount} added.`)
+  }
+  if (notFound.length > 0) {
+    parts.push(`Not found: ${notFound.join(', ')}.`)
+  }
+  if (alreadyQueued.length > 0) {
+    parts.push(`Already queued: ${alreadyQueued.join(', ')}.`)
+  }
+  if (notAvailable.length > 0) {
+    parts.push(`Not available: ${notAvailable.join(', ')}.`)
+  }
+
+  return {
+    addedCount,
+    notFound,
+    alreadyQueued,
+    notAvailable,
+    message: parts.join(' ')
+  }
+}
+
+export async function queueAddByCodes(
+  seasonId: string,
+  sport: string,
+  codes: string[]
+): Promise<QueueBulkAddResult> {
+  if (!supabase) throw new AppError('Supabase not configured')
+  markLocalMutation(['auction'])
+  const { data, error } = await supabase.rpc('queue_add_by_codes', {
+    p_season_id: seasonId,
+    p_sport: sport,
+    p_codes: codes
+  })
+  if (error) {
+    throw new AppError(error.message, { original: error })
+  }
+  markLocalMutation(['auction'])
+  return buildQueueBulkAddSummary(data)
+}
+
+export async function queueRemove(playerId: string): Promise<void> {
+  if (!supabase) throw new AppError('Supabase not configured')
+  markLocalMutation(['auction'])
+  const { error } = await supabase.rpc('queue_remove', {
+    p_player_id: playerId
+  })
+  if (error) {
+    throw new AppError(error.message, { original: error })
+  }
+  markLocalMutation(['auction'])
+}
+
+export async function queueClear(seasonId: string, sport: string): Promise<void> {
+  if (!supabase) throw new AppError('Supabase not configured')
+  markLocalMutation(['auction'])
+  const { error } = await supabase.rpc('queue_clear', {
+    p_season_id: seasonId,
+    p_sport: sport
+  })
+  if (error) {
+    throw new AppError(error.message, { original: error })
+  }
+  markLocalMutation(['auction'])
+}
+
+export async function queueMove(
+  playerId: string,
+  direction: 'up' | 'down'
+): Promise<void> {
+  if (!supabase) throw new AppError('Supabase not configured')
+  markLocalMutation(['auction'])
+  const { error } = await supabase.rpc('queue_move', {
+    p_player_id: playerId,
+    p_direction: direction
+  })
+  if (error) {
+    throw new AppError(error.message, { original: error })
+  }
+  markLocalMutation(['auction'])
+}
+

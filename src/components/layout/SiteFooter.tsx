@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 
 export const SiteFooter: React.FC = () => {
   return (
-    <footer className="border-t border-border py-12 px-6 md:px-16 lg:px-24 bg-bg text-muted">
+    <footer className="border-t border-border py-12 px-6 md:px-16 lg:px-24 bg-[#F1F1F2] dark:bg-[#171817] text-muted">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div>
           <div className="font-syne font-extrabold text-xl text-text tracking-tight">
@@ -14,7 +14,7 @@ export const SiteFooter: React.FC = () => {
           </p>
         </div>
 
-        <nav aria-label="Footer links" className="flex items-center gap-6 text-xs font-medium">
+        <nav aria-label="Footer links" className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs font-medium">
           <Link
             to="/rosters"
             className="hover:text-text transition-colors"
@@ -34,6 +34,13 @@ export const SiteFooter: React.FC = () => {
             className="hover:text-text transition-colors"
           >
             Season
+          </Link>
+          <span className="text-border">·</span>
+          <Link
+            to="/rules"
+            className="hover:text-text transition-colors"
+          >
+            Auction Rules
           </Link>
           <span className="text-border">·</span>
           <Link

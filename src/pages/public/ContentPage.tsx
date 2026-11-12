@@ -5,6 +5,7 @@ import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
 import { CreditsSection } from '../../components/credits/CreditsSection'
+import { MarkdownContent } from '../../components/common/MarkdownContent'
 import { getActiveSeason, getSiteSettings } from '../../lib/data'
 import { hasDataChanged, publicCache } from '../../lib/publicCache'
 import type { PageContentSetting, Season } from '../../types'
@@ -136,9 +137,7 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
               <div className="h-4 bg-surface-2 rounded w-1/2" />
             </div>
           ) : content?.body ? (
-            <div className="text-base text-text/85 leading-relaxed whitespace-pre-wrap font-sans">
-              {content.body}
-            </div>
+            <MarkdownContent content={content.body} />
           ) : (
             <div className="py-8">
               <p className="text-xl text-muted font-syne font-semibold">

@@ -32,6 +32,7 @@ import {
   useAutoSlideshow
 } from '../../hooks/useAutoSlideshow'
 import { useProjectorTheme } from '../../hooks/useTheme'
+import { getInitials } from '../../lib/utils'
 import type {
   AuctionSettings,
   Player,
@@ -40,6 +41,331 @@ import type {
   Season,
   Team
 } from '../../types'
+
+const PRELOAD_BATCH_CONCURRENCY = 4
+const PRELOAD_RETRY_DELAY_MS = 1000
+const MAX_DECODE_WAIT_MS = 2000
+
+// Module-level Map keeping HTMLImageElement instances alive so the browser retains decoded bitmaps in memory
+const projectorImageCache = new Map<string, HTMLImageElement>()
+const projectorImageDecoded = new Set<string>()
+const projectorImageInFlight = new Map<string, Promise<boolean>>()
+const projectorImageQueued = new Set<string>()
+const projectorLoadQueue: string[] = []
+let activePreloadWorkers = 0
+const imageStatusListeners = new Set<(url: string, loaded: boolean) => void>()
+
+function notifyImageStatus(url: string, loaded: boolean): void {
+  imageStatusListeners.forEach((listener) => {
+    try {
+      listener(url, loaded)
+    } catch {
+      // ignore listener errors
+    }
+  })
+}
+
+function getPlayerPrimaryPhotoUrl(player?: Player | null): string | null {
+  if (!player) return null
+  const raw = (player.photo_url || player.photo_thumb_url || '').trim()
+  return raw.length > 0 ? raw : null
+}
+
+function loadAndDecodeImageOnce(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.referrerPolicy = 'no-referrer'
+    img.decoding = 'async'
+
+    img.onload = () => {
+      if (typeof img.decode === 'function') {
+        img
+          .decode()
+          .catch(() => {
+            // Even if decode() rejects on some browsers, onload succeeded
+          })
+          .finally(() => resolve(img))
+      } else {
+        resolve(img)
+      }
+    }
+
+    img.onerror = () => {
+      reject(new Error('Image load failed'))
+    }
+
+    img.src = url
+  })
+}
+
+function preloadAndDecodeUrl(url: string): Promise<boolean> {
+  const cleanUrl = url.trim()
+  if (!cleanUrl) return Promise.resolve(false)
+
+  if (projectorImageDecoded.has(cleanUrl) && projectorImageCache.has(cleanUrl)) {
+    return Promise.resolve(true)
+  }
+
+  const existing = projectorImageInFlight.get(cleanUrl)
+  if (existing) {
+    return existing
+  }
+
+  const promise = (async (): Promise<boolean> => {
+    try {
+      const img = await loadAndDecodeImageOnce(cleanUrl)
+      projectorImageCache.set(cleanUrl, img)
+      projectorImageDecoded.add(cleanUrl)
+      notifyImageStatus(cleanUrl, true)
+      return true
+    } catch {
+      // Retry once after 1 second without cache-busting parameters
+      await new Promise((r) => setTimeout(r, PRELOAD_RETRY_DELAY_MS))
+      try {
+        const retriedImg = await loadAndDecodeImageOnce(cleanUrl)
+        projectorImageCache.set(cleanUrl, retriedImg)
+        projectorImageDecoded.add(cleanUrl)
+        notifyImageStatus(cleanUrl, true)
+        return true
+      } catch {
+        notifyImageStatus(cleanUrl, false)
+        return false
+      }
+    } finally {
+      projectorImageInFlight.delete(cleanUrl)
+    }
+  })()
+
+  projectorImageInFlight.set(cleanUrl, promise)
+  return promise
+}
+
+function pumpPreloadQueue(): void {
+  while (
+    activePreloadWorkers < PRELOAD_BATCH_CONCURRENCY &&
+    projectorLoadQueue.length > 0
+  ) {
+    const nextUrl = projectorLoadQueue.shift()
+    if (!nextUrl) continue
+    projectorImageQueued.delete(nextUrl)
+
+    if (projectorImageDecoded.has(nextUrl) || projectorImageInFlight.has(nextUrl)) {
+      continue
+    }
+
+    activePreloadWorkers++
+    void preloadAndDecodeUrl(nextUrl).finally(() => {
+      activePreloadWorkers--
+      pumpPreloadQueue()
+    })
+  }
+}
+
+function enqueuePlayerPhotosForPreload(players: readonly Player[]): void {
+  for (const player of players) {
+    const primaryUrl = getPlayerPrimaryPhotoUrl(player)
+    if (
+      primaryUrl &&
+      !projectorImageDecoded.has(primaryUrl) &&
+      !projectorImageInFlight.has(primaryUrl) &&
+      !projectorImageQueued.has(primaryUrl)
+    ) {
+      projectorImageQueued.add(primaryUrl)
+      projectorLoadQueue.push(primaryUrl)
+    }
+
+    const thumbUrl = (player.photo_thumb_url || '').trim()
+    if (
+      thumbUrl &&
+      thumbUrl !== primaryUrl &&
+      !projectorImageDecoded.has(thumbUrl) &&
+      !projectorImageInFlight.has(thumbUrl) &&
+      !projectorImageQueued.has(thumbUrl)
+    ) {
+      projectorImageQueued.add(thumbUrl)
+      projectorLoadQueue.push(thumbUrl)
+    }
+  }
+  pumpPreloadQueue()
+}
+
+function preloadPriorityPlayerUrls(players: readonly (Player | null | undefined)[]): void {
+  for (const player of players) {
+    const url = getPlayerPrimaryPhotoUrl(player)
+    if (url && !projectorImageDecoded.has(url)) {
+      void preloadAndDecodeUrl(url)
+    }
+  }
+}
+
+/**
+ * Waits up to 2 seconds for a player's photo to load and decode before switching
+ * the displayed player card. If already decoded or no photo exists, switches immediately.
+ */
+function useDecodedPlayerGate(targetPlayer: Player | null | undefined): Player | null {
+  const [readyPlayer, setReadyPlayer] = useState<Player | null>(() => targetPlayer ?? null)
+
+  useEffect(() => {
+    if (!targetPlayer) {
+      setReadyPlayer(null)
+      return
+    }
+
+    const url = getPlayerPrimaryPhotoUrl(targetPlayer)
+    if (!url || projectorImageDecoded.has(url)) {
+      setReadyPlayer(targetPlayer)
+      return
+    }
+
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      setReadyPlayer(targetPlayer)
+    }
+
+    const timeoutId = setTimeout(finish, MAX_DECODE_WAIT_MS)
+    void preloadAndDecodeUrl(url).then(() => {
+      clearTimeout(timeoutId)
+      finish()
+    })
+
+    return () => {
+      settled = true
+      clearTimeout(timeoutId)
+    }
+  }, [targetPlayer])
+
+  if (!targetPlayer) return null
+  const url = getPlayerPrimaryPhotoUrl(targetPlayer)
+  if (!url || projectorImageDecoded.has(url)) {
+    return targetPlayer
+  }
+  return readyPlayer ?? targetPlayer
+}
+
+const ProjectorStagePhoto: React.FC<{
+  url?: string | null
+  name: string
+  priority?: boolean
+  fallbackVariant?: 'spotlight' | 'stage' | 'unsold'
+}> = ({ url, name, priority = true, fallbackVariant = 'spotlight' }) => {
+  const cleanUrl = (url || '').trim()
+  const [isLoaded, setIsLoaded] = useState<boolean>(() =>
+    cleanUrl ? projectorImageDecoded.has(cleanUrl) : false
+  )
+  const [hasFailed, setHasFailed] = useState<boolean>(false)
+  const [retryTick, setRetryTick] = useState<number>(0)
+  const retriedRef = useRef<boolean>(false)
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    retriedRef.current = false
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current)
+      retryTimerRef.current = null
+    }
+
+    if (!cleanUrl) {
+      setIsLoaded(false)
+      setHasFailed(false)
+      return
+    }
+
+    if (projectorImageDecoded.has(cleanUrl)) {
+      setIsLoaded(true)
+      setHasFailed(false)
+      return
+    }
+
+    setIsLoaded(false)
+    setHasFailed(false)
+    void preloadAndDecodeUrl(cleanUrl)
+
+    const handleStatus = (updatedUrl: string, ok: boolean) => {
+      if (updatedUrl === cleanUrl && ok) {
+        setIsLoaded(true)
+        setHasFailed(false)
+      }
+    }
+    imageStatusListeners.add(handleStatus)
+    return () => {
+      imageStatusListeners.delete(handleStatus)
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current)
+        retryTimerRef.current = null
+      }
+    }
+  }, [cleanUrl])
+
+  const handleImgLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const imgEl = e.currentTarget
+    if (cleanUrl) {
+      projectorImageCache.set(cleanUrl, imgEl)
+      projectorImageDecoded.add(cleanUrl)
+    }
+    setIsLoaded(true)
+    setHasFailed(false)
+  }
+
+  const handleImgError = () => {
+    if (!retriedRef.current && cleanUrl) {
+      retriedRef.current = true
+      retryTimerRef.current = setTimeout(() => {
+        setRetryTick((t) => t + 1)
+      }, PRELOAD_RETRY_DELAY_MS)
+      return
+    }
+    setHasFailed(true)
+  }
+
+  const initials = getInitials(name)
+
+  return (
+    <>
+      {(!cleanUrl || !isLoaded || hasFailed) && (
+        <div className="flex flex-col items-center justify-center gap-3 text-muted select-none">
+          {initials ? (
+            <span
+              aria-hidden="true"
+              className="font-syne font-extrabold text-5xl sm:text-6xl text-muted tracking-tight uppercase"
+            >
+              {initials}
+            </span>
+          ) : (
+            <User
+              size={fallbackVariant === 'unsold' ? 80 : 96}
+              weight="thin"
+              className="text-muted"
+            />
+          )}
+          {fallbackVariant !== 'unsold' && (
+            <span className="font-mono text-xs sm:text-sm tracking-wider uppercase">
+              {fallbackVariant === 'stage' ? 'No Photo' : 'No Photo Uploaded'}
+            </span>
+          )}
+        </div>
+      )}
+
+      {cleanUrl && !hasFailed && (
+        <img
+          key={`${cleanUrl}-${retryTick}`}
+          src={cleanUrl}
+          alt={name}
+          referrerPolicy="no-referrer"
+          loading="eager"
+          fetchPriority={priority ? 'high' : 'auto'}
+          decoding="async"
+          onLoad={handleImgLoad}
+          onError={handleImgError}
+          className={`w-full h-full object-cover transition-opacity duration-300 ${
+            isLoaded ? 'opacity-100' : 'opacity-0 absolute inset-0'
+          }`}
+        />
+      )}
+    </>
+  )
+}
 
 /**
  * Merges public_teams (name, short_code, color, logo_url, sport, owner_display_name)
@@ -151,21 +477,12 @@ const PlayerSpotlightSceneContent: React.FC<{
         transition={{ duration: 0.5, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
         className="w-64 h-80 sm:w-80 sm:h-96 md:w-96 md:h-[460px] rounded-3xl bg-surface border-2 border-border shadow-xl overflow-hidden shrink-0 flex items-center justify-center relative"
       >
-        {player.photo_url ? (
-          <img
-            src={player.photo_url}
-            alt={player.name}
-            referrerPolicy="no-referrer"
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="flex flex-col items-center justify-center gap-4 text-muted">
-            <User size={96} weight="thin" />
-            <span className="font-mono text-sm tracking-wider uppercase">
-              No Photo Uploaded
-            </span>
-          </div>
-        )}
+        <ProjectorStagePhoto
+          url={player.photo_url || player.photo_thumb_url}
+          name={player.name}
+          priority={true}
+          fallbackVariant="spotlight"
+        />
 
         {/* Status Indicator */}
         <div className="absolute top-4 right-4">
@@ -334,6 +651,7 @@ const TeamRosterSceneContent: React.FC<{
                       src={player.photo_url}
                       alt={player.name}
                       referrerPolicy="no-referrer"
+                      loading="eager"
                       className="w-full h-full object-cover"
                     />
                   ) : (
@@ -666,8 +984,14 @@ export const ProjectorPage: React.FC = () => {
     }
   }
 
+  // Preload all player photos in the active season in batches of 4 whenever player list loads or changes
+  useEffect(() => {
+    if (players.length === 0) return
+    enqueuePlayerPhotosForPreload(players)
+  }, [players])
+
   // Active scene entities
-  const spotlightPlayer = players.find((p) => p.id === projectorState.player_id)
+  const rawSpotlightPlayer = players.find((p) => p.id === projectorState.player_id)
   const rosterTeam = teams.find((t) => t.id === projectorState.team_id)
   const rosterPlayers = rosterTeam ? players.filter((p) => p.team_id === rosterTeam.id) : []
 
@@ -701,14 +1025,52 @@ export const ProjectorPage: React.FC = () => {
     isRosterAuto ? projectorState.auto_started_at : null
   )
 
-  const autoSpotlightPlayer = playerAutoSlideshow.currentItem
+  const rawAutoSpotlightPlayer = playerAutoSlideshow.currentItem
   const autoRosterTeam = rosterAutoSlideshow.currentItem
   const autoRosterPlayers = autoRosterTeam
     ? players.filter((p) => p.team_id === autoRosterTeam.id)
     : []
 
   // Auction / Sold / Unsold entities
-  const stagePlayer = players.find((p) => p.id === projectorState.player_id)
+  const rawStagePlayer = players.find((p) => p.id === projectorState.player_id)
+
+  // Wait up to 2s for photo load + decode before showing a player card
+  const spotlightPlayer = useDecodedPlayerGate(rawSpotlightPlayer)
+  const autoSpotlightPlayer = useDecodedPlayerGate(rawAutoSpotlightPlayer)
+  const stagePlayer = useDecodedPlayerGate(rawStagePlayer)
+
+  // Preload the next 3 players' photos in auto slideshow
+  useEffect(() => {
+    if (!isPlayerAuto || autoPlayers.length === 0) return
+    const idx = playerAutoSlideshow.currentIndex
+    const upcoming: Player[] = [autoPlayers[idx]]
+    for (let offset = 1; offset <= 3; offset++) {
+      if (autoPlayers.length > offset) {
+        upcoming.push(autoPlayers[(idx + offset) % autoPlayers.length])
+      }
+    }
+    preloadPriorityPlayerUrls(upcoming)
+  }, [isPlayerAuto, autoPlayers, playerAutoSlideshow.currentIndex])
+
+  // Preload the current and next 3 players' photos when a player is brought to stage or spotlight
+  useEffect(() => {
+    const activePlayer = rawStagePlayer || rawSpotlightPlayer
+    if (!activePlayer || players.length === 0) return
+
+    const sameSportPool = getAutoSlideshowPlayers(players, activePlayer.sport, 'all')
+    const pool = sameSportPool.length > 0 ? sameSportPool : players
+    const currentIdx = pool.findIndex((p) => p.id === activePlayer.id)
+
+    const upcoming: Player[] = [activePlayer]
+    if (currentIdx !== -1) {
+      for (let offset = 1; offset <= 3; offset++) {
+        if (pool.length > offset) {
+          upcoming.push(pool[(currentIdx + offset) % pool.length])
+        }
+      }
+    }
+    preloadPriorityPlayerUrls(upcoming)
+  }, [rawStagePlayer, rawSpotlightPlayer, players])
   const leadingTeam = projectorState.team_id
     ? teams.find((t) => t.id === projectorState.team_id) || null
     : null
@@ -865,21 +1227,12 @@ export const ProjectorPage: React.FC = () => {
                   {/* Left: Large Player Card */}
                   <div className="lg:col-span-5 p-6 sm:p-8 rounded-3xl bg-surface border-2 border-border shadow-xl flex flex-col justify-between gap-6">
                     <div className="w-full aspect-[4/4.4] max-h-[420px] rounded-2xl bg-surface-2 border border-border overflow-hidden relative flex items-center justify-center">
-                      {stagePlayer.photo_url || stagePlayer.photo_thumb_url ? (
-                        <img
-                          src={stagePlayer.photo_url || stagePlayer.photo_thumb_url}
-                          alt={stagePlayer.name}
-                          referrerPolicy="no-referrer"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex flex-col items-center justify-center gap-3 text-muted">
-                          <User size={96} weight="thin" />
-                          <span className="font-mono text-xs uppercase tracking-widest">
-                            No Photo
-                          </span>
-                        </div>
-                      )}
+                      <ProjectorStagePhoto
+                        url={stagePlayer.photo_url || stagePlayer.photo_thumb_url}
+                        name={stagePlayer.name}
+                        priority={true}
+                        fallbackVariant="stage"
+                      />
 
                       {/* 4-Digit Player Code Badge */}
                       <div className="absolute top-4 left-4 px-3.5 py-1.5 rounded-xl bg-bg/90 backdrop-blur-md border border-border font-mono text-base sm:text-lg font-bold tracking-wider text-accent-bright shadow-sm">
@@ -1223,16 +1576,12 @@ export const ProjectorPage: React.FC = () => {
                 <div className="p-8 sm:p-12 rounded-3xl bg-surface/90 border border-border shadow-md flex flex-col md:flex-row items-center gap-8 md:gap-12">
                   {/* Muted Portrait */}
                   <div className="w-56 h-68 sm:w-64 sm:h-80 rounded-2xl bg-surface-2 border border-border overflow-hidden shrink-0 flex items-center justify-center relative grayscale opacity-75">
-                    {stagePlayer.photo_url || stagePlayer.photo_thumb_url ? (
-                      <img
-                        src={stagePlayer.photo_url || stagePlayer.photo_thumb_url}
-                        alt={stagePlayer.name}
-                        referrerPolicy="no-referrer"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <User size={80} weight="thin" className="text-muted" />
-                    )}
+                    <ProjectorStagePhoto
+                      url={stagePlayer.photo_url || stagePlayer.photo_thumb_url}
+                      name={stagePlayer.name}
+                      priority={true}
+                      fallbackVariant="unsold"
+                    />
                   </div>
 
                   {/* Unsold Details */}

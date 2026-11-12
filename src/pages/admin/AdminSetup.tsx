@@ -45,6 +45,8 @@ import {
 import { SecuredSequence } from '../../components/projector/SecuredSequence'
 import { CreditsSetupCard } from '../../components/admin/CreditsSetupCard'
 import { HandbookSetupCard } from '../../components/admin/HandbookSetupCard'
+import { RulesSetupCard } from '../../components/admin/RulesSetupCard'
+import { MarkdownContent } from '../../components/common/MarkdownContent'
 import type {
   AuctionSettings,
   CarouselItem,
@@ -55,7 +57,7 @@ import type {
   Team
 } from '../../types'
 
-type SetupTab = 'carousel' | 'pages' | 'sports' | 'auction' | 'credits' | 'handbook'
+type SetupTab = 'carousel' | 'pages' | 'sports' | 'auction' | 'credits' | 'handbook' | 'rules'
 
 interface AdminSetupProps {
   activeSeason?: Season | null
@@ -104,6 +106,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
   const [pageTitle, setPageTitle] = useState('')
   const [pageBody, setPageBody] = useState('')
   const [isSavingPage, setIsSavingPage] = useState(false)
+  const [isPreviewingPage, setIsPreviewingPage] = useState(false)
 
   // Sports & Roles State
   const [sportsList, setSportsList] = useState<Sport[]>([])
@@ -762,7 +765,8 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
               { value: 'sports', label: 'Sports' },
               { value: 'auction', label: 'Auction' },
               { value: 'credits', label: 'Credits' },
-              { value: 'handbook', label: 'Handbook' }
+              { value: 'handbook', label: 'Handbook' },
+              { value: 'rules', label: 'Rules' }
             ]}
           />
         }
@@ -924,9 +928,18 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
 
           <form onSubmit={handleSavePage} className="space-y-5">
             <div>
-              <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-2">
-                Page Title
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-mono uppercase tracking-wider text-muted">
+                  Page Title
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsPreviewingPage(!isPreviewingPage)}
+                  className="text-xs font-mono text-accent-bright hover:underline cursor-pointer"
+                >
+                  {isPreviewingPage ? 'Edit Content' : 'Preview Result'}
+                </button>
+              </div>
               <input
                 type="text"
                 value={pageTitle}
@@ -934,22 +947,53 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
                 required
                 className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent-bright"
               />
+              <span className="block text-[11px] font-mono text-muted mt-1.5">
+                Markdown supported: # heading, **bold**, - list, [text](link)
+              </span>
             </div>
 
             <div>
               <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-2">
                 Page Body Content
               </label>
-              <textarea
-                value={pageBody}
-                onChange={(e) => setPageBody(e.target.value)}
-                rows={8}
-                placeholder="Enter markdown or plain text for this page..."
-                className="w-full bg-bg border border-border rounded-xl p-4 text-sm text-text focus:outline-none focus:border-accent-bright leading-relaxed resize-y font-sans"
-              />
+              {isPreviewingPage ? (
+                <div className="w-full bg-bg border border-border rounded-xl p-5 min-h-[220px]">
+                  <span className="block text-[10px] font-mono uppercase tracking-widest text-accent-bright mb-3">
+                    Rendered Preview
+                  </span>
+                  <h1 className="font-syne font-bold text-2xl text-text mb-4">
+                    {pageTitle || 'Untitled Page'}
+                  </h1>
+                  {pageBody.trim() ? (
+                    <MarkdownContent content={pageBody} />
+                  ) : (
+                    <p className="text-xs text-muted italic">No content to preview.</p>
+                  )}
+                </div>
+              ) : (
+                <textarea
+                  value={pageBody}
+                  onChange={(e) => setPageBody(e.target.value)}
+                  rows={8}
+                  placeholder="Enter markdown or plain text for this page..."
+                  className="w-full bg-bg border border-border rounded-xl p-4 text-sm text-text focus:outline-none focus:border-accent-bright leading-relaxed resize-y font-sans font-light"
+                />
+              )}
+              <span className="block text-[11px] font-mono text-muted mt-1.5">
+                Markdown supported: # heading, **bold**, - list, [text](link)
+              </span>
             </div>
 
-            <div className="flex justify-end pt-2">
+            <div className="flex items-center justify-between pt-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="md"
+                onClick={() => setIsPreviewingPage(!isPreviewingPage)}
+              >
+                {isPreviewingPage ? 'Edit Markdown' : 'Preview Markdown'}
+              </Button>
+
               <Button
                 type="submit"
                 variant="primary"
@@ -1609,6 +1653,9 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
 
       {/* Tab 6: Handbook */}
       {activeTab === 'handbook' && <HandbookSetupCard />}
+
+      {/* Tab 7: Rules */}
+      {activeTab === 'rules' && <RulesSetupCard />}
 
       {/* Full-Screen Preview Overlay for Secured Animation */}
       {isPreviewOpen && (
