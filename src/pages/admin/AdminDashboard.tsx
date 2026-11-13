@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React from 'react'
 import {
   ArrowsLeftRight,
   Coins,
@@ -7,7 +7,6 @@ import {
   Users
 } from '@phosphor-icons/react'
 import { Button, EmptyState, PageHeader } from '../../components/ui'
-import { triggerConfetti } from '../../lib/data'
 import type { AdminTab, Player, PurseTransaction, Season, Team } from '../../types'
 
 interface AdminDashboardProps {
@@ -29,75 +28,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const soldPlayers = players.filter((p) => p.status === 'sold')
   const availablePlayers = players.filter((p) => p.status === 'available')
 
-  const [isConfettiDisabled, setIsConfettiDisabled] = useState(false)
-  const [confettiError, setConfettiError] = useState<string | null>(null)
-  const cooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    return () => {
-      if (cooldownTimerRef.current) {
-        clearTimeout(cooldownTimerRef.current)
-      }
-    }
-  }, [])
-
-  const handleTriggerConfetti = async () => {
-    if (isConfettiDisabled) return
-    if (!activeSeason?.id) {
-      setConfettiError('No active season')
-      return
-    }
-
-    setIsConfettiDisabled(true)
-    setConfettiError(null)
-
-    if (cooldownTimerRef.current) {
-      clearTimeout(cooldownTimerRef.current)
-    }
-    cooldownTimerRef.current = setTimeout(() => {
-      setIsConfettiDisabled(false)
-      cooldownTimerRef.current = null
-    }, 4000)
-
-    try {
-      await triggerConfetti(activeSeason.id)
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to trigger confetti'
-      setConfettiError(msg)
-    }
-  }
-
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
         label="Tournament Control"
         title={activeSeason?.name || 'Tournament Dashboard'}
         actions={
-          <div className="flex flex-col items-end gap-1.5">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                disabled={isConfettiDisabled || !activeSeason?.id}
-                onClick={() => void handleTriggerConfetti()}
-              >
-                Confetti
-              </Button>
-              <Button
-                variant="primary"
-                leftIcon={Television}
-                onClick={() => onGoToTab('projector')}
-              >
-                Switch Projector Scene
-              </Button>
-            </div>
-            {confettiError && (
-              <span role="alert" className="text-xs font-mono text-error">
-                {confettiError}
-              </span>
-            )}
-          </div>
+          <Button
+            variant="primary"
+            leftIcon={Television}
+            onClick={() => onGoToTab('projector')}
+          >
+            Switch Projector Scene
+          </Button>
         }
       />
 

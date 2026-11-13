@@ -51,7 +51,7 @@ const CONFETTI_PALETTE: { color: string; isLight: boolean }[] = [
 
 const PIECES_PER_TRIGGER = 450
 const MAX_TOTAL_PIECES = 1200
-const RELEASE_DURATION_MS = 3000
+const RELEASE_DURATION_MS = 2200
 const LAND_SETTLE_MS = 200
 const GROUND_HOLD_MS = 3000
 const GROUND_FADE_MS = 1500
@@ -83,7 +83,7 @@ function createShowerBatch(
     // Spread across full width
     const x = ((i + Math.random()) / count) * safeWidth
 
-    // Continuous 3-second release with a slightly denser release in the first second
+    // Continuous 2.2-second release with a slightly denser release in the first second
     const u = Math.random()
     const releaseOffsetMs = Math.pow(u, 1.35) * RELEASE_DURATION_MS
 
@@ -100,8 +100,8 @@ function createShowerBatch(
       x,
       y: -16 - Math.random() * 44,
       vx: (Math.random() - 0.5) * 34,
-      vy: (85 + Math.random() * 65) * speedFactor,
-      gravity: (78 + Math.random() * 38) * speedFactor,
+      vy: (119 + Math.random() * 91) * speedFactor,
+      gravity: (110 + Math.random() * 54) * speedFactor,
       drag: 0.983 + Math.random() * 0.005,
       width,
       height,

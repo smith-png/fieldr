@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   Calendar,
@@ -17,12 +17,13 @@ import {
   ShieldCheck,
   SignOut,
   Sun,
-   Television,
+  Television,
   X,
   type Icon
 } from '@phosphor-icons/react'
 import { BrandMark } from '../../components/layout/BrandMark'
 import { useAuth } from '../../lib/AuthContext'
+import { triggerConfetti } from '../../lib/data'
 import { type ThemePreference, useTheme } from '../../lib/theme'
 import { STORAGE_KEYS } from '../../lib/constants'
 import type { AdminTab, Season } from '../../types'
@@ -56,6 +57,80 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   // Mobile drawer state
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false)
+
+  // Floating Confetti trigger state (4s cooldown, 3s error toast, tap burst)
+  const [isConfettiCoolingDown, setIsConfettiCoolingDown] = useState(false)
+  const [confettiTapKey, setConfettiTapKey] = useState(0)
+  const [isIconPopping, setIsIconPopping] = useState(false)
+  const [confettiError, setConfettiError] = useState<string | null>(null)
+  const confettiCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const confettiErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const confettiPopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (confettiCooldownTimerRef.current) {
+        clearTimeout(confettiCooldownTimerRef.current)
+      }
+      if (confettiErrorTimerRef.current) {
+        clearTimeout(confettiErrorTimerRef.current)
+      }
+      if (confettiPopTimerRef.current) {
+        clearTimeout(confettiPopTimerRef.current)
+      }
+    }
+  }, [])
+
+  const showConfettiErrorToast = (message: string) => {
+    setConfettiError(message)
+    if (confettiErrorTimerRef.current) {
+      clearTimeout(confettiErrorTimerRef.current)
+    }
+    confettiErrorTimerRef.current = setTimeout(() => {
+      setConfettiError(null)
+      confettiErrorTimerRef.current = null
+    }, 3000)
+  }
+
+  const handleTriggerConfetti = async () => {
+    if (isConfettiCoolingDown) return
+    if (!activeSeason?.id) {
+      showConfettiErrorToast('No active season')
+      return
+    }
+
+    setConfettiTapKey((k) => k + 1)
+    setIsIconPopping(true)
+    if (confettiPopTimerRef.current) {
+      clearTimeout(confettiPopTimerRef.current)
+    }
+    confettiPopTimerRef.current = setTimeout(() => {
+      setIsIconPopping(false)
+      confettiPopTimerRef.current = null
+    }, 320)
+
+    setIsConfettiCoolingDown(true)
+    setConfettiError(null)
+    if (confettiErrorTimerRef.current) {
+      clearTimeout(confettiErrorTimerRef.current)
+      confettiErrorTimerRef.current = null
+    }
+
+    if (confettiCooldownTimerRef.current) {
+      clearTimeout(confettiCooldownTimerRef.current)
+    }
+    confettiCooldownTimerRef.current = setTimeout(() => {
+      setIsConfettiCoolingDown(false)
+      confettiCooldownTimerRef.current = null
+    }, 4000)
+
+    try {
+      await triggerConfetti(activeSeason.id)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to trigger confetti'
+      showConfettiErrorToast(msg)
+    }
+  }
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.ADMIN_SIDEBAR_COLLAPSED, String(isCollapsed))
@@ -97,8 +172,63 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     navigate('/login')
   }
 
+  const confettiBurstSquares = [
+    { tx: '-34px', ty: '-22px', rot: '-42deg', color: '#FFFFFF' },
+    { tx: '0px', ty: '-38px', rot: '28deg', color: '#38A884' },
+    { tx: '34px', ty: '-20px', rot: '50deg', color: '#F0F2EE' },
+    { tx: '-32px', ty: '22px', rot: '-64deg', color: '#38A884' },
+    { tx: '32px', ty: '24px', rot: '38deg', color: '#FFFFFF' },
+    { tx: '-4px', ty: '36px', rot: '-26deg', color: '#047554' }
+  ]
+
   return (
     <div className="min-h-screen bg-bg text-text font-sans flex flex-col md:flex-row antialiased selection:bg-accent-bright selection:text-on-accent">
+      <style>{`
+        @keyframes fieldrFabPulseRing {
+          0% {
+            transform: scale(1);
+            opacity: 0.35;
+          }
+          60% {
+            transform: scale(1.5);
+            opacity: 0;
+          }
+          100% {
+            transform: scale(1.5);
+            opacity: 0;
+          }
+        }
+        @keyframes fieldrFabIconPop {
+          0% {
+            transform: scale(1) rotate(0deg);
+          }
+          45% {
+            transform: scale(1.25) rotate(12deg);
+          }
+          100% {
+            transform: scale(1) rotate(0deg);
+          }
+        }
+        @keyframes fieldrFabPaperFly {
+          0% {
+            transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+            opacity: 1;
+          }
+          100% {
+            transform: translate3d(var(--tx), var(--ty), 0) scale(0.7) rotate(var(--rot));
+            opacity: 0;
+          }
+        }
+        @keyframes fieldrFabCooldownRing {
+          0% {
+            stroke-dashoffset: 194.8;
+          }
+          100% {
+            stroke-dashoffset: 0;
+          }
+        }
+      `}</style>
+
       {/* Desktop Sidebar (Collapsible, persisted in localStorage) */}
       <aside
         className={`hidden md:flex flex-col justify-between bg-surface border-r border-border shrink-0 transition-all duration-300 ease-in-out ${
@@ -302,7 +432,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             </Link>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 pr-20">
             {isDemo && (
               <span className="text-muted font-mono text-[10px]">
                 Demo
@@ -330,7 +460,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         </div>
 
         {/* Horizontal Tab Bar on Mobile */}
-        <div className="flex items-center gap-1.5 overflow-x-auto px-4 pb-3 scrollbar-none">
+        <div className="flex items-center gap-1.5 overflow-x-auto px-4 pr-24 pb-3 scrollbar-none">
           {tabs.map((tab) => {
             const isActive = currentTab === tab.id
             return (
@@ -350,6 +480,126 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             )
           })}
         </div>
+      </div>
+
+      {/* Floating Confetti Trigger (Fixed 20px from Top and Right across all Admin pages) */}
+      <div className="fixed top-5 right-5 z-40 flex flex-col items-end gap-2.5 pointer-events-none">
+        <div className="relative w-14 h-14 flex items-center justify-center">
+          {/* Idle slow soft pulse ring (scale 1 -> 1.5, opacity 0.35 -> 0, 2.4s + 1.6s pause = 4s) */}
+          {!isConfettiCoolingDown && Boolean(activeSeason?.id) && (
+            <span
+              aria-hidden="true"
+              className="absolute inset-0 rounded-full bg-accent-bright pointer-events-none motion-reduce:hidden [animation:fieldrFabPulseRing_4s_cubic-bezier(0.22,1,0.36,1)_infinite]"
+            />
+          )}
+
+          {/* 6 tiny rounded paper squares flying out on tap */}
+          {confettiTapKey > 0 && (
+            <div
+              key={confettiTapKey}
+              aria-hidden="true"
+              className="absolute inset-0 flex items-center justify-center pointer-events-none motion-reduce:hidden"
+            >
+              {confettiBurstSquares.map((sq, idx) => (
+                <span
+                  key={idx}
+                  style={
+                    {
+                      '--tx': sq.tx,
+                      '--ty': sq.ty,
+                      '--rot': sq.rot,
+                      backgroundColor: sq.color
+                    } as React.CSSProperties
+                  }
+                  className="absolute w-1.5 h-1.5 rounded-[2px] opacity-0 [animation:fieldrFabPaperFly_600ms_cubic-bezier(0.22,1,0.36,1)_forwards]"
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Delicate 3px circular progress ring with rounded ends during 4s cooldown */}
+          {isConfettiCoolingDown && (
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 68 68"
+              className="absolute -inset-1.5 w-[68px] h-[68px] -rotate-90 pointer-events-none"
+            >
+              <circle
+                cx="34"
+                cy="34"
+                r="31"
+                fill="none"
+                stroke="rgba(56, 168, 132, 0.18)"
+                strokeWidth="3"
+              />
+              <circle
+                cx="34"
+                cy="34"
+                r="31"
+                fill="none"
+                stroke="#38A884"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeDasharray="194.8"
+                strokeDashoffset="194.8"
+                className="[animation:fieldrFabCooldownRing_4s_linear_forwards]"
+              />
+            </svg>
+          )}
+
+          <button
+            type="button"
+            title="Confetti"
+            aria-label="Confetti"
+            disabled={isConfettiCoolingDown || !activeSeason?.id}
+            onClick={() => void handleTriggerConfetti()}
+            className={`group pointer-events-auto relative w-14 h-14 rounded-full text-white flex items-center justify-center transition-[transform,box-shadow,filter] duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright disabled:pointer-events-none ${
+              isConfettiCoolingDown || !activeSeason?.id
+                ? 'bg-[linear-gradient(155deg,#255D4B_0%,#1F5141_50%,#194336_100%)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.12),inset_0_0_0_1px_rgba(255,255,255,0.10),0_6px_18px_rgba(4,117,84,0.22)]'
+                : 'bg-[linear-gradient(155deg,#0B8B64_0%,#067B58_35%,#046D4E_70%,#035B41_100%)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.14),inset_0_0_0_1px_rgba(255,255,255,0.12),0_8px_24px_rgba(4,117,84,0.35)] hover:shadow-[inset_0_1px_1px_rgba(255,255,255,0.18),inset_0_0_0_1px_rgba(255,255,255,0.14),0_10px_28px_rgba(4,117,84,0.52)] motion-safe:hover:-translate-y-0.5 motion-safe:hover:scale-[1.06] motion-safe:active:translate-y-0 motion-safe:active:scale-[0.94] motion-reduce:active:opacity-80'
+            }`}
+          >
+            <span
+              className={`inline-flex items-center justify-center transition-transform duration-200 ease-out motion-safe:group-hover:rotate-[8deg] ${
+                isIconPopping
+                  ? 'motion-safe:[animation:fieldrFabIconPop_300ms_cubic-bezier(0.22,1,0.36,1)]'
+                  : ''
+              }`}
+            >
+              <svg
+                width="26"
+                height="26"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.1"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M4.5 16.7a2.1 2.1 0 0 0 2.8 2.8l6-2.4a1.7 1.7 0 0 0 .55-2.75l-4.2-4.2A1.7 1.7 0 0 0 6.9 10.7l-2.4 6Z" />
+                <path d="M6.6 13.7l3.7 3.7" />
+                <path d="M13.8 9.2 16.2 6.8" />
+                <path d="M16.4 13.2 19.4 12.2" />
+                <path d="M10.8 6.6 11.8 3.6" />
+                <circle cx="19" cy="5" r="1.35" fill="currentColor" stroke="none" />
+                <circle cx="15.4" cy="3.8" r="1.15" fill="currentColor" stroke="none" />
+                <circle cx="20.2" cy="8.8" r="1.15" fill="currentColor" stroke="none" />
+                <circle cx="7.2" cy="6.8" r="1.1" fill="currentColor" stroke="none" />
+                <circle cx="17.2" cy="16.8" r="1.1" fill="currentColor" stroke="none" />
+              </svg>
+            </span>
+          </button>
+        </div>
+
+        {confettiError && (
+          <div
+            role="alert"
+            className="pointer-events-auto px-3 py-1.5 rounded-xl bg-menu-bg border border-error/60 text-error text-xs font-mono shadow-lg whitespace-nowrap"
+          >
+            {confettiError}
+          </div>
+        )}
       </div>
 
       {/* Mobile Slide-in Drawer */}
@@ -473,7 +723,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto p-5 sm:p-8 lg:p-10 max-w-7xl mx-auto w-full">
+      <main className="flex-1 overflow-y-auto p-5 sm:p-8 lg:p-10 md:pr-24 lg:pr-28 max-w-7xl mx-auto w-full">
         {children}
       </main>
     </div>
