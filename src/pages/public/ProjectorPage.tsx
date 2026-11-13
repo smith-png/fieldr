@@ -9,6 +9,7 @@ import {
 } from '@phosphor-icons/react'
 import { AnimatedCounter } from '../../components/home/AnimatedCounter'
 import { BrandMark } from '../../components/layout/BrandMark'
+import { ProjectorConfetti } from '../../components/projector/ProjectorConfetti'
 import { SecuredSequence } from '../../components/projector/SecuredSequence'
 import {
   formatAthleteCode,
@@ -784,6 +785,7 @@ export const ProjectorPage: React.FC = () => {
     sale_price: null,
     sale_at: null,
     broadcast_message: null,
+    confetti_at: null,
     updated_at: new Date().toISOString()
   })
   const [auctionSettings, setAuctionSettings] = useState<AuctionSettings>(() =>
@@ -813,6 +815,11 @@ export const ProjectorPage: React.FC = () => {
   })
   const [bidFlashKey, setBidFlashKey] = useState(0)
 
+  // Confetti tracking (remember first confetti_at seen on load and only play when it changes afterwards)
+  const hasSeenInitialConfettiRef = useRef(false)
+  const lastSeenConfettiAtRef = useRef<string | null>(null)
+  const [confettiTriggerCount, setConfettiTriggerCount] = useState(0)
+
   // Secured animation tracking (play once per sale_event_id)
   const hasLoadedInitialStateRef = useRef(false)
   const lastSeenSaleEventIdRef = useRef<string | null>(null)
@@ -821,6 +828,22 @@ export const ProjectorPage: React.FC = () => {
   const handleIncomingProjectorState = useCallback(
     (nextState: ProjectorState, settingsOverride?: AuctionSettings) => {
       setProjectorState(nextState)
+
+      if (nextState.season_id) {
+        const incomingConfettiAt = nextState.confetti_at ?? null
+        if (!hasSeenInitialConfettiRef.current) {
+          hasSeenInitialConfettiRef.current = true
+          lastSeenConfettiAtRef.current = incomingConfettiAt
+        } else if (
+          incomingConfettiAt &&
+          incomingConfettiAt !== lastSeenConfettiAtRef.current
+        ) {
+          lastSeenConfettiAtRef.current = incomingConfettiAt
+          setConfettiTriggerCount((c) => c + 1)
+        } else if (!incomingConfettiAt) {
+          lastSeenConfettiAtRef.current = null
+        }
+      }
 
       const currentSettings = settingsOverride || auctionSettingsRef.current
       const effectiveSaleEventId =
@@ -1351,12 +1374,112 @@ export const ProjectorPage: React.FC = () => {
       : { opacity: 0, scale: 1.02 }
   }
 
+  const activeBroadcastMessage = (projectorState.broadcast_message || '').trim()
+  const isBroadcastOpen = activeBroadcastMessage.length > 0
+  const lastBroadcastMessageRef = useRef(activeBroadcastMessage)
+  const wasBroadcastOpenRef = useRef(isBroadcastOpen)
+  if (activeBroadcastMessage) {
+    lastBroadcastMessageRef.current = activeBroadcastMessage
+  }
+  if (isBroadcastOpen) {
+    wasBroadcastOpenRef.current = true
+  }
+  const displayedBroadcastMessage = activeBroadcastMessage || lastBroadcastMessageRef.current
+
+  const broadcastStripEase: [number, number, number, number] = [0.22, 1, 0.36, 1]
+
+  const broadcastStripVariants = useMemo(
+    () =>
+      shouldReduceMotion
+        ? {
+            initial: { opacity: 0 },
+            animate: {
+              opacity: 1,
+              transition: { duration: 0.55, delay: 0.25, ease: broadcastStripEase }
+            },
+            exit: {
+              opacity: 0,
+              transition: { duration: 0.4, delay: 0.2, ease: broadcastStripEase }
+            }
+          }
+        : {
+            initial: {
+              clipPath: 'inset(0 50% 0 50%)',
+              opacity: 1
+            },
+            animate: {
+              clipPath: 'inset(0 0% 0 0%)',
+              opacity: 1,
+              transition: {
+                duration: 0.55,
+                delay: 0.25,
+                ease: broadcastStripEase
+              }
+            },
+            exit: {
+              clipPath: 'inset(0 50% 0 50%)',
+              opacity: 1,
+              transition: {
+                duration: 0.4,
+                delay: 0.2,
+                ease: broadcastStripEase
+              }
+            }
+          },
+    [shouldReduceMotion]
+  )
+
+  const broadcastMessageVariants = useMemo(
+    () =>
+      shouldReduceMotion
+        ? {
+            initial: { opacity: 0 },
+            animate: {
+              opacity: 1,
+              transition: { duration: 0.45, delay: 0.6, ease: broadcastStripEase }
+            },
+            exit: {
+              opacity: 0,
+              transition: { duration: 0.2, delay: 0, ease: broadcastStripEase }
+            }
+          }
+        : {
+            initial: {
+              opacity: 0,
+              y: 12
+            },
+            animate: {
+              opacity: 1,
+              y: 0,
+              transition: {
+                duration: 0.45,
+                delay: 0.6,
+                ease: broadcastStripEase
+              }
+            },
+            exit: {
+              opacity: 0,
+              y: 0,
+              transition: {
+                duration: 0.2,
+                delay: 0,
+                ease: broadcastStripEase
+              }
+            }
+          },
+    [shouldReduceMotion]
+  )
 
   return (
     <div
       data-theme={projectorTheme}
       className="min-h-screen w-screen bg-bg text-text overflow-hidden flex flex-col justify-between relative select-none antialiased"
     >
+      <ProjectorConfetti
+        triggerCount={confettiTriggerCount}
+        reducedMotion={shouldReduceMotion}
+      />
+
       {/* Subtle Ambient Auditorium Lighting */}
       <div className="absolute top-1/4 left-1/4 w-[50vw] h-[50vw] rounded-full bg-accent-bright/10 blur-[130px] pointer-events-none" />
       <div className="absolute bottom-10 right-10 w-[40vw] h-[40vw] rounded-full bg-accent/10 blur-[120px] pointer-events-none" />
@@ -1412,38 +1535,104 @@ export const ProjectorPage: React.FC = () => {
               transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
               className="flex-1 flex flex-col items-center justify-between w-full min-h-[80vh]"
             >
-              <div aria-hidden="true" />
+              {/* Top Center Small Season Name (shown only while broadcast is live) */}
+              <div className="min-h-[28px] flex items-center justify-center px-4 text-center">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={
+                    isBroadcastOpen
+                      ? {
+                          opacity: 1,
+                          transition: {
+                            duration: 0.3,
+                            delay: 0.15,
+                            ease: broadcastStripEase
+                          }
+                        }
+                      : {
+                          opacity: 0,
+                          transition: {
+                            duration: 0.25,
+                            delay: 0,
+                            ease: broadcastStripEase
+                          }
+                        }
+                  }
+                  aria-hidden={!isBroadcastOpen ? 'true' : undefined}
+                  className="text-xs md:text-sm font-medium tracking-widest text-muted uppercase pointer-events-none"
+                >
+                  {activeSeason?.name || 'Annual Sports Tournament'}
+                </motion.div>
+              </div>
 
-              {/* Centered Season Name or Broadcast Message (Vertically & Horizontally) */}
-              <div className="flex flex-col items-center justify-center text-center my-auto px-4 max-w-6xl mx-auto w-full">
-                <AnimatePresence mode="wait">
-                  {projectorState.broadcast_message &&
-                  projectorState.broadcast_message.trim().length > 0 ? (
-                    <motion.p
-                      key={`idle-broadcast-${projectorState.broadcast_message.trim()}`}
-                      initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 24 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -20 }}
-                      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-                      className="font-syne font-extrabold text-4xl sm:text-6xl md:text-7xl lg:text-8xl tracking-tight leading-[1.08] text-text break-words max-w-full"
-                      style={{ textWrap: 'balance' }}
-                    >
-                      {projectorState.broadcast_message.trim()}
-                    </motion.p>
-                  ) : (
-                    <motion.h1
-                      key="idle-season-name"
-                      initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -20 }}
-                      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-                      className="font-syne font-extrabold text-5xl sm:text-7xl md:text-8xl lg:text-9xl tracking-tight leading-[1.02] text-text"
-                      style={{ textWrap: 'balance' }}
-                    >
-                      {activeSeason?.name || 'Annual Sports Tournament'}
-                    </motion.h1>
-                  )}
-                </AnimatePresence>
+              {/* Center Stage: Large Season Name (idle) and Full-Width Ticker Strip (broadcast) */}
+              <div className="grid grid-cols-1 grid-rows-1 place-items-center my-auto w-full">
+                <div className="col-start-1 row-start-1 px-4 max-w-6xl mx-auto text-center">
+                  <motion.h1
+                    initial={isBroadcastOpen ? { opacity: 1, y: 0 } : false}
+                    animate={
+                      isBroadcastOpen
+                        ? {
+                            opacity: 0,
+                            y: shouldReduceMotion ? 0 : -16,
+                            transition: {
+                              duration: 0.35,
+                              delay: 0,
+                              ease: broadcastStripEase
+                            }
+                          }
+                        : {
+                            opacity: 1,
+                            y: 0,
+                            transition: {
+                              duration: 0.5,
+                              delay: wasBroadcastOpenRef.current ? 0.35 : 0,
+                              ease: broadcastStripEase
+                            }
+                          }
+                    }
+                    aria-hidden={isBroadcastOpen ? 'true' : undefined}
+                    className={`font-syne font-extrabold text-5xl sm:text-7xl md:text-8xl lg:text-9xl tracking-tight leading-[1.02] text-text ${
+                      isBroadcastOpen ? 'pointer-events-none' : ''
+                    }`}
+                    style={{ textWrap: 'balance' }}
+                  >
+                    {activeSeason?.name || 'Annual Sports Tournament'}
+                  </motion.h1>
+                </div>
+
+                <div className="col-start-1 row-start-1 flex items-center justify-center">
+                  <AnimatePresence>
+                    {isBroadcastOpen && (
+                      <motion.div
+                        key="idle-broadcast-strip"
+                        variants={broadcastStripVariants}
+                        initial="initial"
+                        animate="animate"
+                        exit="exit"
+                        className="w-screen max-w-[100vw] bg-surface border-y border-accent-bright px-8 sm:px-12 md:px-16 lg:px-24 py-8 sm:py-10 md:py-12 flex items-center justify-center overflow-hidden"
+                      >
+                        <motion.div
+                          variants={broadcastMessageVariants}
+                          className="w-full max-w-7xl mx-auto flex items-center justify-center"
+                        >
+                          <AnimatePresence mode="wait" initial={false}>
+                            <motion.p
+                              key={displayedBroadcastMessage}
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 0.25, ease: broadcastStripEase }}
+                              className="font-dot font-normal leading-normal tracking-[0.16em] uppercase text-text text-center text-2xl sm:text-4xl md:text-5xl lg:text-6xl line-clamp-3 break-words w-full"
+                            >
+                              {displayedBroadcastMessage}
+                            </motion.p>
+                          </AnimatePresence>
+                        </motion.div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
 
               {/* Fieldr Branding (Logo and Wordmark, Small) in Footer at Bottom Center */}

@@ -186,6 +186,7 @@ export interface ProjectorState {
   auto_interval_seconds?: number | null
   auto_started_at?: string | null
   broadcast_message?: string | null
+  confetti_at?: string | null
   updated_at: string
 }
 
