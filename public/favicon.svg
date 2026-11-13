@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="bg-base" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0E2E1D" />
+      <stop offset="55%" stop-color="#082215" />
+      <stop offset="100%" stop-color="#0A0D0A" />
+    </linearGradient>
+    <radialGradient id="sage-tl" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(12 10) rotate(45) scale(42)">
+      <stop offset="0%" stop-color="#395F3D" stop-opacity="0.85" />
+      <stop offset="100%" stop-color="#395F3D" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="sage-br" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(54 50) rotate(225) scale(44)">
+      <stop offset="0%" stop-color="#047554" stop-opacity="0.9" />
+      <stop offset="100%" stop-color="#047554" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg-base)" />
+  <rect width="64" height="64" rx="14" fill="url(#sage-tl)" />
+  <rect width="64" height="64" rx="14" fill="url(#sage-br)" />
+  <path d="M19 16H46V23.5H28.5V29.5H41V36.5H28.5V48H19V16Z" fill="#FFFFFF" />
+</svg>
