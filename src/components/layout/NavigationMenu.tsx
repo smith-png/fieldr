@@ -293,3 +293,4 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
     </AnimatePresence>
   )
 }
+

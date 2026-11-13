@@ -25,6 +25,7 @@ const defaultState = (seasonId: string): ProjectorState => ({
   auto_filter: PROJECTOR_AUTO_FILTERS.ALL,
   auto_interval_seconds: PROJECTOR_AUTO_INTERVAL.DEFAULT,
   auto_started_at: null,
+  broadcast_message: null,
   updated_at: new Date().toISOString()
 })
 
@@ -135,7 +136,7 @@ const demoProjectorService: ProjectorService = {
 }
 
 const PROJECTOR_STATE_COLS =
-  'season_id, mode, player_id, team_id, current_bid, sale_event_id, sale_player_id, sale_team_id, sale_price, sale_at, auto_sport, auto_filter, auto_interval_seconds, auto_started_at, updated_at'
+  'season_id, mode, player_id, team_id, current_bid, sale_event_id, sale_player_id, sale_team_id, sale_price, sale_at, auto_sport, auto_filter, auto_interval_seconds, auto_started_at, broadcast_message, updated_at'
 
 const supabaseProjectorService: ProjectorService = {
   async getProjectorState(seasonId: string): Promise<ProjectorState> {
@@ -284,3 +285,35 @@ export const subscribeToProjector = (
   seasonId: string,
   callback: (state: ProjectorState) => void
 ) => projectorService.subscribeToProjector(seasonId, callback)
+
+export const setBroadcastMessage = async (
+  seasonId: string,
+  message: string | null
+): Promise<void> => {
+  const normalized =
+    typeof message === 'string' && message.trim().length > 0
+      ? message.trim().slice(0, 200)
+      : null
+
+  if (isDemoMode) {
+    const current = await demoProjectorService.getProjectorState(seasonId)
+    const updatedState: ProjectorState = {
+      ...current,
+      season_id: seasonId,
+      broadcast_message: normalized,
+      updated_at: new Date().toISOString()
+    }
+    setLocal(STORAGE_KEYS.PROJECTOR, updatedState)
+    notifyChange('projector_change', updatedState)
+    return
+  }
+
+  if (!supabase) throw new AppError('Supabase not configured')
+
+  const { error } = await supabase.rpc('set_broadcast_message', {
+    p_season_id: seasonId,
+    p_message: normalized
+  })
+
+  if (error) throw new AppError(error.message, { original: error })
+}

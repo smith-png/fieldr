@@ -185,6 +185,7 @@ export interface ProjectorState {
   auto_filter?: ProjectorAutoFilter | null
   auto_interval_seconds?: number | null
   auto_started_at?: string | null
+  broadcast_message?: string | null
   updated_at: string
 }
 

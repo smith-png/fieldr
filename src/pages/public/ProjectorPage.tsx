@@ -783,6 +783,7 @@ export const ProjectorPage: React.FC = () => {
     sale_team_id: null,
     sale_price: null,
     sale_at: null,
+    broadcast_message: null,
     updated_at: new Date().toISOString()
   })
   const [auctionSettings, setAuctionSettings] = useState<AuctionSettings>(() =>
@@ -1413,14 +1414,36 @@ export const ProjectorPage: React.FC = () => {
             >
               <div aria-hidden="true" />
 
-              {/* Centered Season Name (Vertically & Horizontally) */}
-              <div className="flex flex-col items-center justify-center text-center my-auto px-4 max-w-6xl mx-auto">
-                <h1
-                  className="font-syne font-extrabold text-5xl sm:text-7xl md:text-8xl lg:text-9xl tracking-tight leading-[1.02] text-text"
-                  style={{ textWrap: 'balance' }}
-                >
-                  {activeSeason?.name || 'Annual Sports Tournament'}
-                </h1>
+              {/* Centered Season Name or Broadcast Message (Vertically & Horizontally) */}
+              <div className="flex flex-col items-center justify-center text-center my-auto px-4 max-w-6xl mx-auto w-full">
+                <AnimatePresence mode="wait">
+                  {projectorState.broadcast_message &&
+                  projectorState.broadcast_message.trim().length > 0 ? (
+                    <motion.p
+                      key={`idle-broadcast-${projectorState.broadcast_message.trim()}`}
+                      initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 24 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -20 }}
+                      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                      className="font-syne font-extrabold text-4xl sm:text-6xl md:text-7xl lg:text-8xl tracking-tight leading-[1.08] text-text break-words max-w-full"
+                      style={{ textWrap: 'balance' }}
+                    >
+                      {projectorState.broadcast_message.trim()}
+                    </motion.p>
+                  ) : (
+                    <motion.h1
+                      key="idle-season-name"
+                      initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -20 }}
+                      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                      className="font-syne font-extrabold text-5xl sm:text-7xl md:text-8xl lg:text-9xl tracking-tight leading-[1.02] text-text"
+                      style={{ textWrap: 'balance' }}
+                    >
+                      {activeSeason?.name || 'Annual Sports Tournament'}
+                    </motion.h1>
+                  )}
+                </AnimatePresence>
               </div>
 
               {/* Fieldr Branding (Logo and Wordmark, Small) in Footer at Bottom Center */}

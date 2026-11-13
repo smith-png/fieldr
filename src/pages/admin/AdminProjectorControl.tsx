@@ -24,6 +24,7 @@ import {
   formatAthleteCode,
   lookupSeasonPlayerByCode,
   parseAthleteCode,
+  setBroadcastMessage,
   setProjectorState,
   startProjectorAuto,
   stopProjectorAuto,
@@ -100,6 +101,52 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
       })),
     [availableSports]
   )
+
+  // Card 1 (Idle Broadcast) state
+  const [broadcastInput, setBroadcastInput] = useState('')
+  const [isBroadcastPending, setIsBroadcastPending] = useState(false)
+  const [broadcastError, setBroadcastError] = useState<string | null>(null)
+  const activeBroadcastMessage = (projectorState.broadcast_message || '').trim()
+
+  const handleAnnounceBroadcast = async () => {
+    const trimmed = broadcastInput.trim()
+    if (!trimmed || isBroadcastPending) return
+    if (!activeSeason) {
+      setBroadcastError('No active season')
+      return
+    }
+    try {
+      setIsBroadcastPending(true)
+      setBroadcastError(null)
+      await setBroadcastMessage(activeSeason.id, trimmed.slice(0, 200))
+      setBroadcastInput('')
+      await onRefresh()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to announce broadcast'
+      setBroadcastError(msg)
+    } finally {
+      setIsBroadcastPending(false)
+    }
+  }
+
+  const handleClearBroadcast = async () => {
+    if (!activeBroadcastMessage || isBroadcastPending) return
+    if (!activeSeason) {
+      setBroadcastError('No active season')
+      return
+    }
+    try {
+      setIsBroadcastPending(true)
+      setBroadcastError(null)
+      await setBroadcastMessage(activeSeason.id, null)
+      await onRefresh()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to clear broadcast'
+      setBroadcastError(msg)
+    } finally {
+      setIsBroadcastPending(false)
+    }
+  }
 
   // Card 2 (Teams and Purses) state
   const [teamSport, setTeamSport] = useState<string>(() =>
@@ -544,54 +591,136 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
 
         {/* Mode 1: Idle */}
         <div
-          className={`p-5 rounded-2xl border transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm ${
+          className={`p-5 rounded-2xl border transition-colors flex flex-col gap-5 shadow-sm ${
             projectorState.mode === PROJECTOR_MODES.IDLE
               ? 'bg-surface border-accent-bright'
               : 'bg-surface border-border hover:border-accent-bright/60'
           }`}
         >
-          <div className="flex items-start gap-4">
-            <div
-              className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border border-border ${
-                projectorState.mode === PROJECTOR_MODES.IDLE
-                  ? 'bg-accent text-on-accent'
-                  : 'bg-surface-2 text-muted'
-              }`}
-            >
-              <Broadcast size={22} weight="bold" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-syne font-bold text-lg text-text">
-                  1 Idle
-                </h3>
-                {projectorState.mode === PROJECTOR_MODES.IDLE && (
-                  <span className="text-[11px] font-mono uppercase text-accent-bright font-semibold">
-                    · Live on Stage
-                  </span>
-                )}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <div
+                className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border border-border ${
+                  projectorState.mode === PROJECTOR_MODES.IDLE
+                    ? 'bg-accent text-on-accent'
+                    : 'bg-surface-2 text-muted'
+                }`}
+              >
+                <Broadcast size={22} weight="bold" />
               </div>
-              <p className="text-xs text-muted mt-1 leading-relaxed">
-                Displays the centered tournament season title and subtle Fieldr branding at the bottom.
-              </p>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-syne font-bold text-lg text-text">
+                    1 Idle
+                  </h3>
+                  {projectorState.mode === PROJECTOR_MODES.IDLE && (
+                    <span className="text-[11px] font-mono uppercase text-accent-bright font-semibold">
+                      · Live on Stage
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted mt-1 leading-relaxed">
+                  Displays the centered tournament season title and subtle Fieldr branding at the bottom.
+                </p>
+              </div>
             </div>
+
+            <Button
+              type="button"
+              variant={projectorState.mode === PROJECTOR_MODES.IDLE ? 'secondary' : 'primary'}
+              size="md"
+              disabled={isUpdating || projectorState.mode === PROJECTOR_MODES.IDLE}
+              onClick={() =>
+                executeOrConfirm('1 Idle', () =>
+                  performSwitchScene(PROJECTOR_MODES.IDLE)
+                )
+              }
+            >
+              {projectorState.mode === PROJECTOR_MODES.IDLE
+                ? 'Currently Active'
+                : 'Broadcast Scene'}
+            </Button>
           </div>
 
-          <Button
-            type="button"
-            variant={projectorState.mode === PROJECTOR_MODES.IDLE ? 'secondary' : 'primary'}
-            size="md"
-            disabled={isUpdating || projectorState.mode === PROJECTOR_MODES.IDLE}
-            onClick={() =>
-              executeOrConfirm('1 Idle', () =>
-                performSwitchScene(PROJECTOR_MODES.IDLE)
-              )
-            }
-          >
-            {projectorState.mode === PROJECTOR_MODES.IDLE
-              ? 'Currently Active'
-              : 'Broadcast Scene'}
-          </Button>
+          {/* Broadcast Message Section */}
+          <div className="pt-4 border-t border-border flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-2">
+              <label
+                htmlFor="idle-broadcast-message-input"
+                className="text-xs font-mono uppercase tracking-wider text-muted"
+              >
+                Broadcast
+              </label>
+              <span className="text-xs font-mono text-muted tabular-nums">
+                {broadcastInput.length}/200
+              </span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+              <input
+                id="idle-broadcast-message-input"
+                type="text"
+                maxLength={200}
+                value={broadcastInput}
+                onChange={(e) => {
+                  setBroadcastInput(e.target.value.slice(0, 200))
+                  if (broadcastError) setBroadcastError(null)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    void handleAnnounceBroadcast()
+                  }
+                }}
+                placeholder="Enter a live announcement for the projector idle screen..."
+                className="flex-1 h-10 px-3.5 rounded-xl bg-surface-2 border border-border text-sm font-sans text-text placeholder:text-muted focus:outline-none focus:border-accent-bright"
+              />
+
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  isLoading={isBroadcastPending && Boolean(broadcastInput.trim())}
+                  disabled={!broadcastInput.trim() || isBroadcastPending || !activeSeason}
+                  onClick={() => void handleAnnounceBroadcast()}
+                >
+                  Announce
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="md"
+                  isLoading={isBroadcastPending && !broadcastInput.trim()}
+                  disabled={!activeBroadcastMessage || isBroadcastPending || !activeSeason}
+                  onClick={() => void handleClearBroadcast()}
+                >
+                  Clear
+                </Button>
+              </div>
+            </div>
+
+            {broadcastError && (
+              <div role="alert" className="text-xs font-mono text-error">
+                {broadcastError}
+              </div>
+            )}
+
+            <div className="flex items-baseline gap-2 text-xs">
+              <span className="font-mono uppercase tracking-wider text-muted shrink-0">
+                Live now:
+              </span>
+              <span
+                className={
+                  activeBroadcastMessage
+                    ? 'text-text font-medium break-words'
+                    : 'text-muted font-mono'
+                }
+              >
+                {activeBroadcastMessage || 'No broadcast active'}
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* Mode 2: Teams and Purses */}
