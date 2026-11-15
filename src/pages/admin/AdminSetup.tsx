@@ -45,7 +45,8 @@ import {
   EmptyState,
   ErrorState,
   PageHeader,
-  SegmentedControl
+  SegmentedControl,
+  SkeletonBlock
 } from '../../components/ui'
 import { normalizeConfettiFallSpeed } from '../../components/projector/ProjectorConfetti'
 import { SecuredSequence } from '../../components/projector/SecuredSequence'
@@ -343,9 +344,11 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
   )
 
   useEffect(() => {
-    loadCarousel()
-    loadSettings()
-    loadSportsAndUsage('cricket')
+    void Promise.all([
+      loadCarousel(),
+      loadSettings(),
+      loadSportsAndUsage('cricket')
+    ])
   }, [])
 
   // Refresh role usage counts when selectedSportId changes
@@ -1056,7 +1059,10 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
               {isLoadingCarousel ? (
                 <div className="space-y-3">
                   {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-16 bg-surface border border-border rounded-xl animate-pulse" />
+                    <SkeletonBlock
+                      key={i}
+                      className="h-16 bg-surface border border-border rounded-xl"
+                    />
                   ))}
                 </div>
               ) : carouselItems.length === 0 ? (
@@ -1436,9 +1442,9 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
             {isLoadingSports ? (
               <div className="space-y-2.5">
                 {[1, 2, 3, 4].map((i) => (
-                  <div
+                  <SkeletonBlock
                     key={i}
-                    className="h-14 bg-surface-2/60 border border-border rounded-xl animate-pulse"
+                    className="h-14 bg-surface-2/60 border border-border rounded-xl"
                   />
                 ))}
               </div>
@@ -1599,9 +1605,9 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
           ) : isLoadingAuctionSettings ? (
             <div className="space-y-4">
               {[1, 2, 3, 4].map((i) => (
-                <div
+                <SkeletonBlock
                   key={i}
-                  className="h-20 bg-surface-2/60 border border-border rounded-xl animate-pulse"
+                  className="h-20 bg-surface-2/60 border border-border rounded-xl"
                 />
               ))}
             </div>
@@ -2084,65 +2090,50 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
               </p>
             )}
 
-            <div className="pt-4 border-t border-border flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-2.5">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  leftIcon={ArrowCounterClockwise}
-                  disabled={
-                    isSavingConfettiSpeed ||
-                    confettiFallSpeed === DEFAULT_CONFETTI_FALL_SPEED
-                  }
-                  onClick={handleResetConfettiSpeed}
-                >
-                  Reset to default
-                </Button>
+            <div className="pt-4 border-t border-border flex flex-wrap items-center gap-2.5">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                leftIcon={ArrowCounterClockwise}
+                disabled={
+                  isSavingConfettiSpeed ||
+                  confettiFallSpeed === DEFAULT_CONFETTI_FALL_SPEED
+                }
+                onClick={handleResetConfettiSpeed}
+              >
+                Reset to default
+              </Button>
 
-                <div className="flex flex-col items-start gap-1">
-                  <div className="relative inline-flex overflow-hidden rounded-xl">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      disabled={isConfettiTestCoolingDown}
-                      onClick={() => void handleTestConfettiOnProjector()}
-                    >
-                      Test on projector
-                    </Button>
-                    {isConfettiTestCoolingDown && (
-                      <span
-                        aria-hidden="true"
-                        className="pointer-events-none absolute bottom-0 left-0 right-0 h-[2px] bg-accent-bright/70 origin-left"
-                        style={{
-                          animation: 'fieldrConfettiCooldownBar 4000ms linear forwards'
-                        }}
-                      />
-                    )}
-                  </div>
-                </div>
-              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                leftIcon={Play}
+                disabled={isConfettiTestCoolingDown}
+                onClick={() => void handleTestConfettiOnProjector()}
+              >
+                Test on projector
+              </Button>
 
-              <div className="flex items-center gap-2.5 ml-auto">
-                {confettiSpeedSaved && !isConfettiSpeedDirty && (
-                  <span className="text-xs font-mono text-accent-bright flex items-center gap-1">
-                    <Check size={14} weight="bold" />
-                    <span>Saved</span>
-                  </span>
-                )}
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="sm"
-                  leftIcon={FloppyDisk}
-                  disabled={!isConfettiSpeedDirty || isSavingConfettiSpeed}
-                  isLoading={isSavingConfettiSpeed}
-                  onClick={() => void handleSaveConfettiSpeed()}
-                >
-                  Save
-                </Button>
-              </div>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                leftIcon={FloppyDisk}
+                disabled={!isConfettiSpeedDirty || isSavingConfettiSpeed}
+                isLoading={isSavingConfettiSpeed}
+                onClick={() => void handleSaveConfettiSpeed()}
+              >
+                Save
+              </Button>
+
+              {confettiSpeedSaved && !isConfettiSpeedDirty && (
+                <span className="text-xs font-mono text-accent-bright flex items-center gap-1">
+                  <Check size={14} weight="bold" />
+                  <span>Saved</span>
+                </span>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2">

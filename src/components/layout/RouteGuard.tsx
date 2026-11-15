@@ -1,6 +1,11 @@
 import React from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../lib/AuthContext'
+import {
+  AdminShellSkeleton,
+  AdminTableSkeleton,
+  ProjectorPageSkeleton
+} from '../ui/Skeleton'
 import type { UserRole } from '../../types'
 
 interface RouteGuardProps {
@@ -13,10 +18,15 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({ children, allowedRoles }
   const location = useLocation()
 
   if (isLoading) {
+    if (location.pathname.startsWith('/projector')) {
+      return <ProjectorPageSkeleton />
+    }
     return (
-      <div className="min-h-screen bg-bg text-muted flex items-center justify-center font-mono text-xs tracking-widest">
-        <span>LOADING FIELDR CONSOLE...</span>
-      </div>
+      <AdminShellSkeleton>
+        {location.pathname === '/admin/logs' ? (
+          <AdminTableSkeleton rows={8} columns={5} />
+        ) : undefined}
+      </AdminShellSkeleton>
     )
   }
 

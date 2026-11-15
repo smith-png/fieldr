@@ -4,8 +4,15 @@ import { CaretRight, Shield, Users } from '@phosphor-icons/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
+import { SkeletonCard } from '../../components/ui'
 import { getActiveSeason, getPublicPlayersBySeason, getPublicTeams } from '../../lib/data'
 import { hasDataChanged, publicCache } from '../../lib/publicCache'
+import {
+  isQueryFresh,
+  prefetchRoute,
+  setCachedQuery,
+  shouldRevalidateQuery
+} from '../../lib/queryCache'
 import type { PublicPlayer, PublicTeam, Season } from '../../types'
 
 function getCachedTeamsPageState(): {
@@ -86,16 +93,28 @@ export const TeamsPage: React.FC = () => {
 
   useEffect(() => {
     let mounted = true
+    const cacheKey = 'public:teamsPage'
     const cached = getCachedTeamsPageState()
     if (cached.hasCache) {
       setIsLoading(false)
+      if (isQueryFresh(cacheKey) && !shouldRevalidateQuery(cacheKey)) {
+        return () => {
+          mounted = false
+        }
+      }
     } else {
       setIsLoading(true)
     }
 
     async function loadData() {
       try {
-        const season = await getActiveSeason()
+        const knownSeasonId = publicCache.activeSeason.value?.id
+        const [season, preloadedTeams, preloadedPlayers] = await Promise.all([
+          getActiveSeason(),
+          knownSeasonId ? getPublicTeams(knownSeasonId) : Promise.resolve(null),
+          knownSeasonId ? getPublicPlayersBySeason(knownSeasonId) : Promise.resolve(null)
+        ])
+
         const prevSeason = publicCache.activeSeason.value
         const seasonChanged =
           !publicCache.activeSeason.loaded || hasDataChanged(prevSeason, season)
@@ -105,10 +124,13 @@ export const TeamsPage: React.FC = () => {
         }
 
         if (season) {
-          const [teamList, playerList] = await Promise.all([
-            getPublicTeams(season.id),
-            getPublicPlayersBySeason(season.id)
-          ])
+          const [teamList, playerList] =
+            knownSeasonId === season.id && preloadedTeams && preloadedPlayers
+              ? [preloadedTeams, preloadedPlayers]
+              : await Promise.all([
+                  getPublicTeams(season.id),
+                  getPublicPlayersBySeason(season.id)
+                ])
           const prevTeams = publicCache.teamsBySeason.get(season.id)
           const prevPlayers = publicCache.playersBySeason.get(season.id)
           const teamsChanged = !prevTeams || hasDataChanged(prevTeams, teamList)
@@ -117,6 +139,7 @@ export const TeamsPage: React.FC = () => {
 
           publicCache.teamsBySeason.set(season.id, teamList)
           publicCache.playersBySeason.set(season.id, playerList)
+          setCachedQuery(cacheKey, true)
 
           if (mounted) {
             if (teamsChanged) setTeams(teamList)
@@ -136,7 +159,7 @@ export const TeamsPage: React.FC = () => {
         if (mounted) setIsLoading(false)
       }
     }
-    loadData()
+    void loadData()
     return () => {
       mounted = false
     }
@@ -182,10 +205,7 @@ export const TeamsPage: React.FC = () => {
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div
-                key={i}
-                className="bg-surface border border-border rounded-2xl p-6 animate-pulse h-60"
-              />
+              <SkeletonCard key={i} className="h-60" />
             ))}
           </div>
         ) : !activeSeason || teams.length === 0 ? (
@@ -199,6 +219,9 @@ export const TeamsPage: React.FC = () => {
             </p>
             <Link
               to="/rosters"
+              onMouseEnter={() => prefetchRoute('/rosters')}
+              onFocus={() => prefetchRoute('/rosters')}
+              onTouchStart={() => prefetchRoute('/rosters')}
               className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-btn-bg text-btn-fg font-medium text-xs hover:opacity-90 transition-opacity"
             >
               Browse Player Rosters
@@ -220,10 +243,14 @@ export const TeamsPage: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {group.teams.map((team) => {
                     const assignedCount = players.filter((p) => p.team_id === team.id).length
+                    const teamPath = `/season/${team.season_id}/teams/${team.id}`
                     return (
                       <Link
                         key={team.id}
-                        to={`/season/${team.season_id}/teams/${team.id}`}
+                        to={teamPath}
+                        onMouseEnter={() => prefetchRoute(teamPath)}
+                        onFocus={() => prefetchRoute(teamPath)}
+                        onTouchStart={() => prefetchRoute(teamPath)}
                         style={getTeamCardTintStyle(team.color)}
                         className="group relative overflow-hidden rounded-2xl bg-surface bg-clip-padding border border-border hover:border-accent-bright p-6 transition-colors flex flex-col justify-between shadow-sm"
                       >
@@ -235,6 +262,10 @@ export const TeamsPage: React.FC = () => {
                                 <img
                                   src={team.logo_url}
                                   alt={team.name}
+                                  width={48}
+                                  height={48}
+                                  loading="lazy"
+                                  decoding="async"
                                   referrerPolicy="no-referrer"
                                   className="w-12 h-12 rounded-xl object-contain bg-surface-2 border border-border p-1"
                                 />

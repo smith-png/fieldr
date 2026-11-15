@@ -179,9 +179,46 @@ button, input, select, textarea {
   }
 }
 
+@keyframes fieldrSkeletonShimmer {
+  0% {
+    transform: translate3d(-100%, 0, 0);
+  }
+  100% {
+    transform: translate3d(100%, 0, 0);
+  }
+}
+
+.skeleton-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.05) 50%,
+    transparent 100%
+  );
+  transform: translate3d(-100%, 0, 0);
+  animation: fieldrSkeletonShimmer 1.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+:root:not([data-theme="dark"]) .skeleton-shimmer::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(18, 20, 18, 0.045) 50%,
+    transparent 100%
+  );
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-ticker {
     animation: none !important;
+  }
+  .skeleton-shimmer::after {
+    animation: none !important;
+    display: none !important;
   }
 }
 

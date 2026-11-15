@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ArrowRight, Monitor, Moon, Sun, X, type Icon } from '@phosphor-icons/react'
 import { useAuth } from '../../lib/AuthContext'
+import { prefetchRoute } from '../../lib/queryCache'
 import { type ThemePreference, useTheme } from '../../lib/theme'
 import type { Season } from '../../types'
 
@@ -169,6 +170,9 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
                     <Link
                       to={link.path}
                       onClick={onClose}
+                      onMouseEnter={() => prefetchRoute(link.path)}
+                      onFocus={() => prefetchRoute(link.path)}
+                      onTouchStart={() => prefetchRoute(link.path)}
                       className="group flex items-center gap-4 text-[clamp(1.65rem,5.5vw,4.5rem)] font-syne font-bold tracking-tight leading-none text-white/85 hover:text-white transition-colors transition-transform transform hover:translate-x-3 whitespace-nowrap"
                     >
                       <span>{link.title}</span>
@@ -209,6 +213,9 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
                     <Link
                       to="/login"
                       onClick={onClose}
+                      onMouseEnter={() => prefetchRoute('/login')}
+                      onFocus={() => prefetchRoute('/login')}
+                      onTouchStart={() => prefetchRoute('/login')}
                       className="group flex items-center gap-3 text-2xl sm:text-3xl font-sans font-medium text-white/90 hover:text-white transition-colors transition-transform transform hover:translate-x-2"
                     >
                       <span>Sign in</span>

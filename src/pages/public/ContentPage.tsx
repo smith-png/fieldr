@@ -6,8 +6,15 @@ import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
 import { CreditsSection } from '../../components/credits/CreditsSection'
 import { MarkdownContent } from '../../components/common/MarkdownContent'
+import { SkeletonText } from '../../components/ui'
 import { getActiveSeason, getSiteSettings } from '../../lib/data'
 import { hasDataChanged, publicCache } from '../../lib/publicCache'
+import {
+  isQueryFresh,
+  prefetchRoute,
+  setCachedQuery,
+  shouldRevalidateQuery
+} from '../../lib/queryCache'
 import type { PageContentSetting, Season } from '../../types'
 
 interface ContentPageProps {
@@ -47,11 +54,17 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
 
   useEffect(() => {
     let mounted = true
+    const queryKey = `public:contentPage:${pageKey}`
     const cached = getCachedPageContent(pageKey)
 
     if (cached.hasCache) {
       setContent(cached.value)
       setIsLoading(false)
+      if (isQueryFresh(queryKey) && !shouldRevalidateQuery(queryKey)) {
+        return () => {
+          mounted = false
+        }
+      }
     } else {
       setIsLoading(true)
     }
@@ -79,6 +92,8 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
 
         publicCache.pageContent.set('help_page', helpVal)
         publicCache.pageContent.set('about_page', aboutVal)
+        setCachedQuery('public:contentPage:help_page', helpVal)
+        setCachedQuery('public:contentPage:about_page', aboutVal)
 
         if (
           mounted &&
@@ -97,7 +112,7 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
       }
     }
 
-    loadData()
+    void loadData()
     return () => {
       mounted = false
     }
@@ -116,6 +131,9 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
         <div className="mb-6">
           <Link
             to="/"
+            onMouseEnter={() => prefetchRoute('/')}
+            onFocus={() => prefetchRoute('/')}
+            onTouchStart={() => prefetchRoute('/')}
             className="inline-flex items-center gap-2 text-xs font-medium text-muted hover:text-text transition-colors"
           >
             <ArrowLeft size={14} weight="bold" />
@@ -132,9 +150,10 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
           </h1>
 
           {isLoading ? (
-            <div className="space-y-4 animate-pulse">
-              <div className="h-4 bg-surface-2 rounded w-3/4" />
-              <div className="h-4 bg-surface-2 rounded w-1/2" />
+            <div className="space-y-4">
+              <SkeletonText width="w-3/4" className="h-4" />
+              <SkeletonText width="w-1/2" className="h-4" />
+              <SkeletonText width="w-2/3" className="h-4" />
             </div>
           ) : content?.body ? (
             <MarkdownContent content={content.body} />

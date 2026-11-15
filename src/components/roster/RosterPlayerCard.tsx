@@ -28,6 +28,10 @@ export const RosterPlayerCard: React.FC<RosterPlayerCardProps> = ({
           <img
             src={player.photo_thumb_url || player.photo_url}
             alt={player.name}
+            width={48}
+            height={48}
+            loading="lazy"
+            decoding="async"
             referrerPolicy="no-referrer"
             className="w-12 h-12 rounded-lg object-cover bg-surface-2 border border-border shrink-0"
           />

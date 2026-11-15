@@ -33,7 +33,21 @@ import {
 import { useToast } from '../../lib/ToastContext'
 import { getAcademicYearLabel } from '../../lib/academicYears'
 import { getErrorMessage } from '../../lib/errors'
-import { Button, Dialog, EmptyState, PageHeader, Pagination } from '../../components/ui'
+import {
+  getCachedQuery,
+  isQueryFresh,
+  setCachedQuery,
+  shouldRevalidateQuery
+} from '../../lib/queryCache'
+import {
+  Button,
+  Dialog,
+  EmptyState,
+  PageHeader,
+  Pagination,
+  SkeletonBlock,
+  SkeletonTableRow
+} from '../../components/ui'
 import { BulkRegisterPanel } from '../../components/admin'
 
 interface AdminPlayersProps {
@@ -60,16 +74,25 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
   const { showToast } = useToast()
 
   // Pagination & Filtering state
+  const activeSeasonId = activeSeason?.id || null
+  const initialCache = activeSeasonId
+    ? getCachedQuery<{
+        players: Player[]
+        totalPages: number
+        totalCount: number
+      }>(`admin:players:${activeSeasonId}:1:15:all:all:all:`)
+    : null
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize] = useState(15)
-  const [totalPages, setTotalPages] = useState(1)
-  const [totalCount, setTotalCount] = useState(0)
-  const [pagedPlayers, setPagedPlayers] = useState<Player[]>([])
+  const [totalPages, setTotalPages] = useState(() => initialCache?.data.totalPages || 1)
+  const [totalCount, setTotalCount] = useState(() => initialCache?.data.totalCount || 0)
+  const [pagedPlayers, setPagedPlayers] = useState<Player[]>(
+    () => initialCache?.data.players || []
+  )
   const [seasonPlayersList, setSeasonPlayersList] = useState<Player[]>(players)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(() => !initialCache)
 
-  const activeSeasonId = activeSeason?.id || null
-  const loadedSeasonIdRef = useRef<string | null>(null)
+  const loadedSeasonIdRef = useRef<string | null>(initialCache ? activeSeasonId : null)
   const latestReqIdRef = useRef(0)
   const latestSeasonReqIdRef = useRef(0)
   const isMountedRef = useRef(true)
@@ -221,60 +244,87 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
   }, [selectedSport, sports])
 
   // Load paged players: show skeleton ONLY on first load or when activeSeasonId changes
-  const loadPagedPlayers = useCallback(async () => {
-    if (!activeSeasonId) {
-      setIsLoading(false)
-      return
-    }
-    const reqId = ++latestReqIdRef.current
-    const isInitialOrSeasonSwitch = loadedSeasonIdRef.current !== activeSeasonId
-    try {
-      if (isInitialOrSeasonSwitch) {
-        setIsLoading(true)
-      }
-      const res = await getPlayersPaged({
-        seasonId: activeSeasonId,
-        page: currentPage,
-        pageSize,
-        sport: selectedSport === 'all' ? undefined : selectedSport,
-        role: selectedRole === 'all' ? undefined : selectedRole,
-        status: selectedStatus === 'all' ? undefined : (selectedStatus as PlayerStatus),
-        search: debouncedSearch || undefined
-      })
-      if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
-      loadedSeasonIdRef.current = activeSeasonId
-      setPagedPlayers(res.players)
-      setTotalPages(res.totalPages)
-      setTotalCount(res.totalCount)
-    } catch (err: unknown) {
-      if (isMountedRef.current && reqId === latestReqIdRef.current) {
-        showToast(getErrorMessage(err, 'Failed to load players'), 'error')
-      }
-    } finally {
-      if (isMountedRef.current && reqId === latestReqIdRef.current) {
+  const loadPagedPlayers = useCallback(
+    async (options?: { force?: boolean }) => {
+      if (!activeSeasonId) {
         setIsLoading(false)
+        return
       }
-    }
-  }, [
-    activeSeasonId,
-    currentPage,
-    pageSize,
-    selectedSport,
-    selectedRole,
-    selectedStatus,
-    debouncedSearch,
-    showToast
-  ])
+      const cacheKey = `admin:players:${activeSeasonId}:${currentPage}:${pageSize}:${selectedSport}:${selectedRole}:${selectedStatus}:${debouncedSearch}`
+      const cached = getCachedQuery<{
+        players: Player[]
+        totalPages: number
+        totalCount: number
+      }>(cacheKey)
+
+      if (cached && !options?.force) {
+        loadedSeasonIdRef.current = activeSeasonId
+        setPagedPlayers(cached.data.players)
+        setTotalPages(cached.data.totalPages)
+        setTotalCount(cached.data.totalCount)
+        setIsLoading(false)
+        if (isQueryFresh(cacheKey) && !shouldRevalidateQuery(cacheKey)) {
+          return
+        }
+      }
+
+      const reqId = ++latestReqIdRef.current
+      const isInitialOrSeasonSwitch =
+        loadedSeasonIdRef.current !== activeSeasonId && !cached
+      try {
+        if (isInitialOrSeasonSwitch) {
+          setIsLoading(true)
+        }
+        const res = await getPlayersPaged({
+          seasonId: activeSeasonId,
+          page: currentPage,
+          pageSize,
+          sport: selectedSport === 'all' ? undefined : selectedSport,
+          role: selectedRole === 'all' ? undefined : selectedRole,
+          status: selectedStatus === 'all' ? undefined : (selectedStatus as PlayerStatus),
+          search: debouncedSearch || undefined
+        })
+        if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
+        loadedSeasonIdRef.current = activeSeasonId
+        setPagedPlayers(res.players)
+        setTotalPages(res.totalPages)
+        setTotalCount(res.totalCount)
+        setCachedQuery(cacheKey, {
+          players: res.players,
+          totalPages: res.totalPages,
+          totalCount: res.totalCount
+        })
+      } catch (err: unknown) {
+        if (isMountedRef.current && reqId === latestReqIdRef.current) {
+          showToast(getErrorMessage(err, 'Failed to load players'), 'error')
+        }
+      } finally {
+        if (isMountedRef.current && reqId === latestReqIdRef.current) {
+          setIsLoading(false)
+        }
+      }
+    },
+    [
+      activeSeasonId,
+      currentPage,
+      pageSize,
+      selectedSport,
+      selectedRole,
+      selectedStatus,
+      debouncedSearch,
+      showToast
+    ]
+  )
 
   useEffect(() => {
-    loadPagedPlayers()
+    void loadPagedPlayers()
   }, [loadPagedPlayers])
 
   // Refresh when parent athletes section signals an athlete update/realtime event
   useEffect(() => {
     if (!activeSeasonId || externalRefreshTrigger === 0) return
-    loadPagedPlayers()
-    refreshSeasonPlayers()
+    void loadPagedPlayers({ force: true })
+    void refreshSeasonPlayers()
   }, [activeSeasonId, externalRefreshTrigger, loadPagedPlayers, refreshSeasonPlayers])
 
   // Available roles for currently selected form sport loaded from shared helper
@@ -379,7 +429,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
       }
       markLocalMutation(['players', 'athletes', 'auction'])
       setIsDrawerOpen(false)
-      await Promise.all([loadPagedPlayers(), onRefresh()])
+      await Promise.all([loadPagedPlayers({ force: true }), onRefresh()])
     } catch (err: unknown) {
       showToast(getErrorMessage(err, 'Failed to save player'), 'error')
     } finally {
@@ -395,7 +445,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
       await deletePlayer(deleteConfirmPlayer.id)
       showToast('Player entry removed', 'success')
       setDeleteConfirmPlayer(null)
-      await Promise.all([loadPagedPlayers(), onRefresh()])
+      await Promise.all([loadPagedPlayers({ force: true }), onRefresh()])
     } catch (err: unknown) {
       showToast(getErrorMessage(err, 'Failed to delete player'), 'error')
     }
@@ -414,7 +464,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
       setAssignmentPlayer(null)
       setAssignTeamId('')
       setAssignPrice('')
-      await Promise.all([loadPagedPlayers(), onRefresh()])
+      await Promise.all([loadPagedPlayers({ force: true }), onRefresh()])
     } catch (err: unknown) {
       showToast(getErrorMessage(err, 'Assignment failed'), 'error')
     }
@@ -650,9 +700,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
             <tbody className="divide-y divide-border">
               {isLoading ? (
                 Array.from({ length: 6 }).map((_, i) => (
-                  <tr key={i} className="animate-pulse">
-                    <td colSpan={8} className="py-4 px-4 h-12 bg-surface-2/40" />
-                  </tr>
+                  <SkeletonTableRow key={i} columns={8} />
                 ))
               ) : pagedPlayers.length === 0 ? (
                 <tr>
@@ -845,6 +893,10 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                             <img
                               src={selectedAthlete.photo_thumb_url || selectedAthlete.photo_url}
                               alt={selectedAthlete.name}
+                              width={36}
+                              height={36}
+                              loading="lazy"
+                              decoding="async"
                               referrerPolicy="no-referrer"
                               className="w-9 h-9 rounded-lg object-cover bg-surface-2 border border-border shrink-0"
                             />
@@ -890,8 +942,9 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
 
                         <div className="max-h-48 overflow-y-auto divide-y divide-border border border-border rounded-xl bg-bg">
                           {isSearchingAthletes ? (
-                            <div className="py-4 px-3 text-center text-xs font-mono text-muted">
-                              Searching profiles...
+                            <div className="p-2.5 space-y-2">
+                              <SkeletonBlock className="h-9 w-full rounded-lg" />
+                              <SkeletonBlock className="h-9 w-full rounded-lg" />
                             </div>
                           ) : athleteResults.length === 0 ? (
                             <div className="py-4 px-3 text-center text-xs text-muted">

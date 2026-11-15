@@ -643,7 +643,12 @@ const supabasePlayersService: PlayersServiceWithRefund = {
           .from('public_players')
           .select(PUBLIC_PLAYER_SELECT_COLUMNS)
           .eq('season_id', seasonId),
-        supabase.from('players').select('*').eq('season_id', seasonId)
+        supabase
+          .from('players')
+          .select(
+            'id, season_id, athlete_id, sport, playing_role, base_points, academic_year, status, team_id, purchase_price, created_at'
+          )
+          .eq('season_id', seasonId)
       ])
 
       if (pubRes.error) {

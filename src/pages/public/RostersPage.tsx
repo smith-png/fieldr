@@ -3,8 +3,17 @@ import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SportCardsGrid } from '../../components/home/SportCardsGrid'
 import { SiteFooter } from '../../components/layout/SiteFooter'
-import { getActiveSeason, getPublicPlayersBySeason } from '../../lib/data'
+import {
+  getActiveSeason,
+  getPublicPlayerSportRows,
+  getSports
+} from '../../lib/data'
 import { hasDataChanged, publicCache } from '../../lib/publicCache'
+import {
+  isQueryFresh,
+  setCachedQuery,
+  shouldRevalidateQuery
+} from '../../lib/queryCache'
 import { matchesSport } from '../../lib/utils'
 import type { Season } from '../../types'
 import type { SportSlug } from '../../lib/sports'
@@ -27,9 +36,27 @@ export const RostersPage: React.FC = () => {
 
   useEffect(() => {
     let mounted = true
+    const cacheKey = 'public:rostersPage'
+    if (
+      publicCache.activeSeason.loaded &&
+      isQueryFresh(cacheKey) &&
+      !shouldRevalidateQuery(cacheKey)
+    ) {
+      return () => {
+        mounted = false
+      }
+    }
+
     async function loadData() {
       try {
-        const active = await getActiveSeason()
+        const [active, sportRows, sports] = await Promise.all([
+          getActiveSeason(),
+          getPublicPlayerSportRows(),
+          getSports()
+        ])
+        if (Array.isArray(sports)) {
+          publicCache.sports = { loaded: true, value: sports }
+        }
         const prevSeason = publicCache.activeSeason.value
         const seasonChanged =
           !publicCache.activeSeason.loaded || hasDataChanged(prevSeason, active)
@@ -39,16 +66,16 @@ export const RostersPage: React.FC = () => {
         }
 
         if (active) {
-          const players = await getPublicPlayersBySeason(active.id)
-          publicCache.playersBySeason.set(active.id, players)
+          const seasonRows = (sportRows ?? []).filter((r) => r.season_id === active.id)
           const nextCounts: Record<SportSlug, number> = {
-            cricket: players.filter((p) => matchesSport(p.sport, 'cricket')).length,
-            futsal: players.filter((p) => matchesSport(p.sport, 'futsal')).length,
-            volleyball: players.filter((p) => matchesSport(p.sport, 'volleyball')).length
+            cricket: seasonRows.filter((p) => matchesSport(p.sport, 'cricket')).length,
+            futsal: seasonRows.filter((p) => matchesSport(p.sport, 'futsal')).length,
+            volleyball: seasonRows.filter((p) => matchesSport(p.sport, 'volleyball')).length
           }
           const prevCounts = publicCache.playerCountsBySeason.get(active.id)
           const countsChanged = !prevCounts || hasDataChanged(prevCounts, nextCounts)
           publicCache.playerCountsBySeason.set(active.id, nextCounts)
+          setCachedQuery(cacheKey, nextCounts)
           if (mounted && countsChanged) {
             setPlayerCounts(nextCounts)
           }
@@ -61,7 +88,7 @@ export const RostersPage: React.FC = () => {
         )
       }
     }
-    loadData()
+    void loadData()
     return () => {
       mounted = false
     }

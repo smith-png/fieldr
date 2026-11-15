@@ -9,6 +9,7 @@ import {
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
+import { SkeletonBlock } from '../../components/ui'
 import {
   formatRulesDate,
   getActiveSeason,
@@ -17,6 +18,12 @@ import {
   getSafeRulesDownloadFilename
 } from '../../lib/data'
 import { hasDataChanged, publicCache } from '../../lib/publicCache'
+import {
+  isQueryFresh,
+  prefetchRoute,
+  setCachedQuery,
+  shouldRevalidateQuery
+} from '../../lib/queryCache'
 import type { RulesDocument, Season } from '../../types'
 
 export const RulesPage: React.FC = () => {
@@ -34,6 +41,17 @@ export const RulesPage: React.FC = () => {
 
   useEffect(() => {
     let mounted = true
+    const queryKey = 'public:rulesPage'
+    if (
+      publicCache.rulesDocuments.loaded &&
+      isQueryFresh(queryKey) &&
+      !shouldRevalidateQuery(queryKey)
+    ) {
+      setIsLoading(false)
+      return () => {
+        mounted = false
+      }
+    }
 
     async function loadData() {
       try {
@@ -56,6 +74,7 @@ export const RulesPage: React.FC = () => {
         const docsChanged =
           !publicCache.rulesDocuments.loaded || hasDataChanged(prevDocs, docs)
         publicCache.rulesDocuments = { loaded: true, value: docs }
+        setCachedQuery(queryKey, docs)
         if (docsChanged || !publicCache.rulesDocuments.loaded) {
           setDocuments(docs)
         }
@@ -88,6 +107,9 @@ export const RulesPage: React.FC = () => {
         <div className="mb-6">
           <Link
             to="/"
+            onMouseEnter={() => prefetchRoute('/')}
+            onFocus={() => prefetchRoute('/')}
+            onTouchStart={() => prefetchRoute('/')}
             className="inline-flex items-center gap-2 text-xs font-medium text-muted hover:text-text transition-colors"
           >
             <ArrowLeft size={14} weight="bold" />
@@ -110,9 +132,9 @@ export const RulesPage: React.FC = () => {
           </p>
 
           {isLoading ? (
-            <div className="space-y-4 animate-pulse">
-              <div className="h-16 bg-surface-2 rounded-xl w-full" />
-              <div className="h-16 bg-surface-2 rounded-xl w-full" />
+            <div className="space-y-4">
+              <SkeletonBlock className="h-16 w-full rounded-xl" />
+              <SkeletonBlock className="h-16 w-full rounded-xl" />
             </div>
           ) : documents.length === 0 ? (
             <div className="py-12 px-6 rounded-xl bg-surface-2/40 border border-border text-center flex flex-col items-center justify-center gap-3">

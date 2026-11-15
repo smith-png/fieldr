@@ -7,8 +7,14 @@ import {
 } from '@phosphor-icons/react'
 import type { ActivityLogEntry, Season, Team } from '../../types'
 import { getAdminActivityLog } from '../../lib/data'
+import {
+  getCachedQuery,
+  isQueryFresh,
+  setCachedQuery,
+  shouldRevalidateQuery
+} from '../../lib/queryCache'
 import { useToast } from '../../lib/ToastContext'
-import { Button, EmptyState, Spinner } from '../../components/ui'
+import { Button, EmptyState, SkeletonTableRow } from '../../components/ui'
 
 interface AdminLogsProps {
   activeSeason: Season | null
@@ -95,37 +101,63 @@ function getLocalDateSlug(): string {
 export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => {
   const { error } = useToast()
 
-  const [entries, setEntries] = useState<ActivityLogEntry[]>([])
-  const [isLoading, setIsLoading] = useState<boolean>(true)
+  const cacheKey = activeSeason?.id ? `admin:logs:${activeSeason.id}` : ''
+  const cachedLogs = cacheKey ? getCachedQuery<ActivityLogEntry[]>(cacheKey) : null
+
+  const [entries, setEntries] = useState<ActivityLogEntry[]>(
+    () => cachedLogs?.data || []
+  )
+  const [isLoading, setIsLoading] = useState<boolean>(
+    () => Boolean(activeSeason?.id && !cachedLogs)
+  )
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false)
-  const [hasMore, setHasMore] = useState<boolean>(false)
+  const [hasMore, setHasMore] = useState<boolean>(
+    () => (cachedLogs?.data.length || 0) === LOG_PAGE_SIZE
+  )
 
   // Client-side filters
   const [typeFilter, setTypeFilter] = useState<LogFilterType>('all')
   const [teamFilter, setTeamFilter] = useState<string>('all')
   const [playerSearch, setPlayerSearch] = useState<string>('')
 
-  const loadInitialLogs = useCallback(async () => {
-    if (!activeSeason?.id) {
-      setEntries([])
-      setHasMore(false)
-      setIsLoading(false)
-      return
-    }
+  const loadInitialLogs = useCallback(
+    async (options?: { force?: boolean }) => {
+      if (!activeSeason?.id) {
+        setEntries([])
+        setHasMore(false)
+        setIsLoading(false)
+        return
+      }
 
-    try {
-      setIsLoading(true)
-      const rows = await getAdminActivityLog(activeSeason.id, LOG_PAGE_SIZE, 0)
-      setEntries(rows)
-      setHasMore(rows.length === LOG_PAGE_SIZE)
-    } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : 'Failed to load activity log'
-      error(msg)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [activeSeason?.id, error])
+      const key = `admin:logs:${activeSeason.id}`
+      const cached = getCachedQuery<ActivityLogEntry[]>(key)
+      if (cached && !options?.force) {
+        setEntries(cached.data)
+        setHasMore(cached.data.length === LOG_PAGE_SIZE)
+        setIsLoading(false)
+        if (isQueryFresh(key) && !shouldRevalidateQuery(key)) {
+          return
+        }
+      }
+
+      try {
+        if (!cached) {
+          setIsLoading(true)
+        }
+        const rows = await getAdminActivityLog(activeSeason.id, LOG_PAGE_SIZE, 0)
+        setEntries(rows)
+        setHasMore(rows.length === LOG_PAGE_SIZE)
+        setCachedQuery(key, rows)
+      } catch (err: unknown) {
+        const msg =
+          err instanceof Error ? err.message : 'Failed to load activity log'
+        error(msg)
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [activeSeason?.id, error]
+  )
 
   useEffect(() => {
     setTeamFilter('all')
@@ -262,7 +294,7 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
             size="md"
             leftIcon={ArrowsClockwise}
             disabled={isLoading || isLoadingMore || !activeSeason}
-            onClick={() => void loadInitialLogs()}
+            onClick={() => void loadInitialLogs({ force: true })}
           >
             Refresh
           </Button>
@@ -352,9 +384,29 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
       {/* Table Card */}
       <div className="bg-surface border border-border rounded-2xl shadow-sm overflow-hidden flex flex-col">
         {isLoading ? (
-          <div className="py-20 flex flex-col items-center justify-center gap-3 text-muted text-xs font-mono">
-            <Spinner size="md" />
-            <span>Loading activity log...</span>
+          <div className="max-h-[600px] overflow-y-auto overflow-x-auto thin-scrollbar">
+            <table className="w-full min-w-[780px] text-left border-collapse text-xs font-sans">
+              <thead className="sticky top-0 z-10 bg-surface-2 border-b border-border text-muted uppercase tracking-wider text-[11px] font-mono">
+                <tr>
+                  <th className="py-3.5 px-4 font-normal whitespace-nowrap">Time</th>
+                  <th className="py-3.5 px-4 font-normal whitespace-nowrap">Action</th>
+                  <th className="py-3.5 px-4 font-normal whitespace-nowrap">Player</th>
+                  <th className="py-3.5 px-4 font-normal whitespace-nowrap">Team</th>
+                  <th className="py-3.5 px-4 font-normal text-right whitespace-nowrap">
+                    Amount
+                  </th>
+                  <th className="py-3.5 px-4 font-normal text-right whitespace-nowrap">
+                    Balance
+                  </th>
+                  <th className="py-3.5 px-4 font-normal">Note</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <SkeletonTableRow key={i} columns={7} />
+                ))}
+              </tbody>
+            </table>
           </div>
         ) : entries.length === 0 ? (
           <div className="p-8">

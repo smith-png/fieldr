@@ -28,7 +28,20 @@ import { ACADEMIC_YEARS, getAcademicYearLabel } from '../../lib/academicYears'
 import { validateImageFile } from '../../lib/imageCompression'
 import { useToast } from '../../lib/ToastContext'
 import { getErrorMessage } from '../../lib/errors'
-import { Button, Dialog, EmptyState, PageHeader, Pagination } from '../../components/ui'
+import {
+  getCachedQuery,
+  isQueryFresh,
+  setCachedQuery,
+  shouldRevalidateQuery
+} from '../../lib/queryCache'
+import {
+  Button,
+  Dialog,
+  EmptyState,
+  PageHeader,
+  Pagination,
+  SkeletonTableRow
+} from '../../components/ui'
 import { BulkRegisterPanel } from '../../components/admin'
 
 interface AdminAthletesProps {
@@ -51,11 +64,16 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
   // Pagination & Search state
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize] = useState(15)
-  const [totalPages, setTotalPages] = useState(1)
-  const [totalCount, setTotalCount] = useState(0)
-  const [athletes, setAthletes] = useState<Athlete[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const hasLoadedOnceRef = useRef(false)
+  const initialCache = getCachedQuery<{
+    athletes: Athlete[]
+    totalPages: number
+    totalCount: number
+  }>('admin:athletes:1:15:')
+  const [totalPages, setTotalPages] = useState(() => initialCache?.data.totalPages || 1)
+  const [totalCount, setTotalCount] = useState(() => initialCache?.data.totalCount || 0)
+  const [athletes, setAthletes] = useState<Athlete[]>(() => initialCache?.data.athletes || [])
+  const [isLoading, setIsLoading] = useState(() => !initialCache)
+  const hasLoadedOnceRef = useRef(Boolean(initialCache))
   const latestReqIdRef = useRef(0)
   const detailReqIdRef = useRef(0)
   const isMountedRef = useRef(true)
@@ -108,35 +126,61 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
     return () => clearTimeout(timer)
   }, [searchQuery, debouncedSearch])
 
-  const loadAthletes = useCallback(async () => {
-    const reqId = ++latestReqIdRef.current
-    try {
-      if (!hasLoadedOnceRef.current) {
-        setIsLoading(true)
-      }
-      const res = await getAthletesPaged({
-        page: currentPage,
-        pageSize,
-        search: debouncedSearch || undefined
-      })
-      if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
-      hasLoadedOnceRef.current = true
-      setAthletes(res.athletes)
-      setTotalPages(res.totalPages)
-      setTotalCount(res.totalCount)
-    } catch (err: unknown) {
-      if (isMountedRef.current && reqId === latestReqIdRef.current) {
-        showToast(getErrorMessage(err, 'Failed to load athletes'), 'error')
-      }
-    } finally {
-      if (isMountedRef.current && reqId === latestReqIdRef.current) {
+  const loadAthletes = useCallback(
+    async (options?: { force?: boolean }) => {
+      const cacheKey = `admin:athletes:${currentPage}:${pageSize}:${debouncedSearch}`
+      const cached = getCachedQuery<{
+        athletes: Athlete[]
+        totalPages: number
+        totalCount: number
+      }>(cacheKey)
+
+      if (cached && !options?.force) {
+        hasLoadedOnceRef.current = true
+        setAthletes(cached.data.athletes)
+        setTotalPages(cached.data.totalPages)
+        setTotalCount(cached.data.totalCount)
         setIsLoading(false)
+        if (isQueryFresh(cacheKey) && !shouldRevalidateQuery(cacheKey)) {
+          return
+        }
       }
-    }
-  }, [currentPage, pageSize, debouncedSearch, showToast])
+
+      const reqId = ++latestReqIdRef.current
+      try {
+        if (!hasLoadedOnceRef.current && !cached) {
+          setIsLoading(true)
+        }
+        const res = await getAthletesPaged({
+          page: currentPage,
+          pageSize,
+          search: debouncedSearch || undefined
+        })
+        if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
+        hasLoadedOnceRef.current = true
+        setAthletes(res.athletes)
+        setTotalPages(res.totalPages)
+        setTotalCount(res.totalCount)
+        setCachedQuery(cacheKey, {
+          athletes: res.athletes,
+          totalPages: res.totalPages,
+          totalCount: res.totalCount
+        })
+      } catch (err: unknown) {
+        if (isMountedRef.current && reqId === latestReqIdRef.current) {
+          showToast(getErrorMessage(err, 'Failed to load athletes'), 'error')
+        }
+      } finally {
+        if (isMountedRef.current && reqId === latestReqIdRef.current) {
+          setIsLoading(false)
+        }
+      }
+    },
+    [currentPage, pageSize, debouncedSearch, showToast]
+  )
 
   useEffect(() => {
-    loadAthletes()
+    void loadAthletes()
   }, [loadAthletes])
 
   const openAthleteDetail = useCallback(
@@ -177,7 +221,7 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
 
   useEffect(() => {
     const unsubscribe = subscribeToAthletes(() => {
-      loadAthletes()
+      void loadAthletes({ force: true })
       if (selectedAthleteRef.current) {
         openAthleteDetail(selectedAthleteRef.current, { silent: true })
       }
@@ -283,7 +327,7 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
       markLocalMutation(['athletes', 'players'])
       setIsFormOpen(false)
       onRealtimeUpdateRef.current?.()
-      await Promise.all([loadAthletes(), onRefresh()])
+      await Promise.all([loadAthletes({ force: true }), onRefresh()])
     } catch (err: unknown) {
       showToast(getErrorMessage(err, 'Failed to save athlete'), 'error')
     } finally {
@@ -311,7 +355,7 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
       }
       setDeleteTarget(null)
       onRealtimeUpdateRef.current?.()
-      await Promise.all([loadAthletes(), onRefresh()])
+      await Promise.all([loadAthletes({ force: true }), onRefresh()])
     } catch (err: unknown) {
       showToast(getErrorMessage(err, 'Failed to delete athlete'), 'error')
       setDeleteTarget(null)
@@ -380,6 +424,10 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
               <img
                 src={selectedAthlete.photo_thumb_url || selectedAthlete.photo_url}
                 alt={selectedAthlete.name}
+                width={96}
+                height={96}
+                loading="lazy"
+                decoding="async"
                 referrerPolicy="no-referrer"
                 className="w-24 h-24 rounded-2xl object-cover bg-surface-2 border border-border shrink-0"
               />
@@ -464,9 +512,7 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
                 <tbody className="divide-y divide-border">
                   {isLoadingDetail ? (
                     Array.from({ length: 3 }).map((_, idx) => (
-                      <tr key={idx} className="animate-pulse">
-                        <td colSpan={4} className="py-4 px-4 h-12 bg-surface-2/40" />
-                      </tr>
+                      <SkeletonTableRow key={idx} columns={4} />
                     ))
                   ) : athleteEntries.length === 0 ? (
                     <tr>
@@ -557,9 +603,7 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
                 <tbody className="divide-y divide-border">
                   {isLoading ? (
                     Array.from({ length: 6 }).map((_, i) => (
-                      <tr key={i} className="animate-pulse">
-                        <td colSpan={6} className="py-4 px-4 h-12 bg-surface-2/40" />
-                      </tr>
+                      <SkeletonTableRow key={i} columns={6} />
                     ))
                   ) : athletes.length === 0 ? (
                     <tr>

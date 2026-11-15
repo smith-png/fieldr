@@ -4,9 +4,21 @@ import { Calendar, CaretLeft, IdentificationBadge, Trophy, User } from '@phospho
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
-import { EmptyState, ErrorState, Spinner } from '../../components/ui'
+import {
+  EmptyState,
+  ErrorState,
+  SkeletonBlock,
+  SkeletonCard,
+  SkeletonText
+} from '../../components/ui'
 import { getAthleteByCode, getAthleteCareer, formatAthleteCode, getActiveSeason } from '../../lib/data'
 import { hasDataChanged, publicCache, type PlayerProfileCacheEntry } from '../../lib/publicCache'
+import {
+  isQueryFresh,
+  prefetchRoute,
+  setCachedQuery,
+  shouldRevalidateQuery
+} from '../../lib/queryCache'
 import type { Athlete, AthleteCareerEntry, Season } from '../../types'
 
 function getProfileCacheKey(code?: string): string {
@@ -31,22 +43,29 @@ export const PlayerProfilePage: React.FC = () => {
   const [isLoading, setIsLoading] = useState<boolean>(!initialCached)
   const [hasError, setHasError] = useState<boolean>(false)
 
-  const loadData = async () => {
+  const loadData = async (options?: { force?: boolean }) => {
     if (!code) return
     const key = getProfileCacheKey(code)
+    const queryKey = `public:playerProfile:${key}`
     const cached = publicCache.playerProfiles.get(key)
 
-    if (cached) {
+    if (cached && !options?.force) {
       setAthlete(cached.athlete)
       setCareer(cached.career)
       setIsLoading(false)
-    } else {
+      if (isQueryFresh(queryKey) && !shouldRevalidateQuery(queryKey)) {
+        return
+      }
+    } else if (!cached) {
       setIsLoading(true)
     }
     setHasError(false)
 
     try {
-      const active = await getActiveSeason()
+      const [active, profile] = await Promise.all([
+        getActiveSeason(),
+        getAthleteByCode(code)
+      ])
       const prevActive = publicCache.activeSeason.value
       const activeChanged =
         !publicCache.activeSeason.loaded || hasDataChanged(prevActive, active)
@@ -55,10 +74,10 @@ export const PlayerProfilePage: React.FC = () => {
         setActiveSeason(active)
       }
 
-      const profile = await getAthleteByCode(code)
       if (!profile) {
         const emptyEntry: PlayerProfileCacheEntry = { athlete: null, career: [] }
         publicCache.playerProfiles.set(key, emptyEntry)
+        setCachedQuery(queryKey, emptyEntry)
         setAthlete(null)
         setCareer([])
         return
@@ -72,6 +91,7 @@ export const PlayerProfilePage: React.FC = () => {
       const prevEntry = publicCache.playerProfiles.get(key)
       const changed = !prevEntry || hasDataChanged(prevEntry, nextEntry)
       publicCache.playerProfiles.set(key, nextEntry)
+      setCachedQuery(queryKey, nextEntry)
 
       if (changed) {
         setAthlete(profile)
@@ -92,7 +112,7 @@ export const PlayerProfilePage: React.FC = () => {
   }
 
   useEffect(() => {
-    loadData()
+    void loadData()
   }, [code])
 
   return (
@@ -108,6 +128,9 @@ export const PlayerProfilePage: React.FC = () => {
         <div className="mb-6">
           <Link
             to="/rosters"
+            onMouseEnter={() => prefetchRoute('/rosters')}
+            onFocus={() => prefetchRoute('/rosters')}
+            onTouchStart={() => prefetchRoute('/rosters')}
             className="inline-flex items-center gap-1.5 text-xs font-medium text-muted hover:text-text transition-colors"
           >
             <CaretLeft size={16} />
@@ -116,14 +139,27 @@ export const PlayerProfilePage: React.FC = () => {
         </div>
 
         {isLoading ? (
-          <div className="py-20 flex justify-center">
-            <Spinner size="lg" />
+          <div className="flex flex-col gap-8">
+            <div className="p-6 sm:p-8 rounded-3xl bg-surface border border-border shadow-sm flex flex-col sm:flex-row items-center sm:items-start gap-6">
+              <SkeletonBlock className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl shrink-0" />
+              <div className="flex-1 space-y-3 w-full">
+                <SkeletonBlock className="w-24 h-6 rounded-full" />
+                <SkeletonBlock className="w-64 h-10 rounded-xl" />
+                <SkeletonText width="w-40" />
+                <SkeletonText width="w-56" />
+              </div>
+            </div>
+            <div className="space-y-4">
+              <SkeletonBlock className="w-56 h-7 rounded-lg" />
+              <SkeletonCard className="min-h-[110px]" />
+              <SkeletonCard className="min-h-[110px]" />
+            </div>
           </div>
         ) : hasError ? (
           <ErrorState
             title="Failed to Load Athlete Profile"
             description="We encountered an issue retrieving this athlete's records."
-            onRetry={loadData}
+            onRetry={() => void loadData({ force: true })}
           />
         ) : !athlete ? (
           <EmptyState
@@ -143,6 +179,9 @@ export const PlayerProfilePage: React.FC = () => {
                   <img
                     src={athlete.photo_url || athlete.photo_thumb_url}
                     alt={athlete.name}
+                    width={112}
+                    height={112}
+                    decoding="async"
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -238,6 +277,15 @@ export const PlayerProfilePage: React.FC = () => {
                         {entry.team_name ? (
                           <Link
                             to={`/season/${entry.season_id}/teams/${entry.team_id}`}
+                            onMouseEnter={() =>
+                              prefetchRoute(`/season/${entry.season_id}/teams/${entry.team_id}`)
+                            }
+                            onFocus={() =>
+                              prefetchRoute(`/season/${entry.season_id}/teams/${entry.team_id}`)
+                            }
+                            onTouchStart={() =>
+                              prefetchRoute(`/season/${entry.season_id}/teams/${entry.team_id}`)
+                            }
                             className="px-3.5 py-1.5 rounded-xl bg-surface-2 border border-border hover:border-accent-bright text-xs font-semibold text-text flex items-center gap-2 transition-colors"
                           >
                             <span

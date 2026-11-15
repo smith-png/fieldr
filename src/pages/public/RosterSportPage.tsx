@@ -5,6 +5,7 @@ import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
 import { RosterPlayerCard, RosterScoutModal } from '../../components/roster'
+import { SkeletonCard } from '../../components/ui'
 import {
   getActiveSeason,
   getPublicPlayersPaged,
@@ -14,9 +15,16 @@ import {
 } from '../../lib/data'
 import { ACADEMIC_YEAR_VALUES } from '../../lib/academicYears'
 import { hasDataChanged, publicCache } from '../../lib/publicCache'
+import {
+  isQueryFresh,
+  prefetchRoute,
+  setCachedQuery,
+  shouldRevalidateQuery
+} from '../../lib/queryCache'
 import type { PublicPlayer, PublicTeam, Season } from '../../types'
 
 const ACADEMIC_YEAR_FILTER_OPTIONS = ['All', ...ACADEMIC_YEAR_VALUES] as const
+const KNOWN_SPORT_SLUGS = new Set(['cricket', 'futsal', 'volleyball'])
 
 function getRosterQueryKey(sport: string, year: string, role: string): string {
   return `${sport}::${year}::${role}`
@@ -113,12 +121,16 @@ export const RosterSportPage: React.FC = () => {
     }
   }, [normalizedSport])
 
-  // Load initial season and public teams data
+  // Load initial season and public teams data in parallel
   useEffect(() => {
     let mounted = true
     async function init() {
       try {
-        const season = await getActiveSeason()
+        const knownSeasonId = publicCache.activeSeason.value?.id
+        const [season, preloadedTeams] = await Promise.all([
+          getActiveSeason(),
+          knownSeasonId ? getPublicTeams(knownSeasonId) : Promise.resolve(null)
+        ])
         const prevSeason = publicCache.activeSeason.value
         const seasonChanged =
           !publicCache.activeSeason.loaded || hasDataChanged(prevSeason, season)
@@ -128,7 +140,10 @@ export const RosterSportPage: React.FC = () => {
         }
 
         if (season) {
-          const publicTeams = await getPublicTeams(season.id)
+          const publicTeams =
+            knownSeasonId === season.id && preloadedTeams
+              ? preloadedTeams
+              : await getPublicTeams(season.id)
           const prevTeams = publicCache.teamsBySeason.get(season.id)
           const teamsChanged =
             !prevTeams || hasDataChanged(prevTeams, publicTeams)
@@ -145,7 +160,7 @@ export const RosterSportPage: React.FC = () => {
         )
       }
     }
-    init()
+    void init()
     return () => {
       mounted = false
     }
@@ -166,7 +181,10 @@ export const RosterSportPage: React.FC = () => {
         if (!mounted) return
 
         if (found) {
-          const sportRoles = await getRolesForSport(found.id)
+          const sportRoles =
+            found.roles && found.roles.length > 0
+              ? found.roles
+              : await getRolesForSport(found.id)
           if (!mounted) return
           const nextInfo = {
             valid: true,
@@ -241,10 +259,22 @@ export const RosterSportPage: React.FC = () => {
   // Fetch players on filter change or pagination
   const fetchPlayers = useCallback(
     async (offset: number, append = false) => {
-      if (!isSportValid || !isSportChecked) return
+      const canFetchImmediately =
+        KNOWN_SPORT_SLUGS.has(normalizedSport) || (isSportChecked && isSportValid)
+      if (!canFetchImmediately || (isSportChecked && !isSportValid)) return
 
       const queryKey = getRosterQueryKey(normalizedSport, selectedYear, selectedRole)
+      const cacheKey = `public:rosterSport:${queryKey}`
       const cached = offset === 0 ? publicCache.rosterPagedQueries.get(queryKey) : undefined
+
+      if (!append && cached) {
+        setIsLoading(false)
+        setIsFilterLoading(false)
+        if (isQueryFresh(cacheKey) && !shouldRevalidateQuery(cacheKey)) {
+          return
+        }
+      }
+
       const currentRequestId = ++requestIdRef.current
 
       try {
@@ -285,6 +315,7 @@ export const RosterSportPage: React.FC = () => {
           const prevEntry = publicCache.rosterPagedQueries.get(queryKey)
           const changed = !prevEntry || hasDataChanged(prevEntry, nextEntry)
           publicCache.rosterPagedQueries.set(queryKey, nextEntry)
+          setCachedQuery(cacheKey, nextEntry)
 
           if (changed) {
             setPlayers(result.players)
@@ -310,12 +341,12 @@ export const RosterSportPage: React.FC = () => {
     [isSportValid, isSportChecked, normalizedSport, selectedYear, selectedRole, hasLoadedSportOnce]
   )
 
-  // Reset & refetch when filters change
+  // Reset & refetch when filters change (or immediately on mount for known sports)
   useEffect(() => {
-    if (isSportChecked && isSportValid) {
-      fetchPlayers(0, false)
+    if (KNOWN_SPORT_SLUGS.has(normalizedSport) || (isSportChecked && isSportValid)) {
+      void fetchPlayers(0, false)
     }
-  }, [fetchPlayers, isSportChecked, isSportValid])
+  }, [fetchPlayers, isSportChecked, isSportValid, normalizedSport])
 
   // Endless scroll observer
   useEffect(() => {
@@ -386,6 +417,9 @@ export const RosterSportPage: React.FC = () => {
         <div className="mb-6">
           <Link
             to="/rosters"
+            onMouseEnter={() => prefetchRoute('/rosters')}
+            onFocus={() => prefetchRoute('/rosters')}
+            onTouchStart={() => prefetchRoute('/rosters')}
             className="inline-flex items-center gap-2 text-xs font-medium text-muted hover:text-text transition-colors"
           >
             <ArrowLeft size={14} weight="bold" />
@@ -462,10 +496,7 @@ export const RosterSportPage: React.FC = () => {
         {showPlaceholderBoxes ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div
-                key={i}
-                className="bg-surface border border-border rounded-xl p-5 animate-pulse h-48"
-              />
+              <SkeletonCard key={i} className="h-48" />
             ))}
           </div>
         ) : players.length === 0 ? (
@@ -498,10 +529,12 @@ export const RosterSportPage: React.FC = () => {
             </div>
 
             {/* Endless scroll sentinel */}
-            <div ref={sentinelRef} className="py-10 text-center">
+            <div ref={sentinelRef} className="py-10">
               {isLoadingMore && (
-                <div className="text-xs font-mono uppercase tracking-widest text-muted animate-pulse">
-                  Loading more athletes...
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <SkeletonCard key={i} className="h-44" />
+                  ))}
                 </div>
               )}
             </div>

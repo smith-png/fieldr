@@ -25,6 +25,7 @@ import { BrandMark } from '../../components/layout/BrandMark'
 import { Button } from '../../components/ui'
 import { useAuth } from '../../lib/AuthContext'
 import { triggerConfetti } from '../../lib/data'
+import { prefetchAdminTab, prefetchRoute } from '../../lib/queryCache'
 import { type ThemePreference, useTheme } from '../../lib/theme'
 import { STORAGE_KEYS } from '../../lib/constants'
 import type { AdminTab, Season } from '../../types'
@@ -257,6 +258,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                   key={tab.id}
                   type="button"
                   onClick={() => onSelectTab(tab.id)}
+                  onMouseEnter={() => prefetchAdminTab(tab.id)}
+                  onFocus={() => prefetchAdminTab(tab.id)}
+                  onTouchStart={() => prefetchAdminTab(tab.id)}
                   title={isCollapsed ? tab.label : undefined}
                   className={`min-h-[42px] px-3.5 py-2 rounded-xl text-xs font-medium flex items-center transition-colors ${
                     isCollapsed ? 'justify-center' : 'gap-3'
@@ -282,6 +286,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             to="/projector"
             target="_blank"
             rel="noopener noreferrer"
+            onMouseEnter={() => prefetchRoute('/projector')}
+            onFocus={() => prefetchRoute('/projector')}
+            onTouchStart={() => prefetchRoute('/projector')}
             title={isCollapsed ? 'Launch Projector' : undefined}
             className={`min-h-[42px] px-3.5 py-2 rounded-xl bg-surface-2 border border-border text-xs font-medium text-text hover:border-accent-bright transition-colors flex items-center ${
               isCollapsed ? 'justify-center' : 'justify-between'
@@ -409,6 +416,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 key={tab.id}
                 type="button"
                 onClick={() => onSelectTab(tab.id)}
+                onMouseEnter={() => prefetchAdminTab(tab.id)}
+                onFocus={() => prefetchAdminTab(tab.id)}
+                onTouchStart={() => prefetchAdminTab(tab.id)}
                 className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap flex items-center gap-2 shrink-0 transition-colors ${
                   isActive
                     ? 'bg-surface-2 border border-accent-bright text-text font-semibold'
@@ -527,6 +537,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                         onSelectTab(tab.id)
                         setIsMobileDrawerOpen(false)
                       }}
+                      onMouseEnter={() => prefetchAdminTab(tab.id)}
+                      onFocus={() => prefetchAdminTab(tab.id)}
+                      onTouchStart={() => prefetchAdminTab(tab.id)}
                       className={`min-h-[42px] px-3.5 py-2 rounded-xl text-xs font-medium flex items-center gap-3 ${
                         isActive
                           ? 'bg-surface-2 border border-border text-text font-semibold'

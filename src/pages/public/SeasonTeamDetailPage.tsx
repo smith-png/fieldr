@@ -4,7 +4,13 @@ import { ArrowsClockwise, CaretLeft, ShieldCheck, SignOut, Users } from '@phosph
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
-import { EmptyState, ErrorState, Spinner } from '../../components/ui'
+import {
+  EmptyState,
+  ErrorState,
+  SkeletonBlock,
+  SkeletonCard,
+  SkeletonText
+} from '../../components/ui'
 import { RosterPlayerCard } from '../../components/roster/RosterPlayerCard'
 import {
   formatAthleteCode,
@@ -13,6 +19,7 @@ import {
   getPublicTeams,
   getRolesForSport,
   getSeason,
+  getSports,
   supabase
 } from '../../lib/data'
 import {
@@ -20,6 +27,12 @@ import {
   publicCache,
   type SeasonTeamDetailCacheEntry
 } from '../../lib/publicCache'
+import {
+  isQueryFresh,
+  prefetchRoute,
+  setCachedQuery,
+  shouldRevalidateQuery
+} from '../../lib/queryCache'
 import { formatPoints, getInitials } from '../../lib/utils'
 import { useAuth } from '../../lib/AuthContext'
 import type { PublicPlayer, PublicTeam, Season } from '../../types'
@@ -155,25 +168,36 @@ export const SeasonTeamDetailPage: React.FC = () => {
     }
   }, [user?.role, user?.id, teamId])
 
-  const loadData = async () => {
+  const loadData = async (options?: { force?: boolean }) => {
     if (!id || !teamId) return
     const key = getTeamCacheKey(id, teamId)
+    const queryKey = `public:teamDetail:${key}`
     const cached = getCachedTeamDetail(id, teamId)
 
-    if (cached) {
+    if (cached && !options?.force) {
       setSeason(cached.season)
       setTeam(cached.team)
       setTeamPlayers(cached.teamPlayers)
       setAllPlayers(cached.allPlayers)
       setSportRoles(cached.sportRoles)
       setIsLoading(false)
-    } else {
+      if (isQueryFresh(queryKey) && !shouldRevalidateQuery(queryKey)) {
+        return
+      }
+    } else if (!cached) {
       setIsLoading(true)
     }
     setHasError(false)
 
     try {
-      const active = await getActiveSeason()
+      const [active, s, publicTeams, seasonPlayers, allSports] = await Promise.all([
+        getActiveSeason(),
+        getSeason(id),
+        getPublicTeams(id),
+        getPublicPlayersBySeason(id),
+        getSports()
+      ])
+
       const prevActive = publicCache.activeSeason.value
       const activeChanged =
         !publicCache.activeSeason.loaded || hasDataChanged(prevActive, active)
@@ -182,11 +206,11 @@ export const SeasonTeamDetailPage: React.FC = () => {
         setActiveSeason(active)
       }
 
-      const [s, publicTeams] = await Promise.all([
-        getSeason(id),
-        getPublicTeams(id)
-      ])
       publicCache.teamsBySeason.set(id, publicTeams)
+      publicCache.playersBySeason.set(id, seasonPlayers)
+      if (Array.isArray(allSports)) {
+        publicCache.sports = { loaded: true, value: allSports }
+      }
 
       const foundTeam = publicTeams.find((t) => t.id === teamId) || null
       if (!foundTeam) {
@@ -198,16 +222,23 @@ export const SeasonTeamDetailPage: React.FC = () => {
           sportRoles: []
         }
         publicCache.seasonTeamDetails.set(key, notFoundEntry)
+        setCachedQuery(queryKey, notFoundEntry)
         setSeason(s)
         setTeam(null)
         return
       }
 
-      const [seasonPlayers, roles] = await Promise.all([
-        getPublicPlayersBySeason(id),
-        getRolesForSport(foundTeam.sport)
-      ])
-      publicCache.playersBySeason.set(id, seasonPlayers)
+      const matchedSport = Array.isArray(allSports)
+        ? allSports.find(
+            (sp) =>
+              sp.id.toLowerCase() === foundTeam.sport.toLowerCase() ||
+              sp.name.toLowerCase() === foundTeam.sport.toLowerCase()
+          )
+        : undefined
+      const roles =
+        matchedSport && matchedSport.roles.length > 0
+          ? matchedSport.roles
+          : await getRolesForSport(foundTeam.sport)
 
       const nextEntry: SeasonTeamDetailCacheEntry = {
         season: s,
@@ -219,6 +250,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
       const prevEntry = publicCache.seasonTeamDetails.get(key) ?? cached
       const changed = !prevEntry || hasDataChanged(prevEntry, nextEntry)
       publicCache.seasonTeamDetails.set(key, nextEntry)
+      setCachedQuery(queryKey, nextEntry)
 
       if (changed) {
         setSeason(s)
@@ -242,7 +274,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
   }
 
   useEffect(() => {
-    loadData()
+    void loadData()
   }, [id, teamId])
 
   const ownerName = team?.owner_display_name?.trim() || ''
@@ -275,6 +307,9 @@ export const SeasonTeamDetailPage: React.FC = () => {
         <div className="mb-6">
           <Link
             to="/teams"
+            onMouseEnter={() => prefetchRoute('/teams')}
+            onFocus={() => prefetchRoute('/teams')}
+            onTouchStart={() => prefetchRoute('/teams')}
             className="inline-flex items-center gap-1.5 text-xs font-medium text-muted hover:text-text transition-colors"
           >
             <CaretLeft size={16} />
@@ -283,14 +318,32 @@ export const SeasonTeamDetailPage: React.FC = () => {
         </div>
 
         {isLoading ? (
-          <div className="py-20 flex justify-center">
-            <Spinner size="lg" />
+          <div className="flex flex-col gap-8">
+            <div className="p-6 sm:p-8 rounded-3xl bg-surface border border-border flex flex-col md:flex-row items-center justify-between gap-6">
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 flex-1 w-full">
+                <SkeletonBlock className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl shrink-0" />
+                <div className="space-y-3 flex-1 w-full">
+                  <SkeletonBlock className="w-28 h-6 rounded-full" />
+                  <SkeletonBlock className="w-64 h-10 rounded-xl" />
+                  <SkeletonText width="w-40" />
+                </div>
+              </div>
+              <SkeletonBlock className="w-44 h-52 rounded-2xl shrink-0" />
+            </div>
+            <div className="space-y-4">
+              <SkeletonBlock className="w-48 h-7 rounded-lg" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {Array.from({ length: 6 }).map((_, idx) => (
+                  <SkeletonCard key={idx} className="min-h-[150px]" />
+                ))}
+              </div>
+            </div>
           </div>
         ) : hasError ? (
           <ErrorState
             title="Failed to Load Franchise Details"
             description="We encountered an issue loading this team's roster."
-            onRetry={loadData}
+            onRetry={() => void loadData({ force: true })}
           />
         ) : !team ? (
           <EmptyState
@@ -316,6 +369,9 @@ export const SeasonTeamDetailPage: React.FC = () => {
                     <img
                       src={team.logo_url}
                       alt={team.name}
+                      width={96}
+                      height={96}
+                      decoding="async"
                       referrerPolicy="no-referrer"
                       className="w-full h-full object-cover"
                     />
@@ -353,6 +409,10 @@ export const SeasonTeamDetailPage: React.FC = () => {
                       <img
                         src={ownerPhotoUrl}
                         alt={ownerName || 'Franchise Owner'}
+                        width={224}
+                        height={280}
+                        loading="lazy"
+                        decoding="async"
                         referrerPolicy="no-referrer"
                         onError={() => {
                           setIsOwnerPhotoOpen(false)

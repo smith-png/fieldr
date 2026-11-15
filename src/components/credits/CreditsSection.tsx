@@ -31,6 +31,10 @@ export const CreditAvatar: React.FC<{
         <img
           src={cleanUrl}
           alt={name}
+          width={320}
+          height={336}
+          loading="lazy"
+          decoding="async"
           referrerPolicy="no-referrer"
           onError={() => setFailedUrl(cleanUrl)}
           className="w-full h-full object-cover"

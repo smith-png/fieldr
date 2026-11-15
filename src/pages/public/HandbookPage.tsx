@@ -9,8 +9,9 @@ import {
   WarningCircle
 } from '@phosphor-icons/react'
 import { BrandMark } from '../../components/layout/BrandMark'
-import { Button } from '../../components/ui'
+import { Button, SkeletonBlock } from '../../components/ui'
 import { supabase } from '../../lib/data'
+import { prefetchRoute } from '../../lib/queryCache'
 
 const HANDBOOK_SESSION_KEY = 'fieldr_handbook_access_code'
 const HANDBOOK_BUCKET = 'handbooks'
@@ -170,6 +171,9 @@ export const HandbookPage: React.FC = () => {
         <BrandMark />
         <Link
           to="/"
+          onMouseEnter={() => prefetchRoute('/')}
+          onFocus={() => prefetchRoute('/')}
+          onTouchStart={() => prefetchRoute('/')}
           className="flex items-center gap-2 text-xs md:text-sm font-medium text-muted hover:text-text transition-colors"
         >
           <ArrowLeft size={16} />
@@ -203,8 +207,9 @@ export const HandbookPage: React.FC = () => {
           </div>
 
           {isCheckingSession ? (
-            <div className="py-8 text-center text-xs font-mono text-muted">
-              Verifying session...
+            <div className="space-y-4">
+              <SkeletonBlock className="h-12 w-full rounded-xl" />
+              <SkeletonBlock className="h-12 w-full rounded-xl" />
             </div>
           ) : !isUnlocked ? (
             <form onSubmit={handleSubmit} className="space-y-4">
