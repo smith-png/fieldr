@@ -2,7 +2,27 @@ import React, { useEffect, useRef, useState } from 'react'
 
 interface ProjectorConfettiProps {
   triggerCount: number
+  fallSpeed?: number
   reducedMotion?: boolean
+}
+
+export function normalizeConfettiFallSpeed(raw: unknown): number {
+  if (raw === null || raw === undefined || raw === '' || typeof raw === 'boolean') {
+    return 5
+  }
+  const num = typeof raw === 'number' ? raw : Number(raw)
+  if (!Number.isFinite(num) || num < 1 || num > 10) {
+    return 5
+  }
+  return Math.round(num)
+}
+
+export function getConfettiFallSpeedMultiplier(value: unknown): number {
+  const v = normalizeConfettiFallSpeed(value)
+  if (v <= 5) {
+    return 0.4 + (v - 1) * 0.15
+  }
+  return 1 + (v - 5) * 0.24
 }
 
 interface ConfettiBatch {
@@ -60,7 +80,8 @@ function createShowerBatch(
   batchId: number,
   count: number,
   baseReleaseTime: number,
-  viewportWidth: number
+  viewportWidth: number,
+  fallMultiplier: number
 ): ConfettiPiece[] {
   const safeWidth = Math.max(320, viewportWidth)
   const batch: ConfettiBatch = {
@@ -100,8 +121,8 @@ function createShowerBatch(
       x,
       y: -16 - Math.random() * 44,
       vx: (Math.random() - 0.5) * 34,
-      vy: (119 + Math.random() * 91) * speedFactor,
-      gravity: (110 + Math.random() * 54) * speedFactor,
+      vy: (119 + Math.random() * 91) * speedFactor * fallMultiplier,
+      gravity: (110 + Math.random() * 54) * speedFactor * fallMultiplier,
       drag: 0.983 + Math.random() * 0.005,
       width,
       height,
@@ -130,6 +151,7 @@ function createShowerBatch(
 
 export const ProjectorConfetti: React.FC<ProjectorConfettiProps> = ({
   triggerCount,
+  fallSpeed = 5,
   reducedMotion = false
 }) => {
   const [isActive, setIsActive] = useState(false)
@@ -161,12 +183,14 @@ export const ProjectorConfetti: React.FC<ProjectorConfettiProps> = ({
     const now = performance.now()
     const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1920
     const batchId = nextBatchIdRef.current++
+    const fallMultiplier = getConfettiFallSpeedMultiplier(fallSpeed)
 
     const newPieces = createShowerBatch(
       batchId,
       PIECES_PER_TRIGGER,
       now,
-      viewportWidth
+      viewportWidth,
+      fallMultiplier
     )
 
     const combined = piecesRef.current.concat(newPieces)
@@ -193,7 +217,7 @@ export const ProjectorConfetti: React.FC<ProjectorConfettiProps> = ({
     }
 
     setIsActive(true)
-  }, [triggerCount, reducedMotion])
+  }, [triggerCount, fallSpeed, reducedMotion])
 
   useEffect(() => {
     if (reducedMotion && isActive) {

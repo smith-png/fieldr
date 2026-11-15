@@ -9,7 +9,10 @@ import {
 } from '@phosphor-icons/react'
 import { AnimatedCounter } from '../../components/home/AnimatedCounter'
 import { BrandMark } from '../../components/layout/BrandMark'
-import { ProjectorConfetti } from '../../components/projector/ProjectorConfetti'
+import {
+  ProjectorConfetti,
+  normalizeConfettiFallSpeed
+} from '../../components/projector/ProjectorConfetti'
 import { SecuredSequence } from '../../components/projector/SecuredSequence'
 import {
   formatAthleteCode,
@@ -19,6 +22,7 @@ import {
   getProjectorState,
   getPublicTeams,
   getSeasons,
+  getSiteSettings,
   getTeams,
   subscribeToAuctionSettings,
   subscribeToPlayers,
@@ -819,6 +823,30 @@ export const ProjectorPage: React.FC = () => {
   const hasSeenInitialConfettiRef = useRef(false)
   const lastSeenConfettiAtRef = useRef<string | null>(null)
   const [confettiTriggerCount, setConfettiTriggerCount] = useState(0)
+  const [confettiFallSpeed, setConfettiFallSpeed] = useState<number>(5)
+
+  const readConfettiFallSpeedOnce = useCallback(async (): Promise<number> => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    try {
+      const timeoutPromise = new Promise<null>((resolve) => {
+        timeoutId = setTimeout(() => resolve(null), 800)
+      })
+      const settings = await Promise.race([
+        getSiteSettings().catch(() => null),
+        timeoutPromise
+      ])
+      if (!settings || settings.confetti_fall_speed === undefined) {
+        return 5
+      }
+      return normalizeConfettiFallSpeed(settings.confetti_fall_speed)
+    } catch {
+      return 5
+    } finally {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId)
+      }
+    }
+  }, [])
 
   // Secured animation tracking (play once per sale_event_id)
   const hasLoadedInitialStateRef = useRef(false)
@@ -839,7 +867,10 @@ export const ProjectorPage: React.FC = () => {
           incomingConfettiAt !== lastSeenConfettiAtRef.current
         ) {
           lastSeenConfettiAtRef.current = incomingConfettiAt
-          setConfettiTriggerCount((c) => c + 1)
+          void readConfettiFallSpeedOnce().then((speed) => {
+            setConfettiFallSpeed(speed)
+            setConfettiTriggerCount((c) => c + 1)
+          })
         } else if (!incomingConfettiAt) {
           lastSeenConfettiAtRef.current = null
         }
@@ -1477,6 +1508,7 @@ export const ProjectorPage: React.FC = () => {
     >
       <ProjectorConfetti
         triggerCount={confettiTriggerCount}
+        fallSpeed={confettiFallSpeed}
         reducedMotion={shouldReduceMotion}
       />
 

@@ -20,6 +20,7 @@ function invalidateSeasonCaches(): void {
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem('fieldr_seasons_updated_at', String(Date.now()))
+      localStorage.removeItem('fieldr_public_home_v1')
     } catch {
       // ignore storage errors
     }
@@ -251,8 +252,9 @@ const supabaseSeasonsService: SeasonsService = {
       if (!supabase) return null
       const { data, error } = await supabase
         .from('seasons')
-        .select(SEASON_COLS)
+        .select('id, name, is_active, created_at')
         .eq('is_active', true)
+        .limit(1)
         .maybeSingle()
 
       if (error) {

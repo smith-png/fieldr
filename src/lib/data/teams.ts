@@ -418,7 +418,10 @@ const demoTeamsService: TeamsService = {
 const supabaseTeamsService: TeamsService = {
   async getSports(): Promise<Sport[]> {
     if (!supabase) return DEFAULT_SPORTS
-    const { data, error } = await supabase.from('sports').select('id, name, roles')
+    const { data, error } = await supabase
+      .from('sports')
+      .select('id, name, roles')
+      .limit(10)
     if (error) {
       console.error('Supabase getSports error:', error.message, error)
       return DEFAULT_SPORTS

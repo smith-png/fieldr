@@ -1,4 +1,5 @@
-import type { CarouselItem, SiteSettings } from '../../types'
+import type { CarouselItem, Season, SiteSettings, Sport } from '../../types'
+import type { SportSlug } from '../sports'
 import { AppError } from '../errors'
 import {
   isDemoMode,
@@ -18,6 +19,7 @@ let activeCarouselCache: { data: CarouselItem[]; expiresAt: number } | null = nu
 
 export function invalidateCarouselCache(): void {
   activeCarouselCache = null
+  invalidateCachedPublicHome()
 }
 
 const demoSiteService: SiteService = {
@@ -166,6 +168,7 @@ const supabaseSiteService: SiteService = {
         .select('id, text, sort_order, active, season_id, created_at')
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true })
+        .limit(activeOnly ? 25 : 100)
 
       if (activeOnly) {
         query = query.eq('active', true)
@@ -205,7 +208,7 @@ const supabaseSiteService: SiteService = {
     const { data, error } = await supabase
       .from('carousel_items')
       .insert([{ text: trimmed, sort_order: sortOrder, active: true, season_id: seasonId || null }])
-      .select()
+      .select('id, text, sort_order, active, season_id, created_at')
       .single()
 
     if (error) throw new AppError(error.message, { original: error })
@@ -233,6 +236,7 @@ const supabaseSiteService: SiteService = {
         .from('carousel_items')
         .select('id')
         .eq('active', true)
+        .limit(25)
 
       if (activeItems && activeItems.filter((i) => i.id !== id).length === 0) {
         throw new AppError('At least 1 active ticker item is required.')
@@ -243,7 +247,7 @@ const supabaseSiteService: SiteService = {
       .from('carousel_items')
       .update(updates)
       .eq('id', id)
-      .select()
+      .select('id, text, sort_order, active, season_id, created_at')
       .single()
 
     if (error) throw new AppError(error.message, { original: error })
@@ -259,6 +263,7 @@ const supabaseSiteService: SiteService = {
       .from('carousel_items')
       .select('id')
       .eq('active', true)
+      .limit(25)
 
     if (activeItems && activeItems.length <= 1 && activeItems[0]?.id === id) {
       throw new AppError('At least 1 active ticker item is required.')
@@ -306,6 +311,7 @@ const supabaseSiteService: SiteService = {
     const { data, error } = await supabase
       .from('site_settings')
       .select('key, value, updated_at')
+      .limit(50)
     if (error) {
       console.error('Supabase getSiteSettings error:', error.message, error)
       return DEFAULT_SETTINGS
@@ -328,6 +334,348 @@ const supabaseSiteService: SiteService = {
 
     if (error) throw new AppError(error.message, { original: error })
   }
+}
+
+export const DEFAULT_TICKER_SPEED = 5
+
+export function normalizeTickerSpeed(raw: unknown): number {
+  if (raw === null || raw === undefined || raw === '' || typeof raw === 'boolean') {
+    return DEFAULT_TICKER_SPEED
+  }
+  const num = typeof raw === 'number' ? raw : Number(raw)
+  if (!Number.isFinite(num) || num < 1 || num > 10) {
+    return DEFAULT_TICKER_SPEED
+  }
+  return Math.round(num)
+}
+
+export function getTickerSpeedMultiplier(value: unknown): number {
+  const v = normalizeTickerSpeed(value)
+  if (v <= 5) {
+    return 0.4 + (v - 1) * 0.15
+  }
+  return 1 + (v - 5) * 0.24
+}
+
+export async function getTickerSpeedSetting(): Promise<number | null> {
+  try {
+    if (isDemoMode) {
+      const settings = getLocal<SiteSettings>(STORAGE_KEYS.SETTINGS, DEFAULT_SETTINGS)
+      return settings.ticker_speed !== undefined
+        ? normalizeTickerSpeed(settings.ticker_speed)
+        : DEFAULT_TICKER_SPEED
+    }
+
+    if (!supabase) return DEFAULT_TICKER_SPEED
+
+    const { data, error } = await supabase
+      .from('site_settings')
+      .select('key, value')
+      .eq('key', 'ticker_speed')
+      .limit(1)
+      .maybeSingle()
+
+    if (error || !data || data.value === undefined) {
+      return null
+    }
+    return normalizeTickerSpeed(data.value)
+  } catch {
+    return null
+  }
+}
+
+const PUBLIC_TICKER_CACHE_KEY = 'fieldr_public_ticker_v1'
+export const PUBLIC_HOME_CACHE_KEY = 'fieldr_public_home_v1'
+export const HOME_CACHE_TTL_MS = 5 * 60 * 1000
+
+export interface PublicTickerCachePayload {
+  items: string[]
+  ticker_speed?: number
+  timestamp?: number
+}
+
+export interface PublicHomeCachePayload {
+  version: 1
+  timestamp: number
+  activeSeason: Season | null
+  playerCounts: Record<SportSlug, number>
+  sports: Sport[]
+  tickerItems: string[]
+  tickerSpeed: number
+}
+
+export function sanitizeTickerTexts(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((entry) => {
+      if (typeof entry === 'string') return entry.trim()
+      if (
+        entry &&
+        typeof entry === 'object' &&
+        'text' in entry &&
+        typeof (entry as { text?: unknown }).text === 'string'
+      ) {
+        return (entry as { text: string }).text.trim()
+      }
+      return ''
+    })
+    .filter((t) => t.length > 0)
+}
+
+export function readCachedPublicTicker(): {
+  items: string[] | null
+  tickerSpeed: number | null
+  timestamp: number | null
+} {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) {
+      return { items: null, tickerSpeed: null, timestamp: null }
+    }
+    const raw = window.localStorage.getItem(PUBLIC_TICKER_CACHE_KEY)
+    if (!raw) return { items: null, tickerSpeed: null, timestamp: null }
+    const parsed: unknown = JSON.parse(raw)
+    if (Array.isArray(parsed)) {
+      const clean = sanitizeTickerTexts(parsed)
+      return { items: clean.length > 0 ? clean : null, tickerSpeed: null, timestamp: null }
+    }
+    if (parsed && typeof parsed === 'object') {
+      const obj = parsed as { items?: unknown; ticker_speed?: unknown; timestamp?: unknown }
+      const clean = sanitizeTickerTexts(obj.items)
+      const rawSpeed = obj.ticker_speed
+      const hasValidSpeed =
+        rawSpeed !== undefined &&
+        rawSpeed !== null &&
+        rawSpeed !== '' &&
+        typeof rawSpeed !== 'boolean' &&
+        Number.isFinite(Number(rawSpeed)) &&
+        Number(rawSpeed) >= 1 &&
+        Number(rawSpeed) <= 10
+      const ts =
+        typeof obj.timestamp === 'number' && Number.isFinite(obj.timestamp)
+          ? obj.timestamp
+          : null
+      return {
+        items: clean.length > 0 ? clean : null,
+        tickerSpeed: hasValidSpeed ? normalizeTickerSpeed(rawSpeed) : null,
+        timestamp: ts
+      }
+    }
+    return { items: null, tickerSpeed: null, timestamp: null }
+  } catch {
+    return { items: null, tickerSpeed: null, timestamp: null }
+  }
+}
+
+export function writeCachedPublicTicker(items: string[], tickerSpeed?: unknown): void {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return
+    const existing = readCachedPublicTicker()
+    const resolvedSpeed =
+      tickerSpeed !== undefined && tickerSpeed !== null
+        ? normalizeTickerSpeed(tickerSpeed)
+        : existing.tickerSpeed ?? DEFAULT_TICKER_SPEED
+    const payload: PublicTickerCachePayload = {
+      items,
+      ticker_speed: resolvedSpeed,
+      timestamp: Date.now()
+    }
+    window.localStorage.setItem(PUBLIC_TICKER_CACHE_KEY, JSON.stringify(payload))
+  } catch {
+    // Ignore localStorage errors
+  }
+}
+
+export function writeCachedTickerSpeed(tickerSpeed: unknown): void {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return
+    const existing = readCachedPublicTicker()
+    const normalized = normalizeTickerSpeed(tickerSpeed)
+    const payload: PublicTickerCachePayload = {
+      items: existing.items ?? [],
+      ticker_speed: normalized,
+      timestamp: Date.now()
+    }
+    window.localStorage.setItem(PUBLIC_TICKER_CACHE_KEY, JSON.stringify(payload))
+
+    const homeCached = readCachedPublicHome()
+    if (homeCached) {
+      writeCachedPublicHome({
+        ...homeCached,
+        tickerSpeed: normalized,
+        timestamp: 0
+      })
+    }
+  } catch {
+    // Ignore localStorage errors
+  }
+}
+
+export function removeCachedPublicTicker(tickerSpeed?: unknown): void {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return
+    const existing = readCachedPublicTicker()
+    const speedToKeep =
+      tickerSpeed !== undefined && tickerSpeed !== null
+        ? normalizeTickerSpeed(tickerSpeed)
+        : existing.tickerSpeed
+    if (speedToKeep !== null) {
+      window.localStorage.setItem(
+        PUBLIC_TICKER_CACHE_KEY,
+        JSON.stringify({ items: [], ticker_speed: speedToKeep, timestamp: Date.now() })
+      )
+    } else {
+      window.localStorage.removeItem(PUBLIC_TICKER_CACHE_KEY)
+    }
+  } catch {
+    // Ignore localStorage errors
+  }
+}
+
+export function readCachedPublicHome(): PublicHomeCachePayload | null {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return null
+    const raw = window.localStorage.getItem(PUBLIC_HOME_CACHE_KEY)
+    if (!raw) return null
+    const parsed: unknown = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return null
+
+    const obj = parsed as Partial<PublicHomeCachePayload>
+    if (typeof obj.timestamp !== 'number' || !Number.isFinite(obj.timestamp)) {
+      return null
+    }
+
+    let activeSeason: Season | null = null
+    if (
+      obj.activeSeason &&
+      typeof obj.activeSeason === 'object' &&
+      typeof obj.activeSeason.id === 'string' &&
+      typeof obj.activeSeason.name === 'string'
+    ) {
+      activeSeason = {
+        id: obj.activeSeason.id,
+        name: obj.activeSeason.name,
+        is_active: Boolean(obj.activeSeason.is_active),
+        created_at:
+          typeof obj.activeSeason.created_at === 'string'
+            ? obj.activeSeason.created_at
+            : ''
+      }
+    }
+
+    const rawCounts = obj.playerCounts as Partial<Record<SportSlug, unknown>> | undefined
+    const playerCounts: Record<SportSlug, number> = {
+      cricket:
+        rawCounts && typeof rawCounts.cricket === 'number' && Number.isFinite(rawCounts.cricket)
+          ? Math.max(0, Math.floor(rawCounts.cricket))
+          : 0,
+      futsal:
+        rawCounts && typeof rawCounts.futsal === 'number' && Number.isFinite(rawCounts.futsal)
+          ? Math.max(0, Math.floor(rawCounts.futsal))
+          : 0,
+      volleyball:
+        rawCounts &&
+        typeof rawCounts.volleyball === 'number' &&
+        Number.isFinite(rawCounts.volleyball)
+          ? Math.max(0, Math.floor(rawCounts.volleyball))
+          : 0
+    }
+
+    const sports: Sport[] = Array.isArray(obj.sports)
+      ? obj.sports
+          .filter(
+            (s): s is Sport =>
+              Boolean(
+                s &&
+                  typeof s === 'object' &&
+                  typeof s.id === 'string' &&
+                  typeof s.name === 'string' &&
+                  Array.isArray(s.roles)
+              )
+          )
+          .map((s) => ({
+            id: s.id,
+            name: s.name,
+            roles: s.roles.filter((r): r is string => typeof r === 'string')
+          }))
+      : []
+
+    const tickerItems = sanitizeTickerTexts(obj.tickerItems)
+    const tickerSpeed = normalizeTickerSpeed(obj.tickerSpeed)
+
+    return {
+      version: 1,
+      timestamp: obj.timestamp,
+      activeSeason,
+      playerCounts,
+      sports,
+      tickerItems,
+      tickerSpeed
+    }
+  } catch {
+    return null
+  }
+}
+
+export function writeCachedPublicHome(
+  data: Omit<PublicHomeCachePayload, 'version' | 'timestamp'> & { timestamp?: number }
+): void {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return
+    const payload: PublicHomeCachePayload = {
+      version: 1,
+      timestamp:
+        typeof data.timestamp === 'number' && Number.isFinite(data.timestamp)
+          ? data.timestamp
+          : Date.now(),
+      activeSeason: data.activeSeason
+        ? {
+            id: data.activeSeason.id,
+            name: data.activeSeason.name,
+            is_active: Boolean(data.activeSeason.is_active),
+            created_at: data.activeSeason.created_at || ''
+          }
+        : null,
+      playerCounts: {
+        cricket: Math.max(0, Math.floor(data.playerCounts.cricket || 0)),
+        futsal: Math.max(0, Math.floor(data.playerCounts.futsal || 0)),
+        volleyball: Math.max(0, Math.floor(data.playerCounts.volleyball || 0))
+      },
+      sports: Array.isArray(data.sports)
+        ? data.sports.map((s) => ({
+            id: String(s.id),
+            name: String(s.name),
+            roles: Array.isArray(s.roles) ? s.roles.map(String) : []
+          }))
+        : [],
+      tickerItems: sanitizeTickerTexts(data.tickerItems),
+      tickerSpeed: normalizeTickerSpeed(data.tickerSpeed)
+    }
+    window.localStorage.setItem(PUBLIC_HOME_CACHE_KEY, JSON.stringify(payload))
+  } catch {
+    // Ignore localStorage errors
+  }
+}
+
+export function invalidateCachedPublicHome(): void {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return
+    const existing = readCachedPublicHome()
+    if (existing) {
+      writeCachedPublicHome({
+        ...existing,
+        timestamp: 0
+      })
+    }
+  } catch {
+    // Ignore localStorage errors
+  }
+}
+
+export function isHomeCacheFresh(cache: PublicHomeCachePayload | null): boolean {
+  if (!cache || typeof cache.timestamp !== 'number' || cache.timestamp <= 0) {
+    return false
+  }
+  return Date.now() - cache.timestamp < HOME_CACHE_TTL_MS
 }
 
 export const siteService: SiteService = isDemoMode
@@ -356,6 +704,11 @@ export async function swapCarouselItems(
 }
 
 export const getSiteSettings = () => siteService.getSiteSettings()
-export const updateSiteSetting = (key: string, value: unknown) =>
-  siteService.updateSiteSetting(key, value)
+export const updateSiteSetting = async (key: string, value: unknown) => {
+  await siteService.updateSiteSetting(key, value)
+  if (key === 'ticker_speed') {
+    writeCachedTickerSpeed(value)
+  }
+}
 export { FALLBACK_CAROUSEL_TEXTS }
+

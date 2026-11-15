@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowCounterClockwise,
   ArrowDown,
@@ -16,6 +16,7 @@ import { useToast } from '../../lib/ToastContext'
 import { getErrorMessage } from '../../lib/errors'
 import {
   DEFAULT_AUCTION_SETTINGS,
+  DEFAULT_TICKER_SPEED,
   addSportRole,
   createCarouselItem,
   deleteCarouselItem,
@@ -27,13 +28,17 @@ import {
   getSportRoleUsageCounts,
   getSports,
   getTeams,
+  getTickerSpeedMultiplier,
+  normalizeTickerSpeed,
   renameSportRole,
   reorderSportRoles,
   saveAuctionSettings,
   swapCarouselItems,
+  triggerConfetti,
   updateCarouselItem,
   updateSiteSetting
 } from '../../lib/data'
+import { publicCache } from '../../lib/publicCache'
 import {
   Button,
   Dialog,
@@ -42,6 +47,7 @@ import {
   PageHeader,
   SegmentedControl
 } from '../../components/ui'
+import { normalizeConfettiFallSpeed } from '../../components/projector/ProjectorConfetti'
 import { SecuredSequence } from '../../components/projector/SecuredSequence'
 import { CreditsSetupCard } from '../../components/admin/CreditsSetupCard'
 import { HandbookSetupCard } from '../../components/admin/HandbookSetupCard'
@@ -57,7 +63,17 @@ import type {
   Team
 } from '../../types'
 
-type SetupTab = 'carousel' | 'pages' | 'sports' | 'auction' | 'credits' | 'handbook' | 'rules'
+type SetupTab =
+  | 'carousel'
+  | 'pages'
+  | 'sports'
+  | 'auction'
+  | 'confetti'
+  | 'credits'
+  | 'handbook'
+  | 'rules'
+
+const DEFAULT_CONFETTI_FALL_SPEED = 5
 
 interface AdminSetupProps {
   activeSeason?: Season | null
@@ -68,6 +84,18 @@ interface AdminSetupProps {
 // Clean SVG data URI portrait for the sample preview player
 const SAMPLE_PLAYER_PHOTO_DATA_URI =
   "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 480' fill='none'><rect width='400' height='480' fill='%23141B24'/><circle cx='200' cy='168' r='72' fill='%23253244'/><path d='M72 430C72 342 128 286 200 286C272 286 328 342 328 430' fill='%23253244'/></svg>"
+
+const TICKER_PREVIEW_SAMPLE_ITEMS = [
+  'LIVE PLAYER AUCTION',
+  'TOURNAMENT ROSTERS',
+  'REAL-TIME TEAM PURSES',
+  'LIVE PLAYER AUCTION',
+  'TOURNAMENT ROSTERS',
+  'REAL-TIME TEAM PURSES',
+  'LIVE PLAYER AUCTION',
+  'TOURNAMENT ROSTERS',
+  'REAL-TIME TEAM PURSES'
+]
 
 function areIncrementsEqual(a: number[], b: number[]): boolean {
   if (a.length !== b.length) return false
@@ -99,6 +127,35 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [itemText, setItemText] = useState('')
   const [isSavingCarousel, setIsSavingCarousel] = useState(false)
+
+  // Ticker Speed State (1..10, default 5)
+  const [savedTickerSpeed, setSavedTickerSpeed] = useState<number>(DEFAULT_TICKER_SPEED)
+  const [tickerSpeed, setTickerSpeed] = useState<number>(DEFAULT_TICKER_SPEED)
+  const [isSavingTickerSpeed, setIsSavingTickerSpeed] = useState<boolean>(false)
+  const [tickerSpeedSaved, setTickerSpeedSaved] = useState<boolean>(false)
+  const [tickerSpeedError, setTickerSpeedError] = useState<string | null>(null)
+  const tickerSpeedSavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const previewTrackRef = useRef<HTMLDivElement>(null)
+  const previewGroupRef = useRef<HTMLDivElement>(null)
+  const [previewGroupWidth, setPreviewGroupWidth] = useState<number>(0)
+
+  // Confetti Fall Speed State (1..10, default 5)
+  const [savedConfettiFallSpeed, setSavedConfettiFallSpeed] = useState<number>(
+    DEFAULT_CONFETTI_FALL_SPEED
+  )
+  const [confettiFallSpeed, setConfettiFallSpeed] = useState<number>(
+    DEFAULT_CONFETTI_FALL_SPEED
+  )
+  const [isSavingConfettiSpeed, setIsSavingConfettiSpeed] = useState<boolean>(false)
+  const [confettiSpeedSaved, setConfettiSpeedSaved] = useState<boolean>(false)
+  const [confettiSpeedError, setConfettiSpeedError] = useState<string | null>(null)
+  const confettiSpeedSavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Test Confetti on Projector State (4s cooldown, 3s error message)
+  const [isConfettiTestCoolingDown, setIsConfettiTestCoolingDown] = useState<boolean>(false)
+  const [confettiTestError, setConfettiTestError] = useState<string | null>(null)
+  const confettiTestCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const confettiTestErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Pages State
   const [siteSettings, setSiteSettings] = useState<SiteSettings>({})
@@ -241,6 +298,15 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
     try {
       const settings = await getSiteSettings()
       setSiteSettings(settings)
+      publicCache.siteSettings = { loaded: true, value: settings }
+      const loadedSpeed = normalizeTickerSpeed(settings.ticker_speed)
+      setSavedTickerSpeed(loadedSpeed)
+      setTickerSpeed(loadedSpeed)
+      const loadedConfettiSpeed = normalizeConfettiFallSpeed(
+        settings.confetti_fall_speed
+      )
+      setSavedConfettiFallSpeed(loadedConfettiSpeed)
+      setConfettiFallSpeed(loadedConfettiSpeed)
       const initialPage = settings[selectedPageKey] as PageContentSetting | undefined
       if (initialPage) {
         setPageTitle(initialPage.title || '')
@@ -425,6 +491,185 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
       console.error('Failed to reorder carousel items:', err)
       setCarouselItems(prevItems)
       showToast(`Failed to reorder carousel items: ${getErrorMessage(err)}`, 'error')
+    }
+  }
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (tickerSpeedSavedTimerRef.current) {
+        clearTimeout(tickerSpeedSavedTimerRef.current)
+      }
+      if (confettiSpeedSavedTimerRef.current) {
+        clearTimeout(confettiSpeedSavedTimerRef.current)
+      }
+      if (confettiTestCooldownTimerRef.current) {
+        clearTimeout(confettiTestCooldownTimerRef.current)
+      }
+      if (confettiTestErrorTimerRef.current) {
+        clearTimeout(confettiTestErrorTimerRef.current)
+      }
+    }
+  }, [])
+
+  // Measure live preview group width for exact 60px/s base speed
+  useEffect(() => {
+    if (activeTab !== 'carousel' || !previewGroupRef.current) return
+
+    const updateWidth = () => {
+      if (!previewGroupRef.current) return
+      const w = Math.round(previewGroupRef.current.offsetWidth || 0)
+      if (w > 0) {
+        setPreviewGroupWidth((prev) => (Math.abs(prev - w) >= 2 ? w : prev))
+      }
+    }
+
+    updateWidth()
+    const observer = new ResizeObserver(() => updateWidth())
+    observer.observe(previewGroupRef.current)
+    window.addEventListener('resize', updateWidth)
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', updateWidth)
+    }
+  }, [activeTab])
+
+  const previewBaseDurationSec = useMemo(() => {
+    const w = previewGroupWidth > 0 ? previewGroupWidth : 1440
+    return Math.max(6, w / 60)
+  }, [previewGroupWidth])
+
+  // Update preview marquee playbackRate instantaneously as the slider moves
+  useEffect(() => {
+    if (activeTab !== 'carousel' || !previewTrackRef.current) return
+    const mult = getTickerSpeedMultiplier(tickerSpeed)
+    const animations = previewTrackRef.current.getAnimations?.()
+    if (animations && animations.length > 0) {
+      animations.forEach((anim) => {
+        anim.playbackRate = mult
+      })
+    }
+  }, [activeTab, tickerSpeed, previewBaseDurationSec])
+
+  const isTickerSpeedDirty = tickerSpeed !== savedTickerSpeed
+
+  const handleSaveTickerSpeed = async () => {
+    if (!isTickerSpeedDirty || isSavingTickerSpeed) return
+    const normalized = normalizeTickerSpeed(tickerSpeed)
+    try {
+      setIsSavingTickerSpeed(true)
+      setTickerSpeedError(null)
+      setTickerSpeedSaved(false)
+      await updateSiteSetting('ticker_speed', normalized)
+      setSavedTickerSpeed(normalized)
+      setTickerSpeed(normalized)
+      setSiteSettings((prev) => {
+        const next = { ...prev, ticker_speed: normalized }
+        publicCache.siteSettings = { loaded: true, value: next }
+        return next
+      })
+      setTickerSpeedSaved(true)
+      if (tickerSpeedSavedTimerRef.current) {
+        clearTimeout(tickerSpeedSavedTimerRef.current)
+      }
+      tickerSpeedSavedTimerRef.current = setTimeout(() => {
+        setTickerSpeedSaved(false)
+        tickerSpeedSavedTimerRef.current = null
+      }, 2500)
+    } catch (err) {
+      setTickerSpeedSaved(false)
+      setTickerSpeedError(getErrorMessage(err, 'Failed to save ticker speed'))
+    } finally {
+      setIsSavingTickerSpeed(false)
+    }
+  }
+
+  const handleResetTickerSpeed = () => {
+    if (isSavingTickerSpeed) return
+    setTickerSpeed(DEFAULT_TICKER_SPEED)
+    setTickerSpeedSaved(false)
+    setTickerSpeedError(null)
+  }
+
+  const isConfettiSpeedDirty = confettiFallSpeed !== savedConfettiFallSpeed
+
+  const handleSaveConfettiSpeed = async () => {
+    if (!isConfettiSpeedDirty || isSavingConfettiSpeed) return
+    const normalized = normalizeConfettiFallSpeed(confettiFallSpeed)
+    try {
+      setIsSavingConfettiSpeed(true)
+      setConfettiSpeedError(null)
+      setConfettiSpeedSaved(false)
+      await updateSiteSetting('confetti_fall_speed', normalized)
+      setSavedConfettiFallSpeed(normalized)
+      setConfettiFallSpeed(normalized)
+      setSiteSettings((prev) => {
+        const next = { ...prev, confetti_fall_speed: normalized }
+        publicCache.siteSettings = { loaded: true, value: next }
+        return next
+      })
+      setConfettiSpeedSaved(true)
+      if (confettiSpeedSavedTimerRef.current) {
+        clearTimeout(confettiSpeedSavedTimerRef.current)
+      }
+      confettiSpeedSavedTimerRef.current = setTimeout(() => {
+        setConfettiSpeedSaved(false)
+        confettiSpeedSavedTimerRef.current = null
+      }, 2500)
+    } catch (err) {
+      setConfettiSpeedSaved(false)
+      setConfettiSpeedError(getErrorMessage(err, 'Failed to save fall speed'))
+    } finally {
+      setIsSavingConfettiSpeed(false)
+    }
+  }
+
+  const handleResetConfettiSpeed = () => {
+    if (isSavingConfettiSpeed) return
+    setConfettiFallSpeed(DEFAULT_CONFETTI_FALL_SPEED)
+    setConfettiSpeedSaved(false)
+    setConfettiSpeedError(null)
+  }
+
+  const showConfettiTestError = (message: string) => {
+    setConfettiTestError(message)
+    if (confettiTestErrorTimerRef.current) {
+      clearTimeout(confettiTestErrorTimerRef.current)
+    }
+    confettiTestErrorTimerRef.current = setTimeout(() => {
+      setConfettiTestError(null)
+      confettiTestErrorTimerRef.current = null
+    }, 3000)
+  }
+
+  const handleTestConfettiOnProjector = async () => {
+    if (isConfettiTestCoolingDown) return
+    if (!effectiveSeason?.id) {
+      showConfettiTestError('No active season')
+      return
+    }
+
+    setIsConfettiTestCoolingDown(true)
+    setConfettiTestError(null)
+    if (confettiTestErrorTimerRef.current) {
+      clearTimeout(confettiTestErrorTimerRef.current)
+      confettiTestErrorTimerRef.current = null
+    }
+
+    if (confettiTestCooldownTimerRef.current) {
+      clearTimeout(confettiTestCooldownTimerRef.current)
+    }
+    confettiTestCooldownTimerRef.current = setTimeout(() => {
+      setIsConfettiTestCoolingDown(false)
+      confettiTestCooldownTimerRef.current = null
+    }, 4000)
+
+    try {
+      await triggerConfetti(effectiveSeason.id)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to trigger confetti'
+      showConfettiTestError(msg)
     }
   }
 
@@ -764,6 +1009,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
               { value: 'pages', label: 'Pages' },
               { value: 'sports', label: 'Sports' },
               { value: 'auction', label: 'Auction' },
+              { value: 'confetti', label: 'Confetti' },
               { value: 'credits', label: 'Credits' },
               { value: 'handbook', label: 'Handbook' },
               { value: 'rules', label: 'Rules' }
@@ -796,110 +1042,241 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
             </Button>
           </div>
 
-          {carouselError && (
-            <ErrorState
-              title="Failed to load carousel items"
-              message={carouselError}
-              onRetry={loadCarousel}
-            />
-          )}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            {/* Left / Main: Ticker Content Editor */}
+            <div className="lg:col-span-2 space-y-4">
+              {carouselError && (
+                <ErrorState
+                  title="Failed to load carousel items"
+                  message={carouselError}
+                  onRetry={loadCarousel}
+                />
+              )}
 
-          {isLoadingCarousel ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-16 bg-surface border border-border rounded-xl animate-pulse" />
-              ))}
+              {isLoadingCarousel ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-16 bg-surface border border-border rounded-xl animate-pulse" />
+                  ))}
+                </div>
+              ) : carouselItems.length === 0 ? (
+                <EmptyState
+                  title="No carousel items configured"
+                  description="Click Add item to introduce announcements to the homepage ticker strip."
+                  actionLabel="Add item"
+                  onAction={() => {
+                    setEditingItem(null)
+                    setItemText('')
+                    setIsAddModalOpen(true)
+                  }}
+                />
+              ) : (
+                <div className="bg-surface border border-border rounded-2xl overflow-hidden divide-y divide-border shadow-sm">
+                  {carouselItems.map((item, index) => (
+                    <div
+                      key={item.id}
+                      className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-surface-2/60 transition-colors"
+                    >
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <span className="font-mono text-xs text-muted w-6 shrink-0 tabular-nums">
+                          {String(index + 1).padStart(2, '0')}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-text break-all font-sans">
+                            {item.text}
+                          </p>
+                          <span className="text-[10px] font-mono text-muted tabular-nums">
+                            {item.text.length} / 80 chars
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                        <button
+                          type="button"
+                          disabled={index === 0}
+                          onClick={() => handleMove(index, 'up')}
+                          title="Move up"
+                          className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                        >
+                          <ArrowUp size={14} weight="bold" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={index === carouselItems.length - 1}
+                          onClick={() => handleMove(index, 'down')}
+                          title="Move down"
+                          className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                        >
+                          <ArrowDown size={14} weight="bold" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleToggleActive(item)}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-mono transition-colors ${
+                            item.active
+                              ? 'bg-surface-2 border border-accent-bright text-accent-bright font-semibold'
+                              : 'bg-surface-2 border border-border text-muted hover:text-text'
+                          }`}
+                        >
+                          {item.active ? 'Active' : 'Inactive'}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingItem(item)
+                            setItemText(item.text)
+                            setIsAddModalOpen(true)
+                          }}
+                          title="Edit text"
+                          className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 transition-colors"
+                        >
+                          <PencilSimple size={14} />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCarouselItem(item)}
+                          title="Delete item"
+                          className="p-2 rounded-lg border border-border text-muted hover:text-error hover:bg-error/10 transition-colors"
+                        >
+                          <Trash size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          ) : carouselItems.length === 0 ? (
-            <EmptyState
-              title="No carousel items configured"
-              description="Click Add item to introduce announcements to the homepage ticker strip."
-              actionLabel="Add item"
-              onAction={() => {
-                setEditingItem(null)
-                setItemText('')
-                setIsAddModalOpen(true)
-              }}
-            />
-          ) : (
-            <div className="bg-surface border border-border rounded-2xl overflow-hidden divide-y divide-border shadow-sm">
-              {carouselItems.map((item, index) => (
+
+            {/* Right: Ticker Speed Control & Live Preview */}
+            <div className="bg-surface border border-border rounded-2xl p-5 sm:p-6 space-y-5 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-syne font-bold text-lg text-text">Ticker speed</h3>
+                  <p className="text-xs text-muted mt-0.5">
+                    Adjust scroll pace for the home page ticker ribbon.
+                  </p>
+                </div>
+                <span className="px-2.5 py-1 rounded-lg bg-surface-2 border border-border font-mono text-xs font-semibold text-accent-bright tabular-nums shrink-0">
+                  {tickerSpeed}
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                <input
+                  id="setup-ticker-speed-slider"
+                  type="range"
+                  min={1}
+                  max={10}
+                  step={1}
+                  value={tickerSpeed}
+                  aria-label="Ticker speed"
+                  onChange={(e) => {
+                    const nextVal = normalizeTickerSpeed(Number(e.target.value))
+                    setTickerSpeed(nextVal)
+                    setTickerSpeedSaved(false)
+                    setTickerSpeedError(null)
+                  }}
+                  className="w-full accent-accent-bright cursor-pointer"
+                />
+                <div className="flex items-center justify-between text-[11px] font-mono uppercase tracking-wider text-muted">
+                  <span>Slow</span>
+                  <span className="text-text font-semibold tabular-nums">
+                    {tickerSpeed} / 10
+                  </span>
+                  <span>Fast</span>
+                </div>
+              </div>
+
+              {/* Small Live Preview Strip directly under slider */}
+              <div className="space-y-1.5">
+                <span className="block text-[10px] font-mono uppercase tracking-wider text-muted">
+                  Live preview
+                </span>
                 <div
-                  key={item.id}
-                  className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-surface-2/60 transition-colors"
+                  aria-label="Ticker speed live preview"
+                  className="w-full bg-surface border-y border-border py-3.5 overflow-hidden select-none relative"
                 >
-                  <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <span className="font-mono text-xs text-muted w-6 shrink-0 tabular-nums">
-                      {String(index + 1).padStart(2, '0')}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-text break-all font-sans">
-                        {item.text}
-                      </p>
-                      <span className="text-[10px] font-mono text-muted tabular-nums">
-                        {item.text.length} / 80 chars
-                      </span>
+                  <div
+                    ref={previewTrackRef}
+                    className="flex will-change-transform animate-ticker"
+                    style={{
+                      animationDuration: `${previewBaseDurationSec}s`
+                    }}
+                  >
+                    <div
+                      ref={previewGroupRef}
+                      className="flex shrink-0 items-center whitespace-nowrap font-dot text-[16px] md:text-[18.5px] leading-normal tracking-[0.16em] text-text"
+                    >
+                      {TICKER_PREVIEW_SAMPLE_ITEMS.map((sample, idx) => (
+                        <span key={`prev-a-${idx}`} className="inline-flex items-center">
+                          <span>{sample}</span>
+                          <span className="mx-4 md:mx-6 text-accent select-none" aria-hidden="true">
+                            /
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                    <div
+                      aria-hidden="true"
+                      className="flex shrink-0 items-center whitespace-nowrap font-dot text-[16px] md:text-[18.5px] leading-normal tracking-[0.16em] text-text"
+                    >
+                      {TICKER_PREVIEW_SAMPLE_ITEMS.map((sample, idx) => (
+                        <span key={`prev-b-${idx}`} className="inline-flex items-center">
+                          <span>{sample}</span>
+                          <span className="mx-4 md:mx-6 text-accent select-none" aria-hidden="true">
+                            /
+                          </span>
+                        </span>
+                      ))}
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                    <button
-                      type="button"
-                      disabled={index === 0}
-                      onClick={() => handleMove(index, 'up')}
-                      title="Move up"
-                      className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                    >
-                      <ArrowUp size={14} weight="bold" />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={index === carouselItems.length - 1}
-                      onClick={() => handleMove(index, 'down')}
-                      title="Move down"
-                      className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                    >
-                      <ArrowDown size={14} weight="bold" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleToggleActive(item)}
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-mono transition-colors ${
-                        item.active
-                          ? 'bg-surface-2 border border-accent-bright text-accent-bright font-semibold'
-                          : 'bg-surface-2 border border-border text-muted hover:text-text'
-                      }`}
-                    >
-                      {item.active ? 'Active' : 'Inactive'}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingItem(item)
-                        setItemText(item.text)
-                        setIsAddModalOpen(true)
-                      }}
-                      title="Edit text"
-                      className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 transition-colors"
-                    >
-                      <PencilSimple size={14} />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteCarouselItem(item)}
-                      title="Delete item"
-                      className="p-2 rounded-lg border border-border text-muted hover:text-error hover:bg-error/10 transition-colors"
-                    >
-                      <Trash size={14} />
-                    </button>
-                  </div>
                 </div>
-              ))}
+              </div>
+
+              {tickerSpeedError && (
+                <p role="alert" className="text-xs font-mono text-error">
+                  {tickerSpeedError}
+                </p>
+              )}
+
+              <div className="pt-2 border-t border-border flex items-center justify-between gap-2 flex-wrap">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  leftIcon={ArrowCounterClockwise}
+                  disabled={isSavingTickerSpeed || tickerSpeed === DEFAULT_TICKER_SPEED}
+                  onClick={handleResetTickerSpeed}
+                >
+                  Reset to default
+                </Button>
+
+                <div className="flex items-center gap-2.5 ml-auto">
+                  {tickerSpeedSaved && !isTickerSpeedDirty && (
+                    <span className="text-xs font-mono text-accent-bright flex items-center gap-1">
+                      <Check size={14} weight="bold" />
+                      <span>Saved</span>
+                    </span>
+                  )}
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    leftIcon={FloppyDisk}
+                    disabled={!isTickerSpeedDirty || isSavingTickerSpeed}
+                    isLoading={isSavingTickerSpeed}
+                    onClick={() => void handleSaveTickerSpeed()}
+                  >
+                    Save
+                  </Button>
+                </div>
+              </div>
             </div>
-          )}
+          </div>
         </div>
       )}
 
@@ -1645,6 +2022,138 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
               </div>
             </form>
           )}
+        </div>
+      )}
+
+      {/* Confetti Section (shown in Confetti tab and alongside Auction display settings) */}
+      {(activeTab === 'confetti' || activeTab === 'auction') && (
+        <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 border-b border-border">
+            <div>
+              <h2 className="font-syne font-bold text-xl text-text">Confetti</h2>
+              <p className="text-xs text-muted mt-1">
+                Configure the vertical fall speed for the projector confetti celebration.
+              </p>
+            </div>
+            <span className="px-2.5 py-1 rounded-lg bg-surface-2 border border-border font-mono text-xs font-semibold text-accent-bright tabular-nums shrink-0">
+              {confettiFallSpeed}
+            </span>
+          </div>
+
+          <div className="max-w-xl space-y-5">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label
+                  htmlFor="setup-confetti-fall-speed-slider"
+                  className="text-sm font-medium text-text"
+                >
+                  Fall speed
+                </label>
+                <span className="font-mono text-xs text-accent-bright font-semibold tabular-nums">
+                  {confettiFallSpeed}
+                </span>
+              </div>
+              <input
+                id="setup-confetti-fall-speed-slider"
+                type="range"
+                min={1}
+                max={10}
+                step={1}
+                value={confettiFallSpeed}
+                aria-label="Fall speed"
+                onChange={(e) => {
+                  const nextVal = normalizeConfettiFallSpeed(Number(e.target.value))
+                  setConfettiFallSpeed(nextVal)
+                  setConfettiSpeedSaved(false)
+                  setConfettiSpeedError(null)
+                }}
+                className="w-full accent-accent-bright cursor-pointer"
+              />
+              <div className="flex items-center justify-between text-[11px] font-mono uppercase tracking-wider text-muted">
+                <span>Slow</span>
+                <span className="text-text font-semibold tabular-nums">
+                  {confettiFallSpeed} / 10
+                </span>
+                <span>Fast</span>
+              </div>
+            </div>
+
+            {confettiSpeedError && (
+              <p role="alert" className="text-xs font-mono text-error">
+                {confettiSpeedError}
+              </p>
+            )}
+
+            <div className="pt-4 border-t border-border flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  leftIcon={ArrowCounterClockwise}
+                  disabled={
+                    isSavingConfettiSpeed ||
+                    confettiFallSpeed === DEFAULT_CONFETTI_FALL_SPEED
+                  }
+                  onClick={handleResetConfettiSpeed}
+                >
+                  Reset to default
+                </Button>
+
+                <div className="flex flex-col items-start gap-1">
+                  <div className="relative inline-flex overflow-hidden rounded-xl">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      disabled={isConfettiTestCoolingDown}
+                      onClick={() => void handleTestConfettiOnProjector()}
+                    >
+                      Test on projector
+                    </Button>
+                    {isConfettiTestCoolingDown && (
+                      <span
+                        aria-hidden="true"
+                        className="pointer-events-none absolute bottom-0 left-0 right-0 h-[2px] bg-accent-bright/70 origin-left"
+                        style={{
+                          animation: 'fieldrConfettiCooldownBar 4000ms linear forwards'
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 ml-auto">
+                {confettiSpeedSaved && !isConfettiSpeedDirty && (
+                  <span className="text-xs font-mono text-accent-bright flex items-center gap-1">
+                    <Check size={14} weight="bold" />
+                    <span>Saved</span>
+                  </span>
+                )}
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  leftIcon={FloppyDisk}
+                  disabled={!isConfettiSpeedDirty || isSavingConfettiSpeed}
+                  isLoading={isSavingConfettiSpeed}
+                  onClick={() => void handleSaveConfettiSpeed()}
+                >
+                  Save
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-muted">Save first, then test.</p>
+              {confettiTestError && (
+                <p role="alert" className="text-xs font-mono text-error">
+                  {confettiTestError}
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

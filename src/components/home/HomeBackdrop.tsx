@@ -13,19 +13,19 @@ export const HomeBackdrop: React.FC = () => {
       <style>{`
         .home-backdrop-root {
           --hb-base: #f4f2ee;
-          --hb-stroke: rgba(18, 20, 18, 0.05);
+          --hb-stroke: rgba(18, 20, 18, 0.07);
           --hb-beam-left: conic-gradient(
             from 122deg at -2% -2%,
             transparent 0deg,
-            rgba(200, 139, 15, 0.06) 12deg,
-            rgba(217, 155, 26, 0.04) 22deg,
+            rgba(200, 139, 15, 0.078) 12deg,
+            rgba(217, 155, 26, 0.052) 22deg,
             transparent 38deg
           );
           --hb-beam-right: conic-gradient(
             from 200deg at 102% -2%,
             transparent 0deg,
-            rgba(217, 155, 26, 0.04) 16deg,
-            rgba(200, 139, 15, 0.06) 26deg,
+            rgba(217, 155, 26, 0.052) 16deg,
+            rgba(200, 139, 15, 0.078) 26deg,
             transparent 38deg
           );
           --hb-vignette: none;
@@ -35,19 +35,19 @@ export const HomeBackdrop: React.FC = () => {
         [data-theme="dark"] .home-backdrop-root,
         .home-backdrop-root[data-hb-theme="dark"] {
           --hb-base: #0a0a0a;
-          --hb-stroke: rgba(255, 255, 255, 0.055);
+          --hb-stroke: rgba(255, 255, 255, 0.077);
           --hb-beam-left: conic-gradient(
             from 122deg at -2% -2%,
             transparent 0deg,
-            rgba(255, 255, 255, 0.038) 12deg,
-            rgba(255, 255, 255, 0.022) 22deg,
+            rgba(255, 255, 255, 0.05) 12deg,
+            rgba(255, 255, 255, 0.029) 22deg,
             transparent 38deg
           );
           --hb-beam-right: conic-gradient(
             from 200deg at 102% -2%,
             transparent 0deg,
-            rgba(255, 255, 255, 0.022) 16deg,
-            rgba(255, 255, 255, 0.038) 26deg,
+            rgba(255, 255, 255, 0.029) 16deg,
+            rgba(255, 255, 255, 0.05) 26deg,
             transparent 38deg
           );
           --hb-vignette: radial-gradient(
@@ -59,14 +59,14 @@ export const HomeBackdrop: React.FC = () => {
 
         .hb-floodlight-left {
           background-image: var(--hb-beam-left);
-          mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.5) 45%, transparent 82%);
-          -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.5) 45%, transparent 82%);
+          mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.58) 45%, transparent 82%);
+          -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.58) 45%, transparent 82%);
         }
 
         .hb-floodlight-right {
           background-image: var(--hb-beam-right);
-          mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.5) 45%, transparent 82%);
-          -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.5) 45%, transparent 82%);
+          mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.58) 45%, transparent 82%);
+          -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.58) 45%, transparent 82%);
         }
 
         .hb-vignette {

@@ -1381,3 +1381,49 @@ export const subscribeToPlayers = (
   seasonId: string,
   callback: (players: Player[]) => void
 ) => playersService.subscribeToPlayers(seasonId, callback)
+
+export async function getPublicPlayerSportRows(
+  seasonId?: string
+): Promise<Array<{ sport: string; season_id: string }> | null> {
+  try {
+    if (isDemoMode) {
+      const allPlayers = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, [])
+      if (!Array.isArray(allPlayers)) return []
+      return allPlayers
+        .filter((p) => p && (!seasonId || p.season_id === seasonId))
+        .slice(0, 1000)
+        .map((p) => ({
+          sport: String(p.sport || ''),
+          season_id: String(p.season_id || '')
+        }))
+    }
+
+    if (!supabase) return []
+
+    let query = supabase
+      .from('public_players')
+      .select('sport, season_id')
+      .limit(1000)
+
+    if (seasonId) {
+      query = query.eq('season_id', seasonId)
+    }
+
+    const { data, error } = await query
+    if (error || !Array.isArray(data)) {
+      if (error) {
+        console.error('Supabase getPublicPlayerSportRows error:', error.message, error)
+      }
+      return null
+    }
+
+    return (data as Array<{ sport?: string; season_id?: string }>).map((r) => ({
+      sport: String(r.sport || ''),
+      season_id: String(r.season_id || '')
+    }))
+  } catch (err) {
+    console.error('getPublicPlayerSportRows caught error:', err)
+    return null
+  }
+}
+
