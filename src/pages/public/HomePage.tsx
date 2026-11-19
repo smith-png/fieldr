@@ -1,4 +1,6 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { ArrowDown, ArrowUpRight } from '@phosphor-icons/react'
 import { motion, useReducedMotion } from 'motion/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { HomeBackdrop } from '../../components/home/HomeBackdrop'
@@ -22,6 +24,7 @@ import {
   writeCachedPublicTicker
 } from '../../lib/data'
 import { hasDataChanged, publicCache } from '../../lib/publicCache'
+import { prefetchRoute } from '../../lib/queryCache'
 import { matchesSport } from '../../lib/utils'
 import type { Season, Sport } from '../../types'
 import type { SportSlug } from '../../lib/sports'
@@ -148,9 +151,18 @@ export const HomePage: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [hasOpenedMenu, setHasOpenedMenu] = useState(false)
   const [activeSeason, setActiveSeason] = useState<Season | null>(initialSeason)
+  const [hasLoadedSeason, setHasLoadedSeason] = useState<boolean>(() =>
+    Boolean(initialHomeCache?.activeSeason || publicCache.activeSeason.loaded)
+  )
   const [carouselItems, setCarouselItems] = useState<string[] | null>(initialCarousel)
   const [tickerSpeed, setTickerSpeed] = useState<number>(initialTickerSpeed)
   const [playerCounts, setPlayerCounts] = useState<Record<SportSlug, number>>(initialCounts)
+  const [hasLoadedCounts, setHasLoadedCounts] = useState<boolean>(() =>
+    Boolean(
+      initialHomeCache?.playerCounts ||
+        (initialSeason?.id && publicCache.playerCountsBySeason.has(initialSeason.id))
+    )
+  )
   const [sports, setSports] = useState<Sport[]>(initialSports)
   const shouldReduceMotion = useReducedMotion()
 
@@ -178,6 +190,13 @@ export const HomePage: React.FC = () => {
   const handleCloseMenu = useCallback(() => {
     setIsMenuOpen(false)
   }, [])
+
+  const handleScrollToRosters = useCallback(() => {
+    const el = document.getElementById('rosters-section')
+    if (el) {
+      el.scrollIntoView({ behavior: shouldReduceMotion ? 'auto' : 'smooth' })
+    }
+  }, [shouldReduceMotion])
 
   useEffect(() => {
     // Skip background refetch if cached public home page data is fresh (< 5 minutes old)
@@ -222,6 +241,7 @@ export const HomePage: React.FC = () => {
             hasDataChanged(prev, resolvedSeason) ? resolvedSeason : prev
           )
         }
+        setHasLoadedSeason(true)
       }
 
       // 2. Resolve player counts per sport (fallback to cached counts or 0 if failed)
@@ -248,12 +268,14 @@ export const HomePage: React.FC = () => {
               hasDataChanged(prev, nextCounts) ? nextCounts : prev
             )
           }
+          setHasLoadedCounts(true)
         }
       } else if (seasonResult.status === 'fulfilled' && !resolvedSeason) {
         resolvedCounts = DEFAULT_COUNTS
         setPlayerCounts((prev) =>
           hasDataChanged(prev, DEFAULT_COUNTS) ? DEFAULT_COUNTS : prev
         )
+        setHasLoadedCounts(true)
       }
 
       // 3. Resolve sports roles
@@ -368,10 +390,51 @@ export const HomePage: React.FC = () => {
     [shouldReduceMotion]
   )
 
+  const totalAthletes =
+    (playerCounts.cricket || 0) +
+    (playerCounts.futsal || 0) +
+    (playerCounts.volleyball || 0)
+
+  const cachedTeamsCount =
+    activeSeason?.id && publicCache.teamsBySeason.has(activeSeason.id)
+      ? publicCache.teamsBySeason.get(activeSeason.id)?.length ?? null
+      : null
+
+  const dataLineParts = useMemo(() => {
+    if (!hasLoadedSeason && !hasLoadedCounts) return []
+    const parts: React.ReactNode[] = []
+    if (hasLoadedSeason && activeSeason?.name) {
+      parts.push(<span key="season">{activeSeason.name}</span>)
+    }
+    if (hasLoadedCounts && totalAthletes > 0) {
+      parts.push(
+        <span key="athletes">
+          <span className="font-mono tabular-nums text-text">
+            {String(totalAthletes).padStart(2, '0')}
+          </span>{' '}
+          {totalAthletes === 1 ? 'athlete' : 'athletes'}
+        </span>
+      )
+    }
+    if (cachedTeamsCount !== null && cachedTeamsCount > 0) {
+      parts.push(
+        <span key="teams">
+          <span className="font-mono tabular-nums text-text">
+            {String(cachedTeamsCount).padStart(2, '0')}
+          </span>{' '}
+          {cachedTeamsCount === 1 ? 'team' : 'teams'}
+        </span>
+      )
+    }
+    return parts
+  }, [hasLoadedSeason, hasLoadedCounts, activeSeason?.name, totalAthletes, cachedTeamsCount])
+
+  const shouldAnimateReveal = animateHeroEntrance && !shouldReduceMotion
+
   return (
     <div
       onMouseMove={handleMouseMove}
-      className="min-h-screen bg-bg text-text flex flex-col justify-between selection:bg-accent-bright selection:text-white relative overflow-x-hidden"
+      className="min-h-screen bg-bg text-text flex flex-col justify-between selection:bg-accent-bright selection:text-white relative"
     >
       {/* Muted inline vector sports backdrop */}
       <HomeBackdrop />
@@ -392,40 +455,40 @@ export const HomePage: React.FC = () => {
 
       {/* Main Hero Container wrapped in ErrorBoundary */}
       <ErrorBoundary name="HeroSection" fallback={null}>
-        <main className="relative z-10 flex-1 flex flex-col justify-center px-6 md:px-16 lg:px-24 pt-32 sm:pt-40 pb-16 max-w-7xl mx-auto w-full">
-          {/* Eyebrow */}
-          <motion.div
-            initial={animateHeroEntrance ? { opacity: 0, y: 15 } : false}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            className="flex items-center gap-3 text-xs md:text-sm font-medium tracking-widest text-muted uppercase mb-4"
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-accent-bright" />
-            <span>Live sports player auction platform</span>
-            {activeSeason && (
-              <>
-                <span className="text-border">·</span>
-                <span className="text-text font-semibold">{activeSeason.name}</span>
-              </>
-            )}
-          </motion.div>
+        <main className="relative z-10 flex flex-col justify-between mt-[5.5rem] md:mt-[7.5rem] min-h-[calc(100svh-5.5rem)] md:min-h-[calc(100svh-7.5rem)] px-6 md:px-16 lg:px-24 pt-3 md:pt-4 pb-8 md:pb-12 max-w-7xl mx-auto w-full">
+          {/* 1. Top Row with 1px hairline under it */}
+          <div className="flex items-center justify-between gap-4 pb-3.5 border-b border-border/60 min-h-[2.25rem]">
+            <div className="flex items-center gap-2.5 font-sans text-[11px] sm:text-xs font-medium uppercase tracking-[0.2em] text-muted">
+              <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
+              <span>LIVE PLAYER AUCTION</span>
+            </div>
+            {hasLoadedSeason && activeSeason?.name ? (
+              <span className="font-sans text-[11px] sm:text-xs font-medium uppercase tracking-[0.18em] text-text truncate">
+                {activeSeason.name}
+              </span>
+            ) : null}
+          </div>
 
-          {/* 3-Line Massive Headline with light/dark tonal hierarchy */}
+          {/* 2. Center: 3 Stacked Poster Lines in Syne ExtraBold */}
           <div
             ref={heroParallaxRef}
-            className="flex flex-col gap-0 select-none my-2 w-full max-w-full transition-transform duration-200 ease-out"
+            className="flex flex-col items-start justify-center gap-0 select-none my-auto py-6 w-full max-w-full transition-transform duration-200 ease-out"
           >
             {HERO_LINES.map((line, index) => (
-              <div key={line} className="overflow-hidden w-full max-w-full py-1 pr-2">
+              <div key={line} className="overflow-hidden w-full max-w-full py-0.5 pr-2">
                 <motion.h1
-                  initial={animateHeroEntrance ? { y: '100%', opacity: 0 } : false}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{
-                    duration: 0.8,
-                    delay: 0.1 + index * 0.12,
-                    ease: [0.22, 1, 0.36, 1]
-                  }}
-                  className={`font-syne font-extrabold text-[clamp(2.25rem,11vw,8.25rem)] tracking-tight leading-[0.95] whitespace-nowrap ${
+                  initial={shouldAnimateReveal ? { y: '105%' } : false}
+                  animate={{ y: '0%' }}
+                  transition={
+                    shouldAnimateReveal
+                      ? {
+                          duration: 0.85,
+                          delay: index * 0.1,
+                          ease: [0.22, 1, 0.36, 1]
+                        }
+                      : { duration: 0 }
+                  }
+                  className={`font-syne font-extrabold uppercase text-left text-[clamp(2.75rem,13.5vw,9.25rem)] tracking-[-0.04em] leading-[0.88] whitespace-nowrap ${
                     index === 2
                       ? 'text-text'
                       : index === 1
@@ -437,6 +500,43 @@ export const HomePage: React.FC = () => {
                 </motion.h1>
               </div>
             ))}
+          </div>
+
+          {/* 3. Bottom Row with 1px hairline above it */}
+          <div className="pt-5 border-t border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="min-h-[1.25rem] flex items-center flex-wrap font-sans text-[11px] sm:text-xs font-medium uppercase tracking-[0.16em] text-muted">
+              {dataLineParts.map((part, idx) => (
+                <React.Fragment key={idx}>
+                  {idx > 0 && (
+                    <span aria-hidden="true" className="mx-2 text-muted/60 font-mono">
+                      //
+                    </span>
+                  )}
+                  {part}
+                </React.Fragment>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-2 sm:flex items-center gap-3 w-full sm:w-auto shrink-0">
+              <button
+                type="button"
+                onClick={handleScrollToRosters}
+                className="min-h-[44px] px-6 py-2.5 rounded-full bg-btn-bg text-btn-fg font-sans font-semibold text-xs sm:text-sm hover:opacity-90 transition-opacity inline-flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright whitespace-nowrap"
+              >
+                <span>Rosters</span>
+                <ArrowDown size={15} weight="bold" />
+              </button>
+              <Link
+                to="/teams"
+                onMouseEnter={() => prefetchRoute('/teams')}
+                onFocus={() => prefetchRoute('/teams')}
+                onTouchStart={() => prefetchRoute('/teams')}
+                className="min-h-[44px] px-6 py-2.5 rounded-full bg-surface/85 hover:bg-surface-2 text-text border border-border font-sans font-semibold text-xs sm:text-sm transition-colors inline-flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright whitespace-nowrap"
+              >
+                <span>Teams</span>
+                <ArrowUpRight size={15} weight="bold" />
+              </Link>
+            </div>
           </div>
         </main>
       </ErrorBoundary>
@@ -463,7 +563,11 @@ export const HomePage: React.FC = () => {
               />
             }
           >
-            <LazySportCardsGrid playerCounts={playerCounts} sports={sports} />
+            <LazySportCardsGrid
+              playerCounts={playerCounts}
+              sports={sports}
+              countsLoaded={hasLoadedCounts}
+            />
           </Suspense>
         </div>
       </ErrorBoundary>
@@ -486,5 +590,6 @@ export const HomePage: React.FC = () => {
     </div>
   )
 }
+
 
 

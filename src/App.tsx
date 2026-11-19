@@ -17,6 +17,7 @@ import {
   ProjectorPageSkeleton,
   PublicPageSkeleton
 } from './components/ui/Skeleton'
+import { AppToaster } from './components/ui/Toast'
 
 const HomePage = lazy(() =>
   import('./pages/public/HomePage').then((m) => ({ default: m.HomePage }))
@@ -226,6 +227,7 @@ export default function App() {
                 />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
+              <AppToaster />
             </ToastProvider>
           </AuthProvider>
         </BrowserRouter>

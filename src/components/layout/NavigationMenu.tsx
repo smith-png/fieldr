@@ -1,11 +1,15 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { ArrowRight, Monitor, Moon, Sun, X, type Icon } from '@phosphor-icons/react'
+import { Monitor, Moon, Sun, type Icon } from '@phosphor-icons/react'
 import { useAuth } from '../../lib/AuthContext'
 import { prefetchRoute } from '../../lib/queryCache'
 import { type ThemePreference, useTheme } from '../../lib/theme'
 import type { Season } from '../../types'
+import {
+  notifyPublicActiveSeasonChange,
+  notifyPublicMenuOpenChange
+} from './HeaderBar'
 
 interface NavigationMenuProps {
   isOpen: boolean
@@ -21,33 +25,171 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
   const { user, logout } = useAuth()
   const { preference, setPreference } = useTheme()
   const navigate = useNavigate()
-  const menuRef = useRef<HTMLDivElement>(null)
+  const sheetRef = useRef<HTMLDivElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const optionRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const wasOpenRef = useRef<boolean>(false)
   const shouldReduceMotion = useReducedMotion()
 
-  const optionRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const dragStartYRef = useRef<number | null>(null)
+  const [dragOffsetY, setDragOffsetY] = useState<number>(0)
+  const [isDragging, setIsDragging] = useState<boolean>(false)
 
-  // Lock body scroll and trap Esc key
+  useEffect(() => {
+    notifyPublicMenuOpenChange(isOpen)
+  }, [isOpen])
+
+  useEffect(() => {
+    return () => {
+      notifyPublicMenuOpenChange(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeSeason) {
+      notifyPublicActiveSeasonChange(activeSeason)
+    }
+  }, [activeSeason])
+
+  const handleClose = useCallback(() => {
+    setDragOffsetY(0)
+    setIsDragging(false)
+    dragStartYRef.current = null
+    notifyPublicMenuOpenChange(false)
+    onClose()
+  }, [onClose])
+
+  // Lock body scroll, move focus into sheet, trap focus, and return focus on close
   useEffect(() => {
     if (isOpen) {
+      wasOpenRef.current = true
+      setDragOffsetY(0)
+      setIsDragging(false)
+      dragStartYRef.current = null
+
+      const prevOverflow = document.body.style.overflow
       document.body.style.overflow = 'hidden'
+
+      const focusTimer = window.setTimeout(() => {
+        closeButtonRef.current?.focus()
+      }, 20)
+
       const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') onClose()
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          handleClose()
+          return
+        }
+
+        if (e.key === 'Tab' && sheetRef.current) {
+          const focusable = Array.from(
+            sheetRef.current.querySelectorAll<HTMLElement>(
+              'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            )
+          )
+          if (focusable.length === 0) return
+
+          const first = focusable[0]
+          const last = focusable[focusable.length - 1]
+          const active = document.activeElement as HTMLElement | null
+
+          if (e.shiftKey) {
+            if (!active || active === first || !sheetRef.current.contains(active)) {
+              e.preventDefault()
+              last.focus()
+            }
+          } else {
+            if (!active || active === last || !sheetRef.current.contains(active)) {
+              e.preventDefault()
+              first.focus()
+            }
+          }
+        }
       }
+
       window.addEventListener('keydown', handleKeyDown)
       return () => {
-        document.body.style.overflow = ''
+        window.clearTimeout(focusTimer)
+        document.body.style.overflow = prevOverflow
         window.removeEventListener('keydown', handleKeyDown)
       }
+    } else if (wasOpenRef.current) {
+      wasOpenRef.current = false
+      const triggerBtn = document.getElementById('public-menu-trigger-button')
+      triggerBtn?.focus()
     }
-  }, [isOpen, onClose])
+  }, [isOpen, handleClose])
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('button')) return
+    dragStartYRef.current = e.clientY
+    setIsDragging(true)
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      // ignore pointer capture error
+    }
+  }
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (dragStartYRef.current === null) return
+    const delta = Math.max(0, e.clientY - dragStartYRef.current)
+    setDragOffsetY(delta)
+  }
+
+  const handlePointerEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (dragStartYRef.current === null) return
+    const delta = e.clientY - dragStartYRef.current
+    dragStartYRef.current = null
+    setIsDragging(false)
+    if (delta > 80) {
+      handleClose()
+    } else {
+      setDragOffsetY(0)
+    }
+  }
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('button')) return
+    const touch = e.touches[0]
+    if (!touch) return
+    dragStartYRef.current = touch.clientY
+    setIsDragging(true)
+  }
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (dragStartYRef.current === null) return
+    const touch = e.touches[0]
+    if (!touch) return
+    const delta = Math.max(0, touch.clientY - dragStartYRef.current)
+    setDragOffsetY(delta)
+  }
+
+  const handleTouchEnd = () => {
+    if (dragStartYRef.current === null) return
+    const shouldDismiss = dragOffsetY > 80
+    dragStartYRef.current = null
+    setIsDragging(false)
+    if (shouldDismiss) {
+      handleClose()
+    } else {
+      setDragOffsetY(0)
+    }
+  }
 
   const links = [
     { title: 'Home', path: '/', visible: true },
     { title: 'Teams', path: '/teams', visible: true },
     { title: 'Auction Rules', path: '/rules', visible: true },
     { title: 'Dashboard', path: '/admin', visible: !!user },
-    { title: 'Projector', path: '/projector', visible: user?.role === 'admin' || user?.role === 'projector' }
+    {
+      title: 'Projector',
+      path: '/projector',
+      visible: user?.role === 'admin' || user?.role === 'projector'
+    }
   ]
+
+  const visibleLinks = links.filter((l) => l.visible)
 
   const appearanceOptions: { value: ThemePreference; label: string; icon: Icon }[] = [
     { value: 'system', label: 'System', icon: Monitor },
@@ -74,230 +216,191 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
 
   const handleSignOut = async () => {
     await logout()
-    onClose()
+    handleClose()
     navigate('/login')
   }
+
+  const authIndexLabel = String(visibleLinks.length + 1).padStart(2, '0')
 
   return (
     <AnimatePresence>
       {isOpen && (
-        <motion.div
-          ref={menuRef}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Navigation Menu"
-          className="fixed inset-0 z-50 overflow-hidden text-white"
-        >
-          {/* Expanding Circle Background in deep sage (--menu-bg) */}
+        <div className="fixed inset-0 z-50 flex flex-col justify-end items-center sm:px-4">
+          {/* Full-screen dark backdrop (75% opacity, no blur) */}
           <motion.div
             aria-hidden="true"
-            className="absolute rounded-full bg-menu-bg pointer-events-none"
-            style={{
-              width: '300vmax',
-              height: '300vmax',
-              left: 'calc(46px - 150vmax)',
-              top: 'calc(46px - 150vmax)',
-              transformOrigin: 'center',
-              willChange: 'transform'
-            }}
-            initial={shouldReduceMotion ? { opacity: 0 } : { scale: 0 }}
-            animate={shouldReduceMotion ? { opacity: 1 } : { scale: 1 }}
-            exit={shouldReduceMotion ? { opacity: 0 } : { scale: 0 }}
+            onClick={handleClose}
+            className="fixed inset-0 bg-black/75"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             transition={
               shouldReduceMotion
                 ? { duration: 0.15 }
-                : { duration: 0.55, ease: [0.22, 1, 0.36, 1] }
+                : { duration: 0.38, ease: [0.22, 1, 0.36, 1] }
             }
           />
 
-          {/* Menu Content Wrapper Above Circle */}
+          {/* Centered Bottom Sheet */}
           <motion.div
-            className="relative z-10 w-full h-full overflow-y-auto px-6 py-6 md:px-12 md:py-8"
-            style={{
-              paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 32px)'
-            }}
-            initial={{ opacity: 0 }}
-            animate={{
-              opacity: 1,
-              transition: {
-                duration: shouldReduceMotion ? 0.15 : 0.25,
-                delay: shouldReduceMotion ? 0 : 0.2
-              }
-            }}
-            exit={{
-              opacity: 0,
-              transition: {
-                duration: 0.12,
-                delay: 0
-              }
-            }}
+            id="public-navigation-sheet"
+            ref={sheetRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="public-navigation-sheet-title"
+            className="relative z-10 w-full max-w-[36rem] bg-surface border border-border rounded-t-[24px] sm:rounded-[24px] sm:mb-6 p-6 text-text max-h-[88svh] overflow-y-auto focus:outline-none"
+            initial={shouldReduceMotion ? { opacity: 0 } : { y: '100%' }}
+            animate={
+              shouldReduceMotion
+                ? { opacity: 1 }
+                : { y: dragOffsetY > 0 ? dragOffsetY : '0%' }
+            }
+            exit={shouldReduceMotion ? { opacity: 0 } : { y: '100%' }}
+            transition={
+              isDragging
+                ? { duration: 0 }
+                : shouldReduceMotion
+                ? { duration: 0.15 }
+                : { duration: 0.38, ease: [0.22, 1, 0.36, 1] }
+            }
           >
-            <div className="w-full min-h-full flex flex-col justify-between">
-              {/* Top Row: Close button positioned identically to the top-left icon */}
-              <div className="flex items-center justify-between shrink-0 mb-8 md:mb-10">
+            {/* Swipeable Handle Area & Sheet Header Row */}
+            <div
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerEnd}
+              onPointerCancel={handlePointerEnd}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              className="touch-none select-none cursor-grab active:cursor-grabbing -mt-2 pt-2"
+            >
+              <div
+                aria-hidden="true"
+                className="w-10 h-1 rounded-full bg-border mx-auto mb-4"
+              />
+
+              <div className="flex items-center justify-between gap-4 pb-3.5 border-b border-border/60">
+                <span
+                  id="public-navigation-sheet-title"
+                  className="font-sans text-[11px] font-medium uppercase tracking-[0.2em] text-muted"
+                >
+                  NAVIGATION
+                </span>
+                <button
+                  ref={closeButtonRef}
+                  type="button"
+                  onClick={handleClose}
+                  aria-label="Close menu"
+                  className="inline-flex items-center justify-center h-8 px-3.5 rounded-full bg-surface-2 hover:bg-border/40 border border-border font-sans text-[11px] font-medium uppercase tracking-[0.18em] text-text transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
+            {/* Vertical Menu Items List separated by 1px hairlines */}
+            <nav aria-label="Site navigation" className="divide-y divide-border/60">
+              {visibleLinks.map((link, idx) => {
+                const indexLabel = String(idx + 1).padStart(2, '0')
+                return (
+                  <Link
+                    key={link.path}
+                    to={link.path}
+                    onClick={handleClose}
+                    onMouseEnter={() => prefetchRoute(link.path)}
+                    onFocus={() => prefetchRoute(link.path)}
+                    onTouchStart={() => prefetchRoute(link.path)}
+                    className="group flex items-center justify-between gap-4 py-3.5 text-text hover:text-accent-bright transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright rounded-lg"
+                  >
+                    <span className="font-syne font-bold text-[20px] leading-snug tracking-tight">
+                      {link.title}
+                    </span>
+                    <span className="font-mono text-xs text-muted group-hover:text-accent-bright tabular-nums shrink-0 transition-colors">
+                      {indexLabel}
+                    </span>
+                  </Link>
+                )
+              })}
+
+              {user ? (
                 <button
                   type="button"
-                  onClick={onClose}
-                  aria-label="Close menu"
-                  className="w-[52px] h-[52px] rounded-[22%] bg-white/10 border border-white/15 flex items-center justify-center text-white hover:text-white hover:border-accent-bright transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                  onClick={handleSignOut}
+                  className="group w-full flex items-center justify-between gap-4 py-3.5 text-left text-text hover:text-error transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright rounded-lg"
                 >
-                  <X size={24} weight="bold" />
+                  <span className="font-syne font-bold text-[20px] leading-snug tracking-tight">
+                    Sign out
+                  </span>
+                  <span className="font-mono text-xs text-muted group-hover:text-error tabular-nums shrink-0 transition-colors">
+                    {authIndexLabel}
+                  </span>
                 </button>
-
-                {user && (
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/15 text-xs text-white/80">
-                    <span className="w-1.5 h-1.5 rounded-full bg-accent-bright" />
-                    <span className="font-medium tracking-wide uppercase">{user.role}</span>
-                    <span className="text-white/40">·</span>
-                    <span className="text-white/70">{user.email}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Staggered Navigation Links */}
-              <div className="flex flex-col gap-[20px] lg:gap-[28px] max-w-2xl my-auto">
-                {links.filter((l) => l.visible).map((link, idx) => (
-                  <motion.div
-                    key={link.path}
-                    initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 35 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{
-                      duration: 0.5,
-                      delay: shouldReduceMotion ? 0 : 0.15 + idx * 0.08,
-                      ease: [0.22, 1, 0.36, 1]
-                    }}
-                  >
-                    <Link
-                      to={link.path}
-                      onClick={onClose}
-                      onMouseEnter={() => prefetchRoute(link.path)}
-                      onFocus={() => prefetchRoute(link.path)}
-                      onTouchStart={() => prefetchRoute(link.path)}
-                      className="group flex items-center gap-4 text-[clamp(1.65rem,5.5vw,4.5rem)] font-syne font-bold tracking-tight leading-none text-white/85 hover:text-white transition-colors transition-transform transform hover:translate-x-3 whitespace-nowrap"
-                    >
-                      <span>{link.title}</span>
-                      <ArrowRight
-                        size={32}
-                        weight="regular"
-                        className="opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-[opacity,transform] text-accent-bright shrink-0"
-                      />
-                    </Link>
-                  </motion.div>
-                ))}
-
-                {/* Auth Action */}
-                <motion.div
-                  initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 35 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{
-                    duration: 0.5,
-                    delay: shouldReduceMotion ? 0 : 0.15 + links.length * 0.08,
-                    ease: [0.22, 1, 0.36, 1]
-                  }}
-                  className="mt-6 pt-6 border-t border-white/15"
+              ) : (
+                <Link
+                  to="/login"
+                  onClick={handleClose}
+                  onMouseEnter={() => prefetchRoute('/login')}
+                  onFocus={() => prefetchRoute('/login')}
+                  onTouchStart={() => prefetchRoute('/login')}
+                  className="group flex items-center justify-between gap-4 py-3.5 text-text hover:text-accent-bright transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright rounded-lg"
                 >
-                  {user ? (
+                  <span className="font-syne font-bold text-[20px] leading-snug tracking-tight">
+                    Sign in
+                  </span>
+                  <span className="font-mono text-xs text-muted group-hover:text-accent-bright tabular-nums shrink-0 transition-colors">
+                    {authIndexLabel}
+                  </span>
+                </Link>
+              )}
+            </nav>
+
+            {/* Appearance Selector */}
+            <div className="pt-4 mt-1 border-t border-border/60 flex items-center justify-between gap-3">
+              <span
+                id="appearance-label"
+                className="font-sans text-[11px] font-medium uppercase tracking-[0.18em] text-muted"
+              >
+                Appearance
+              </span>
+              <div
+                role="radiogroup"
+                aria-labelledby="appearance-label"
+                className="inline-flex items-center p-1 bg-surface-2 border border-border rounded-full gap-1"
+              >
+                {appearanceOptions.map((opt, idx) => {
+                  const IconComponent = opt.icon
+                  const isSelected = preference === opt.value
+                  return (
                     <button
+                      key={opt.value}
+                      ref={(el) => {
+                        optionRefs.current[idx] = el
+                      }}
                       type="button"
-                      onClick={handleSignOut}
-                      className="group flex items-center gap-3 text-2xl sm:text-3xl font-sans font-light text-white/60 hover:text-error transition-colors transition-transform transform hover:translate-x-2"
+                      role="radio"
+                      aria-checked={isSelected}
+                      tabIndex={isSelected ? 0 : -1}
+                      onClick={() => setPreference(opt.value)}
+                      onKeyDown={(e) => handleKeyDownAppearance(e, idx)}
+                      className={`h-7 px-2.5 rounded-full flex items-center gap-1.5 text-[11px] font-sans transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright ${
+                        isSelected
+                          ? 'bg-surface text-text font-medium border border-border'
+                          : 'text-muted font-normal hover:text-text border border-transparent'
+                      }`}
                     >
-                      <span>Sign out</span>
-                      <ArrowRight
-                        size={24}
-                        weight="regular"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                      />
+                      <IconComponent size={13} weight="regular" />
+                      <span>{opt.label}</span>
                     </button>
-                  ) : (
-                    <Link
-                      to="/login"
-                      onClick={onClose}
-                      onMouseEnter={() => prefetchRoute('/login')}
-                      onFocus={() => prefetchRoute('/login')}
-                      onTouchStart={() => prefetchRoute('/login')}
-                      className="group flex items-center gap-3 text-2xl sm:text-3xl font-sans font-medium text-white/90 hover:text-white transition-colors transition-transform transform hover:translate-x-2"
-                    >
-                      <span>Sign in</span>
-                      <ArrowRight
-                        size={24}
-                        weight="regular"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity text-accent-bright"
-                      />
-                    </Link>
-                  )}
-                </motion.div>
-
-                {/* Appearance Segmented Control */}
-                <motion.div
-                  initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 35 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{
-                    duration: 0.5,
-                    delay: shouldReduceMotion ? 0 : 0.15 + (links.length + 1) * 0.08,
-                    ease: [0.22, 1, 0.36, 1]
-                  }}
-                  className="pt-4"
-                >
-                  <span
-                    id="appearance-label"
-                    className="text-xs font-sans font-medium uppercase tracking-wide text-white/60 block mb-2.5"
-                  >
-                    Appearance
-                  </span>
-                  <div
-                    role="radiogroup"
-                    aria-labelledby="appearance-label"
-                    className="inline-flex items-center p-1 bg-white/10 border border-white/15 rounded-xl gap-1"
-                  >
-                    {appearanceOptions.map((opt, idx) => {
-                      const IconComponent = opt.icon
-                      const isSelected = preference === opt.value
-                      return (
-                        <button
-                          key={opt.value}
-                          ref={(el) => {
-                            optionRefs.current[idx] = el
-                          }}
-                          type="button"
-                          role="radio"
-                          aria-checked={isSelected}
-                          tabIndex={isSelected ? 0 : -1}
-                          onClick={() => setPreference(opt.value)}
-                          onKeyDown={(e) => handleKeyDownAppearance(e, idx)}
-                          className={`min-h-[44px] min-w-[44px] px-3.5 py-2 rounded-lg flex items-center gap-2 text-xs font-sans tracking-normal transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright ${
-                            isSelected
-                              ? 'bg-white/25 text-white font-medium border border-white/30 shadow-sm'
-                              : 'text-white/65 font-normal hover:text-white hover:bg-white/10 border border-transparent'
-                          }`}
-                        >
-                          <IconComponent size={16} weight="regular" />
-                          <span>{opt.label}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </motion.div>
-              </div>
-
-              {/* Footer Metadata */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-6 border-t border-white/15 text-xs text-white/60 shrink-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-white/90">
-                    {activeSeason?.name || 'Fieldr Tournaments'}
-                  </span>
-                  <span>·</span>
-                  <span>Tournament Console</span>
-                </div>
-                <div className="font-sans font-medium tracking-wide text-accent-bright uppercase">
-                  Draft. Bid. Win.
-                </div>
+                  )
+                })}
               </div>
             </div>
           </motion.div>
-        </motion.div>
+        </div>
       )}
     </AnimatePresence>
   )
 }
+
 
