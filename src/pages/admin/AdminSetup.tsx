@@ -1001,7 +1001,6 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
       <PageHeader
         label="Site Configuration"
         title="System Setup"
-        subtitle="Manage the homepage stadium ticker ribbon, public documentation pages, sports roles, and auction settings."
         actions={
           <SegmentedControl
             ariaLabel="Setup sections"
@@ -1159,13 +1158,8 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
 
             {/* Right: Ticker Speed Control & Live Preview */}
             <div className="bg-surface border border-border rounded-2xl p-5 sm:p-6 space-y-5 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="font-syne font-bold text-lg text-text">Ticker speed</h3>
-                  <p className="text-xs text-muted mt-0.5">
-                    Adjust scroll pace for the home page ticker ribbon.
-                  </p>
-                </div>
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="font-syne font-bold text-lg text-text">Ticker speed</h3>
                 <span className="px-2.5 py-1 rounded-lg bg-surface-2 border border-border font-mono text-xs font-semibold text-accent-bright tabular-nums shrink-0">
                   {tickerSpeed}
                 </span>
@@ -1290,12 +1284,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
       {activeTab === 'pages' && (
         <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
-            <div>
-              <h2 className="font-syne font-bold text-xl text-text">Public Pages Editor</h2>
-              <p className="text-xs text-muted mt-1">
-                Customize content for public Help and About pages stored in the site database.
-              </p>
-            </div>
+            <h2 className="font-syne font-bold text-xl text-text">Public Pages Editor</h2>
 
             <SegmentedControl
               ariaLabel="Select public page"
@@ -1397,12 +1386,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
         <div className="space-y-6">
           <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
-              <div>
-                <h2 className="font-syne font-bold text-xl text-text">Sports and Roles</h2>
-                <p className="text-xs text-muted mt-1">
-                  Configure playing roles for each sport discipline. Changes apply across registration forms, filters, and public rosters.
-                </p>
-              </div>
+              <h2 className="font-syne font-bold text-xl text-text">Sports and Roles</h2>
 
               {sportsList.length > 0 && (
                 <SegmentedControl
@@ -1580,14 +1564,9 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
         <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8 space-y-8 shadow-sm">
           {/* Header & Active Season Note */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
-            <div>
-              <h2 className="font-syne font-bold text-xl text-text">
-                Auction display and rules
-              </h2>
-              <p className="text-xs text-muted mt-1">
-                Configure stage projector animations, timing rules, bidding increments, and squad size limits.
-              </p>
-            </div>
+            <h2 className="font-syne font-bold text-xl text-text">
+              Auction display and rules
+            </h2>
 
             <div className="px-3.5 py-2 rounded-xl bg-surface-2 border border-border text-xs font-mono text-text shrink-0">
               Applies to the selected season:{' '}
@@ -1615,17 +1594,12 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
             <form onSubmit={handleSaveAuctionSettings} className="space-y-8">
               {/* 1. Secured Animation Switch */}
               <div className="p-5 rounded-2xl bg-bg border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <label
-                    htmlFor="toggle-secured-enabled"
-                    className="font-syne font-bold text-base text-text block cursor-pointer"
-                  >
-                    Secured animation
-                  </label>
-                  <p className="text-xs text-muted mt-1">
-                    Play the full-screen team colour sweep and price count-up sequence when a player is secured. When off, the projector shows the static sold card immediately.
-                  </p>
-                </div>
+                <label
+                  htmlFor="toggle-secured-enabled"
+                  className="font-syne font-bold text-base text-text block cursor-pointer"
+                >
+                  Secured animation
+                </label>
 
                 <button
                   id="toggle-secured-enabled"
@@ -1928,18 +1902,13 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
 
                 {/* 7. Maximum squad size */}
                 <div className="p-5 rounded-2xl bg-bg border border-border space-y-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <label
-                        htmlFor="max-squad-size-input"
-                        className="font-syne font-bold text-base text-text block"
-                      >
-                        Maximum squad size
-                      </label>
-                      <p className="text-xs text-muted mt-1">
-                        Maximum number of players a franchise team can acquire in the Auction Room before its tile is locked.
-                      </p>
-                    </div>
+                  <div className="flex items-center justify-between gap-4">
+                    <label
+                      htmlFor="max-squad-size-input"
+                      className="font-syne font-bold text-base text-text block"
+                    >
+                      Maximum squad size
+                    </label>
 
                     <button
                       type="button"
@@ -2034,13 +2003,8 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
       {/* Confetti Section (shown in Confetti tab and alongside Auction display settings) */}
       {(activeTab === 'confetti' || activeTab === 'auction') && (
         <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-6 border-b border-border">
-            <div>
-              <h2 className="font-syne font-bold text-xl text-text">Confetti</h2>
-              <p className="text-xs text-muted mt-1">
-                Configure the vertical fall speed for the projector confetti celebration.
-              </p>
-            </div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
+            <h2 className="font-syne font-bold text-xl text-text">Confetti</h2>
             <span className="px-2.5 py-1 rounded-lg bg-surface-2 border border-border font-mono text-xs font-semibold text-accent-bright tabular-nums shrink-0">
               {confettiFallSpeed}
             </span>

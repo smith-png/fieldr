@@ -9,7 +9,13 @@ export const HomeBackdrop: React.FC = () => {
     const el = layerRef.current
     if (!el) return
 
-    if (shouldReduceMotion) {
+    const prefersReduced =
+      Boolean(shouldReduceMotion) ||
+      (typeof window !== 'undefined' &&
+        window.matchMedia &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+
+    if (prefersReduced) {
       el.style.transform = 'translate3d(0, 0, 0)'
       return
     }
@@ -19,8 +25,8 @@ export const HomeBackdrop: React.FC = () => {
     const updateParallax = () => {
       rafId = null
       if (!layerRef.current) return
-      const y = window.scrollY * 0.06
-      layerRef.current.style.transform = `translate3d(0, ${y.toFixed(2)}px, 0)`
+      const y = Math.min(Math.max(window.scrollY * 0.04, 0), 48)
+      layerRef.current.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0)`
     }
 
     const onScroll = () => {

@@ -321,7 +321,7 @@ export const BulkRegisterPanel: React.FC<BulkRegisterPanelProps> = ({
       {isOpen && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="fixed inset-0 bg-scrim" onClick={onClose} />
-          <div className="relative w-full max-w-xl bg-surface border-l border-border h-full overflow-y-auto p-6 sm:p-8 flex flex-col justify-between z-10 shadow-2xl">
+          <div className="relative w-full max-w-xl frost-strong border-l border-border h-full overflow-y-auto p-6 sm:p-8 flex flex-col justify-between z-10 shadow-2xl">
             <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 space-y-5">
               {/* Header */}
               <div className="flex items-center justify-between pb-4 border-b border-border">

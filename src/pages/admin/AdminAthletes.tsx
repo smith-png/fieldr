@@ -552,7 +552,6 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
           <PageHeader
             label="Universal Athlete Directory"
             title="Athletes"
-            subtitle="Manage universal student athlete profiles shared across all tournament seasons."
             actions={
               <Button
                 variant="primary"
@@ -711,7 +710,7 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
             className="fixed inset-0 bg-scrim"
             onClick={() => setIsFormOpen(false)}
           />
-          <div className="relative w-full max-w-lg bg-surface border-l border-border h-full overflow-y-auto p-6 sm:p-8 flex flex-col justify-between z-10 shadow-2xl">
+          <div className="relative w-full max-w-lg frost-strong border-l border-border h-full overflow-y-auto p-6 sm:p-8 flex flex-col justify-between z-10 shadow-2xl">
             <div>
               <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
                 <div>

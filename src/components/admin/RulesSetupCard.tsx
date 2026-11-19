@@ -277,12 +277,7 @@ export const RulesSetupCard: React.FC = () => {
       {/* 2. List Card */}
       <div className="bg-surface border border-border rounded-2xl p-6 shadow-sm space-y-5">
         <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="font-syne font-bold text-xl text-text">Auction Rules Documents</h2>
-            <p className="text-xs text-muted mt-1">
-              Documents currently published on the public Auction Rules page (/rules).
-            </p>
-          </div>
+          <h2 className="font-syne font-bold text-xl text-text">Auction Rules Documents</h2>
           <span className="text-xs font-mono text-muted tabular-nums">
             {documents.length} {documents.length === 1 ? 'file' : 'files'}
           </span>

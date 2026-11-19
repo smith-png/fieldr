@@ -428,12 +428,7 @@ export const CreditsSetupCard: React.FC = () => {
     <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8 space-y-8 shadow-sm">
       {/* Card Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
-        <div>
-          <h2 className="font-syne font-bold text-xl text-text">Credits</h2>
-          <p className="text-xs text-muted mt-1">
-            Manage main organizers and contributors displayed in the Credits section on the public About page.
-          </p>
-        </div>
+        <h2 className="font-syne font-bold text-xl text-text">Credits</h2>
 
         {isDemoMode && (
           <div className="px-3.5 py-2 rounded-xl bg-surface-2 border border-border text-xs font-mono text-muted shrink-0">
@@ -698,7 +693,6 @@ export const CreditsSetupCard: React.FC = () => {
         isOpen={isDialogOpen}
         onClose={closeEditDialog}
         title={editingPerson ? 'Edit Credit Entry' : 'Add Credit Entry'}
-        description="Configure name, role, photo, and group placement for the public Credits section."
         size="lg"
       >
         <form onSubmit={handleSavePerson} className="space-y-5">

@@ -282,9 +282,6 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
           <h1 className="font-syne font-extrabold text-2xl sm:text-3xl text-text tracking-tight">
             Activity Log
           </h1>
-          <p className="text-xs sm:text-sm text-muted mt-1.5 max-w-2xl leading-relaxed">
-            Read-only record of auction actions and purse changes for the active season.
-          </p>
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap shrink-0">

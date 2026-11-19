@@ -541,12 +541,7 @@ export const HandbookSetupCard: React.FC = () => {
       {/* 3. List Card */}
       <div className="bg-surface border border-border rounded-2xl p-6 shadow-sm space-y-5">
         <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="font-syne font-bold text-xl text-text">Uploaded Handbooks</h2>
-            <p className="text-xs text-muted mt-1">
-              Documents currently published behind the handbook access code.
-            </p>
-          </div>
+          <h2 className="font-syne font-bold text-xl text-text">Uploaded Handbooks</h2>
           <span className="text-xs font-mono text-muted tabular-nums">
             {handbooks.length} {handbooks.length === 1 ? 'file' : 'files'}
           </span>

@@ -1,15 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { Monitor, Moon, Sun, type Icon } from '@phosphor-icons/react'
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock'
 import { useAuth } from '../../lib/AuthContext'
 import { prefetchRoute } from '../../lib/queryCache'
 import { type ThemePreference, useTheme } from '../../lib/theme'
 import type { Season } from '../../types'
-import {
-  notifyPublicActiveSeasonChange,
-  notifyPublicMenuOpenChange
-} from './HeaderBar'
 
 interface NavigationMenuProps {
   isOpen: boolean
@@ -19,56 +16,73 @@ interface NavigationMenuProps {
 
 export const NavigationMenu: React.FC<NavigationMenuProps> = ({
   isOpen,
-  onClose,
-  activeSeason
+  onClose
 }) => {
-  const { user, logout } = useAuth()
+  const { user, isLoading, logout } = useAuth()
   const { preference, setPreference } = useTheme()
   const navigate = useNavigate()
+  const location = useLocation()
   const sheetRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const optionRefs = useRef<(HTMLButtonElement | null)[]>([])
   const wasOpenRef = useRef<boolean>(false)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+  const initialPathnameRef = useRef(location.pathname)
   const shouldReduceMotion = useReducedMotion()
+
+  const [isDesktop, setIsDesktop] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 1024px)').matches : false
+  )
 
   const dragStartYRef = useRef<number | null>(null)
   const [dragOffsetY, setDragOffsetY] = useState<number>(0)
   const [isDragging, setIsDragging] = useState<boolean>(false)
 
   useEffect(() => {
-    notifyPublicMenuOpenChange(isOpen)
-  }, [isOpen])
-
-  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mediaQuery = window.matchMedia('(min-width: 1024px)')
+    const handleMediaChange = (e: MediaQueryListEvent) => {
+      setIsDesktop(e.matches)
+      setDragOffsetY(0)
+      setIsDragging(false)
+      dragStartYRef.current = null
+    }
+    setIsDesktop(mediaQuery.matches)
+    mediaQuery.addEventListener('change', handleMediaChange)
     return () => {
-      notifyPublicMenuOpenChange(false)
+      mediaQuery.removeEventListener('change', handleMediaChange)
     }
   }, [])
-
-  useEffect(() => {
-    if (activeSeason) {
-      notifyPublicActiveSeasonChange(activeSeason)
-    }
-  }, [activeSeason])
 
   const handleClose = useCallback(() => {
     setDragOffsetY(0)
     setIsDragging(false)
     dragStartYRef.current = null
-    notifyPublicMenuOpenChange(false)
-    onClose()
-  }, [onClose])
+    onCloseRef.current()
+  }, [])
 
-  // Lock body scroll, move focus into sheet, trap focus, and return focus on close
+  // Close menu if route changes while open
+  useEffect(() => {
+    if (location.pathname !== initialPathnameRef.current) {
+      initialPathnameRef.current = location.pathname
+      if (isOpen) {
+        handleClose()
+      }
+    }
+  }, [location.pathname, isOpen, handleClose])
+
+  useBodyScrollLock(isOpen)
+
+  // Move focus into sheet, trap focus, handle Escape, and return focus on close
   useEffect(() => {
     if (isOpen) {
       wasOpenRef.current = true
+      previousFocusRef.current = document.activeElement as HTMLElement | null
       setDragOffsetY(0)
       setIsDragging(false)
       dragStartYRef.current = null
-
-      const prevOverflow = document.body.style.overflow
-      document.body.style.overflow = 'hidden'
 
       const focusTimer = window.setTimeout(() => {
         closeButtonRef.current?.focus()
@@ -110,17 +124,20 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
       window.addEventListener('keydown', handleKeyDown)
       return () => {
         window.clearTimeout(focusTimer)
-        document.body.style.overflow = prevOverflow
         window.removeEventListener('keydown', handleKeyDown)
       }
     } else if (wasOpenRef.current) {
       wasOpenRef.current = false
-      const triggerBtn = document.getElementById('public-menu-trigger-button')
-      triggerBtn?.focus()
+      const prev = previousFocusRef.current
+      previousFocusRef.current = null
+      if (prev && prev.isConnected) {
+        prev.focus()
+      }
     }
   }, [isOpen, handleClose])
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isDesktop) return
     if ((e.target as HTMLElement).closest('button')) return
     dragStartYRef.current = e.clientY
     setIsDragging(true)
@@ -132,13 +149,13 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
   }
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (dragStartYRef.current === null) return
+    if (isDesktop || dragStartYRef.current === null) return
     const delta = Math.max(0, e.clientY - dragStartYRef.current)
     setDragOffsetY(delta)
   }
 
   const handlePointerEnd = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (dragStartYRef.current === null) return
+    if (isDesktop || dragStartYRef.current === null) return
     const delta = e.clientY - dragStartYRef.current
     dragStartYRef.current = null
     setIsDragging(false)
@@ -150,6 +167,7 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
   }
 
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (isDesktop) return
     if ((e.target as HTMLElement).closest('button')) return
     const touch = e.touches[0]
     if (!touch) return
@@ -158,7 +176,7 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
   }
 
   const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (dragStartYRef.current === null) return
+    if (isDesktop || dragStartYRef.current === null) return
     const touch = e.touches[0]
     if (!touch) return
     const delta = Math.max(0, touch.clientY - dragStartYRef.current)
@@ -166,7 +184,7 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
   }
 
   const handleTouchEnd = () => {
-    if (dragStartYRef.current === null) return
+    if (isDesktop || dragStartYRef.current === null) return
     const shouldDismiss = dragOffsetY > 80
     dragStartYRef.current = null
     setIsDragging(false)
@@ -220,17 +238,44 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
     navigate('/login')
   }
 
-  const authIndexLabel = String(visibleLinks.length + 1).padStart(2, '0')
+  const panelInitial = shouldReduceMotion
+    ? { opacity: 0 }
+    : isDesktop
+    ? { x: '-100%', y: '0%' }
+    : { x: '0%', y: '100%' }
+
+  const panelAnimate = shouldReduceMotion
+    ? { opacity: 1 }
+    : isDesktop
+    ? { x: '0%', y: '0%' }
+    : { x: '0%', y: dragOffsetY > 0 ? dragOffsetY : '0%' }
+
+  const panelExit = shouldReduceMotion
+    ? { opacity: 0 }
+    : isDesktop
+    ? { x: '-100%', y: '0%' }
+    : { x: '0%', y: '100%' }
 
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end items-center sm:px-4">
-          {/* Full-screen dark backdrop (75% opacity, no blur) */}
+        <motion.div
+          key="public-navigation-overlay"
+          initial={{ opacity: 1 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 1 }}
+          transition={
+            shouldReduceMotion
+              ? { duration: 0.15 }
+              : { duration: 0.38, ease: [0.22, 1, 0.36, 1] }
+          }
+          className="fixed inset-0 z-50 flex flex-col justify-end items-center sm:px-4 lg:flex-row lg:justify-start lg:items-stretch lg:px-0"
+        >
+          {/* Lighter dimmed backdrop so the frosted surface blur stays visible */}
           <motion.div
             aria-hidden="true"
             onClick={handleClose}
-            className="fixed inset-0 bg-black/75"
+            className="fixed inset-0 bg-black/25 dark:bg-black/45"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -241,30 +286,26 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
             }
           />
 
-          {/* Centered Bottom Sheet */}
+          {/* Mobile Bottom Sheet / Desktop Left Full-Height Panel (380px) */}
           <motion.div
             id="public-navigation-sheet"
             ref={sheetRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="public-navigation-sheet-title"
-            className="relative z-10 w-full max-w-[36rem] bg-surface border border-border rounded-t-[24px] sm:rounded-[24px] sm:mb-6 p-6 text-text max-h-[88svh] overflow-y-auto focus:outline-none"
-            initial={shouldReduceMotion ? { opacity: 0 } : { y: '100%' }}
-            animate={
-              shouldReduceMotion
-                ? { opacity: 1 }
-                : { y: dragOffsetY > 0 ? dragOffsetY : '0%' }
-            }
-            exit={shouldReduceMotion ? { opacity: 0 } : { y: '100%' }}
-            transition={
-              isDragging
-                ? { duration: 0 }
-                : shouldReduceMotion
-                ? { duration: 0.15 }
-                : { duration: 0.38, ease: [0.22, 1, 0.36, 1] }
-            }
-          >
-            {/* Swipeable Handle Area & Sheet Header Row */}
+            className="frost relative z-10 flex flex-col w-full max-w-[36rem] lg:w-[380px] lg:max-w-[380px] lg:h-full border border-border/60 lg:border-y-0 lg:border-l-0 lg:border-r lg:border-border/60 rounded-t-[24px] sm:rounded-[24px] sm:mb-6 lg:rounded-none lg:rounded-r-[24px] lg:mb-0 p-6 lg:p-7 text-text max-h-[88svh] lg:max-h-none overflow-y-auto focus:outline-none"
+              initial={panelInitial}
+              animate={panelAnimate}
+              exit={panelExit}
+              transition={
+                isDragging
+                  ? { duration: 0 }
+                  : shouldReduceMotion
+                  ? { duration: 0.15 }
+                  : { duration: 0.38, ease: [0.22, 1, 0.36, 1] }
+              }
+            >
+            {/* Swipeable Handle Area (mobile) & Header Row */}
             <div
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
@@ -273,11 +314,11 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
-              className="touch-none select-none cursor-grab active:cursor-grabbing -mt-2 pt-2"
+              className="touch-none select-none cursor-grab active:cursor-grabbing lg:cursor-default -mt-2 pt-2 lg:mt-0 lg:pt-0"
             >
               <div
                 aria-hidden="true"
-                className="w-10 h-1 rounded-full bg-border mx-auto mb-4"
+                className="w-10 h-1 rounded-full bg-text/20 mx-auto mb-4 lg:hidden"
               />
 
               <div className="flex items-center justify-between gap-4 pb-3.5 border-b border-border/60">
@@ -292,71 +333,60 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
                   type="button"
                   onClick={handleClose}
                   aria-label="Close menu"
-                  className="inline-flex items-center justify-center h-8 px-3.5 rounded-full bg-surface-2 hover:bg-border/40 border border-border font-sans text-[11px] font-medium uppercase tracking-[0.18em] text-text transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                  className="inline-flex items-center justify-center h-8 px-3.5 rounded-full bg-surface/70 hover:bg-surface-2 border border-border/80 font-sans text-[11px] font-medium uppercase tracking-[0.18em] text-text transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
                 >
                   Close
                 </button>
               </div>
             </div>
 
-            {/* Vertical Menu Items List separated by 1px hairlines */}
-            <nav aria-label="Site navigation" className="divide-y divide-border/60">
-              {visibleLinks.map((link, idx) => {
-                const indexLabel = String(idx + 1).padStart(2, '0')
-                return (
-                  <Link
-                    key={link.path}
-                    to={link.path}
-                    onClick={handleClose}
-                    onMouseEnter={() => prefetchRoute(link.path)}
-                    onFocus={() => prefetchRoute(link.path)}
-                    onTouchStart={() => prefetchRoute(link.path)}
-                    className="group flex items-center justify-between gap-4 py-3.5 text-text hover:text-accent-bright transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright rounded-lg"
-                  >
-                    <span className="font-syne font-bold text-[20px] leading-snug tracking-tight">
-                      {link.title}
-                    </span>
-                    <span className="font-mono text-xs text-muted group-hover:text-accent-bright tabular-nums shrink-0 transition-colors">
-                      {indexLabel}
-                    </span>
-                  </Link>
-                )
-              })}
-
-              {user ? (
-                <button
-                  type="button"
-                  onClick={handleSignOut}
-                  className="group w-full flex items-center justify-between gap-4 py-3.5 text-left text-text hover:text-error transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright rounded-lg"
-                >
-                  <span className="font-syne font-bold text-[20px] leading-snug tracking-tight">
-                    Sign out
-                  </span>
-                  <span className="font-mono text-xs text-muted group-hover:text-error tabular-nums shrink-0 transition-colors">
-                    {authIndexLabel}
-                  </span>
-                </button>
-              ) : (
+            {/* Vertical Page Links separated by subtle hairlines (~9% text color) */}
+            <nav aria-label="Site navigation" className="divide-y divide-text/[0.09] mt-1">
+              {visibleLinks.map((link) => (
                 <Link
-                  to="/login"
+                  key={link.path}
+                  to={link.path}
                   onClick={handleClose}
-                  onMouseEnter={() => prefetchRoute('/login')}
-                  onFocus={() => prefetchRoute('/login')}
-                  onTouchStart={() => prefetchRoute('/login')}
-                  className="group flex items-center justify-between gap-4 py-3.5 text-text hover:text-accent-bright transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright rounded-lg"
+                  onMouseEnter={() => prefetchRoute(link.path)}
+                  onFocus={() => prefetchRoute(link.path)}
+                  onTouchStart={() => prefetchRoute(link.path)}
+                  className="group flex items-center py-3.5 text-text hover:text-accent-bright transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright focus-visible:rounded-lg"
                 >
                   <span className="font-syne font-bold text-[20px] leading-snug tracking-tight">
-                    Sign in
-                  </span>
-                  <span className="font-mono text-xs text-muted group-hover:text-accent-bright tabular-nums shrink-0 transition-colors">
-                    {authIndexLabel}
+                    {link.title}
                   </span>
                 </Link>
-              )}
+              ))}
             </nav>
 
+            {/* Separate Sign in / Sign out Rounded Pill Button */}
+            {!isLoading && (
+              <div className="pt-5 pb-2">
+                {user ? (
+                  <button
+                    type="button"
+                    onClick={handleSignOut}
+                    className="w-full inline-flex items-center justify-center h-11 px-5 rounded-full bg-surface/70 hover:bg-error/10 border border-border/80 hover:border-error/40 font-sans text-[11px] font-medium uppercase tracking-[0.18em] text-text hover:text-error transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                  >
+                    Sign out
+                  </button>
+                ) : (
+                  <Link
+                    to="/login"
+                    onClick={handleClose}
+                    onMouseEnter={() => prefetchRoute('/login')}
+                    onFocus={() => prefetchRoute('/login')}
+                    onTouchStart={() => prefetchRoute('/login')}
+                    className="w-full inline-flex items-center justify-center h-11 px-5 rounded-full bg-btn-bg text-btn-fg hover:opacity-90 font-sans text-[11px] font-medium uppercase tracking-[0.18em] transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                  >
+                    Sign in
+                  </Link>
+                )}
+              </div>
+            )}
+
             {/* Appearance Selector */}
-            <div className="pt-4 mt-1 border-t border-border/60 flex items-center justify-between gap-3">
+            <div className="pt-4 mt-3 lg:mt-auto border-t border-text/[0.09] flex items-center justify-between gap-3">
               <span
                 id="appearance-label"
                 className="font-sans text-[11px] font-medium uppercase tracking-[0.18em] text-muted"
@@ -366,7 +396,7 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
               <div
                 role="radiogroup"
                 aria-labelledby="appearance-label"
-                className="inline-flex items-center p-1 bg-surface-2 border border-border rounded-full gap-1"
+                className="inline-flex items-center p-1 bg-surface-2/80 border border-border/80 rounded-full gap-1"
               >
                 {appearanceOptions.map((opt, idx) => {
                   const IconComponent = opt.icon
@@ -385,7 +415,7 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
                       onKeyDown={(e) => handleKeyDownAppearance(e, idx)}
                       className={`h-7 px-2.5 rounded-full flex items-center gap-1.5 text-[11px] font-sans transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright ${
                         isSelected
-                          ? 'bg-surface text-text font-medium border border-border'
+                          ? 'bg-surface text-text font-medium border border-border/80'
                           : 'text-muted font-normal hover:text-text border border-transparent'
                       }`}
                     >
@@ -397,7 +427,7 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
               </div>
             </div>
           </motion.div>
-        </div>
+        </motion.div>
       )}
     </AnimatePresence>
   )

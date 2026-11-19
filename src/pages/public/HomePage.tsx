@@ -175,12 +175,19 @@ export const HomePage: React.FC = () => {
   const parallaxFrameRef = useRef<number | null>(null)
 
   useEffect(() => {
+    if (shouldReduceMotion && heroParallaxRef.current) {
+      if (parallaxFrameRef.current !== null) {
+        cancelAnimationFrame(parallaxFrameRef.current)
+        parallaxFrameRef.current = null
+      }
+      heroParallaxRef.current.style.transform = 'translate3d(0, 0, 0)'
+    }
     return () => {
       if (parallaxFrameRef.current !== null) {
         cancelAnimationFrame(parallaxFrameRef.current)
       }
     }
-  }, [])
+  }, [shouldReduceMotion])
 
   const handleOpenMenu = useCallback(() => {
     setHasOpenedMenu(true)
@@ -372,7 +379,15 @@ export const HomePage: React.FC = () => {
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (shouldReduceMotion || !heroParallaxRef.current) return
+      if (
+        shouldReduceMotion ||
+        !heroParallaxRef.current ||
+        (typeof window !== 'undefined' &&
+          window.matchMedia &&
+          !window.matchMedia('(hover: hover) and (pointer: fine)').matches)
+      ) {
+        return
+      }
       const clientX = e.clientX
       const clientY = e.clientY
       if (parallaxFrameRef.current !== null) {
@@ -382,9 +397,10 @@ export const HomePage: React.FC = () => {
         parallaxFrameRef.current = null
         if (!heroParallaxRef.current) return
         const { innerWidth, innerHeight } = window
-        const x = (clientX / innerWidth - 0.5) * 16
-        const y = (clientY / innerHeight - 0.5) * 16
-        heroParallaxRef.current.style.transform = `translate3d(${x}px, ${y}px, 0)`
+        if (innerWidth <= 0 || innerHeight <= 0) return
+        const x = Math.max(-6, Math.min(6, (clientX / innerWidth - 0.5) * 12))
+        const y = Math.max(-6, Math.min(6, (clientY / innerHeight - 0.5) * 12))
+        heroParallaxRef.current.style.transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0)`
       })
     },
     [shouldReduceMotion]
@@ -434,15 +450,15 @@ export const HomePage: React.FC = () => {
   return (
     <div
       onMouseMove={handleMouseMove}
-      className="min-h-screen bg-bg text-text flex flex-col justify-between selection:bg-accent-bright selection:text-white relative"
+      className="min-h-screen bg-bg text-text flex flex-col justify-between selection:bg-accent-bright selection:text-white relative overflow-x-clip"
     >
       {/* Muted inline vector sports backdrop */}
       <HomeBackdrop />
 
-      {/* Scroll-aware fixed Header tile */}
+      {/* Scroll-aware sticky Header */}
       <HeaderBar onOpenMenu={handleOpenMenu} />
 
-      {/* Fullscreen Circular Menu (lazy-loaded until opened) */}
+      {/* Public Navigation Menu (lazy-loaded until opened) */}
       <Suspense fallback={null}>
         {(isMenuOpen || hasOpenedMenu) && (
           <LazyNavigationMenu
@@ -455,51 +471,51 @@ export const HomePage: React.FC = () => {
 
       {/* Main Hero Container wrapped in ErrorBoundary */}
       <ErrorBoundary name="HeroSection" fallback={null}>
-        <main className="relative z-10 flex flex-col justify-between mt-[5.5rem] md:mt-[7.5rem] min-h-[calc(100svh-5.5rem)] md:min-h-[calc(100svh-7.5rem)] px-6 md:px-16 lg:px-24 pt-3 md:pt-4 pb-8 md:pb-12 max-w-7xl mx-auto w-full">
+        <main className="relative z-10 flex flex-col px-6 md:px-16 lg:px-24 pt-6 sm:pt-8 lg:pt-10 pb-10 sm:pb-12 lg:pb-14 max-w-7xl mx-auto w-full">
           {/* 1. Top Row with 1px hairline under it */}
-          <div className="flex items-center justify-between gap-4 pb-3.5 border-b border-border/60 min-h-[2.25rem]">
-            <div className="flex items-center gap-2.5 font-sans text-[11px] sm:text-xs font-medium uppercase tracking-[0.2em] text-muted">
+          <div className="flex items-center justify-between gap-4 pb-3 sm:pb-3.5 border-b border-border/60 min-h-[2rem]">
+            <div className="flex items-center gap-2.5 font-sans text-[11px] sm:text-xs font-medium uppercase tracking-[0.2em] text-muted shrink-0">
               <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
               <span>LIVE PLAYER AUCTION</span>
             </div>
-            {hasLoadedSeason && activeSeason?.name ? (
-              <span className="font-sans text-[11px] sm:text-xs font-medium uppercase tracking-[0.18em] text-text truncate">
-                {activeSeason.name}
-              </span>
-            ) : null}
+            <span className="font-sans text-[11px] sm:text-xs font-medium uppercase tracking-[0.18em] text-text truncate text-right min-h-[1rem]">
+              {hasLoadedSeason && activeSeason?.name ? activeSeason.name : ''}
+            </span>
           </div>
 
           {/* 2. Center: 3 Stacked Poster Lines in Syne ExtraBold */}
-          <div
-            ref={heroParallaxRef}
-            className="flex flex-col items-start justify-center gap-0 select-none my-auto py-6 w-full max-w-full transition-transform duration-200 ease-out"
-          >
-            {HERO_LINES.map((line, index) => (
-              <div key={line} className="overflow-hidden w-full max-w-full py-0.5 pr-2">
-                <motion.h1
-                  initial={shouldAnimateReveal ? { y: '105%' } : false}
-                  animate={{ y: '0%' }}
-                  transition={
-                    shouldAnimateReveal
-                      ? {
-                          duration: 0.85,
-                          delay: index * 0.1,
-                          ease: [0.22, 1, 0.36, 1]
-                        }
-                      : { duration: 0 }
-                  }
-                  className={`font-syne font-extrabold uppercase text-left text-[clamp(2.75rem,13.5vw,9.25rem)] tracking-[-0.04em] leading-[0.88] whitespace-nowrap ${
-                    index === 2
-                      ? 'text-text'
-                      : index === 1
-                      ? 'text-text/70'
-                      : 'text-muted'
-                  }`}
-                >
-                  {line}
-                </motion.h1>
-              </div>
-            ))}
+          <div className="py-7 sm:py-9 lg:py-10 overflow-hidden">
+            <div
+              ref={heroParallaxRef}
+              className="flex flex-col items-start justify-center gap-0 select-none w-full max-w-full will-change-transform"
+            >
+              {HERO_LINES.map((line, index) => (
+                <div key={line} className="overflow-hidden w-full max-w-full py-0.5 pr-2">
+                  <motion.h1
+                    initial={shouldAnimateReveal ? { y: '105%' } : false}
+                    animate={{ y: '0%' }}
+                    transition={
+                      shouldAnimateReveal
+                        ? {
+                            duration: 0.85,
+                            delay: index * 0.1,
+                            ease: [0.22, 1, 0.36, 1]
+                          }
+                        : { duration: 0 }
+                    }
+                    className={`font-syne font-extrabold uppercase text-left text-[clamp(2.2rem,9.5vw,4.75rem)] lg:text-[clamp(4.25rem,7.4vw,6.25rem)] tracking-[-0.04em] leading-[0.9] lg:leading-[0.88] whitespace-nowrap ${
+                      index === 2
+                        ? 'text-text'
+                        : index === 1
+                        ? 'text-text/70'
+                        : 'text-muted'
+                    }`}
+                  >
+                    {line}
+                  </motion.h1>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* 3. Bottom Row with 1px hairline above it */}
@@ -521,7 +537,7 @@ export const HomePage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleScrollToRosters}
-                className="min-h-[44px] px-6 py-2.5 rounded-full bg-btn-bg text-btn-fg font-sans font-semibold text-xs sm:text-sm hover:opacity-90 transition-opacity inline-flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright whitespace-nowrap"
+                className="min-h-[44px] px-6 py-2.5 rounded-full bg-btn-bg text-btn-fg font-sans font-semibold text-xs sm:text-sm hover:opacity-90 transition-opacity motion-reduce:transition-none inline-flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright whitespace-nowrap"
               >
                 <span>Rosters</span>
                 <ArrowDown size={15} weight="bold" />
@@ -531,7 +547,7 @@ export const HomePage: React.FC = () => {
                 onMouseEnter={() => prefetchRoute('/teams')}
                 onFocus={() => prefetchRoute('/teams')}
                 onTouchStart={() => prefetchRoute('/teams')}
-                className="min-h-[44px] px-6 py-2.5 rounded-full bg-surface/85 hover:bg-surface-2 text-text border border-border font-sans font-semibold text-xs sm:text-sm transition-colors inline-flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright whitespace-nowrap"
+                className="min-h-[44px] px-6 py-2.5 rounded-full bg-surface/85 hover:bg-surface-2 text-text border border-border font-sans font-semibold text-xs sm:text-sm transition-colors motion-reduce:transition-none inline-flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright whitespace-nowrap"
               >
                 <span>Teams</span>
                 <ArrowUpRight size={15} weight="bold" />

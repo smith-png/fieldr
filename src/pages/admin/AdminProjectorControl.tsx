@@ -551,7 +551,6 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
       <PageHeader
         label="Stage Broadcast Control"
         title="Projector Command Studio"
-        subtitle="Choose what displays live on the hall auditorium big screen with instant synchronization."
         actions={
           <a
             href="/projector"
@@ -598,7 +597,7 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
           }`}
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-start gap-4">
+            <div className="flex items-center gap-4">
               <div
                 className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border border-border ${
                   projectorState.mode === PROJECTOR_MODES.IDLE
@@ -608,20 +607,15 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
               >
                 <Broadcast size={22} weight="bold" />
               </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-syne font-bold text-lg text-text">
-                    1 Idle
-                  </h3>
-                  {projectorState.mode === PROJECTOR_MODES.IDLE && (
-                    <span className="text-[11px] font-mono uppercase text-accent-bright font-semibold">
-                      · Live on Stage
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-muted mt-1 leading-relaxed">
-                  Displays the centered tournament season title and subtle Fieldr branding at the bottom.
-                </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-syne font-bold text-lg text-text">
+                  1 Idle
+                </h3>
+                {projectorState.mode === PROJECTOR_MODES.IDLE && (
+                  <span className="text-[11px] font-mono uppercase text-accent-bright font-semibold">
+                    · Live on Stage
+                  </span>
+                )}
               </div>
             </div>
 
@@ -761,9 +755,6 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-muted mt-1 leading-relaxed">
-                  Single team or rotating slideshow showcasing team emblem, remaining purse, and acquired roster.
-                </p>
                 {isCard2Live && isTeamAutoLive && (
                   <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-surface-2 border border-border font-mono text-xs text-accent-bright font-medium">
                     <span>
@@ -897,13 +888,8 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
             </div>
           ) : (
             <div className="p-4 rounded-xl bg-surface-2 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <div className="text-xs font-semibold text-text">
-                  Looping slideshow across {teamSportTeams.length} {teamSportTeams.length === 1 ? 'team' : 'teams'} in {teamSport}
-                </div>
-                <div className="text-[11px] text-muted mt-0.5">
-                  Cycles automatically and loops continuously on the big screen
-                </div>
+              <div className="text-xs font-semibold text-text">
+                Looping slideshow across {teamSportTeams.length} {teamSportTeams.length === 1 ? 'team' : 'teams'} in {teamSport}
               </div>
 
               <div className="flex items-center gap-3 self-end sm:self-center">
@@ -972,9 +958,6 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-muted mt-1 leading-relaxed">
-                  Cinematic player card with large typography, photo, sport, discipline, and base points.
-                </p>
                 {isCard3Live && isPlayerAutoLive && (
                   <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-surface-2 border border-border font-mono text-xs text-accent-bright font-medium">
                     <span>

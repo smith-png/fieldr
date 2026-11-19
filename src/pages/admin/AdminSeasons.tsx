@@ -165,7 +165,6 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
       <PageHeader
         label="Season Management"
         title="Tournament Seasons"
-        subtitle="Configure academic calendar sports seasons. The active season controls all live auctions, team purses, and projector views."
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">

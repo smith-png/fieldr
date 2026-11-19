@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { User, X } from '@phosphor-icons/react'
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock'
 import type { PublicPlayer, PublicTeam } from '../../types'
 import { formatAthleteCode } from '../../lib/data'
 
@@ -12,23 +13,25 @@ export interface RosterScoutModalProps {
 
 export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({ player, team, onClose }) => {
   const modalRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+  const isOpen = Boolean(player)
+
+  useBodyScrollLock(isOpen)
 
   useEffect(() => {
-    if (!player) return
+    if (!isOpen) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') onCloseRef.current()
     }
 
-    const prevOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
     window.addEventListener('keydown', handleKeyDown)
 
     return () => {
-      document.body.style.overflow = prevOverflow
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [player, onClose])
+  }, [isOpen])
 
   if (!player) return null
 
@@ -46,7 +49,7 @@ export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({ player, team
         ref={modalRef}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="bg-surface border border-border rounded-2xl max-w-md w-full overflow-hidden shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 outline-none"
+        className="frost-strong border border-border rounded-2xl max-w-md w-full overflow-hidden shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 outline-none"
       >
         {/* Close Button */}
         <button

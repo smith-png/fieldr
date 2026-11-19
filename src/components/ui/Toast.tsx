@@ -48,16 +48,19 @@ export const AppToaster: React.FC = () => {
         right: '1rem'
       }}
       toastOptions={{
+        unstyled: true,
         classNames: {
           toast:
-            '!bg-surface !text-text !border !border-border !border-l-[3px] !border-l-accent !rounded-xl !shadow-xl !font-sans !text-xs !px-4 !py-3 !pr-9 !gap-3 motion-reduce:!transition-[opacity] motion-reduce:!duration-150 motion-reduce:[&[data-front=true]]:![transform:translateY(0)]',
+            'frost-strong flex items-center w-[var(--width)] !text-text !border !border-border !border-l-[3px] !border-l-accent !rounded-xl !shadow-xl !font-sans !text-xs !px-4 !py-3 !pr-9 !gap-3 motion-reduce:!transition-[opacity] motion-reduce:!duration-150 motion-reduce:[&[data-front=true]]:![transform:translateY(0)]',
+          icon: 'flex items-center justify-start w-4 h-4 shrink-0 relative',
+          content: 'flex flex-col gap-0.5 flex-1 min-w-0',
           title: '!font-sans !font-medium !text-xs !text-text !leading-snug',
           description: '!font-sans !font-normal !text-xs !text-muted',
           success: '!border-l-accent-bright [&_[data-icon]]:!text-accent-bright',
           error: '!border-l-error [&_[data-icon]]:!text-error',
           info: '!border-l-accent [&_[data-icon]]:!text-accent',
           closeButton:
-            '!left-auto !right-2.5 !top-1/2 !-translate-y-1/2 !transform !w-5 !h-5 !rounded-md !bg-transparent hover:!bg-surface-2 !border-0 !text-muted hover:!text-text !transition-colors'
+            'absolute flex items-center justify-center p-0 cursor-pointer z-[1] !left-auto !right-2.5 !top-1/2 !-translate-y-1/2 !transform !w-5 !h-5 !rounded-md !bg-transparent hover:!bg-surface-2 !border-0 !text-muted hover:!text-text !transition-colors'
         }
       }}
     />

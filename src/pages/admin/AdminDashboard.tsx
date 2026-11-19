@@ -56,8 +56,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <div className="font-syne font-bold text-3xl text-text tabular-nums">
               {teams.length}
             </div>
-            <div className="text-xs text-muted mt-1 flex items-center gap-2">
-              <span>Across all sports</span>
+            <div className="text-xs text-muted mt-1">
               <button
                 type="button"
                 onClick={() => onGoToTab('teams')}
@@ -93,13 +92,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <span className="text-xs font-mono uppercase tracking-wider">Total Active Purse</span>
             <Coins size={20} className="text-points" />
           </div>
-          <div>
-            <div className="font-syne font-bold text-3xl text-points tabular-nums">
-              {totalPurse.toLocaleString()}
-            </div>
-            <div className="text-xs text-muted mt-1">
-              Auction points remaining
-            </div>
+          <div className="font-syne font-bold text-3xl text-points tabular-nums">
+            {totalPurse.toLocaleString()}
           </div>
         </div>
 
@@ -109,13 +103,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <span className="text-xs font-mono uppercase tracking-wider">Purse Transactions</span>
             <ArrowsLeftRight size={20} className="text-muted" />
           </div>
-          <div>
-            <div className="font-syne font-bold text-3xl text-text tabular-nums">
-              {transactions.length}
-            </div>
-            <div className="text-xs text-muted mt-1">
-              Recorded audit events
-            </div>
+          <div className="font-syne font-bold text-3xl text-text tabular-nums">
+            {transactions.length}
           </div>
         </div>
       </div>
@@ -125,14 +114,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         {/* Left 2 Cols: Recent Purse Activity */}
         <div className="lg:col-span-2 bg-surface border border-border rounded-2xl shadow-sm overflow-hidden flex flex-col">
           <div className="p-6 border-b border-border flex items-center justify-between gap-4">
-            <div>
-              <h2 className="font-syne font-bold text-xl text-text tracking-tight">
-                Recent Purse Activity
-              </h2>
-              <p className="text-xs text-muted mt-0.5">
-                Real-time audit log of budget adjustments and player purchase deductions.
-              </p>
-            </div>
+            <h2 className="font-syne font-bold text-xl text-text tracking-tight">
+              Recent Purse Activity
+            </h2>
             <Button
               variant="ghost"
               size="sm"
@@ -211,14 +195,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         {/* Right 1 Col: Quick Control Shortcuts */}
         <div className="p-6 rounded-2xl bg-surface border border-border shadow-sm flex flex-col gap-5 self-start">
-          <div>
-            <h2 className="font-syne font-bold text-xl text-text tracking-tight">
-              Console Shortcuts
-            </h2>
-            <p className="text-xs text-muted mt-0.5">
-              Rapid operations during live tournament proceedings.
-            </p>
-          </div>
+          <h2 className="font-syne font-bold text-xl text-text tracking-tight">
+            Console Shortcuts
+          </h2>
 
           <div className="flex flex-col gap-2.5">
             <button
@@ -226,13 +205,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               onClick={() => onGoToTab('players')}
               className="p-3.5 rounded-xl bg-surface-2 border border-border hover:border-accent-bright text-left transition-colors flex items-center justify-between group"
             >
-              <div>
-                <div className="text-xs font-semibold text-text group-hover:text-accent-bright transition-colors">
-                  Register New Player
-                </div>
-                <div className="text-[11px] text-muted mt-0.5">
-                  Assign athlete profile to a sport role
-                </div>
+              <div className="text-xs font-semibold text-text group-hover:text-accent-bright transition-colors">
+                Register New Player
               </div>
               <Users size={18} className="text-accent-bright shrink-0" />
             </button>
@@ -242,13 +216,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               onClick={() => onGoToTab('teams')}
               className="p-3.5 rounded-xl bg-surface-2 border border-border hover:border-accent-bright text-left transition-colors flex items-center justify-between group"
             >
-              <div>
-                <div className="text-xs font-semibold text-text group-hover:text-accent-bright transition-colors">
-                  Create New Franchise Team
-                </div>
-                <div className="text-[11px] text-muted mt-0.5">
-                  Set color, logo, owner, and purse
-                </div>
+              <div className="text-xs font-semibold text-text group-hover:text-accent-bright transition-colors">
+                Create New Franchise Team
               </div>
               <ShieldCheck size={18} className="text-accent-bright shrink-0" />
             </button>
@@ -258,13 +227,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               onClick={() => onGoToTab('purses')}
               className="p-3.5 rounded-xl bg-surface-2 border border-border hover:border-accent-bright text-left transition-colors flex items-center justify-between group"
             >
-              <div>
-                <div className="text-xs font-semibold text-text group-hover:text-accent-bright transition-colors">
-                  Reset Starting Purses
-                </div>
-                <div className="text-[11px] text-muted mt-0.5">
-                  Set uniform points for all teams
-                </div>
+              <div className="text-xs font-semibold text-text group-hover:text-accent-bright transition-colors">
+                Reset Starting Purses
               </div>
               <Coins size={18} className="text-points shrink-0" />
             </button>
@@ -274,13 +238,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               onClick={() => onGoToTab('projector')}
               className="p-3.5 rounded-xl bg-surface-2 border border-border hover:border-accent-bright text-left transition-colors flex items-center justify-between group"
             >
-              <div>
-                <div className="text-xs font-semibold text-text group-hover:text-accent-bright transition-colors">
-                  Broadcast Player Spotlight
-                </div>
-                <div className="text-[11px] text-muted mt-0.5">
-                  Show high-res card on stage display
-                </div>
+              <div className="text-xs font-semibold text-text group-hover:text-accent-bright transition-colors">
+                Broadcast Player Spotlight
               </div>
               <Television size={18} className="text-accent-bright shrink-0" />
             </button>

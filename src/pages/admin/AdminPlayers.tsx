@@ -581,7 +581,6 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
       <PageHeader
         label="Athlete Roster Repository"
         title="Registered Players"
-        subtitle="Manage per-season sport entries, base points, and franchise squad assignments."
         actions={
           <>
             <Button
@@ -839,7 +838,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
             className="fixed inset-0 bg-scrim"
             onClick={() => setIsDrawerOpen(false)}
           />
-          <div className="relative w-full max-w-lg bg-surface border-l border-border h-full overflow-y-auto p-6 sm:p-8 flex flex-col justify-between z-10 shadow-2xl">
+          <div className="relative w-full max-w-lg frost-strong border-l border-border h-full overflow-y-auto p-6 sm:p-8 flex flex-col justify-between z-10 shadow-2xl">
             <div>
               <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
                 <div>
@@ -1155,7 +1154,6 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
         title="Export Players CSV"
-        description="Download sanitized athlete records with UTF-8 BOM encoding."
         size="sm"
       >
         <div className="space-y-4">

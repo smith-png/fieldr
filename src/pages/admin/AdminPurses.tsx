@@ -114,14 +114,9 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
   return (
     <section className="flex flex-col gap-6 pt-4 border-t border-border">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="font-syne font-bold text-xl text-text tracking-tight">
-            Purses &amp; Balances
-          </h2>
-          <p className="text-xs text-muted mt-1">
-            Manage franchise points, credit/debit balances with audit logs, and enforce strict zero-deficit rules.
-          </p>
-        </div>
+        <h2 className="font-syne font-bold text-xl text-text tracking-tight">
+          Purses &amp; Balances
+        </h2>
         <div className="flex items-center gap-2 shrink-0">
           <Button
             variant="secondary"
@@ -250,7 +245,6 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
             ? `${txType.charAt(0).toUpperCase() + txType.slice(1)} Points · ${selectedTeam.name}`
             : 'Update Purse'
         }
-        description="Ledger Modification"
         size="md"
       >
         {selectedTeam && (
@@ -371,7 +365,6 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
         isOpen={!!historyTeam}
         onClose={() => setHistoryTeam(null)}
         title={historyTeam ? `Purse History · ${historyTeam.name}` : 'Purse History'}
-        description="Audit Ledger"
         size="lg"
       >
         <div className="space-y-4">

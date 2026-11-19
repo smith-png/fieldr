@@ -71,7 +71,7 @@ export const SportCardsGrid: React.FC<SportCardsGridProps> = ({
             TOURNAMENT SQUADS
           </span>
           <h2 className="font-syne font-extrabold text-3xl sm:text-4xl text-text tracking-tight">
-            Explore rosters by sport
+            Explore
           </h2>
         </div>
       </div>
@@ -159,7 +159,7 @@ export const SportCardsGrid: React.FC<SportCardsGridProps> = ({
               <div aria-hidden="true" className="my-8 h-48 sm:h-52 pointer-events-none" />
 
               {/* Card Bottom Row: Hairline with Syne Sport Name & Monospace Athlete Count */}
-              <div className="pt-4 border-t border-white/15 flex items-baseline justify-between gap-4 z-10">
+              <div className="pt-4 border-t border-white/15 flex items-baseline justify-between gap-4 z-10 min-h-[3rem]">
                 <h3 className="font-syne font-bold text-2xl text-white group-hover:text-accent-bright transition-colors tracking-tight">
                   {sport.label}
                 </h3>

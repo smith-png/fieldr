@@ -640,7 +640,6 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
       <PageHeader
         label="Franchise Directory"
         title="Teams & Franchises"
-        subtitle="Configure teams per sport, franchise colours, owners, and starting point budgets."
         actions={
           <>
             <label className="min-h-[40px] px-4 py-2 rounded-xl border border-border bg-surface-2 hover:bg-surface text-xs font-medium text-text cursor-pointer transition-colors flex items-center gap-2">

@@ -184,14 +184,19 @@ export const TeamsPage: React.FC = () => {
       <main className="flex-1 max-w-7xl mx-auto w-full px-6 md:px-16 lg:px-24 pt-32 sm:pt-40 pb-20">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-10 pb-6 border-b border-border">
           <div>
-            <span className="text-xs font-mono uppercase tracking-widest text-accent-bright block mb-2">
-              FRANCHISE DIRECTORY · {activeSeason?.name || 'ACTIVE SEASON'}
+            <span className="text-xs font-mono uppercase tracking-widest text-accent-bright block mb-2 min-h-[1rem]">
+              FRANCHISE DIRECTORY{activeSeason?.name ? ` · ${activeSeason.name}` : ''}
             </span>
             <h1 className="font-syne font-extrabold text-4xl sm:text-5xl text-text tracking-tight">
               Registered Teams
             </h1>
           </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-mono text-muted">
+          <div
+            aria-hidden={isLoading ? true : undefined}
+            className={`flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-mono text-muted min-h-[1.25rem] ${
+              isLoading ? 'opacity-0' : 'opacity-100'
+            }`}
+          >
             <span>
               Total Franchises: <span className="text-text font-semibold tabular-nums">{teams.length}</span>
             </span>
@@ -316,7 +321,7 @@ export const TeamsPage: React.FC = () => {
                           </div>
                           <span className="inline-flex items-center gap-1 text-xs font-medium text-accent-bright">
                             <span>View Squad</span>
-                            <CaretRight size={14} weight="bold" className="group-hover:translate-x-0.5 transition-transform" />
+                            <CaretRight size={14} weight="bold" className="group-hover:translate-x-0.5 transition-transform motion-reduce:transition-none motion-reduce:group-hover:translate-x-0" />
                           </span>
                         </div>
                       </Link>

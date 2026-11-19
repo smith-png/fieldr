@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { X } from '@phosphor-icons/react'
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock'
 
 export interface DialogProps {
   isOpen: boolean
@@ -11,6 +12,7 @@ export interface DialogProps {
   size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl'
   className?: string
   showCloseButton?: boolean
+  frosted?: boolean
 }
 
 const maxWidthMap = {
@@ -31,29 +33,31 @@ export const Dialog: React.FC<DialogProps> = ({
   maxWidth,
   size = 'md',
   className = '',
-  showCloseButton = true
+  showCloseButton = true,
+  frosted = true
 }) => {
   const effectiveWidth = maxWidth || size
   const dialogRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+
+  useBodyScrollLock(isOpen)
 
   useEffect(() => {
     if (!isOpen) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose()
+        onCloseRef.current()
       }
     }
 
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
     window.addEventListener('keydown', handleKeyDown)
 
     return () => {
-      document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isOpen, onClose])
+  }, [isOpen])
 
   if (!isOpen) return null
 
@@ -72,7 +76,7 @@ export const Dialog: React.FC<DialogProps> = ({
     >
       <div
         ref={dialogRef}
-        className={`bg-surface border border-border rounded-2xl p-6 shadow-2xl w-full ${maxWidthMap[effectiveWidth]} max-h-[90vh] overflow-y-auto my-auto ${className}`}
+        className={`${frosted ? 'frost-strong' : 'bg-surface'} border border-border rounded-2xl p-6 shadow-2xl w-full ${maxWidthMap[effectiveWidth]} max-h-[90vh] overflow-y-auto my-auto ${className}`}
       >
         {(title || showCloseButton) && (
           <div className="flex items-start justify-between gap-4 mb-5">
