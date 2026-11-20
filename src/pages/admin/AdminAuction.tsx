@@ -68,6 +68,35 @@ interface AdminAuctionProps {
 
 type QueueTab = 'queue' | 'sold'
 
+const DISALLOWED_CSS_COLORS = new Set([
+  'transparent',
+  'currentcolor',
+  'inherit',
+  'initial',
+  'unset',
+  'revert',
+  'revert-layer'
+])
+
+function getValidTeamColor(color?: string | null): string | null {
+  const clean = color?.trim()
+  if (!clean) return null
+  if (DISALLOWED_CSS_COLORS.has(clean.toLowerCase())) return null
+  if (/[;{}<>]/.test(clean)) return null
+
+  if (typeof CSS !== 'undefined' && typeof CSS.supports === 'function') {
+    return CSS.supports('color', clean) ? clean : null
+  }
+
+  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(clean)
+    ? clean
+    : null
+}
+
+function formatBalancedName(name: string): string {
+  return name.replace(/\s+(\d+)$/, '\u00A0$1')
+}
+
 export const AdminAuction: React.FC<AdminAuctionProps> = ({
   activeSeason,
   sports,
@@ -715,130 +744,601 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
     : null
   const newestSaleTeam = newestSale ? teams.find((t) => t.id === newestSale.team_id) : null
 
+  const stageStatusLabel = isAuctionActive
+    ? 'LIVE'
+    : isSoldState
+    ? 'SOLD'
+    : isUnsoldState
+    ? 'UNSOLD'
+    : 'IDLE'
+
+  const stageStatusDotClass = isAuctionActive
+    ? 'bg-accent-bright'
+    : isSoldState
+    ? 'bg-points'
+    : isUnsoldState
+    ? 'bg-error'
+    : 'bg-muted'
+
+  const leadingTeamColor = getValidTeamColor(leadingTeam?.color)
+  const priceDisplayValue =
+    displayedPrice !== null ? displayedPrice : stagePlayer ? stagePlayer.base_points : 0
+  const priceAnimKey = `${stagePlayer?.id || 'idle'}-${effectiveMode}-${displayedPrice ?? 'base'}`
+
   return (
-    <div className="flex flex-col gap-6">
-      {/* 1. HEADER: Selected season (read-only) & Sport tabs from sports table */}
-      <div className="p-5 sm:p-6 rounded-2xl bg-surface border border-border flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-sm">
-        <div>
-          <div className="flex flex-wrap items-center gap-2.5 mb-1.5">
-            <span className="text-[11px] font-mono uppercase tracking-widest text-accent-bright font-semibold">
-              LIVE AUCTION CONTROL
-            </span>
-            <span className="text-border">·</span>
-            <span className="px-2.5 py-0.5 rounded-lg bg-surface-2 border border-border text-xs font-mono font-semibold text-text">
-              Season: {activeSeason.name}
+    <div className="font-sans">
+      <style>{`
+        @keyframes auctionPricePop {
+          0% {
+            opacity: 0.55;
+            transform: translateY(3px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .auction-price-pop {
+          animation: auctionPricePop 180ms cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .auction-price-pop {
+            animation: none;
+          }
+        }
+      `}</style>
+
+      {/* Two zones on 768px+: Main zone (2/3) + Sticky Queue right rail (1/3).
+          Below 768px: single column in order Header -> Stage -> Queue -> Bid History -> Recent Sales. */}
+      <div className="grid grid-cols-1 md:grid-cols-12 md:grid-rows-[auto_auto_1fr] gap-5 lg:gap-6 items-start">
+        {/* 1. HEADER */}
+        <header className="md:col-start-1 md:col-span-8 md:row-start-1 min-w-0 rounded-3xl bg-surface border border-border p-5 sm:p-6 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3 min-w-0">
+            <h1 className="font-syne font-extrabold text-2xl sm:text-3xl text-text tracking-tight">
+              Auction Room
+            </h1>
+            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-2 border border-border font-mono text-xs uppercase tracking-[0.14em] font-semibold text-text shrink-0">
+              <span
+                aria-hidden="true"
+                className={`w-2 h-2 rounded-full shrink-0 ${stageStatusDotClass}`}
+              />
+              <span>{stageStatusLabel}</span>
             </span>
           </div>
-          <h1 className="font-syne font-extrabold text-2xl sm:text-3xl text-text tracking-tight">
-            Auction Room
-          </h1>
-        </div>
 
-        {/* Sport Tabs (from sports table, min-h-[48px] tap targets) */}
-        <div
-          role="tablist"
-          aria-label="Select Auction Sport"
-          className="flex flex-wrap items-center gap-2 bg-surface-2 p-1.5 rounded-xl border border-border"
-        >
-          {sports.map((sport) => {
-            const isSelected =
-              sport.name.toLowerCase() === selectedSportName.toLowerCase() ||
-              sport.id.toLowerCase() === selectedSportName.toLowerCase()
-            const availableCount = players.filter(
-              (p) =>
-                (p.sport.toLowerCase() === sport.name.toLowerCase() ||
-                  p.sport.toLowerCase() === sport.id.toLowerCase()) &&
-                (p.status === 'available' || p.status === 'unsold')
-            ).length
+          {/* Sport Tabs Segmented Control */}
+          <div
+            role="tablist"
+            aria-label="Select Auction Sport"
+            className="inline-flex flex-wrap items-center gap-1 bg-surface-2 p-1.5 rounded-full border border-border self-start xl:self-auto"
+          >
+            {sports.map((sport) => {
+              const isSelected =
+                sport.name.toLowerCase() === selectedSportName.toLowerCase() ||
+                sport.id.toLowerCase() === selectedSportName.toLowerCase()
+              const availableCount = players.filter(
+                (p) =>
+                  (p.sport.toLowerCase() === sport.name.toLowerCase() ||
+                    p.sport.toLowerCase() === sport.id.toLowerCase()) &&
+                  (p.status === 'available' || p.status === 'unsold')
+              ).length
 
-            return (
-              <button
-                key={sport.id}
-                type="button"
-                role="tab"
-                aria-selected={isSelected}
-                onClick={() => setSelectedSportName(sport.name)}
-                className={`min-h-[48px] px-4 py-2 rounded-lg text-xs sm:text-sm font-['DM_Sans',sans-serif] transition-colors flex items-center gap-2 ${
-                  isSelected
-                    ? 'bg-btn-bg text-btn-fg font-medium shadow-sm'
-                    : 'text-muted hover:text-text hover:bg-surface font-normal'
-                }`}
-              >
-                <span>{sport.name}</span>
-                <span
-                  className={`px-2 py-0.5 rounded text-[11px] font-mono tabular-nums ${
+              return (
+                <button
+                  key={sport.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isSelected}
+                  onClick={() => setSelectedSportName(sport.name)}
+                  className={`min-h-[44px] px-4 py-2 rounded-full text-sm font-sans transition-[opacity,transform] duration-150 active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100 inline-flex items-center gap-2 cursor-pointer ${
                     isSelected
-                      ? 'bg-black/20 text-btn-fg'
-                      : 'bg-surface border border-border text-muted'
+                      ? 'bg-btn-bg text-btn-fg font-medium'
+                      : 'text-muted hover:text-text font-normal'
                   }`}
                 >
-                  {availableCount}
-                </span>
-              </button>
-            )
-          })}
-        </div>
-      </div>
+                  <span>{sport.name}</span>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-xs font-mono tabular-nums ${
+                      isSelected
+                        ? 'bg-surface/20 text-btn-fg'
+                        : 'bg-surface border border-border text-muted'
+                    }`}
+                  >
+                    {availableCount}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </header>
 
-      {/* MAIN GRID: Tablet landscape first (12 cols on lg), stacks on narrow screens */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* 2. LEFT COLUMN: QUEUE */}
-        <div className="lg:col-span-5 rounded-2xl bg-surface border border-border flex flex-col overflow-hidden shadow-sm">
-          <div className="p-4 sm:p-5 border-b border-border flex flex-col gap-3.5 shrink-0 bg-surface z-10">
+        {/* 2. STAGE PANEL */}
+        <section
+          aria-label="Auction Stage"
+          className="md:col-start-1 md:col-span-8 md:row-start-2 min-w-0 rounded-3xl bg-surface border border-border p-5 sm:p-6 shadow-sm min-h-[540px] flex flex-col gap-6"
+        >
+          {/* Stage Status Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-border">
+            <div className="inline-flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className={`w-2 h-2 rounded-full shrink-0 ${stageStatusDotClass}`}
+              />
+              <span className="font-mono text-xs uppercase tracking-[0.14em] font-semibold text-muted">
+                STAGE STATUS:{' '}
+                <strong className="text-text font-bold">
+                  {isAuctionActive
+                    ? 'LIVE AUCTION'
+                    : isSoldState
+                    ? 'SOLD'
+                    : isUnsoldState
+                    ? 'UNSOLD'
+                    : 'IDLE'}
+                </strong>
+              </span>
+            </div>
+
+            {!isIdleState && (
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={handleBackToIdle}
+                className="min-h-[44px] px-4 rounded-full bg-transparent border border-border text-xs font-medium text-text hover:bg-surface-2 transition-[opacity,transform] duration-150 active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+              >
+                Back to idle
+              </button>
+            )}
+          </div>
+
+          {/* IDLE STATE */}
+          {isIdleState || !stagePlayer ? (
+            <div className="flex-1 py-12 px-6 text-center rounded-2xl bg-surface-2 border border-border flex flex-col items-center justify-center gap-3">
+              <div className="w-14 h-14 rounded-2xl bg-surface border border-border flex items-center justify-center text-muted">
+                <Gavel size={28} weight="duotone" />
+              </div>
+              <h2 className="font-syne font-bold text-xl text-text">
+                No Player Currently on Stage
+              </h2>
+              <p className="text-sm text-muted">
+                Bring a player to stage from the queue.
+              </p>
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col gap-6">
+              {/* SOLD BANNER */}
+              {isSoldState && (
+                <div className="p-4 sm:p-5 rounded-2xl bg-accent/15 border border-accent-bright/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-1 min-w-0">
+                    <div className="min-w-0 flex-1">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface border border-accent-bright/40 font-mono text-xs uppercase tracking-[0.14em] text-accent-bright font-bold mb-1.5">
+                        <CheckCircle size={14} weight="fill" />
+                        <span>SOLD</span>
+                      </span>
+                      <div
+                        title={leadingTeam?.name || 'Sold'}
+                        className="font-syne font-extrabold text-xl sm:text-2xl text-text tracking-tight line-clamp-2 min-w-0"
+                      >
+                        {leadingTeam?.name || 'Sold'}
+                      </div>
+                    </div>
+
+                    <div className="font-mono font-extrabold text-2xl sm:text-3xl text-points tabular-nums shrink-0">
+                      {(displayedPrice ?? 0).toLocaleString()}
+                      <span className="text-xs font-semibold text-muted ml-1.5">PTS</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={handleBackToIdle}
+                    className="w-full sm:w-auto min-h-[48px] px-5 rounded-full bg-btn-bg text-btn-fg hover:opacity-90 active:scale-[0.98] font-medium text-sm inline-flex items-center justify-center gap-2 shrink-0 transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                  >
+                    <span>Next player</span>
+                    <ArrowRight size={16} weight="bold" />
+                  </button>
+                </div>
+              )}
+
+              {/* UNSOLD BANNER */}
+              {isUnsoldState && (
+                <div className="p-4 sm:p-5 rounded-2xl bg-error/10 border border-error/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface border border-error/40 font-mono text-xs uppercase tracking-[0.14em] text-error font-bold mb-1.5">
+                      <XCircle size={14} weight="fill" />
+                      <span>UNSOLD</span>
+                    </span>
+                    <p className="font-syne font-bold text-lg sm:text-xl text-text tracking-tight">
+                      {stagePlayer.name} passed without a winning bid.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={handleBackToIdle}
+                    className="w-full sm:w-auto min-h-[48px] px-5 rounded-full bg-surface border border-border text-text hover:bg-surface-2 active:scale-[0.98] font-medium text-sm inline-flex items-center justify-center gap-2 shrink-0 transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                  >
+                    <span>Next player</span>
+                    <ArrowRight size={16} weight="bold" />
+                  </button>
+                </div>
+              )}
+
+              {/* PLAYER BLOCK + PRICE BLOCK */}
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-stretch">
+                {/* Player Block */}
+                <div className="xl:col-span-7 flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-5 min-w-0">
+                  <div className="w-36 sm:w-40 aspect-[4/5] rounded-2xl overflow-hidden bg-surface-2 border border-border shrink-0 flex items-center justify-center">
+                    {stagePlayer.photo_url || stagePlayer.photo_thumb_url ? (
+                      <img
+                        src={stagePlayer.photo_url || stagePlayer.photo_thumb_url}
+                        alt={stagePlayer.name}
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <User size={48} className="text-muted" />
+                    )}
+                  </div>
+
+                  <div className="min-w-0 flex-1 text-center sm:text-left">
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-2.5">
+                      <span className="px-3 py-1 rounded-full bg-surface-2 border border-border font-mono text-xs font-bold text-accent-bright tabular-nums">
+                        #{formatAthleteCode(stagePlayer.athlete_code || stagePlayer.player_code)}
+                      </span>
+                      <span className="px-3 py-1 rounded-full bg-surface-2 border border-border font-mono text-xs uppercase tracking-[0.12em] text-muted">
+                        {stagePlayer.sport}
+                      </span>
+                    </div>
+
+                    <h2 className="font-syne font-extrabold text-[clamp(1.375rem,2.4vw,2rem)] leading-[1.15] text-text tracking-tight text-balance break-normal">
+                      {formatBalancedName(stagePlayer.name)}
+                    </h2>
+
+                    <div className="mt-2.5 text-sm sm:text-[15px] font-medium text-muted">
+                      {stagePlayer.playing_role}
+                    </div>
+
+                    <div className="mt-1.5 flex flex-wrap items-center justify-center sm:justify-start gap-x-2.5 gap-y-1 text-sm text-muted">
+                      <span className="font-mono font-semibold text-points tabular-nums">
+                        Base: {stagePlayer.base_points.toLocaleString()} PTS
+                      </span>
+                      <span aria-hidden="true" className="text-border">
+                        ·
+                      </span>
+                      <span>{stagePlayer.academic_year} Year</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Price Block */}
+                <div className="xl:col-span-5 p-5 rounded-2xl bg-surface-2 border border-border flex flex-col justify-between gap-4 min-w-0">
+                  <div>
+                    <span className="block font-mono text-xs uppercase tracking-[0.14em] text-muted">
+                      {isSoldState ? 'FINAL SOLD PRICE' : 'CURRENT HIGHEST BID'}
+                    </span>
+
+                    <div className="mt-2">
+                      <div
+                        key={priceAnimKey}
+                        className={`auction-price-pop font-mono font-extrabold text-[clamp(2.25rem,3.6vw,3.25rem)] leading-none tabular-nums tracking-tight ${
+                          displayedPrice !== null ? 'text-points' : 'text-text'
+                        }`}
+                      >
+                        {priceDisplayValue.toLocaleString()}
+                        <span className="text-sm sm:text-base font-semibold text-muted ml-2">
+                          PTS
+                        </span>
+                      </div>
+                      {displayedPrice === null && (
+                        <span className="block font-mono text-xs text-muted mt-2">
+                          Opening base points (no bids yet)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-border">
+                    <span className="block font-mono text-xs uppercase tracking-[0.14em] text-muted mb-2">
+                      {isSoldState ? 'BUYER' : 'LEADING TEAM'}
+                    </span>
+                    {leadingTeam ? (
+                      <div
+                        style={
+                          leadingTeamColor
+                            ? ({ '--team-color': leadingTeamColor } as React.CSSProperties)
+                            : undefined
+                        }
+                        className={`inline-flex items-center justify-between gap-2.5 max-w-full px-3.5 py-2 rounded-full bg-surface border-[1.5px] border-solid ${
+                          leadingTeamColor
+                            ? 'border-[color:color-mix(in_srgb,var(--team-color)_75%,transparent)]'
+                            : 'border-border'
+                        }`}
+                      >
+                        <span
+                          title={leadingTeam.name}
+                          className="font-syne font-bold text-sm text-text truncate"
+                        >
+                          {leadingTeam.name}
+                        </span>
+                        <span className="font-mono text-xs font-bold text-muted shrink-0">
+                          {leadingTeam.short_code}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="block text-sm text-muted">
+                        No leading team yet
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* LIVE BIDDING CONTROLS, TEAM TILES & ACTION ROW */}
+              {isAuctionActive && (
+                <div className="pt-6 border-t border-border flex flex-col gap-6">
+                  {/* Next Bid Amount + Quick Increments on One Row */}
+                  <div className="flex flex-col gap-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <label
+                        htmlFor="auction-bid-amount"
+                        className="font-mono text-xs uppercase tracking-[0.14em] text-muted font-semibold"
+                      >
+                        NEXT BID AMOUNT · SUGGESTED {suggestedNextBid.toLocaleString()} PTS
+                      </label>
+                      {Number(bidAmountInput) !== suggestedNextBid && (
+                        <button
+                          type="button"
+                          onClick={() => setBidAmountInput(String(suggestedNextBid))}
+                          className="min-h-[44px] px-3 rounded-full font-mono text-xs text-accent-bright hover:bg-surface-2 transition-[opacity,transform] duration-150 cursor-pointer"
+                        >
+                          Reset to {suggestedNextBid.toLocaleString()} PTS
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5">
+                      <div className="relative flex-1 min-w-[160px]">
+                        <Coins
+                          size={18}
+                          className="absolute left-4 top-1/2 -translate-y-1/2 text-points pointer-events-none"
+                        />
+                        <input
+                          id="auction-bid-amount"
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={bidAmountInput}
+                          onChange={(e) => setBidAmountInput(e.target.value)}
+                          disabled={isPending}
+                          className="w-full h-12 min-h-[48px] pl-11 pr-14 bg-bg border border-border rounded-xl font-mono font-bold text-lg text-text tabular-nums focus:outline-none focus:border-accent-bright"
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 font-mono text-xs text-muted pointer-events-none">
+                          PTS
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                        {auctionSettings.bid_increments.map((inc) => (
+                          <button
+                            key={inc}
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => handleAddIncrement(inc)}
+                            className="h-12 min-h-[48px] px-4 rounded-full bg-surface-2 hover:bg-bg border border-border font-mono font-bold text-sm text-text tabular-nums transition-[opacity,transform] duration-150 active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                          >
+                            +{inc.toLocaleString()}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Team Tiles Grid */}
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-mono text-xs uppercase tracking-[0.14em] text-muted font-semibold">
+                        TAP {stagePlayer.sport.toUpperCase()} TEAM TO BID AT{' '}
+                        {isBidAmountValid ? `${parsedBidAmount.toLocaleString()} PTS` : '—'}
+                      </span>
+                      {auctionSettings.max_squad_size && (
+                        <span className="font-mono text-xs text-muted tabular-nums">
+                          SQUAD LIMIT: {auctionSettings.max_squad_size}
+                        </span>
+                      )}
+                    </div>
+
+                    {sportTeams.length === 0 ? (
+                      <div className="p-6 rounded-2xl bg-surface-2 border border-border text-center text-sm text-muted">
+                        No franchise teams configured for {stagePlayer.sport}.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,168px),1fr))] gap-3">
+                        {sportTeams.map((team) => {
+                          const squadCount = squadCountsByTeam[team.id] || 0
+                          const maxSquad = auctionSettings.max_squad_size
+                          const isSquadFull =
+                            maxSquad !== null &&
+                            maxSquad !== undefined &&
+                            maxSquad > 0 &&
+                            squadCount >= maxSquad
+                          const isPurseTooLow =
+                            isBidAmountValid && team.current_purse < parsedBidAmount
+                          const isLeading = leadingTeam?.id === team.id
+                          const tileTeamColor = getValidTeamColor(team.color)
+
+                          let disableReason: string | null = null
+                          if (isSquadFull) {
+                            disableReason = 'Squad full'
+                          } else if (isPurseTooLow) {
+                            disableReason = 'Purse too low'
+                          }
+
+                          const isTileDisabled =
+                            isPending || !isBidAmountValid || isSquadFull || isPurseTooLow
+
+                          return (
+                            <button
+                              key={team.id}
+                              type="button"
+                              disabled={isTileDisabled}
+                              onClick={() => handlePlaceBid(team)}
+                              style={
+                                tileTeamColor
+                                  ? ({ '--team-color': tileTeamColor } as React.CSSProperties)
+                                  : undefined
+                              }
+                              className={`min-h-[56px] p-3.5 rounded-2xl border-[1.5px] border-solid text-left flex flex-col justify-between gap-2.5 bg-surface-2 transition-[opacity,transform] duration-150 active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100 disabled:opacity-45 disabled:pointer-events-none cursor-pointer ${
+                                tileTeamColor
+                                  ? 'border-[color:color-mix(in_srgb,var(--team-color)_75%,transparent)]'
+                                  : 'border-border'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2 w-full">
+                                <span className="px-2.5 py-0.5 rounded-full bg-surface border border-border font-mono text-xs font-bold text-text shrink-0">
+                                  {team.short_code}
+                                </span>
+
+                                {disableReason ? (
+                                  <span className="px-2 py-0.5 rounded-full bg-surface border border-error/40 font-mono text-xs text-error shrink-0">
+                                    {disableReason}
+                                  </span>
+                                ) : isLeading ? (
+                                  <span className="px-2 py-0.5 rounded-full bg-surface border border-accent-bright/50 font-mono text-xs text-accent-bright font-semibold shrink-0">
+                                    Leading
+                                  </span>
+                                ) : null}
+                              </div>
+
+                              <div
+                                title={team.name}
+                                className="font-syne font-bold text-sm text-text leading-snug line-clamp-2 min-w-0"
+                              >
+                                {team.name}
+                              </div>
+
+                              <div className="flex items-center justify-between gap-2 text-xs text-muted w-full pt-2 border-t border-border/70">
+                                <span className="font-mono font-bold text-points tabular-nums">
+                                  {team.current_purse.toLocaleString()} PTS
+                                </span>
+                                <span className="font-mono tabular-nums text-muted">
+                                  {squadCount}
+                                  {maxSquad ? `/${maxSquad}` : ''}
+                                </span>
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action Row: Secure, Mark unsold, Clear bid, Back to idle */}
+                  <div className="pt-5 border-t border-border grid grid-cols-2 xl:grid-cols-4 gap-3">
+                    <button
+                      type="button"
+                      disabled={isPending || !leadingTeam}
+                      onClick={() => setIsSecureConfirmOpen(true)}
+                      className="min-h-[52px] px-4 rounded-full bg-btn-bg text-btn-fg hover:opacity-90 active:scale-[0.98] font-medium text-sm whitespace-nowrap inline-flex items-center justify-center gap-2 transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                    >
+                      <ShieldCheck size={18} weight="bold" />
+                      <span>Secure</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => setIsUnsoldConfirmOpen(true)}
+                      className="min-h-[52px] px-4 rounded-full bg-transparent border border-error/60 text-error hover:bg-surface-2 active:scale-[0.98] font-medium text-sm whitespace-nowrap inline-flex items-center justify-center gap-2 transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                    >
+                      <Prohibit size={18} />
+                      <span>Mark unsold</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={
+                        isPending || (!projectorState.team_id && projectorState.current_bid == null)
+                      }
+                      onClick={handleClearBid}
+                      className="min-h-[52px] px-4 rounded-full bg-transparent border border-border text-text hover:bg-surface-2 active:scale-[0.98] font-medium text-sm whitespace-nowrap inline-flex items-center justify-center gap-2 transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                    >
+                      <Trash size={18} />
+                      <span>Clear bid</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={handleBackToIdle}
+                      className="min-h-[52px] px-4 rounded-full bg-transparent border border-border text-muted hover:text-text hover:bg-surface-2 active:scale-[0.98] font-medium text-sm whitespace-nowrap inline-flex items-center justify-center gap-2 transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                    >
+                      <span>Back to idle</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* 3. QUEUE PANEL (Right Rail on 768px+, Sticky; 3rd block below 768px) */}
+        <aside
+          aria-label="Auction Queue"
+          className="md:col-start-9 md:col-span-4 md:row-start-1 md:row-span-3 md:sticky md:top-4 min-w-0 rounded-3xl bg-surface border border-border shadow-sm flex flex-col overflow-hidden"
+        >
+          <div className="p-4 sm:p-5 border-b border-border flex flex-col gap-3.5 shrink-0 bg-surface">
             <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-2">
-                <Users size={18} className="text-accent-bright" weight="bold" />
-                <h2 className="font-syne font-bold text-base sm:text-lg text-text">
+              <div className="flex items-center gap-2 min-w-0">
+                <Users size={18} className="text-accent-bright shrink-0" weight="bold" />
+                <h2 className="font-syne font-bold text-base sm:text-lg text-text truncate">
                   {selectedSportName} Queue
                 </h2>
               </div>
 
-              <div className="flex items-center gap-2">
-                {queueTab === 'queue' && queuedPlayersForSport.length > 0 && (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    leftIcon={Trash}
-                    disabled={isPending}
-                    onClick={() => setIsClearQueueConfirmOpen(true)}
-                    className="min-h-[40px] px-3 text-xs"
-                  >
-                    Clear queue
-                  </Button>
-                )}
+              {queueTab === 'queue' && queuedPlayersForSport.length > 0 && (
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() => setIsClearQueueConfirmOpen(true)}
+                  className="min-h-[44px] px-3.5 rounded-full bg-transparent border border-border text-xs font-medium text-muted hover:text-text hover:bg-surface-2 inline-flex items-center gap-1.5 shrink-0 transition-[opacity,transform] duration-150 active:scale-[0.98] motion-reduce:transition-none disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                >
+                  <Trash size={14} />
+                  <span>Clear queue</span>
+                </button>
+              )}
+            </div>
 
-                {/* Queue vs Sold Sub-tabs */}
-                <div className="flex items-center gap-1 bg-surface-2 p-1 rounded-xl border border-border">
-                  <button
-                    type="button"
-                    onClick={() => setQueueTab('queue')}
-                    className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-['DM_Sans',sans-serif] transition-colors ${
-                      queueTab === 'queue'
-                        ? 'bg-surface text-text font-medium border border-border shadow-sm'
-                        : 'text-muted hover:text-text font-normal'
-                    }`}
-                  >
-                    Queue ({queuedPlayersForSport.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setQueueTab('sold')}
-                    className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-['DM_Sans',sans-serif] transition-colors ${
-                      queueTab === 'sold'
-                        ? 'bg-surface text-text font-medium border border-border shadow-sm'
-                        : 'text-muted hover:text-text font-normal'
-                    }`}
-                  >
-                    Sold ({queueSoldPlayers.length})
-                  </button>
-                </div>
-              </div>
+            {/* Queue / Sold Rounded Tabs */}
+            <div className="grid grid-cols-2 gap-1 bg-surface-2 p-1 rounded-full border border-border">
+              <button
+                type="button"
+                onClick={() => setQueueTab('queue')}
+                className={`min-h-[44px] px-3 rounded-full text-xs sm:text-sm font-sans transition-[opacity,transform] duration-150 cursor-pointer ${
+                  queueTab === 'queue'
+                    ? 'bg-surface text-text font-medium border border-border'
+                    : 'text-muted hover:text-text font-normal'
+                }`}
+              >
+                Queue ({queuedPlayersForSport.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setQueueTab('sold')}
+                className={`min-h-[44px] px-3 rounded-full text-xs sm:text-sm font-sans transition-[opacity,transform] duration-150 cursor-pointer ${
+                  queueTab === 'sold'
+                    ? 'bg-surface text-text font-medium border border-border'
+                    : 'text-muted hover:text-text font-normal'
+                }`}
+              >
+                Sold ({queueSoldPlayers.length})
+              </button>
             </div>
 
             {queueTab === 'queue' ? (
               <div className="flex flex-col gap-3">
-                {/* Add player search box */}
+                {/* Search to Add Single Player */}
                 <div>
                   <div className="relative">
                     <MagnifyingGlass
@@ -851,14 +1351,14 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
                       onChange={(e) => setAddPlayerSearch(e.target.value)}
                       placeholder="Add player by name or code..."
                       disabled={isPending}
-                      className="w-full min-h-[44px] pl-10 pr-9 py-2 bg-bg border border-border rounded-xl text-xs sm:text-sm text-text focus:outline-none focus:border-accent-bright"
+                      className="w-full min-h-[44px] pl-10 pr-10 py-2 bg-bg border border-border rounded-xl text-sm text-text focus:outline-none focus:border-accent-bright"
                     />
                     {addPlayerSearch && (
                       <button
                         type="button"
                         onClick={() => setAddPlayerSearch('')}
                         aria-label="Clear search"
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full inline-flex items-center justify-center text-muted hover:text-text cursor-pointer"
                       >
                         <X size={14} weight="bold" />
                       </button>
@@ -866,9 +1366,9 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
                   </div>
 
                   {addPlayerSearch.trim().length > 0 && (
-                    <div className="mt-1.5 rounded-xl bg-bg border border-border shadow-lg overflow-hidden divide-y divide-border max-h-56 overflow-y-auto">
+                    <div className="mt-2 rounded-2xl bg-bg border border-border shadow-md overflow-hidden divide-y divide-border max-h-56 overflow-y-auto overscroll-contain thin-scrollbar">
                       {matchingAddablePlayers.length === 0 ? (
-                        <div className="px-3.5 py-3 text-xs text-muted text-center">
+                        <div className="px-4 py-3 text-xs text-muted text-center">
                           No matching available or unsold players to add.
                         </div>
                       ) : (
@@ -882,13 +1382,13 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
                               type="button"
                               disabled={isPending}
                               onClick={() => handleQueueAddSinglePlayer(candidate)}
-                              className="w-full px-3.5 py-2.5 text-left hover:bg-surface-2 flex items-center justify-between gap-3 transition-colors disabled:opacity-50"
+                              className="w-full min-h-[44px] px-3.5 py-2.5 text-left hover:bg-surface-2 flex items-center justify-between gap-2.5 disabled:opacity-50 cursor-pointer"
                             >
                               <div className="min-w-0 flex-1 flex items-center gap-2">
                                 <span className="font-mono text-xs font-bold text-accent-bright shrink-0">
                                   #{candidateCode}
                                 </span>
-                                <span className="font-syne font-bold text-xs sm:text-sm text-text truncate">
+                                <span className="font-syne font-bold text-sm text-text truncate">
                                   {candidate.name}
                                 </span>
                                 <span className="text-xs text-muted truncate">
@@ -907,7 +1407,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
                   )}
                 </div>
 
-                {/* Bulk add single-line input for IDs separated by commas */}
+                {/* Bulk Add by Codes */}
                 <form onSubmit={handleQueueBulkAdd} className="flex flex-col gap-1.5">
                   <div className="flex items-center gap-2">
                     <input
@@ -917,19 +1417,17 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
                         setBulkCodesInput(e.target.value)
                         if (bulkResultMessage) setBulkResultMessage(null)
                       }}
-                      placeholder="Bulk add IDs (e.g. 0002, 0003, 0005)"
+                      placeholder="Bulk IDs (0002, 0003)"
                       disabled={isPending}
-                      className="flex-1 min-h-[44px] px-3.5 py-2 bg-bg border border-border rounded-xl font-mono text-xs sm:text-sm text-text focus:outline-none focus:border-accent-bright"
+                      className="flex-1 min-w-0 min-h-[44px] px-3.5 py-2 bg-bg border border-border rounded-xl font-mono text-xs sm:text-sm text-text focus:outline-none focus:border-accent-bright"
                     />
-                    <Button
+                    <button
                       type="submit"
-                      variant="secondary"
-                      size="md"
                       disabled={isPending || !bulkCodesInput.trim()}
-                      className="min-h-[44px] px-4 shrink-0 text-xs"
+                      className="min-h-[44px] px-4 rounded-full bg-surface-2 hover:bg-bg border border-border text-sm font-medium text-text shrink-0 transition-[opacity,transform] duration-150 active:scale-[0.98] motion-reduce:transition-none disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
                     >
                       Add
-                    </Button>
+                    </button>
                   </div>
                   {bulkResultMessage && (
                     <div className="text-xs font-mono text-muted px-1">
@@ -939,7 +1437,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
                 </form>
               </div>
             ) : (
-              /* Sold Tab Search Box */
+              /* Sold Tab Search */
               <div className="relative">
                 <MagnifyingGlass
                   size={16}
@@ -950,26 +1448,26 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
                   value={soldSearch}
                   onChange={(e) => setSoldSearch(e.target.value)}
                   placeholder="Search sold players by name or code..."
-                  className="w-full min-h-[44px] pl-10 pr-4 py-2 bg-bg border border-border rounded-xl text-xs sm:text-sm text-text focus:outline-none focus:border-accent-bright"
+                  className="w-full min-h-[44px] pl-10 pr-4 py-2 bg-bg border border-border rounded-xl text-sm text-text focus:outline-none focus:border-accent-bright"
                 />
               </div>
             )}
           </div>
 
-          {/* Queue Player List */}
+          {/* Scrollable Queue List */}
           <div
             ref={queueListRef}
             onScroll={(e) => {
               queueScrollTopRef.current = e.currentTarget.scrollTop
             }}
-            className="divide-y divide-border max-h-[50vh] lg:max-h-[60vh] overflow-y-auto overscroll-contain thin-scrollbar"
+            className="p-3 space-y-2.5 max-h-[55vh] md:max-h-[calc(100vh-19rem)] overflow-y-auto overscroll-contain thin-scrollbar"
           >
             {displayedQueuePlayers.length === 0 ? (
-              <div className="p-10 text-center text-xs text-muted">
+              <p className="py-10 px-4 text-center text-sm text-muted">
                 {queueTab === 'queue'
                   ? 'Queue is empty. Add players above.'
                   : 'No sold athletes in this sport yet.'}
-              </div>
+              </p>
             ) : (
               displayedQueuePlayers.map((player, index) => {
                 const code = formatAthleteCode(player.player_code || player.athlete_code)
@@ -977,6 +1475,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
                 const soldTeam = player.team_id
                   ? teams.find((t) => t.id === player.team_id)
                   : null
+                const soldTeamColor = getValidTeamColor(soldTeam?.color)
 
                 return (
                   <div
@@ -986,21 +1485,21 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
                         void handleBringToStage(player)
                       }
                     }}
-                    className={`p-4 flex items-center justify-between gap-3 transition-colors ${
+                    className={`p-3.5 rounded-2xl bg-surface-2 border flex flex-col gap-3 ${
                       queueTab === 'queue' && !isOnStage ? 'cursor-pointer' : ''
-                    } ${isOnStage ? 'bg-accent-bright/10' : 'hover:bg-surface-2/60'}`}
+                    } ${isOnStage ? 'border-accent-bright' : 'border-border'}`}
                   >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      {/* Photo thumbnail */}
+                    {/* Top Row: Photo + Name/Code/Meta */}
+                    <div className="flex items-center gap-3 min-w-0">
                       {player.photo_thumb_url || player.photo_url ? (
                         <img
                           src={player.photo_thumb_url || player.photo_url}
                           alt={player.name}
                           referrerPolicy="no-referrer"
-                          className="w-12 h-12 rounded-xl object-cover bg-surface-2 border border-border shrink-0"
+                          className="w-11 h-11 rounded-xl object-cover bg-surface border border-border shrink-0"
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded-xl bg-surface-2 border border-border flex items-center justify-center text-muted font-mono text-xs font-bold shrink-0">
+                        <div className="w-11 h-11 rounded-xl bg-surface border border-border flex items-center justify-center text-muted font-mono text-xs font-bold shrink-0">
                           {player.name
                             .split(' ')
                             .map((n) => n[0])
@@ -1011,92 +1510,110 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
                       )}
 
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-mono text-[11px] font-bold text-accent-bright">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="px-2 py-0.5 rounded-full bg-surface border border-border font-mono text-xs font-bold text-accent-bright shrink-0 tabular-nums">
                             #{code}
                           </span>
-                          <span className="font-syne font-bold text-sm text-text truncate">
+                          <span
+                            title={player.name}
+                            className="font-syne font-bold text-sm text-text line-clamp-1 min-w-0 flex-1"
+                          >
                             {player.name}
                           </span>
                           {player.status === 'unsold' && (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase bg-surface-2 border border-border text-muted">
+                            <span className="px-2 py-0.5 rounded-full bg-surface border border-border font-mono text-xs uppercase text-muted shrink-0">
                               Unsold
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-muted mt-0.5 flex-wrap">
+
+                        <div className="flex items-center gap-1.5 text-xs text-muted mt-1 flex-wrap">
                           <span>{player.playing_role}</span>
-                          <span>·</span>
+                          <span aria-hidden="true">·</span>
                           <span>{player.academic_year} Yr</span>
-                          <span>·</span>
+                          <span aria-hidden="true">·</span>
                           <span className="font-mono font-semibold text-points tabular-nums">
-                            Base: {player.base_points.toLocaleString()} PTS
+                            {player.base_points.toLocaleString()} PTS
                           </span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Action / Sold Status */}
+                    {/* Bottom Row: Controls (Queue tab) or Buyer & Price (Sold tab) */}
                     {queueTab === 'queue' ? (
                       <div
-                        className="flex items-center gap-1.5 shrink-0"
+                        className="flex items-center justify-between gap-2 pt-2.5 border-t border-border/70 flex-wrap"
                         onClick={(e) => e.stopPropagation()}
                       >
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            title="Move up"
+                            aria-label={`Move ${player.name} up`}
+                            disabled={isPending || index === 0}
+                            onClick={(e) => handleQueueMovePlayer(player.id, 'up', e)}
+                            className="w-9 h-9 rounded-full bg-surface border border-border text-muted hover:text-text inline-flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                          >
+                            <ArrowUp size={15} weight="bold" />
+                          </button>
+                          <button
+                            type="button"
+                            title="Move down"
+                            aria-label={`Move ${player.name} down`}
+                            disabled={isPending || index === displayedQueuePlayers.length - 1}
+                            onClick={(e) => handleQueueMovePlayer(player.id, 'down', e)}
+                            className="w-9 h-9 rounded-full bg-surface border border-border text-muted hover:text-text inline-flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                          >
+                            <ArrowDown size={15} weight="bold" />
+                          </button>
+                          <button
+                            type="button"
+                            title="Remove from queue"
+                            aria-label={`Remove ${player.name} from queue`}
+                            disabled={isPending}
+                            onClick={(e) => handleQueueRemovePlayer(player.id, e)}
+                            className="w-9 h-9 rounded-full bg-surface border border-border text-muted hover:text-error hover:border-error/40 inline-flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                          >
+                            <X size={15} weight="bold" />
+                          </button>
+                        </div>
+
                         <button
                           type="button"
-                          title="Move up"
-                          aria-label={`Move ${player.name} up`}
-                          disabled={isPending || index === 0}
-                          onClick={(e) => handleQueueMovePlayer(player.id, 'up', e)}
-                          className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                        >
-                          <ArrowUp size={14} weight="bold" />
-                        </button>
-                        <button
-                          type="button"
-                          title="Move down"
-                          aria-label={`Move ${player.name} down`}
-                          disabled={isPending || index === displayedQueuePlayers.length - 1}
-                          onClick={(e) => handleQueueMovePlayer(player.id, 'down', e)}
-                          className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                        >
-                          <ArrowDown size={14} weight="bold" />
-                        </button>
-                        <button
-                          type="button"
-                          title="Remove from queue"
-                          aria-label={`Remove ${player.name} from queue`}
-                          disabled={isPending}
-                          onClick={(e) => handleQueueRemovePlayer(player.id, e)}
-                          className="p-2 rounded-lg border border-border text-muted hover:text-error hover:border-error/40 hover:bg-error/10 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                        >
-                          <X size={14} weight="bold" />
-                        </button>
-                        <Button
-                          type="button"
-                          variant={isOnStage ? 'secondary' : 'primary'}
-                          size="lg"
                           disabled={isPending || isOnStage}
                           onClick={() => handleBringToStage(player)}
-                          className="shrink-0 min-h-[44px] px-3.5 text-xs font-['DM_Sans',sans-serif] !font-normal"
+                          className={`min-h-[44px] px-4 rounded-full text-xs font-medium shrink-0 transition-[opacity,transform] duration-150 active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100 disabled:pointer-events-none cursor-pointer ${
+                            isOnStage
+                              ? 'bg-surface border border-border text-muted opacity-70'
+                              : 'bg-btn-bg text-btn-fg hover:opacity-90 disabled:opacity-40'
+                          }`}
                         >
                           {isOnStage ? 'On Stage' : 'Bring to stage'}
-                        </Button>
+                        </button>
                       </div>
                     ) : (
-                      <div className="text-right shrink-0">
-                        {soldTeam && (
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-2 border border-border text-xs font-semibold text-text">
-                            <span
-                              className="w-2.5 h-2.5 rounded-full shrink-0"
-                              style={{ backgroundColor: soldTeam.color }}
-                            />
-                            <span>{soldTeam.short_code}</span>
-                          </div>
+                      <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-border/70">
+                        {soldTeam ? (
+                          <span
+                            style={
+                              soldTeamColor
+                                ? ({ '--team-color': soldTeamColor } as React.CSSProperties)
+                                : undefined
+                            }
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface border-[1.5px] border-solid font-mono text-xs font-bold text-text ${
+                              soldTeamColor
+                                ? 'border-[color:color-mix(in_srgb,var(--team-color)_75%,transparent)]'
+                                : 'border-border'
+                            }`}
+                          >
+                            {soldTeam.short_code}
+                          </span>
+                        ) : (
+                          <span />
                         )}
-                        <div className="font-mono font-bold text-xs text-points tabular-nums mt-1">
+                        <span className="font-mono font-bold text-sm text-points tabular-nums">
                           {(player.purchase_price ?? player.base_points).toLocaleString()} PTS
-                        </div>
+                        </span>
                       </div>
                     )}
                   </div>
@@ -1104,613 +1621,178 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
               })
             )}
           </div>
-        </div>
+        </aside>
 
-        {/* 3, 4, 5. CENTRE / RIGHT COLUMN: STAGE, BID CONTROLS, ACTION BUTTONS */}
-        <div className="lg:col-span-7 flex flex-col gap-6">
-          {/* 3. STAGE CARD */}
-          <div className="rounded-2xl bg-surface border border-border p-5 sm:p-6 shadow-sm flex flex-col gap-6">
-            {/* Stage Mode Bar */}
-            <div className="flex items-center justify-between gap-3 pb-4 border-b border-border">
-              <div className="flex items-center gap-2.5">
-                <span
-                  className={`w-2.5 h-2.5 rounded-full ${
-                    isAuctionActive
-                      ? 'bg-accent-bright animate-pulse'
-                      : isSoldState
-                      ? 'bg-points'
-                      : isUnsoldState
-                      ? 'bg-error'
-                      : 'bg-muted'
-                  }`}
+        {/* 4. BID HISTORY & RECENT SALES (Main Zone Row 3, Side by Side) */}
+        <div className="md:col-start-1 md:col-span-8 md:row-start-3 min-w-0 grid grid-cols-[repeat(auto-fit,minmax(min(100%,260px),1fr))] gap-5 lg:gap-6 items-start">
+          {/* Bid History */}
+          <section
+            aria-label="Bid History"
+            className="rounded-3xl bg-surface border border-border p-5 sm:p-6 shadow-sm flex flex-col gap-4 min-w-0"
+          >
+            <div className="flex items-center justify-between gap-2 pb-3.5 border-b border-border">
+              <div className="flex items-center gap-2 min-w-0">
+                <ClockCounterClockwise
+                  size={18}
+                  className="text-accent-bright shrink-0"
+                  weight="bold"
                 />
-                <span className="font-mono text-xs uppercase tracking-widest font-bold text-text">
-                  Stage Status:{' '}
-                  {isAuctionActive
-                    ? 'LIVE AUCTION'
-                    : isSoldState
-                    ? 'SOLD'
-                    : isUnsoldState
-                    ? 'UNSOLD'
-                    : 'IDLE'}
-                </span>
-              </div>
-
-              {!isIdleState && (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="md"
-                  disabled={isPending}
-                  onClick={handleBackToIdle}
-                  className="min-h-[48px] px-4 text-xs"
-                >
-                  Back to idle
-                </Button>
-              )}
-            </div>
-
-            {/* IDLE STATE */}
-            {isIdleState || !stagePlayer ? (
-              <div className="py-14 px-6 text-center rounded-2xl bg-surface-2/60 border border-dashed border-border flex flex-col items-center justify-center gap-3">
-                <div className="w-14 h-14 rounded-2xl bg-surface border border-border flex items-center justify-center text-muted">
-                  <Gavel size={28} weight="duotone" />
-                </div>
-                <h3 className="font-syne font-bold text-xl text-text">
-                  No Player Currently on Stage
+                <h3 className="font-syne font-bold text-base sm:text-lg text-text truncate">
+                  Bid History{stagePlayer ? ` · ${stagePlayer.name}` : ''}
                 </h3>
-                <p className="text-xs sm:text-sm text-muted max-w-md leading-relaxed">
-                  Select an available or unsold athlete from the {selectedSportName} Queue on the left and tap &ldquo;Bring to stage&rdquo; to open bidding.
-                </p>
               </div>
+              <span className="font-mono text-xs text-muted shrink-0 tabular-nums">
+                {playerBids.length} {playerBids.length === 1 ? 'bid' : 'bids'}
+              </span>
+            </div>
+
+            {!stagePlayer ? (
+              <p className="py-8 text-center text-sm text-muted">
+                Bring a player to stage to view live bid history.
+              </p>
+            ) : playerBids.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted">
+                No active bids recorded for {stagePlayer.name} yet.
+              </p>
             ) : (
-              <>
-                {/* SOLD BANNER */}
-                {isSoldState && (
-                  <div className="p-5 rounded-2xl bg-accent-bright/15 border-2 border-accent-bright flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3.5">
-                      <CheckCircle size={32} weight="fill" className="text-accent-bright shrink-0" />
-                      <div>
-                        <span className="text-[11px] font-mono uppercase tracking-widest text-accent-bright font-bold block">
-                          PLAYER SOLD
-                        </span>
-                        <div className="font-syne font-extrabold text-xl sm:text-2xl text-text flex items-center gap-2 flex-wrap mt-0.5">
-                          <span>Sold to</span>
-                          {leadingTeam && (
-                            <span className="inline-flex items-center gap-2 px-3 py-0.5 rounded-lg bg-surface border border-border text-base">
-                              <span
-                                className="w-3 h-3 rounded-full"
-                                style={{ backgroundColor: leadingTeam.color }}
-                              />
-                              <span>{leadingTeam.name}</span>
-                            </span>
-                          )}
-                          <span>for</span>
-                          <span className="font-mono text-points tabular-nums">
-                            {(displayedPrice ?? 0).toLocaleString()} PTS
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <Button
-                      type="button"
-                      variant="primary"
-                      size="lg"
-                      rightIcon={ArrowRight}
-                      disabled={isPending}
-                      onClick={handleBackToIdle}
-                      className="min-h-[48px] shrink-0"
+              <div className="space-y-2 max-h-72 overflow-y-auto overscroll-contain thin-scrollbar pr-0.5">
+                {playerBids.map((bid, idx) => {
+                  const bidTeam = teams.find((t) => t.id === bid.team_id)
+                  return (
+                    <div
+                      key={bid.id}
+                      className="rounded-2xl bg-surface-2 border border-border px-3.5 py-3 flex items-center justify-between gap-3"
                     >
-                      Next player
-                    </Button>
-                  </div>
-                )}
-
-                {/* UNSOLD BANNER */}
-                {isUnsoldState && (
-                  <div className="p-5 rounded-2xl bg-error/10 border-2 border-error/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3.5">
-                      <XCircle size={32} weight="fill" className="text-error shrink-0" />
-                      <div>
-                        <span className="text-[11px] font-mono uppercase tracking-widest text-error font-bold block">
-                          MARKED UNSOLD
-                        </span>
-                        <p className="font-syne font-bold text-lg text-text mt-0.5">
-                          {stagePlayer.name} passed without a winning bid.
-                        </p>
-                      </div>
-                    </div>
-
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="lg"
-                      rightIcon={ArrowRight}
-                      disabled={isPending}
-                      onClick={handleBackToIdle}
-                      className="min-h-[48px] shrink-0"
-                    >
-                      Next player
-                    </Button>
-                  </div>
-                )}
-
-                {/* PLAYER ON STAGE + CURRENT BID & LEADING TEAM */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-                  {/* Player Profile Spotlight */}
-                  <div className="md:col-span-7 flex flex-col sm:flex-row items-center sm:items-start gap-5">
-                    <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden bg-surface-2 border border-border shrink-0 flex items-center justify-center">
-                      {stagePlayer.photo_url || stagePlayer.photo_thumb_url ? (
-                        <img
-                          src={stagePlayer.photo_url || stagePlayer.photo_thumb_url}
-                          alt={stagePlayer.name}
-                          referrerPolicy="no-referrer"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <User size={48} className="text-muted" />
-                      )}
-                    </div>
-
-                    <div className="text-center sm:text-left min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-1.5">
-                        <span className="px-2.5 py-0.5 rounded-lg bg-accent-bright/15 border border-accent-bright/40 font-mono text-xs font-bold text-accent-bright">
-                          #{formatAthleteCode(stagePlayer.athlete_code || stagePlayer.player_code)}
-                        </span>
-                        <span className="px-2.5 py-0.5 rounded-lg bg-surface-2 border border-border font-mono text-xs text-muted uppercase">
-                          {stagePlayer.sport}
-                        </span>
-                      </div>
-
-                      <h2 className="font-syne font-extrabold text-2xl sm:text-3xl text-text tracking-tight break-words">
-                        {stagePlayer.name}
-                      </h2>
-
-                      {/* Large Role Label directly under player name */}
-                      <div className="font-syne font-bold text-lg sm:text-xl text-text mt-1 tracking-tight">
-                        {stagePlayer.playing_role}
-                      </div>
-
-                      {/* Small monospace line below role in amber */}
-                      <div className="font-mono text-xs text-points font-semibold tabular-nums mt-0.5">
-                        Base: {stagePlayer.base_points.toLocaleString()} PTS
-                      </div>
-
-                      <div className="mt-2 flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs text-muted">
-                        <span>{stagePlayer.academic_year} Year</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Current Bid & Leading Team Box */}
-                  <div className="md:col-span-5 p-5 rounded-2xl bg-surface-2 border border-border flex flex-col justify-between gap-3">
-                    <div>
-                      <span className="text-[11px] font-mono uppercase tracking-widest text-muted block">
-                        {isSoldState ? 'Final Sold Price' : 'Current Highest Bid'}
-                      </span>
-                      {displayedPrice !== null ? (
-                        <div className="font-mono font-extrabold text-4xl sm:text-5xl text-points tabular-nums tracking-tight mt-1">
-                          {displayedPrice.toLocaleString()}
-                          <span className="text-base font-normal text-muted ml-1.5">PTS</span>
-                        </div>
-                      ) : (
-                        <div className="mt-1">
-                          <div className="font-mono font-extrabold text-3xl sm:text-4xl text-muted tabular-nums">
-                            {stagePlayer.base_points.toLocaleString()}
-                            <span className="text-sm font-normal text-muted ml-1.5">PTS</span>
-                          </div>
-                          <span className="text-[11px] font-mono text-muted">
-                            Opening base points (no bids yet)
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        {bidTeam && (
+                          <span className="px-2 py-0.5 rounded-full bg-surface border border-border font-mono text-xs font-bold text-text shrink-0">
+                            {bidTeam.short_code}
                           </span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="pt-3 border-t border-border">
-                      <span className="text-[10px] font-mono uppercase tracking-wider text-muted block mb-1.5">
-                        Leading Team
-                      </span>
-                      {leadingTeam ? (
-                        <div className="flex items-center gap-2.5">
-                          <span
-                            className="w-4 h-4 rounded-full shrink-0 border border-border"
-                            style={{ backgroundColor: leadingTeam.color }}
-                          />
-                          <span className="font-syne font-bold text-base text-text truncate">
-                            {leadingTeam.name}
-                          </span>
-                          <span className="font-mono text-xs text-muted ml-auto">
-                            {leadingTeam.short_code}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-xs font-mono text-muted">
-                          No leading team yet
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* 4. BID CONTROLS & 5. ACTION BUTTONS */}
-          {stagePlayer && isAuctionActive && (
-            <div className="rounded-2xl bg-surface border border-border p-5 sm:p-6 shadow-sm flex flex-col gap-6">
-              {/* Amount Input + Quick Increment Buttons */}
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <label
-                    htmlFor="auction-bid-amount"
-                    className="text-xs font-mono uppercase tracking-wider text-muted font-semibold"
-                  >
-                    Next Bid Amount (PTS) — Suggested: {suggestedNextBid.toLocaleString()} PTS
-                  </label>
-                  {Number(bidAmountInput) !== suggestedNextBid && (
-                    <button
-                      type="button"
-                      onClick={() => setBidAmountInput(String(suggestedNextBid))}
-                      className="text-xs font-mono text-accent-bright hover:underline"
-                    >
-                      Reset to {suggestedNextBid.toLocaleString()} PTS
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                  <div className="relative flex-1">
-                    <Coins
-                      size={18}
-                      className="absolute left-4 top-1/2 -translate-y-1/2 text-points pointer-events-none"
-                    />
-                    <input
-                      id="auction-bid-amount"
-                      type="number"
-                      min={0}
-                      step={1}
-                      value={bidAmountInput}
-                      onChange={(e) => setBidAmountInput(e.target.value)}
-                      disabled={isPending}
-                      className="w-full min-h-[48px] pl-11 pr-14 py-2.5 bg-bg border border-border rounded-xl font-mono font-bold text-lg text-text tabular-nums focus:outline-none focus:border-accent-bright"
-                    />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-mono text-muted">
-                      PTS
-                    </span>
-                  </div>
-
-                  {/* Quick buttons for each increment from auction_settings */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    {auctionSettings.bid_increments.map((inc) => (
-                      <Button
-                        key={inc}
-                        type="button"
-                        variant="secondary"
-                        size="lg"
-                        disabled={isPending}
-                        onClick={() => handleAddIncrement(inc)}
-                        className="min-h-[48px] px-4 font-mono font-bold text-xs sm:text-sm tabular-nums"
-                      >
-                        +{inc.toLocaleString()}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Team Tiles Grid for Selected Sport */}
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono uppercase tracking-wider text-muted font-semibold">
-                    Tap a {stagePlayer.sport} Team to Place Bid at{' '}
-                    {isBidAmountValid ? `${parsedBidAmount.toLocaleString()} PTS` : '—'}
-                  </span>
-                  {auctionSettings.max_squad_size && (
-                    <span className="text-xs font-mono text-muted">
-                      Squad Limit: {auctionSettings.max_squad_size}
-                    </span>
-                  )}
-                </div>
-
-                {sportTeams.length === 0 ? (
-                  <div className="p-6 rounded-xl bg-surface-2 border border-border text-center text-xs text-muted">
-                    No franchise teams configured for {stagePlayer.sport}.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {sportTeams.map((team) => {
-                      const squadCount = squadCountsByTeam[team.id] || 0
-                      const maxSquad = auctionSettings.max_squad_size
-                      const isSquadFull =
-                        maxSquad !== null && maxSquad !== undefined && maxSquad > 0 && squadCount >= maxSquad
-                      const isPurseTooLow =
-                        isBidAmountValid && team.current_purse < parsedBidAmount
-                      const isLeading = leadingTeam?.id === team.id
-
-                      let disableReason: string | null = null
-                      if (isSquadFull) {
-                        disableReason = 'Squad full'
-                      } else if (isPurseTooLow) {
-                        disableReason = 'Purse too low'
-                      }
-
-                      const isTileDisabled =
-                        isPending || !isBidAmountValid || isSquadFull || isPurseTooLow
-
-                      return (
-                        <button
-                          key={team.id}
-                          type="button"
-                          disabled={isTileDisabled}
-                          onClick={() => handlePlaceBid(team)}
-                          className={`min-h-[76px] p-4 rounded-xl border text-left transition-all flex flex-col justify-between gap-2.5 ${
-                            isLeading
-                              ? 'bg-accent-bright/10 border-accent-bright shadow-sm'
-                              : 'bg-surface-2/70 hover:bg-surface-2 border-border hover:border-accent-bright'
-                          } disabled:opacity-45 disabled:pointer-events-none`}
+                        )}
+                        <span
+                          title={bidTeam?.name || 'Team'}
+                          className="font-medium text-sm text-text truncate"
                         >
-                          <div className="flex items-center justify-between gap-2 w-full">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <span
-                                className="w-3.5 h-3.5 rounded-full shrink-0 border border-border"
-                                style={{ backgroundColor: team.color }}
-                              />
-                              <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-surface border border-border text-text shrink-0">
-                                {team.short_code}
-                              </span>
-                              <span className="font-syne font-bold text-sm sm:text-base text-text truncate">
-                                {team.name}
-                              </span>
-                            </div>
-
-                            {disableReason ? (
-                              <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-error/15 text-error border border-error/30 shrink-0">
-                                {disableReason}
-                              </span>
-                            ) : isLeading ? (
-                              <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-accent-bright/20 text-accent-bright border border-accent-bright/40 shrink-0">
-                                Leading
-                              </span>
-                            ) : null}
-                          </div>
-
-                          <div className="flex items-center justify-between text-xs text-muted w-full pt-1 border-t border-border/60">
-                            <span>
-                              Purse:{' '}
-                              <strong className="font-mono text-points tabular-nums">
-                                {team.current_purse.toLocaleString()} PTS
-                              </strong>
-                            </span>
-                            <span className="font-mono tabular-nums">
-                              Squad:{' '}
-                              <strong className="text-text">
-                                {squadCount}
-                                {maxSquad ? ` / ${maxSquad}` : ''}
-                              </strong>
-                            </span>
-                          </div>
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* 5. ACTION BUTTONS */}
-              <div className="pt-4 border-t border-border grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="lg"
-                  leftIcon={ShieldCheck}
-                  disabled={isPending || !leadingTeam}
-                  onClick={() => setIsSecureConfirmOpen(true)}
-                  className="min-h-[48px] w-full"
-                >
-                  Secure
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="danger"
-                  size="lg"
-                  leftIcon={Prohibit}
-                  disabled={isPending}
-                  onClick={() => setIsUnsoldConfirmOpen(true)}
-                  className="min-h-[48px] w-full"
-                >
-                  Mark unsold
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="lg"
-                  leftIcon={Trash}
-                  disabled={isPending || (!projectorState.team_id && projectorState.current_bid == null)}
-                  onClick={handleClearBid}
-                  className="min-h-[48px] w-full"
-                >
-                  Clear bid
-                </Button>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="lg"
-                  disabled={isPending}
-                  onClick={handleBackToIdle}
-                  className="min-h-[48px] w-full"
-                >
-                  Back to idle
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* 6. BELOW: BID HISTORY & RECENT SALES */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Bid History for Current Player */}
-        <div className="rounded-2xl bg-surface border border-border p-5 sm:p-6 shadow-sm flex flex-col gap-4">
-          <div className="flex items-center justify-between pb-3 border-b border-border">
-            <div className="flex items-center gap-2">
-              <ClockCounterClockwise size={18} className="text-accent-bright" weight="bold" />
-              <h3 className="font-syne font-bold text-base sm:text-lg text-text">
-                Bid History {stagePlayer ? `· ${stagePlayer.name}` : ''}
-              </h3>
-            </div>
-            <span className="text-xs font-mono text-muted">
-              {playerBids.length} {playerBids.length === 1 ? 'bid' : 'bids'}
-            </span>
-          </div>
-
-          {!stagePlayer ? (
-            <div className="py-8 text-center text-xs text-muted">
-              Bring a player to stage to view live bid history.
-            </div>
-          ) : playerBids.length === 0 ? (
-            <div className="py-8 text-center text-xs text-muted">
-              No active bids recorded for {stagePlayer.name} yet.
-            </div>
-          ) : (
-            <div className="divide-y divide-border max-h-72 overflow-y-auto">
-              {playerBids.map((bid, idx) => {
-                const bidTeam = teams.find((t) => t.id === bid.team_id)
-                return (
-                  <div
-                    key={bid.id}
-                    className="py-3 flex items-center justify-between gap-3 text-xs"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span
-                        className="w-3 h-3 rounded-full shrink-0 border border-border"
-                        style={{ backgroundColor: bidTeam?.color || 'var(--accent-bright)' }}
-                      />
-                      <span className="font-syne font-bold text-sm text-text truncate">
-                        {bidTeam?.name || 'Team'}
-                      </span>
-                      {bidTeam && (
-                        <span className="font-mono text-[11px] text-muted">
-                          ({bidTeam.short_code})
+                          {bidTeam?.name || 'Team'}
                         </span>
-                      )}
-                      {idx === 0 && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-mono uppercase bg-accent-bright/15 text-accent-bright">
-                          Top
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="font-mono font-bold text-sm text-points tabular-nums">
-                        {bid.amount.toLocaleString()} PTS
-                      </span>
-                      <span className="font-mono text-[10px] text-muted">
-                        {new Date(bid.created_at).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          second: '2-digit'
-                        })}
-                      </span>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Recent Sales (Last 10 where reversed_at is null) */}
-        <div className="rounded-2xl bg-surface border border-border p-5 sm:p-6 shadow-sm flex flex-col gap-4">
-          <div className="flex items-center justify-between pb-3 border-b border-border">
-            <div className="flex items-center gap-2">
-              <Sparkle size={18} className="text-points" weight="bold" />
-              <h3 className="font-syne font-bold text-base sm:text-lg text-text">
-                Recent Sales
-              </h3>
-            </div>
-            <span className="text-xs font-mono text-muted">
-              Last {recentSales.length} completed
-            </span>
-          </div>
-
-          {recentSales.length === 0 ? (
-            <div className="py-8 text-center text-xs text-muted">
-              No completed sales recorded in this season yet.
-            </div>
-          ) : (
-            <div className="divide-y divide-border max-h-72 overflow-y-auto">
-              {recentSales.map((sale, idx) => {
-                const soldPlayer = players.find((p) => p.id === sale.player_id)
-                const buyerTeam = teams.find((t) => t.id === sale.team_id)
-                const isNewest = idx === 0
-
-                return (
-                  <div
-                    key={sale.id}
-                    className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {soldPlayer && (
-                          <span className="font-mono text-[11px] font-bold text-accent-bright">
-                            #{formatAthleteCode(soldPlayer.athlete_code || soldPlayer.player_code)}
-                          </span>
-                        )}
-                        <span className="font-syne font-bold text-sm text-text">
-                          {soldPlayer?.name || 'Athlete'}
-                        </span>
-                        <span className="text-muted">to</span>
-                        {buyerTeam && (
-                          <span className="inline-flex items-center gap-1.5 font-semibold text-text">
-                            <span
-                              className="w-2.5 h-2.5 rounded-full shrink-0"
-                              style={{ backgroundColor: buyerTeam.color }}
-                            />
-                            <span>
-                              {buyerTeam.name} ({buyerTeam.short_code})
-                            </span>
+                        {idx === 0 && (
+                          <span className="px-2 py-0.5 rounded-full bg-surface border border-accent-bright/50 font-mono text-xs uppercase font-semibold text-accent-bright shrink-0">
+                            TOP
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 text-[11px] font-mono text-muted mt-0.5">
-                        {soldPlayer && <span>{soldPlayer.sport}</span>}
-                        <span>·</span>
-                        <span>
-                          {new Date(sale.created_at).toLocaleTimeString([], {
+
+                      <div className="text-right shrink-0">
+                        <span className="block font-mono font-bold text-sm text-points tabular-nums">
+                          {bid.amount.toLocaleString()} PTS
+                        </span>
+                        <span className="block font-mono text-xs text-muted tabular-nums">
+                          {new Date(bid.created_at).toLocaleTimeString([], {
                             hour: '2-digit',
-                            minute: '2-digit'
+                            minute: '2-digit',
+                            second: '2-digit'
                           })}
                         </span>
                       </div>
                     </div>
+                  )
+                })}
+              </div>
+            )}
+          </section>
 
-                    <div className="flex items-center gap-3 self-end sm:self-center shrink-0">
-                      <span className="font-mono font-bold text-sm text-points tabular-nums">
-                        {sale.price.toLocaleString()} PTS
-                      </span>
+          {/* Recent Sales */}
+          <section
+            aria-label="Recent Sales"
+            className="rounded-3xl bg-surface border border-border p-5 sm:p-6 shadow-sm flex flex-col gap-4 min-w-0"
+          >
+            <div className="flex items-center justify-between gap-2 pb-3.5 border-b border-border">
+              <div className="flex items-center gap-2 min-w-0">
+                <Sparkle size={18} className="text-points shrink-0" weight="bold" />
+                <h3 className="font-syne font-bold text-base sm:text-lg text-text truncate">
+                  Recent Sales
+                </h3>
+              </div>
+              <span className="font-mono text-xs text-muted shrink-0 tabular-nums">
+                Last {recentSales.length} completed
+              </span>
+            </div>
+
+            {recentSales.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted">
+                No completed sales recorded in this season yet.
+              </p>
+            ) : (
+              <div className="space-y-2.5 max-h-72 overflow-y-auto overscroll-contain thin-scrollbar pr-0.5">
+                {recentSales.map((sale, idx) => {
+                  const soldPlayer = players.find((p) => p.id === sale.player_id)
+                  const buyerTeam = teams.find((t) => t.id === sale.team_id)
+                  const isNewest = idx === 0
+
+                  return (
+                    <div
+                      key={sale.id}
+                      className="rounded-2xl bg-surface-2 border border-border p-3.5 flex flex-col gap-2.5"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap text-sm">
+                            {soldPlayer && (
+                              <span className="px-2 py-0.5 rounded-full bg-surface border border-border font-mono text-xs font-bold text-accent-bright shrink-0 tabular-nums">
+                                #
+                                {formatAthleteCode(
+                                  soldPlayer.athlete_code || soldPlayer.player_code
+                                )}
+                              </span>
+                            )}
+                            <span className="font-syne font-bold text-sm text-text">
+                              {soldPlayer?.name || 'Athlete'}
+                            </span>
+                            <span className="text-muted">to</span>
+                            {buyerTeam && (
+                              <span className="font-medium text-text">
+                                {buyerTeam.name}{' '}
+                                <span className="font-mono text-xs text-muted">
+                                  ({buyerTeam.short_code})
+                                </span>
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 text-xs font-mono text-muted mt-1">
+                            {soldPlayer && <span>{soldPlayer.sport}</span>}
+                            {soldPlayer && <span aria-hidden="true">·</span>}
+                            <span className="tabular-nums">
+                              {new Date(sale.created_at).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
+                        </div>
+
+                        <span className="font-mono font-bold text-sm text-points tabular-nums shrink-0">
+                          {sale.price.toLocaleString()} PTS
+                        </span>
+                      </div>
+
                       {isNewest && (
-                        <Button
+                        <button
                           type="button"
-                          variant="secondary"
-                          size="md"
-                          leftIcon={ArrowCounterClockwise}
                           disabled={isPending}
                           onClick={() => setIsUndoSaleConfirmOpen(true)}
-                          className="min-h-[48px] px-3.5 text-xs"
+                          className="min-h-[44px] px-4 rounded-full bg-surface border border-border text-xs font-medium text-text hover:bg-bg inline-flex items-center gap-1.5 self-start transition-[opacity,transform] duration-150 active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
                         >
-                          Undo last sale
-                        </Button>
+                          <ArrowCounterClockwise size={14} />
+                          <span>Undo last sale</span>
+                        </button>
                       )}
                     </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+                  )
+                })}
+              </div>
+            )}
+          </section>
         </div>
       </div>
 

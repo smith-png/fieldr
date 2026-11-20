@@ -31,138 +31,29 @@ import { Button, Dialog, EmptyState, PageHeader } from '../../components/ui'
 
 const SPORT_ORDER = ['Cricket', 'Futsal', 'Volleyball']
 
-function hslToRgb(h: number, s: number, l: number): [number, number, number] {
-  const c = (1 - Math.abs(2 * l - 1)) * s
-  const x = c * (1 - Math.abs(((h / 60) % 2) - 1))
-  const m = l - c / 2
-  let rPrime = 0
-  let gPrime = 0
-  let bPrime = 0
+const DISALLOWED_CSS_COLORS = new Set([
+  'transparent',
+  'currentcolor',
+  'inherit',
+  'initial',
+  'unset',
+  'revert',
+  'revert-layer'
+])
 
-  if (h >= 0 && h < 60) {
-    rPrime = c
-    gPrime = x
-  } else if (h >= 60 && h < 120) {
-    rPrime = x
-    gPrime = c
-  } else if (h >= 120 && h < 180) {
-    gPrime = c
-    bPrime = x
-  } else if (h >= 180 && h < 240) {
-    gPrime = x
-    bPrime = c
-  } else if (h >= 240 && h < 300) {
-    rPrime = x
-    bPrime = c
-  } else {
-    rPrime = c
-    bPrime = x
-  }
-
-  return [
-    Math.round((rPrime + m) * 255),
-    Math.round((gPrime + m) * 255),
-    Math.round((bPrime + m) * 255)
-  ]
-}
-
-function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
-  const rNorm = r / 255
-  const gNorm = g / 255
-  const bNorm = b / 255
-  const max = Math.max(rNorm, gNorm, bNorm)
-  const min = Math.min(rNorm, gNorm, bNorm)
-  const delta = max - min
-
-  let h = 0
-  if (delta !== 0) {
-    if (max === rNorm) {
-      h = 60 * (((gNorm - bNorm) / delta) % 6)
-    } else if (max === gNorm) {
-      h = 60 * ((bNorm - rNorm) / delta + 2)
-    } else {
-      h = 60 * ((rNorm - gNorm) / delta + 4)
-    }
-  }
-  if (h < 0) h += 360
-
-  const l = (max + min) / 2
-  const s = delta === 0 ? 0 : delta / (1 - Math.abs(2 * l - 1))
-  return [h, s, l]
-}
-
-function parseRgbColor(raw: string): [number, number, number] | null {
-  const hexMatch = raw.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/)
-  if (hexMatch) {
-    const hex = hexMatch[1]
-    if (hex.length === 3) {
-      return [
-        parseInt(hex[0] + hex[0], 16),
-        parseInt(hex[1] + hex[1], 16),
-        parseInt(hex[2] + hex[2], 16)
-      ]
-    }
-    return [
-      parseInt(hex.slice(0, 2), 16),
-      parseInt(hex.slice(2, 4), 16),
-      parseInt(hex.slice(4, 6), 16)
-    ]
-  }
-
-  const rgbMatch = raw.match(
-    /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*[\d.]+)?\s*\)$/i
-  )
-  if (rgbMatch) {
-    const r = Number(rgbMatch[1])
-    const g = Number(rgbMatch[2])
-    const b = Number(rgbMatch[3])
-    if (r <= 255 && g <= 255 && b <= 255) {
-      return [r, g, b]
-    }
-  }
-
-  return null
-}
-
-function getTeamCardAccentColors(color?: string | null): {
-  rimColor: string
-  topEdgeColor: string | null
-} {
+function getValidTeamColor(color?: string | null): string | null {
   const clean = color?.trim()
-  if (!clean) {
-    return { rimColor: 'var(--border)', topEdgeColor: null }
+  if (!clean) return null
+  if (DISALLOWED_CSS_COLORS.has(clean.toLowerCase())) return null
+  if (/[;{}<>]/.test(clean)) return null
+
+  if (typeof CSS !== 'undefined' && typeof CSS.supports === 'function') {
+    return CSS.supports('color', clean) ? clean : null
   }
 
-  const parsed = parseRgbColor(clean)
-  if (parsed) {
-    let [r, g, b] = parsed
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-    const [h, s, l] = rgbToHsl(r, g, b)
-
-    if (luminance < 0.28 || l < 0.32) {
-      const targetL = luminance < 0.15 && l >= 0.4 ? 0.62 : Math.max(l, 0.52)
-      ;[r, g, b] = hslToRgb(h, s, targetL)
-    }
-
-    return {
-      rimColor: `rgba(${r}, ${g}, ${b}, 0.6)`,
-      topEdgeColor: `rgb(${r}, ${g}, ${b})`
-    }
-  }
-
-  if (
-    /^[a-zA-Z]+$/.test(clean) &&
-    typeof CSS !== 'undefined' &&
-    typeof CSS.supports === 'function' &&
-    CSS.supports('color', clean)
-  ) {
-    return {
-      rimColor: `color-mix(in srgb, ${clean} 60%, transparent)`,
-      topEdgeColor: clean
-    }
-  }
-
-  return { rimColor: 'var(--border)', topEdgeColor: null }
+  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(clean)
+    ? clean
+    : null
 }
 
 interface AdminTeamsProps {
@@ -688,22 +579,24 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {group.teams.map((team) => {
-                  const { rimColor, topEdgeColor } = getTeamCardAccentColors(team.color)
+                  const teamColor = getValidTeamColor(team.color)
                   return (
                     <div
                       key={team.id}
-                      style={{ borderColor: rimColor }}
-                      className="relative overflow-hidden p-6 rounded-2xl bg-surface border transition-colors flex flex-col justify-between gap-4 shadow-sm"
+                      style={
+                        teamColor
+                          ? ({ '--team-color': teamColor } as React.CSSProperties)
+                          : undefined
+                      }
+                      className={`relative overflow-hidden p-6 rounded-2xl bg-surface border-[1.5px] border-solid transition-colors flex flex-col justify-between gap-4 shadow-sm ${
+                        teamColor
+                          ? 'border-[color:color-mix(in_srgb,var(--team-color)_75%,transparent)]'
+                          : 'border-border'
+                      }`}
                     >
-                      {topEdgeColor && (
-                        <div
-                          aria-hidden="true"
-                          className="pointer-events-none absolute inset-x-0 top-0 h-[2px]"
-                          style={{ backgroundColor: topEdgeColor }}
-                        />
-                      )}
                       <div>
-                        <div className="flex items-start justify-between gap-3 mb-4">
+                        {/* Row 1: Logo + Sport label on left, action buttons on right */}
+                        <div className="flex items-center justify-between gap-3 mb-3">
                           <div className="flex items-center gap-3 min-w-0">
                             {/* Team Logo or Initial Badge */}
                             {team.logo_url ? (
@@ -720,26 +613,14 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                             ) : (
                               <div
                                 className="w-12 h-12 rounded-xl flex items-center justify-center border border-border shrink-0 font-syne font-bold text-base text-white shadow-inner"
-                                style={{ backgroundColor: team.color || 'var(--accent-bright)' }}
+                                style={{ backgroundColor: teamColor || 'var(--accent-bright)' }}
                               >
                                 {team.short_code}
                               </div>
                             )}
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="font-mono text-xs uppercase tracking-wider text-muted">
-                                  {team.sport}
-                                </span>
-                                <span
-                                  className="w-2.5 h-2.5 rounded-full inline-block border border-border"
-                                  style={{ backgroundColor: team.color || 'var(--accent-bright)' }}
-                                  title={`Team color: ${team.color}`}
-                                />
-                              </div>
-                              <h3 className="font-syne font-bold text-xl text-text tracking-tight truncate">
-                                {team.name}
-                              </h3>
-                            </div>
+                            <span className="font-mono text-xs uppercase tracking-wider text-muted truncate">
+                              {team.sport}
+                            </span>
                           </div>
 
                           {/* Actions */}
@@ -771,6 +652,14 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                             </button>
                           </div>
                         </div>
+
+                        {/* Row 2: Full-width Team Name */}
+                        <h3
+                          title={team.name}
+                          className="font-syne font-bold text-xl text-text tracking-tight text-balance break-words min-w-0 line-clamp-2 mb-4"
+                        >
+                          {team.name}
+                        </h3>
 
                         {/* Owner Info */}
                         <div className="py-3 border-y border-border text-xs flex items-center justify-between gap-2">

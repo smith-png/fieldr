@@ -46,38 +46,29 @@ function getCachedTeamsPageState(): {
   }
 }
 
-function getTeamCardTintStyle(color?: string | null): React.CSSProperties | undefined {
+const DISALLOWED_CSS_COLORS = new Set([
+  'transparent',
+  'currentcolor',
+  'inherit',
+  'initial',
+  'unset',
+  'revert',
+  'revert-layer'
+])
+
+function getValidTeamColor(color?: string | null): string | null {
   const clean = color?.trim()
-  if (!clean) return undefined
+  if (!clean) return null
+  if (DISALLOWED_CSS_COLORS.has(clean.toLowerCase())) return null
+  if (/[;{}<>]/.test(clean)) return null
 
-  const hexMatch = clean.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/)
-  if (hexMatch) {
-    const hex = hexMatch[1]
-    const r =
-      hex.length === 3
-        ? parseInt(hex[0] + hex[0], 16)
-        : parseInt(hex.slice(0, 2), 16)
-    const g =
-      hex.length === 3
-        ? parseInt(hex[1] + hex[1], 16)
-        : parseInt(hex.slice(2, 4), 16)
-    const b =
-      hex.length === 3
-        ? parseInt(hex[2] + hex[2], 16)
-        : parseInt(hex.slice(4, 6), 16)
-
-    return {
-      backgroundImage: `linear-gradient(135deg, rgba(${r}, ${g}, ${b}, 0.15) 0%, rgba(${r}, ${g}, ${b}, 0.05) 42%, rgba(${r}, ${g}, ${b}, 0) 72%)`,
-      borderColor: `rgba(${r}, ${g}, ${b}, 0.35)`,
-      backgroundClip: 'padding-box'
-    }
+  if (typeof CSS !== 'undefined' && typeof CSS.supports === 'function') {
+    return CSS.supports('color', clean) ? clean : null
   }
 
-  return {
-    backgroundImage: `linear-gradient(135deg, color-mix(in srgb, ${clean} 15%, transparent) 0%, color-mix(in srgb, ${clean} 5%, transparent) 42%, transparent 72%)`,
-    borderColor: `color-mix(in srgb, ${clean} 35%, transparent)`,
-    backgroundClip: 'padding-box'
-  }
+  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(clean)
+    ? clean
+    : null
 }
 
 const SPORT_ORDER = ['Cricket', 'Futsal', 'Volleyball']
@@ -249,6 +240,7 @@ export const TeamsPage: React.FC = () => {
                   {group.teams.map((team) => {
                     const assignedCount = players.filter((p) => p.team_id === team.id).length
                     const teamPath = `/season/${team.season_id}/teams/${team.id}`
+                    const teamColor = getValidTeamColor(team.color)
                     return (
                       <Link
                         key={team.id}
@@ -256,8 +248,16 @@ export const TeamsPage: React.FC = () => {
                         onMouseEnter={() => prefetchRoute(teamPath)}
                         onFocus={() => prefetchRoute(teamPath)}
                         onTouchStart={() => prefetchRoute(teamPath)}
-                        style={getTeamCardTintStyle(team.color)}
-                        className="group relative overflow-hidden rounded-2xl bg-surface bg-clip-padding border border-border hover:border-accent-bright p-6 transition-colors flex flex-col justify-between shadow-sm"
+                        style={
+                          teamColor
+                            ? ({ '--team-color': teamColor } as React.CSSProperties)
+                            : undefined
+                        }
+                        className={`group relative overflow-hidden rounded-2xl bg-surface border-[1.5px] border-solid p-6 transition-[border-color] duration-150 flex flex-col justify-between shadow-sm ${
+                          teamColor
+                            ? 'border-[color:color-mix(in_srgb,var(--team-color)_75%,transparent)] hover:border-[color:var(--team-color)] focus-visible:border-[color:var(--team-color)]'
+                            : 'border-border hover:border-accent-bright focus-visible:border-accent-bright'
+                        }`}
                       >
                         <div>
                           {/* Header with Logo and Team Name */}

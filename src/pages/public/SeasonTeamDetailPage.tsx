@@ -1,6 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowsClockwise, CaretLeft, ShieldCheck, SignOut, Users } from '@phosphor-icons/react'
+import {
+  ArrowsClockwise,
+  CaretLeft,
+  CircleNotch,
+  ShieldCheck,
+  SignOut,
+  Users
+} from '@phosphor-icons/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
@@ -41,34 +48,29 @@ function getTeamCacheKey(seasonId?: string, teamId?: string): string {
   return `${seasonId || ''}::${teamId || ''}`
 }
 
-function getTeamCardTintStyle(color?: string | null): React.CSSProperties | undefined {
+const DISALLOWED_CSS_COLORS = new Set([
+  'transparent',
+  'currentcolor',
+  'inherit',
+  'initial',
+  'unset',
+  'revert',
+  'revert-layer'
+])
+
+function getValidTeamColor(color?: string | null): string | null {
   const clean = color?.trim()
-  if (!clean) return undefined
+  if (!clean) return null
+  if (DISALLOWED_CSS_COLORS.has(clean.toLowerCase())) return null
+  if (/[;{}<>]/.test(clean)) return null
 
-  const hexMatch = clean.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/)
-  if (hexMatch) {
-    const hex = hexMatch[1]
-    const r =
-      hex.length === 3
-        ? parseInt(hex[0] + hex[0], 16)
-        : parseInt(hex.slice(0, 2), 16)
-    const g =
-      hex.length === 3
-        ? parseInt(hex[1] + hex[1], 16)
-        : parseInt(hex.slice(2, 4), 16)
-    const b =
-      hex.length === 3
-        ? parseInt(hex[2] + hex[2], 16)
-        : parseInt(hex.slice(4, 6), 16)
-
-    return {
-      backgroundImage: `linear-gradient(135deg, rgba(${r}, ${g}, ${b}, 0.15) 0%, rgba(${r}, ${g}, ${b}, 0.05) 42%, rgba(${r}, ${g}, ${b}, 0) 72%)`
-    }
+  if (typeof CSS !== 'undefined' && typeof CSS.supports === 'function') {
+    return CSS.supports('color', clean) ? clean : null
   }
 
-  return {
-    backgroundImage: `linear-gradient(135deg, color-mix(in srgb, ${clean} 15%, transparent) 0%, color-mix(in srgb, ${clean} 5%, transparent) 42%, transparent 72%)`
-  }
+  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(clean)
+    ? clean
+    : null
 }
 
 function getCachedTeamDetail(
@@ -132,11 +134,16 @@ export const SeasonTeamDetailPage: React.FC = () => {
 
   // Owner Panel State
   const [ownerOverview, setOwnerOverview] = useState<any | null>(null)
-  const [isLoadingOverview, setIsLoadingOverview] = useState<boolean>(false)
+  const [isLoadingOverview, setIsLoadingOverview] = useState<boolean>(() =>
+    Boolean(user?.role === 'owner' && teamId && supabase)
+  )
+  const [overviewUpdatedAt, setOverviewUpdatedAt] = useState<Date | null>(null)
+  const [failedBoughtPhotoUrls, setFailedBoughtPhotoUrls] = useState<Record<string, true>>({})
 
   const fetchOwnerOverview = async () => {
     if (!user || user.role !== 'owner' || !teamId || !supabase) {
       setOwnerOverview(null)
+      setOverviewUpdatedAt(null)
       return
     }
     try {
@@ -145,6 +152,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
       if (error) {
         console.error('owner_team_overview error:', error)
         setOwnerOverview(null)
+        setOverviewUpdatedAt(null)
         return
       }
       const items = Array.isArray(data) ? data : data ? [data] : []
@@ -152,9 +160,11 @@ export const SeasonTeamDetailPage: React.FC = () => {
         (item: any) => String(item.team_id || item.id) === String(teamId)
       )
       setOwnerOverview(matched || null)
+      setOverviewUpdatedAt(matched ? new Date() : null)
     } catch (err) {
       console.error('Failed to load owner overview:', err)
       setOwnerOverview(null)
+      setOverviewUpdatedAt(null)
     } finally {
       setIsLoadingOverview(false)
     }
@@ -162,9 +172,13 @@ export const SeasonTeamDetailPage: React.FC = () => {
 
   useEffect(() => {
     if (user?.role === 'owner' && teamId) {
+      setOwnerOverview(null)
+      setOverviewUpdatedAt(null)
       fetchOwnerOverview()
     } else {
       setOwnerOverview(null)
+      setOverviewUpdatedAt(null)
+      setIsLoadingOverview(false)
     }
   }, [user?.role, user?.id, teamId])
 
@@ -356,10 +370,21 @@ export const SeasonTeamDetailPage: React.FC = () => {
         ) : (
           <div className="flex flex-col gap-8">
             {/* Team Header */}
-            <div
-              style={getTeamCardTintStyle(team.color)}
-              className="p-6 sm:p-8 rounded-3xl bg-surface border border-border flex flex-col md:flex-row items-center md:items-center justify-between gap-6 shadow-sm"
-            >
+            {(() => {
+              const teamColor = getValidTeamColor(team.color)
+              return (
+                <div
+                  style={
+                    teamColor
+                      ? ({ '--team-color': teamColor } as React.CSSProperties)
+                      : undefined
+                  }
+                  className={`p-6 sm:p-8 rounded-3xl bg-surface border-[1.5px] border-solid flex flex-col md:flex-row items-center md:items-center justify-between gap-6 shadow-sm ${
+                    teamColor
+                      ? 'border-[color:color-mix(in_srgb,var(--team-color)_75%,transparent)]'
+                      : 'border-border'
+                  }`}
+                >
               <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 flex-1 min-w-0">
                 <div
                   className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl flex items-center justify-center overflow-hidden border border-border font-syne font-extrabold text-white text-2xl shrink-0"
@@ -444,7 +469,9 @@ export const SeasonTeamDetailPage: React.FC = () => {
                   </div>
                 </div>
               )}
-            </div>
+                </div>
+              )
+            })()}
 
             {isOwnerPhotoOpen && showOwnerPhoto && (
               <div
@@ -464,7 +491,64 @@ export const SeasonTeamDetailPage: React.FC = () => {
             )}
 
             {/* Owner Panel (Visible ONLY to signed-in owner of this specific franchise) */}
-            {ownerOverview && (() => {
+            {user?.role === 'owner' && isLoadingOverview && !ownerOverview ? (
+              <div
+                aria-busy="true"
+                aria-label="Loading Owner Panel"
+                className="bg-surface border border-border rounded-3xl p-5 sm:p-8 shadow-sm relative overflow-hidden font-dm-sans"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-border">
+                  <div className="space-y-2">
+                    <SkeletonBlock className="h-3.5 w-48 rounded-full" />
+                    <SkeletonBlock className="h-8 sm:h-9 w-44 rounded-xl" />
+                    <SkeletonBlock className="h-3.5 w-28 rounded-full" />
+                  </div>
+                  <div className="flex items-center gap-2 self-start shrink-0">
+                    <SkeletonBlock className="h-9 w-24 rounded-full" />
+                    <SkeletonBlock className="h-9 w-24 rounded-full" />
+                  </div>
+                </div>
+
+                <div className="py-6 border-b border-border flex flex-col md:flex-row md:items-end justify-between gap-6">
+                  <div className="flex-1 min-w-0">
+                    <SkeletonBlock className="h-3.5 w-28 rounded-full mb-2" />
+                    <SkeletonBlock className="h-9 sm:h-10 w-44 rounded-xl" />
+                    <SkeletonBlock className="mt-4 h-1.5 w-full max-w-md rounded-full" />
+                  </div>
+                  <div className="flex flex-wrap items-start gap-x-8 gap-y-4 md:shrink-0">
+                    <div className="space-y-1.5">
+                      <SkeletonBlock className="h-3.5 w-20 rounded-full" />
+                      <SkeletonBlock className="h-6 w-24 rounded-lg" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <SkeletonBlock className="h-3.5 w-24 rounded-full" />
+                      <SkeletonBlock className="h-6 w-12 rounded-lg" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-6">
+                  <SkeletonBlock className="h-5 w-36 rounded-lg mb-3" />
+                  <div className="space-y-2.5">
+                    {Array.from({ length: 3 }).map((_, idx) => (
+                      <div
+                        key={idx}
+                        className="rounded-2xl bg-surface-2 border border-border px-3.5 py-3 sm:px-4 flex items-center justify-between gap-3"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <SkeletonBlock className="h-5 w-12 rounded-full shrink-0" />
+                          <div className="space-y-1.5 min-w-0 flex-1 max-w-xs">
+                            <SkeletonBlock className="h-4 w-36 rounded-md" />
+                            <SkeletonBlock className="h-3 w-20 rounded-md" />
+                          </div>
+                        </div>
+                        <SkeletonBlock className="h-4 w-16 rounded-md shrink-0" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : ownerOverview && (() => {
               const rawPlayers =
                 ownerOverview.players ??
                 ownerOverview.players_bought ??
@@ -482,12 +566,18 @@ export const SeasonTeamDetailPage: React.FC = () => {
                 list = rawPlayers
               }
 
-              const boughtPlayers = list.map((p: any) => ({
-                athlete_code: formatAthleteCode(p.athlete_code ?? p.player_code ?? p.code ?? p.id),
-                name: String(p.name || p.player_name || 'Unnamed Player'),
-                playing_role: String(p.playing_role || p.role || 'Player'),
-                purchase_price: Number(p.purchase_price ?? p.price ?? p.amount ?? 0)
-              }))
+              const boughtPlayers = list.map((p: any) => {
+                const rawPhoto = p.photo_thumb_url ?? p.photo_url ?? null
+                const photoUrl =
+                  typeof rawPhoto === 'string' && rawPhoto.trim() ? rawPhoto.trim() : null
+                return {
+                  athlete_code: formatAthleteCode(p.athlete_code ?? p.player_code ?? p.code ?? p.id),
+                  name: String(p.name || p.player_name || 'Unnamed Player'),
+                  playing_role: String(p.playing_role || p.role || 'Player'),
+                  purchase_price: Number(p.purchase_price ?? p.price ?? p.amount ?? 0),
+                  photo_url: photoUrl
+                }
+              })
 
               const purseSpent =
                 ownerOverview.purse_spent ??
@@ -508,40 +598,56 @@ export const SeasonTeamDetailPage: React.FC = () => {
                 ownerOverview.player_count ??
                 boughtPlayers.length
 
+              const safeSpent = Math.max(0, Number(purseSpent) || 0)
+              const safeRemaining = Math.max(0, Number(currentPurse) || 0)
+              const totalPurse = safeSpent + safeRemaining
+              const spentRatio =
+                totalPurse > 0 ? Math.min(1, Math.max(0, safeSpent / totalPurse)) : 0
+              const updatedTimeLabel = overviewUpdatedAt
+                ? overviewUpdatedAt.toLocaleTimeString([], {
+                    hour: 'numeric',
+                    minute: '2-digit'
+                  })
+                : null
+
               return (
-                <div className="bg-surface border border-accent-bright/35 rounded-2xl p-6 sm:p-8 mb-10 shadow-sm relative overflow-hidden font-dm-sans">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-border">
+                <div className="bg-surface border border-border rounded-3xl p-5 sm:p-8 shadow-sm relative overflow-hidden font-dm-sans">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-border">
                     <div>
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono uppercase tracking-wider bg-accent-bright/15 text-accent-bright font-semibold">
-                          CONFIDENTIAL FRANCHISE PORTAL
-                        </span>
-                      </div>
+                      <span className="block text-[11px] font-mono uppercase tracking-[0.16em] text-accent-bright font-semibold mb-1.5">
+                        CONFIDENTIAL FRANCHISE PORTAL
+                      </span>
                       <h2 className="font-syne font-bold text-2xl sm:text-3xl text-text tracking-tight">
                         Owner Panel
                       </h2>
-                      <p className="text-xs text-muted mt-1">
-                        Purse status and acquired roster for {team?.name || 'this team'}
-                      </p>
+                      {updatedTimeLabel && (
+                        <span className="block font-mono text-[11px] text-muted mt-1.5 tabular-nums">
+                          Updated {updatedTimeLabel}
+                        </span>
+                      )}
                     </div>
 
-                    <div className="flex items-center gap-2 self-start sm:self-center">
+                    <div className="flex items-center gap-2 self-start shrink-0">
                       <button
                         type="button"
                         onClick={fetchOwnerOverview}
                         disabled={isLoadingOverview}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-surface-2 hover:bg-surface border border-border text-xs font-medium text-text transition-colors disabled:opacity-50 cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-surface-2 hover:opacity-85 active:scale-[0.98] border border-border text-xs font-medium text-text transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 disabled:opacity-50 cursor-pointer"
                       >
-                        <ArrowsClockwise
-                          size={14}
-                          className={isLoadingOverview ? 'animate-spin' : ''}
-                        />
+                        {isLoadingOverview ? (
+                          <CircleNotch
+                            size={14}
+                            className="animate-spin motion-reduce:animate-none"
+                          />
+                        ) : (
+                          <ArrowsClockwise size={14} />
+                        )}
                         <span>Refresh</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => logout()}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-surface-2 hover:bg-surface border border-border text-xs font-medium text-muted hover:text-text transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-surface-2 hover:opacity-85 active:scale-[0.98] border border-border text-xs font-medium text-muted hover:text-text transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 cursor-pointer"
                       >
                         <SignOut size={14} />
                         <span>Sign out</span>
@@ -549,80 +655,116 @@ export const SeasonTeamDetailPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* 3 Metrics */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 my-6">
-                    <div className="bg-surface-2 border border-border rounded-xl p-4">
-                      <span className="text-[11px] font-mono uppercase tracking-wider text-muted block mb-1">
-                        Purse Spent
+                  {/* Purse Block */}
+                  <div className="py-6 border-b border-border flex flex-col md:flex-row md:items-end justify-between gap-6">
+                    <div className="flex-1 min-w-0">
+                      <span className="block font-mono text-[11px] uppercase tracking-[0.14em] text-muted mb-1.5">
+                        PURSE REMAINING
                       </span>
-                      <span className="font-mono text-2xl font-bold text-text tabular-nums">
-                        {formatPoints(purseSpent)}
-                      </span>
-                    </div>
-
-                    <div className="bg-surface-2 border border-border rounded-xl p-4">
-                      <span className="text-[11px] font-mono uppercase tracking-wider text-muted block mb-1">
-                        Purse Remaining
-                      </span>
-                      <span className="font-mono text-2xl font-bold text-accent-bright tabular-nums">
+                      <div className="font-mono text-3xl sm:text-4xl font-bold text-accent-bright tabular-nums tracking-tight leading-none">
                         {formatPoints(currentPurse)}
-                      </span>
+                      </div>
+                      <div
+                        role="progressbar"
+                        aria-label="Purse spent"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={Math.round(spentRatio * 100)}
+                        className="mt-4 h-1.5 w-full max-w-md rounded-full bg-surface-2 overflow-hidden"
+                      >
+                        <div
+                          className="h-full w-full rounded-full bg-accent-bright origin-left transition-transform duration-300 motion-reduce:transition-none"
+                          style={{ transform: `scaleX(${spentRatio})` }}
+                        />
+                      </div>
                     </div>
 
-                    <div className="bg-surface-2 border border-border rounded-xl p-4">
-                      <span className="text-[11px] font-mono uppercase tracking-wider text-muted block mb-1">
-                        Roster Count
-                      </span>
-                      <span className="font-mono text-2xl font-bold text-text tabular-nums">
-                        {rosterCount}
-                      </span>
+                    <div className="flex flex-wrap items-start gap-x-8 gap-y-4 md:shrink-0 md:pb-0.5">
+                      <div>
+                        <span className="block font-mono text-[11px] uppercase tracking-[0.14em] text-muted mb-1">
+                          PURSE SPENT
+                        </span>
+                        <span className="font-mono text-lg sm:text-xl font-bold text-text tabular-nums">
+                          {formatPoints(purseSpent)}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="block font-mono text-[11px] uppercase tracking-[0.14em] text-muted mb-1">
+                          ROSTER COUNT
+                        </span>
+                        <span className="font-mono text-lg sm:text-xl font-bold text-text tabular-nums">
+                          {rosterCount}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
                   {/* Players Bought */}
-                  <div>
+                  <div className="pt-6">
                     <h3 className="font-syne font-bold text-base text-text mb-3">
                       Players Bought ({boughtPlayers.length})
                     </h3>
 
                     {boughtPlayers.length === 0 ? (
-                      <div className="p-6 text-center rounded-xl bg-surface-2 border border-border text-xs text-muted">
+                      <p className="px-4 py-5 rounded-2xl bg-surface-2 border border-border text-xs text-muted text-center">
                         No players acquired yet.
-                      </div>
+                      </p>
                     ) : (
-                      <div className="overflow-x-auto rounded-xl border border-border">
-                        <table className="w-full text-left border-collapse text-xs">
-                          <thead>
-                            <tr className="border-b border-border bg-surface-2 font-mono text-[11px] text-muted uppercase tracking-wider">
-                              <th className="py-2.5 px-4 font-medium">Code</th>
-                              <th className="py-2.5 px-4 font-medium">Athlete Name</th>
-                              <th className="py-2.5 px-4 font-medium">Role</th>
-                              <th className="py-2.5 px-4 font-medium text-right">Purchase Price</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border">
-                            {boughtPlayers.map((bp, idx) => (
-                              <tr
-                                key={`${bp.athlete_code}-${idx}`}
-                                className="hover:bg-surface-2/60 transition-colors"
-                              >
-                                <td className="py-3 px-4 font-mono font-bold text-accent-bright tabular-nums">
-                                  {bp.athlete_code}
-                                </td>
-                                <td className="py-3 px-4 font-medium text-text">
-                                  {bp.name}
-                                </td>
-                                <td className="py-3 px-4 text-muted">
-                                  {bp.playing_role}
-                                </td>
-                                <td className="py-3 px-4 font-mono text-text font-semibold text-right tabular-nums">
-                                  {formatPoints(bp.purchase_price)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                      <ul className="space-y-2.5">
+                        {boughtPlayers.map((bp, idx) => {
+                          const showPhoto =
+                            Boolean(bp.photo_url) &&
+                            !failedBoughtPhotoUrls[bp.photo_url as string]
+                          return (
+                            <li
+                              key={`${bp.athlete_code}-${idx}`}
+                              className="rounded-2xl bg-surface-2 border border-border px-3.5 py-3 sm:px-4 flex items-center justify-between gap-3"
+                            >
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                {showPhoto && (
+                                  <img
+                                    src={bp.photo_url as string}
+                                    alt={bp.name}
+                                    width={40}
+                                    height={40}
+                                    loading="lazy"
+                                    decoding="async"
+                                    referrerPolicy="no-referrer"
+                                    onError={() => {
+                                      if (bp.photo_url) {
+                                        setFailedBoughtPhotoUrls((prev) =>
+                                          prev[bp.photo_url as string]
+                                            ? prev
+                                            : { ...prev, [bp.photo_url as string]: true }
+                                        )
+                                      }
+                                    }}
+                                    className="w-10 h-10 rounded-xl object-cover border border-border shrink-0"
+                                  />
+                                )}
+                                <div className="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2.5">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface border border-border font-mono text-[11px] font-bold text-accent-bright tabular-nums shrink-0">
+                                      {bp.athlete_code}
+                                    </span>
+                                    <span className="font-medium text-sm text-text truncate">
+                                      {bp.name}
+                                    </span>
+                                  </div>
+                                  <span className="text-xs text-muted truncate">
+                                    {bp.playing_role}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <span className="font-mono text-xs sm:text-sm font-semibold text-text tabular-nums shrink-0 text-right">
+                                {formatPoints(bp.purchase_price)}
+                              </span>
+                            </li>
+                          )
+                        })}
+                      </ul>
                     )}
                   </div>
                 </div>
