@@ -4,7 +4,7 @@ import { motion } from 'motion/react'
 import { ArrowLeft, Eye, EyeSlash, Key, LockKey, SignIn, WarningCircle } from '@phosphor-icons/react'
 import { BrandMark } from '../../components/layout/BrandMark'
 import { useAuth } from '../../lib/AuthContext'
-import { supabase } from '../../lib/data'
+import { supabase } from '../../lib/data/client'
 
 export const OwnerLoginPage: React.FC = () => {
   const { user, refreshUser } = useAuth()

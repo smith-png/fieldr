@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { getCreditsPeople } from '../../lib/data'
+import { getCreditsPeople } from '../../lib/data/credits'
 import { hasDataChanged, publicCache } from '../../lib/publicCache'
 import type { CreditPerson } from '../../types'
 

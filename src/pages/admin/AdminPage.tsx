@@ -54,6 +54,9 @@ const AdminPurses = lazy(() =>
 const AdminLogs = lazy(() =>
   import('./AdminLogs').then((m) => ({ default: m.AdminLogs }))
 )
+const AdminAccounts = lazy(() =>
+  import('./AdminAccounts').then((m) => ({ default: m.AdminAccounts }))
+)
 const AdminProjectorControl = lazy(() =>
   import('./AdminProjectorControl').then((m) => ({ default: m.AdminProjectorControl }))
 )
@@ -75,7 +78,7 @@ interface AdminCachedBundle {
 
 const renderTabSkeleton = (tab: AdminTab) => {
   if (tab === 'dashboard') return <AdminDashboardSkeleton />
-  if (tab === 'athletes' || tab === 'players' || tab === 'logs') {
+  if (tab === 'athletes' || tab === 'players' || tab === 'logs' || tab === 'accounts') {
     return <AdminTableSkeleton rows={6} columns={6} />
   }
   return <AdminCardsSkeleton count={6} />
@@ -376,6 +379,8 @@ export const AdminPage: React.FC = () => {
               teams={teams}
             />
           )}
+
+          {currentTab === 'accounts' && <AdminAccounts />}
 
           {currentTab === 'projector' && (
             <AdminProjectorControl

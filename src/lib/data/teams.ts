@@ -500,7 +500,7 @@ const supabaseTeamsService: TeamsService = {
       .from('sports')
       .update({ roles: nextRoles })
       .eq('id', found.id)
-      .select()
+      .select('id, name, roles')
       .single()
 
     if (error) throw new AppError(error.message, { original: error })
@@ -567,7 +567,7 @@ const supabaseTeamsService: TeamsService = {
       .from('sports')
       .update({ roles: updatedRoles })
       .eq('id', found.id)
-      .select()
+      .select('id, name, roles')
       .single()
 
     if (sportErr) throw new AppError(sportErr.message, { original: sportErr })
@@ -601,7 +601,7 @@ const supabaseTeamsService: TeamsService = {
       .from('sports')
       .update({ roles: orderedRoles })
       .eq('id', found.id)
-      .select()
+      .select('id, name, roles')
       .single()
 
     if (error) throw new AppError(error.message, { original: error })
@@ -639,7 +639,7 @@ const supabaseTeamsService: TeamsService = {
       .from('sports')
       .update({ roles: nextRoles })
       .eq('id', found.id)
-      .select()
+      .select('id, name, roles')
       .single()
 
     if (error) throw new AppError(error.message, { original: error })
@@ -680,7 +680,9 @@ const supabaseTeamsService: TeamsService = {
           current_purse: teamData.starting_purse
         }
       ])
-      .select()
+      .select(
+        'id, season_id, sport, name, short_code, color, logo_url, owner_display_name, owner_photo_url, owner_user_id, starting_purse, current_purse, created_at'
+      )
       .single()
 
     if (error) throw new AppError(error.message, { original: error })
@@ -709,7 +711,9 @@ const supabaseTeamsService: TeamsService = {
       .from('teams')
       .update(updates)
       .eq('id', id)
-      .select()
+      .select(
+        'id, season_id, sport, name, short_code, color, logo_url, owner_display_name, owner_photo_url, owner_user_id, starting_purse, current_purse, created_at'
+      )
       .single()
 
     if (error) throw new AppError(error.message, { original: error })
@@ -779,7 +783,12 @@ const supabaseTeamsService: TeamsService = {
     }))
 
     markLocalMutation(['teams', 'auction'])
-    const { data, error } = await supabase.from('teams').insert(inserts).select()
+    const { data, error } = await supabase
+      .from('teams')
+      .insert(inserts)
+      .select(
+        'id, season_id, sport, name, short_code, color, logo_url, owner_display_name, owner_photo_url, owner_user_id, starting_purse, current_purse, created_at'
+      )
     if (error) throw new AppError(error.message, { original: error })
 
     const createdTeams = (data as Team[]) || []

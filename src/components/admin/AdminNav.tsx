@@ -18,6 +18,7 @@ import {
   SignOut,
   Sun,
   Television,
+  Users,
   X,
   type Icon
 } from '@phosphor-icons/react'
@@ -63,6 +64,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     label: 'SYSTEM',
     items: [
       { id: 'logs', label: 'Logs', icon: ClockCounterClockwise },
+      { id: 'accounts', label: 'Accounts', icon: Users },
       { id: 'setup', label: 'Setup', icon: Gear }
     ]
   }

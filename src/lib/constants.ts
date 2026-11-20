@@ -95,6 +95,7 @@ const ADMIN_TABS = {
   AUCTION: 'auction',
   PURSES: 'purses',
   LOGS: 'logs',
+  ACCOUNTS: 'accounts',
   SEASONS: 'seasons',
   PROJECTOR: 'projector',
   SETUP: 'setup'

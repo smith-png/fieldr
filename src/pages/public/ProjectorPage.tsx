@@ -14,21 +14,17 @@ import {
   normalizeConfettiFallSpeed
 } from '../../components/projector/ProjectorConfetti'
 import { SecuredSequence } from '../../components/projector/SecuredSequence'
+import { formatAthleteCode } from '../../lib/data/client'
 import {
-  formatAthleteCode,
   getAuctionSettings,
   getDefaultAuctionSettings,
-  getPlayers,
-  getProjectorState,
-  getPublicTeams,
-  getSeasons,
-  getSiteSettings,
-  getTeams,
-  subscribeToAuctionSettings,
-  subscribeToPlayers,
-  subscribeToProjector,
-  subscribeToTeams
-} from '../../lib/data'
+  subscribeToAuctionSettings
+} from '../../lib/data/auction'
+import { getPlayers, subscribeToPlayers } from '../../lib/data/players'
+import { getProjectorState, subscribeToProjector } from '../../lib/data/projector'
+import { getSeasons } from '../../lib/data/seasons'
+import { getSiteSettings } from '../../lib/data/site'
+import { getTeams, subscribeToTeams } from '../../lib/data/teams'
 import { PROJECTOR_MODES } from '../../lib/constants'
 import { getAcademicYearLabel } from '../../lib/academicYears'
 import {
@@ -42,7 +38,6 @@ import type {
   AuctionSettings,
   Player,
   ProjectorState,
-  PublicTeam,
   Season,
   Team
 } from '../../types'
@@ -50,15 +45,46 @@ import type {
 const PRELOAD_BATCH_CONCURRENCY = 4
 const PRELOAD_RETRY_DELAY_MS = 1000
 const MAX_DECODE_WAIT_MS = 2000
+const MAX_PROJECTOR_IMAGE_CACHE = 40
+const MAX_BACKGROUND_THUMB_PRELOADS = 28
 
-// Module-level Map keeping HTMLImageElement instances alive so the browser retains decoded bitmaps in memory
+// Module-level LRU Map keeping up to 40 HTMLImageElement instances alive
 const projectorImageCache = new Map<string, HTMLImageElement>()
 const projectorImageDecoded = new Set<string>()
 const projectorImageInFlight = new Map<string, Promise<boolean>>()
 const projectorImageQueued = new Set<string>()
 const projectorLoadQueue: string[] = []
 let activePreloadWorkers = 0
+let preloadSessionId = 0
+const pendingRetryTimers = new Map<ReturnType<typeof setTimeout>, () => void>()
 const imageStatusListeners = new Set<(url: string, loaded: boolean) => void>()
+
+function touchProjectorImageCache(url: string, img?: HTMLImageElement): void {
+  const existing = img ?? projectorImageCache.get(url)
+  if (!existing) return
+  if (projectorImageCache.has(url)) {
+    projectorImageCache.delete(url)
+  }
+  projectorImageCache.set(url, existing)
+  projectorImageDecoded.add(url)
+  while (projectorImageCache.size > MAX_PROJECTOR_IMAGE_CACHE) {
+    const oldestKey = projectorImageCache.keys().next().value
+    if (oldestKey === undefined) break
+    projectorImageCache.delete(oldestKey)
+    projectorImageDecoded.delete(oldestKey)
+  }
+}
+
+function cancelPendingProjectorPreloads(): void {
+  preloadSessionId += 1
+  projectorLoadQueue.length = 0
+  projectorImageQueued.clear()
+  pendingRetryTimers.forEach((cancelResolve, timerId) => {
+    clearTimeout(timerId)
+    cancelResolve()
+  })
+  pendingRetryTimers.clear()
+}
 
 function notifyImageStatus(url: string, loaded: boolean): void {
   imageStatusListeners.forEach((listener) => {
@@ -73,6 +99,12 @@ function notifyImageStatus(url: string, loaded: boolean): void {
 function getPlayerPrimaryPhotoUrl(player?: Player | null): string | null {
   if (!player) return null
   const raw = (player.photo_url || player.photo_thumb_url || '').trim()
+  return raw.length > 0 ? raw : null
+}
+
+function getPlayerThumbPhotoUrl(player?: Player | null): string | null {
+  if (!player) return null
+  const raw = (player.photo_thumb_url || '').trim()
   return raw.length > 0 ? raw : null
 }
 
@@ -103,11 +135,26 @@ function loadAndDecodeImageOnce(url: string): Promise<HTMLImageElement> {
   })
 }
 
+function waitForRetryOrCancel(session: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (session !== preloadSessionId) {
+      resolve(false)
+      return
+    }
+    const timerId = setTimeout(() => {
+      pendingRetryTimers.delete(timerId)
+      resolve(session === preloadSessionId)
+    }, PRELOAD_RETRY_DELAY_MS)
+    pendingRetryTimers.set(timerId, () => resolve(false))
+  })
+}
+
 function preloadAndDecodeUrl(url: string): Promise<boolean> {
   const cleanUrl = url.trim()
   if (!cleanUrl) return Promise.resolve(false)
 
   if (projectorImageDecoded.has(cleanUrl) && projectorImageCache.has(cleanUrl)) {
+    touchProjectorImageCache(cleanUrl)
     return Promise.resolve(true)
   }
 
@@ -116,24 +163,28 @@ function preloadAndDecodeUrl(url: string): Promise<boolean> {
     return existing
   }
 
+  const session = preloadSessionId
+
   const promise = (async (): Promise<boolean> => {
     try {
       const img = await loadAndDecodeImageOnce(cleanUrl)
-      projectorImageCache.set(cleanUrl, img)
-      projectorImageDecoded.add(cleanUrl)
+      if (session !== preloadSessionId) return false
+      touchProjectorImageCache(cleanUrl, img)
       notifyImageStatus(cleanUrl, true)
       return true
     } catch {
-      // Retry once after 1 second without cache-busting parameters
-      await new Promise((r) => setTimeout(r, PRELOAD_RETRY_DELAY_MS))
+      const shouldRetry = await waitForRetryOrCancel(session)
+      if (!shouldRetry || session !== preloadSessionId) return false
       try {
         const retriedImg = await loadAndDecodeImageOnce(cleanUrl)
-        projectorImageCache.set(cleanUrl, retriedImg)
-        projectorImageDecoded.add(cleanUrl)
+        if (session !== preloadSessionId) return false
+        touchProjectorImageCache(cleanUrl, retriedImg)
         notifyImageStatus(cleanUrl, true)
         return true
       } catch {
-        notifyImageStatus(cleanUrl, false)
+        if (session === preloadSessionId) {
+          notifyImageStatus(cleanUrl, false)
+        }
         return false
       }
     } finally {
@@ -146,6 +197,7 @@ function preloadAndDecodeUrl(url: string): Promise<boolean> {
 }
 
 function pumpPreloadQueue(): void {
+  const session = preloadSessionId
   while (
     activePreloadWorkers < PRELOAD_BATCH_CONCURRENCY &&
     projectorLoadQueue.length > 0
@@ -161,34 +213,27 @@ function pumpPreloadQueue(): void {
     activePreloadWorkers++
     void preloadAndDecodeUrl(nextUrl).finally(() => {
       activePreloadWorkers--
-      pumpPreloadQueue()
+      if (session === preloadSessionId) {
+        pumpPreloadQueue()
+      }
     })
   }
 }
 
-function enqueuePlayerPhotosForPreload(players: readonly Player[]): void {
+function enqueuePlayerThumbnailsForPreload(players: readonly Player[]): void {
+  let queuedCount = 0
   for (const player of players) {
-    const primaryUrl = getPlayerPrimaryPhotoUrl(player)
-    if (
-      primaryUrl &&
-      !projectorImageDecoded.has(primaryUrl) &&
-      !projectorImageInFlight.has(primaryUrl) &&
-      !projectorImageQueued.has(primaryUrl)
-    ) {
-      projectorImageQueued.add(primaryUrl)
-      projectorLoadQueue.push(primaryUrl)
-    }
-
-    const thumbUrl = (player.photo_thumb_url || '').trim()
+    if (queuedCount >= MAX_BACKGROUND_THUMB_PRELOADS) break
+    const thumbUrl = getPlayerThumbPhotoUrl(player)
     if (
       thumbUrl &&
-      thumbUrl !== primaryUrl &&
       !projectorImageDecoded.has(thumbUrl) &&
       !projectorImageInFlight.has(thumbUrl) &&
       !projectorImageQueued.has(thumbUrl)
     ) {
       projectorImageQueued.add(thumbUrl)
       projectorLoadQueue.push(thumbUrl)
+      queuedCount++
     }
   }
   pumpPreloadQueue()
@@ -197,8 +242,12 @@ function enqueuePlayerPhotosForPreload(players: readonly Player[]): void {
 function preloadPriorityPlayerUrls(players: readonly (Player | null | undefined)[]): void {
   for (const player of players) {
     const url = getPlayerPrimaryPhotoUrl(player)
-    if (url && !projectorImageDecoded.has(url)) {
-      void preloadAndDecodeUrl(url)
+    if (url) {
+      if (projectorImageDecoded.has(url) && projectorImageCache.has(url)) {
+        touchProjectorImageCache(url)
+      } else {
+        void preloadAndDecodeUrl(url)
+      }
     }
   }
 }
@@ -306,8 +355,7 @@ const ProjectorStagePhoto: React.FC<{
   const handleImgLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const imgEl = e.currentTarget
     if (cleanUrl) {
-      projectorImageCache.set(cleanUrl, imgEl)
-      projectorImageDecoded.add(cleanUrl)
+      touchProjectorImageCache(cleanUrl, imgEl)
     }
     setIsLoaded(true)
     setHasFailed(false)
@@ -357,6 +405,8 @@ const ProjectorStagePhoto: React.FC<{
           key={`${cleanUrl}-${retryTick}`}
           src={cleanUrl}
           alt={name}
+          width={320}
+          height={384}
           referrerPolicy="no-referrer"
           loading="eager"
           fetchPriority={priority ? 'high' : 'auto'}
@@ -376,34 +426,6 @@ const ProjectorStagePhoto: React.FC<{
  * Merges public_teams (name, short_code, color, logo_url, sport, owner_display_name)
  * with teams (starting_purse, current_purse).
  */
-function mergeTeamsWithPublicView(pubTeams: PublicTeam[], fullTeams: Team[]): Team[] {
-  const fullMap = new Map<string, Team>()
-  for (const ft of fullTeams) {
-    fullMap.set(ft.id, ft)
-  }
-
-  if (pubTeams.length > 0) {
-    return pubTeams.map((pt) => {
-      const ft = fullMap.get(pt.id)
-      return {
-        id: pt.id,
-        season_id: pt.season_id,
-        sport: pt.sport || ft?.sport || 'Cricket',
-        name: pt.name || ft?.name || 'Team',
-        short_code: pt.short_code || ft?.short_code || 'TM',
-        color: pt.color || ft?.color || '#10B981',
-        logo_url: pt.logo_url || ft?.logo_url,
-        owner_display_name: pt.owner_display_name ?? ft?.owner_display_name,
-        starting_purse: ft?.starting_purse ?? 0,
-        current_purse: ft?.current_purse ?? 0,
-        created_at: pt.created_at ?? ft?.created_at
-      }
-    })
-  }
-
-  return fullTeams
-}
-
 /**
  * Quick count-up and vertical flip/settle for live bid changes in AUCTION mode,
  * driven by bid_update_ms from auction_settings.
@@ -661,6 +683,9 @@ const TeamsAndPursesSceneContent: React.FC<{
               <img
                 src={team.logo_url}
                 alt={team.name}
+                width={80}
+                height={80}
+                decoding="async"
                 referrerPolicy="no-referrer"
                 className="w-full h-full object-cover"
               />
@@ -736,10 +761,13 @@ const TeamsAndPursesSceneContent: React.FC<{
                 <div
                   className={`${thumbSize} rounded-lg bg-surface-2 border border-border overflow-hidden shrink-0 flex items-center justify-center`}
                 >
-                  {player.photo_url || player.photo_thumb_url ? (
+                  {player.photo_thumb_url || player.photo_url ? (
                     <img
-                      src={player.photo_url || player.photo_thumb_url}
+                      src={player.photo_thumb_url || player.photo_url}
                       alt={player.name}
+                      width={56}
+                      height={56}
+                      decoding="async"
                       referrerPolicy="no-referrer"
                       loading="eager"
                       className="w-full h-full object-cover"
@@ -1000,115 +1028,173 @@ export const ProjectorPage: React.FC = () => {
     }
   }, [])
 
-  // Helper to fetch all projector data for a season (public_players + players, public_teams + teams, auction_settings, projector_state)
+  const isMountedRef = useRef(true)
+  const activeSeasonIdRef = useRef<string | null>(null)
+  const subscribedSeasonIdRef = useRef<string | null>(null)
+  const channelUnsubsRef = useRef<Array<() => void>>([])
+  const handleIncomingProjectorStateRef = useRef(handleIncomingProjectorState)
+  handleIncomingProjectorStateRef.current = handleIncomingProjectorState
+
+  const teardownSeasonChannels = useCallback(() => {
+    const unsubs = channelUnsubsRef.current
+    channelUnsubsRef.current = []
+    subscribedSeasonIdRef.current = null
+    for (const unsub of unsubs) {
+      try {
+        unsub()
+      } catch {
+        // ignore cleanup error
+      }
+    }
+  }, [])
+
+  const subscribeSeasonChannels = useCallback(
+    (seasonId: string) => {
+      if (!seasonId || !isMountedRef.current) return
+      if (subscribedSeasonIdRef.current === seasonId) return
+
+      teardownSeasonChannels()
+      subscribedSeasonIdRef.current = seasonId
+
+      const unsubProjector = subscribeToProjector(seasonId, (newState) => {
+        if (isMountedRef.current && activeSeasonIdRef.current === seasonId) {
+          handleIncomingProjectorStateRef.current(newState)
+        }
+      })
+
+      const unsubSettings = subscribeToAuctionSettings(seasonId, (newSettings) => {
+        if (isMountedRef.current && activeSeasonIdRef.current === seasonId) {
+          setAuctionSettings(newSettings)
+          auctionSettingsRef.current = newSettings
+        }
+      })
+
+      const unsubTeams = subscribeToTeams(seasonId, (newFullTeams) => {
+        if (isMountedRef.current && activeSeasonIdRef.current === seasonId) {
+          setTeams(newFullTeams)
+        }
+      })
+
+      const unsubPlayers = subscribeToPlayers(seasonId, (newPlayers) => {
+        if (isMountedRef.current && activeSeasonIdRef.current === seasonId) {
+          setPlayers(newPlayers)
+        }
+      })
+
+      channelUnsubsRef.current = [unsubProjector, unsubSettings, unsubTeams, unsubPlayers]
+    },
+    [teardownSeasonChannels]
+  )
+
+  // Helper to fetch all projector data for a season without repeating getSeasons or public_teams
   const refetchSeasonData = useCallback(
-    async (seasonId: string) => {
+    async (seasonId: string, options?: { checkSeasonChange?: boolean }) => {
       if (!seasonId) return
       try {
-        const [seasonsList, latestPState, latestSettings, pubTeams, fullTeams, latestPlayers] =
-          await Promise.all([
-            getSeasons().catch(() => []),
-            getProjectorState(seasonId),
-            getAuctionSettings(seasonId),
-            getPublicTeams(seasonId).catch(() => []),
-            getTeams(seasonId).catch(() => []),
-            getPlayers(seasonId)
-          ])
-
-        const updatedSeason =
-          seasonsList.find((s) => s.id === seasonId) ||
-          seasonsList.find((s) => s.is_active) ||
-          null
-        if (updatedSeason) {
-          setActiveSeason(updatedSeason)
+        let targetSeasonId = seasonId
+        if (options?.checkSeasonChange) {
+          const seasonsList = await getSeasons().catch(() => [])
+          if (!isMountedRef.current) return
+          const active = seasonsList.find((s) => s.is_active) || seasonsList[0] || null
+          if (active) {
+            setActiveSeason(active)
+            if (active.id !== activeSeasonIdRef.current) {
+              activeSeasonIdRef.current = active.id
+              targetSeasonId = active.id
+              subscribeSeasonChannels(active.id)
+            }
+          }
         }
+
+        const [latestPState, latestSettings, fullTeams, latestPlayers] = await Promise.all([
+          getProjectorState(targetSeasonId),
+          getAuctionSettings(targetSeasonId),
+          getTeams(targetSeasonId).catch(() => []),
+          getPlayers(targetSeasonId)
+        ])
+
+        if (!isMountedRef.current || activeSeasonIdRef.current !== targetSeasonId) return
+
         setAuctionSettings(latestSettings)
         auctionSettingsRef.current = latestSettings
-        setTeams(mergeTeamsWithPublicView(pubTeams, fullTeams))
+        setTeams(fullTeams)
         setPlayers(latestPlayers)
-        handleIncomingProjectorState(latestPState, latestSettings)
+        handleIncomingProjectorStateRef.current(latestPState, latestSettings)
       } catch (err) {
         console.error('Projector refetchSeasonData error:', err)
       }
     },
-    [handleIncomingProjectorState]
+    [subscribeSeasonChannels]
   )
 
-  // Initial load and realtime subscriptions
+  const switchActiveSeason = useCallback(
+    async (nextSeason: Season | null) => {
+      if (!isMountedRef.current) return
+      const prevSeasonId = activeSeasonIdRef.current
+      activeSeasonIdRef.current = nextSeason?.id ?? null
+      setActiveSeason(nextSeason)
+
+      if (!nextSeason) {
+        teardownSeasonChannels()
+        return
+      }
+
+      if (prevSeasonId !== nextSeason.id) {
+        await refetchSeasonData(nextSeason.id)
+        if (!isMountedRef.current || activeSeasonIdRef.current !== nextSeason.id) return
+        subscribeSeasonChannels(nextSeason.id)
+      }
+    },
+    [refetchSeasonData, subscribeSeasonChannels, teardownSeasonChannels]
+  )
+
+  const switchActiveSeasonRef = useRef(switchActiveSeason)
+  switchActiveSeasonRef.current = switchActiveSeason
+
+  // Initial load and realtime subscriptions — runs strictly once per mount
   useEffect(() => {
-    let unsubProjector = () => {}
-    let unsubTeams = () => {}
-    let unsubPlayers = () => {}
-    let unsubSettings = () => {}
-    let isMounted = true
+    isMountedRef.current = true
 
     async function init() {
       try {
         const seasonsList = await getSeasons()
         const active = seasonsList.find((s) => s.is_active) || seasonsList[0] || null
-        if (!isMounted) return
+        if (!isMountedRef.current) return
+        activeSeasonIdRef.current = active?.id ?? null
         setActiveSeason(active)
 
         if (active) {
           await refetchSeasonData(active.id)
-          if (!isMounted) return
-
-          // Realtime subscriptions (also refetch automatically when status === 'SUBSCRIBED')
-          unsubProjector = subscribeToProjector(active.id, (newState) => {
-            if (isMounted) handleIncomingProjectorState(newState)
-          })
-
-          unsubSettings = subscribeToAuctionSettings(active.id, (newSettings) => {
-            if (isMounted) {
-              setAuctionSettings(newSettings)
-              auctionSettingsRef.current = newSettings
-            }
-          })
-
-          unsubTeams = subscribeToTeams(active.id, async (newFullTeams) => {
-            try {
-              const pubTeams = await getPublicTeams(active.id).catch(() => [])
-              if (isMounted) {
-                setTeams(mergeTeamsWithPublicView(pubTeams, newFullTeams))
-              }
-            } catch {
-              if (isMounted) setTeams(newFullTeams)
-            }
-          })
-
-          unsubPlayers = subscribeToPlayers(active.id, (newPlayers) => {
-            if (isMounted) setPlayers(newPlayers)
-          })
+          if (!isMountedRef.current || activeSeasonIdRef.current !== active.id) return
+          subscribeSeasonChannels(active.id)
         }
       } catch (err) {
         console.error('Projector init error:', err)
       }
     }
 
-    init()
+    void init()
 
     return () => {
-      isMounted = false
-      unsubProjector()
-      unsubSettings()
-      unsubTeams()
-      unsubPlayers()
+      isMountedRef.current = false
+      teardownSeasonChannels()
     }
-  }, [activeSeason?.id, handleIncomingProjectorState, refetchSeasonData])
+  }, [refetchSeasonData, subscribeSeasonChannels, teardownSeasonChannels])
 
   // Refetch when tab becomes visible or browser comes back online
   useEffect(() => {
-    const seasonId = activeSeason?.id
-    if (!seasonId) return
-
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        refetchSeasonData(seasonId)
+      const seasonId = activeSeasonIdRef.current
+      if (document.visibilityState === 'visible' && seasonId) {
+        void refetchSeasonData(seasonId, { checkSeasonChange: true })
       }
     }
 
     const handleOnline = () => {
-      refetchSeasonData(seasonId)
+      const seasonId = activeSeasonIdRef.current
+      if (seasonId) {
+        void refetchSeasonData(seasonId, { checkSeasonChange: true })
+      }
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -1118,7 +1204,7 @@ export const ProjectorPage: React.FC = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('online', handleOnline)
     }
-  }, [activeSeason?.id, refetchSeasonData])
+  }, [refetchSeasonData])
 
   const toggleFullscreen = async () => {
     try {
@@ -1134,10 +1220,14 @@ export const ProjectorPage: React.FC = () => {
     }
   }
 
-  // Preload all player photos in the active season in batches of 4 whenever player list loads or changes
+  // Preload thumbnails in the background (capped within LRU budget) and cancel pending loads on unmount
   useEffect(() => {
-    if (players.length === 0) return
-    enqueuePlayerPhotosForPreload(players)
+    if (players.length > 0) {
+      enqueuePlayerThumbnailsForPreload(players)
+    }
+    return () => {
+      cancelPendingProjectorPreloads()
+    }
   }, [players])
 
   // Active scene entities
@@ -1252,7 +1342,7 @@ export const ProjectorPage: React.FC = () => {
           .then((seasonsList) => {
             const active = seasonsList.find((s) => s.is_active) || seasonsList[0] || null
             if (active) {
-              setActiveSeason(active)
+              void switchActiveSeasonRef.current(active)
             }
           })
           .catch(() => {})
@@ -1845,6 +1935,9 @@ export const ProjectorPage: React.FC = () => {
                                 <img
                                   src={leadingTeam.logo_url}
                                   alt={leadingTeam.name}
+                                  width={80}
+                                  height={80}
+                                  decoding="async"
                                   referrerPolicy="no-referrer"
                                   className="w-full h-full object-cover"
                                 />
@@ -1950,6 +2043,9 @@ export const ProjectorPage: React.FC = () => {
                           <img
                             src={soldPlayer.photo_url || soldPlayer.photo_thumb_url}
                             alt={soldPlayer.name}
+                            width={288}
+                            height={352}
+                            decoding="async"
                             referrerPolicy="no-referrer"
                             className="w-full h-full object-cover"
                           />
@@ -1999,6 +2095,9 @@ export const ProjectorPage: React.FC = () => {
                                 <img
                                   src={soldTeam.logo_url}
                                   alt={soldTeam.name}
+                                  width={64}
+                                  height={64}
+                                  decoding="async"
                                   referrerPolicy="no-referrer"
                                   className="w-full h-full object-cover"
                                 />

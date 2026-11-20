@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { PROJECTOR_AUTO_FILTERS, PROJECTOR_AUTO_INTERVAL } from '../lib/constants'
-import { parseAthleteCode } from '../lib/data'
+import { parseAthleteCode } from '../lib/data/client'
 import type { Player, Team } from '../types'
 
 export interface AutoSlideshowResult<T> {

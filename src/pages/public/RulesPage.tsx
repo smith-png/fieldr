@@ -12,11 +12,11 @@ import { SiteFooter } from '../../components/layout/SiteFooter'
 import { SkeletonBlock } from '../../components/ui'
 import {
   formatRulesDate,
-  getActiveSeason,
   getRulesDocuments,
   getRulesPublicUrl,
   getSafeRulesDownloadFilename
-} from '../../lib/data'
+} from '../../lib/data/rules'
+import { getActiveSeason } from '../../lib/data/seasons'
 import { hasDataChanged, publicCache } from '../../lib/publicCache'
 import {
   isQueryFresh,
@@ -56,7 +56,9 @@ export const RulesPage: React.FC = () => {
     async function loadData() {
       try {
         const [season, docs] = await Promise.all([
-          getActiveSeason(),
+          publicCache.activeSeason.loaded
+            ? Promise.resolve(publicCache.activeSeason.value)
+            : getActiveSeason(),
           getRulesDocuments()
         ])
 

@@ -1,18 +1,16 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowDown, ArrowUpRight } from '@phosphor-icons/react'
-import { motion, useReducedMotion } from 'motion/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { HomeBackdrop } from '../../components/home/HomeBackdrop'
 import { TickerStrip } from '../../components/home/TickerStrip'
+import { SportCardsGrid } from '../../components/home/SportCardsGrid'
+import { SiteFooter } from '../../components/layout/SiteFooter'
 import { ErrorBoundary } from '../../components/layout/ErrorBoundary'
 import {
   DEFAULT_TICKER_SPEED,
   FALLBACK_CAROUSEL_TEXTS,
-  getActiveSeason,
   getCarouselItems,
-  getPublicPlayerSportRows,
-  getSports,
   getTickerSpeedSetting,
   isHomeCacheFresh,
   normalizeTickerSpeed,
@@ -22,30 +20,22 @@ import {
   sanitizeTickerTexts,
   writeCachedPublicHome,
   writeCachedPublicTicker
-} from '../../lib/data'
+} from '../../lib/data/site'
+import { getActiveSeason } from '../../lib/data/seasons'
+import { getPublicPlayerSportRows } from '../../lib/data/players'
+import { getSports } from '../../lib/data/teams'
 import { hasDataChanged, publicCache } from '../../lib/publicCache'
 import { prefetchRoute } from '../../lib/queryCache'
 import { matchesSport } from '../../lib/utils'
 import type { Season, Sport } from '../../types'
 import type { SportSlug } from '../../lib/sports'
 
-const LazyNavigationMenu = React.lazy(() =>
+const loadNavigationMenu = () =>
   import('../../components/layout/NavigationMenu').then((m) => ({
     default: m.NavigationMenu
   }))
-)
 
-const LazySportCardsGrid = React.lazy(() =>
-  import('../../components/home/SportCardsGrid').then((m) => ({
-    default: m.SportCardsGrid
-  }))
-)
-
-const LazySiteFooter = React.lazy(() =>
-  import('../../components/layout/SiteFooter').then((m) => ({
-    default: m.SiteFooter
-  }))
-)
+const LazyNavigationMenu = React.lazy(loadNavigationMenu)
 
 const DEFAULT_COUNTS: Record<SportSlug, number> = {
   cricket: 0,
@@ -164,15 +154,75 @@ export const HomePage: React.FC = () => {
     )
   )
   const [sports, setSports] = useState<Sport[]>(initialSports)
-  const shouldReduceMotion = useReducedMotion()
+  const [shouldReduceMotion, setShouldReduceMotion] = useState<boolean>(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : false
+  )
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const onChange = () => setShouldReduceMotion(mq.matches)
+    onChange()
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', onChange)
+      return () => mq.removeEventListener('change', onChange)
+    }
+    mq.addListener(onChange)
+    return () => mq.removeListener(onChange)
+  }, [])
 
   const [animateHeroEntrance] = useState<boolean>(() => !hasPlayedHomeHeroEntrance)
   useEffect(() => {
     hasPlayedHomeHeroEntrance = true
   }, [])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const prefetchMenu = () => {
+      void loadNavigationMenu().catch(() => {})
+    }
+    const win = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number
+      cancelIdleCallback?: (id: number) => void
+    }
+    if (typeof win.requestIdleCallback === 'function') {
+      const id = win.requestIdleCallback(prefetchMenu, { timeout: 2000 })
+      return () => {
+        if (typeof win.cancelIdleCallback === 'function') {
+          win.cancelIdleCallback(id)
+        }
+      }
+    }
+    const timer = window.setTimeout(prefetchMenu, 1200)
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [])
+
   const heroParallaxRef = useRef<HTMLDivElement>(null)
   const parallaxFrameRef = useRef<number | null>(null)
+  const supportsFineHoverRef = useRef<boolean>(
+    typeof window === 'undefined' || typeof window.matchMedia !== 'function'
+      ? true
+      : window.matchMedia('(hover: hover) and (pointer: fine)').matches
+  )
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+    const mq = window.matchMedia('(hover: hover) and (pointer: fine)')
+    const syncPointer = () => {
+      supportsFineHoverRef.current = mq.matches
+    }
+    syncPointer()
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', syncPointer)
+      return () => mq.removeEventListener('change', syncPointer)
+    }
+    mq.addListener(syncPointer)
+    return () => mq.removeListener(syncPointer)
+  }, [])
 
   useEffect(() => {
     if (shouldReduceMotion && heroParallaxRef.current) {
@@ -382,9 +432,7 @@ export const HomePage: React.FC = () => {
       if (
         shouldReduceMotion ||
         !heroParallaxRef.current ||
-        (typeof window !== 'undefined' &&
-          window.matchMedia &&
-          !window.matchMedia('(hover: hover) and (pointer: fine)').matches)
+        !supportsFineHoverRef.current
       ) {
         return
       }
@@ -491,19 +539,15 @@ export const HomePage: React.FC = () => {
             >
               {HERO_LINES.map((line, index) => (
                 <div key={line} className="overflow-hidden w-full max-w-full py-0.5 pr-2">
-                  <motion.h1
-                    initial={shouldAnimateReveal ? { y: '105%' } : false}
-                    animate={{ y: '0%' }}
-                    transition={
-                      shouldAnimateReveal
-                        ? {
-                            duration: 0.85,
-                            delay: index * 0.1,
-                            ease: [0.22, 1, 0.36, 1]
-                          }
-                        : { duration: 0 }
+                  <h1
+                    style={
+                      shouldAnimateReveal && index > 0
+                        ? { animationDelay: `${index * 0.1}s` }
+                        : undefined
                     }
                     className={`font-syne font-extrabold uppercase text-left text-[clamp(2.2rem,9.5vw,4.75rem)] lg:text-[clamp(4.25rem,7.4vw,6.25rem)] tracking-[-0.04em] leading-[0.9] lg:leading-[0.88] whitespace-nowrap ${
+                      shouldAnimateReveal ? 'animate-hero-line' : ''
+                    } ${
                       index === 2
                         ? 'text-text'
                         : index === 1
@@ -512,7 +556,7 @@ export const HomePage: React.FC = () => {
                     }`}
                   >
                     {line}
-                  </motion.h1>
+                  </h1>
                 </div>
               ))}
             </div>
@@ -571,36 +615,18 @@ export const HomePage: React.FC = () => {
       {/* Rosters Section wrapped in ErrorBoundary */}
       <ErrorBoundary name="RostersSection" fallback={null}>
         <div className="relative z-10">
-          <Suspense
-            fallback={
-              <section
-                aria-hidden="true"
-                className="w-full max-w-7xl mx-auto px-6 md:px-16 lg:px-24 py-16 md:py-24 min-h-[1120px] md:min-h-[540px]"
-              />
-            }
-          >
-            <LazySportCardsGrid
-              playerCounts={playerCounts}
-              sports={sports}
-              countsLoaded={hasLoadedCounts}
-            />
-          </Suspense>
+          <SportCardsGrid
+            playerCounts={playerCounts}
+            sports={sports}
+            countsLoaded={hasLoadedCounts}
+          />
         </div>
       </ErrorBoundary>
 
       {/* Calm, unpinned site footer wrapped in ErrorBoundary */}
       <ErrorBoundary name="FooterSection" fallback={null}>
         <div className="relative z-10">
-          <Suspense
-            fallback={
-              <footer
-                aria-hidden="true"
-                className="border-t border-border py-12 px-6 md:px-16 lg:px-24 bg-[#F1F1F2] dark:bg-[#171817] min-h-[148px] md:min-h-[121px]"
-              />
-            }
-          >
-            <LazySiteFooter />
-          </Suspense>
+          <SiteFooter />
         </div>
       </ErrorBoundary>
     </div>

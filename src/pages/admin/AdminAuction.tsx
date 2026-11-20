@@ -792,9 +792,9 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
           Below 768px: single column in order Header -> Stage -> Queue -> Bid History -> Recent Sales. */}
       <div className="grid grid-cols-1 md:grid-cols-12 md:grid-rows-[auto_auto_1fr] gap-5 lg:gap-6 items-start">
         {/* 1. HEADER */}
-        <header className="md:col-start-1 md:col-span-8 md:row-start-1 min-w-0 rounded-3xl bg-surface border border-border p-5 sm:p-6 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+        <header className="md:col-start-1 md:col-span-8 md:row-start-1 min-w-0 rounded-3xl bg-surface border border-border p-5 sm:p-6 shadow-sm flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-3 min-w-0">
-            <h1 className="font-syne font-extrabold text-2xl sm:text-3xl text-text tracking-tight">
+            <h1 className="font-syne font-extrabold text-2xl sm:text-3xl text-text tracking-tight whitespace-nowrap">
               Auction Room
             </h1>
             <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-2 border border-border font-mono text-xs uppercase tracking-[0.14em] font-semibold text-text shrink-0">
@@ -807,48 +807,50 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
           </div>
 
           {/* Sport Tabs Segmented Control */}
-          <div
-            role="tablist"
-            aria-label="Select Auction Sport"
-            className="inline-flex flex-wrap items-center gap-1 bg-surface-2 p-1.5 rounded-full border border-border self-start xl:self-auto"
-          >
-            {sports.map((sport) => {
-              const isSelected =
-                sport.name.toLowerCase() === selectedSportName.toLowerCase() ||
-                sport.id.toLowerCase() === selectedSportName.toLowerCase()
-              const availableCount = players.filter(
-                (p) =>
-                  (p.sport.toLowerCase() === sport.name.toLowerCase() ||
-                    p.sport.toLowerCase() === sport.id.toLowerCase()) &&
-                  (p.status === 'available' || p.status === 'unsold')
-              ).length
+          <div className="w-fit max-w-full overflow-x-auto thin-scrollbar rounded-full bg-surface-2 border border-border">
+            <div
+              role="tablist"
+              aria-label="Select Auction Sport"
+              className="flex flex-nowrap items-center gap-1 p-1 w-max"
+            >
+              {sports.map((sport) => {
+                const isSelected =
+                  sport.name.toLowerCase() === selectedSportName.toLowerCase() ||
+                  sport.id.toLowerCase() === selectedSportName.toLowerCase()
+                const availableCount = players.filter(
+                  (p) =>
+                    (p.sport.toLowerCase() === sport.name.toLowerCase() ||
+                      p.sport.toLowerCase() === sport.id.toLowerCase()) &&
+                    (p.status === 'available' || p.status === 'unsold')
+                ).length
 
-              return (
-                <button
-                  key={sport.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={isSelected}
-                  onClick={() => setSelectedSportName(sport.name)}
-                  className={`min-h-[44px] px-4 py-2 rounded-full text-sm font-sans transition-[opacity,transform] duration-150 active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100 inline-flex items-center gap-2 cursor-pointer ${
-                    isSelected
-                      ? 'bg-btn-bg text-btn-fg font-medium'
-                      : 'text-muted hover:text-text font-normal'
-                  }`}
-                >
-                  <span>{sport.name}</span>
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-xs font-mono tabular-nums ${
+                return (
+                  <button
+                    key={sport.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={isSelected}
+                    onClick={() => setSelectedSportName(sport.name)}
+                    className={`h-9 px-3.5 rounded-full text-sm font-sans leading-none shrink-0 whitespace-nowrap transition-[opacity,transform] duration-150 active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100 inline-flex items-center justify-center gap-2 cursor-pointer ${
                       isSelected
-                        ? 'bg-surface/20 text-btn-fg'
-                        : 'bg-surface border border-border text-muted'
+                        ? 'bg-btn-bg text-btn-fg font-medium'
+                        : 'text-muted hover:text-text font-normal'
                     }`}
                   >
-                    {availableCount}
-                  </span>
-                </button>
-              )
-            })}
+                    <span>{sport.name}</span>
+                    <span
+                      className={`inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-full border text-xs font-mono tabular-nums leading-none ${
+                        isSelected
+                          ? 'bg-surface/20 border-transparent text-btn-fg'
+                          : 'bg-surface border-border text-muted'
+                      }`}
+                    >
+                      {availableCount}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
         </header>
 

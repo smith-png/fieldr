@@ -1,6 +1,6 @@
 import React from 'react'
 import type { PublicPlayer, PublicTeam } from '../../types'
-import { formatAthleteCode } from '../../lib/data'
+import { formatAthleteCode } from '../../lib/data/client'
 import { getInitials } from '../../lib/utils'
 
 export interface RosterPlayerCardProps {
@@ -8,19 +8,24 @@ export interface RosterPlayerCardProps {
   team?: PublicTeam | null
   otherSports?: string[]
   onClick?: () => void
+  onSelect?: (player: PublicPlayer) => void
 }
 
-export const RosterPlayerCard: React.FC<RosterPlayerCardProps> = ({
+const EMPTY_SPORTS: string[] = []
+
+const RosterPlayerCardInner: React.FC<RosterPlayerCardProps> = ({
   player,
   team,
-  otherSports = [],
-  onClick
+  otherSports = EMPTY_SPORTS,
+  onClick,
+  onSelect
 }) => {
   const formattedCode = formatAthleteCode(player.athlete_code || player.player_code)
+  const handleClick = onSelect ? () => onSelect(player) : onClick
 
   return (
     <div
-      onClick={onClick}
+      onClick={handleClick}
       className="group bg-surface border border-border hover:border-accent-bright rounded-xl p-5 text-left transition-colors flex flex-col justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright cursor-pointer"
     >
       <div className="flex items-start gap-3.5 mb-3">
@@ -98,3 +103,5 @@ export const RosterPlayerCard: React.FC<RosterPlayerCardProps> = ({
     </div>
   )
 }
+
+export const RosterPlayerCard = React.memo(RosterPlayerCardInner)

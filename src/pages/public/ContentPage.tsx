@@ -7,7 +7,8 @@ import { SiteFooter } from '../../components/layout/SiteFooter'
 import { CreditsSection } from '../../components/credits/CreditsSection'
 import { MarkdownContent } from '../../components/common/MarkdownContent'
 import { SkeletonText } from '../../components/ui'
-import { getActiveSeason, getSiteSettings } from '../../lib/data'
+import { getActiveSeason } from '../../lib/data/seasons'
+import { getSiteSettings } from '../../lib/data/site'
 import { hasDataChanged, publicCache } from '../../lib/publicCache'
 import {
   isQueryFresh,
@@ -72,7 +73,9 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
     async function loadData() {
       try {
         const [season, settings] = await Promise.all([
-          getActiveSeason(),
+          publicCache.activeSeason.loaded
+            ? Promise.resolve(publicCache.activeSeason.value)
+            : getActiveSeason(),
           getSiteSettings()
         ])
 

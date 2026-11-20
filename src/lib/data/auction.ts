@@ -754,7 +754,7 @@ const supabaseAuctionService: AuctionService = {
 
     const { data, error } = await supabase
       .from('auction_sales')
-      .select('*')
+      .select('id, season_id, player_id, team_id, price, reversed_at, created_at')
       .eq('season_id', seasonId)
       .is('reversed_at', null)
       .order('created_at', { ascending: false })
@@ -777,7 +777,7 @@ const supabaseAuctionService: AuctionService = {
 
     const { data: fallbackData, error: fallbackError } = await supabase
       .from('auction_sales')
-      .select('*')
+      .select('id, player_id, team_id, price, reversed_at, created_at')
       .is('reversed_at', null)
       .order('created_at', { ascending: false })
       .limit(limit)

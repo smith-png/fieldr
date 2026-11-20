@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Funnel } from '@phosphor-icons/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
@@ -6,13 +6,9 @@ import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
 import { RosterPlayerCard, RosterScoutModal } from '../../components/roster'
 import { SkeletonCard } from '../../components/ui'
-import {
-  getActiveSeason,
-  getPublicPlayersPaged,
-  getPublicTeams,
-  getRolesForSport,
-  getSports
-} from '../../lib/data'
+import { getActiveSeason } from '../../lib/data/seasons'
+import { getPublicPlayersPaged } from '../../lib/data/players'
+import { getPublicTeams, getRolesForSport, getSports } from '../../lib/data/teams'
 import { ACADEMIC_YEAR_VALUES } from '../../lib/academicYears'
 import { hasDataChanged, publicCache } from '../../lib/publicCache'
 import {
@@ -128,7 +124,9 @@ export const RosterSportPage: React.FC = () => {
       try {
         const knownSeasonId = publicCache.activeSeason.value?.id
         const [season, preloadedTeams] = await Promise.all([
-          getActiveSeason(),
+          publicCache.activeSeason.loaded
+            ? Promise.resolve(publicCache.activeSeason.value)
+            : getActiveSeason(),
           knownSeasonId ? getPublicTeams(knownSeasonId) : Promise.resolve(null)
         ])
         const prevSeason = publicCache.activeSeason.value
@@ -365,6 +363,15 @@ export const RosterSportPage: React.FC = () => {
     return () => observer.disconnect()
   }, [hasMore, isLoading, isFilterLoading, isLoadingMore, players.length, fetchPlayers])
 
+  const teamsById = useMemo(
+    () => new Map(teams.map((t) => [t.id, t])),
+    [teams]
+  )
+
+  const handleSelectPlayer = useCallback((player: PublicPlayer) => {
+    setExpandedPlayer(player)
+  }, [])
+
   if (isSportChecked && !isSportValid) {
     return (
       <div className="min-h-screen bg-bg text-text flex flex-col justify-between">
@@ -522,8 +529,8 @@ export const RosterSportPage: React.FC = () => {
                 <RosterPlayerCard
                   key={player.id}
                   player={player}
-                  team={teams.find((t) => t.id === player.team_id)}
-                  onClick={() => setExpandedPlayer(player)}
+                  team={player.team_id ? teamsById.get(player.team_id) : undefined}
+                  onSelect={handleSelectPlayer}
                 />
               ))}
             </div>
@@ -545,7 +552,7 @@ export const RosterSportPage: React.FC = () => {
       {/* Expanded Player Floating Modal */}
       <RosterScoutModal
         player={expandedPlayer}
-        team={expandedPlayer ? teams.find((t) => t.id === expandedPlayer.team_id) : null}
+        team={expandedPlayer?.team_id ? teamsById.get(expandedPlayer.team_id) ?? null : null}
         onClose={handleCloseModal}
       />
 

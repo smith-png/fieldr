@@ -603,7 +603,7 @@ const supabaseAthletesService: AthletesService = {
           notes: data.notes?.trim() || null
         }
       ])
-      .select()
+      .select(ATHLETE_COLS)
       .single()
 
     if (error) throw new AppError(error.message, { original: error })
@@ -647,7 +647,7 @@ const supabaseAthletesService: AthletesService = {
       .from('athletes')
       .update(payload)
       .eq('id', id)
-      .select()
+      .select(ATHLETE_COLS)
       .single()
 
     if (error) throw new AppError(error.message, { original: error })

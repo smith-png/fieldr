@@ -1,7 +1,6 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowUpRight } from '@phosphor-icons/react'
-import { useReducedMotion } from 'motion/react'
 import { SPORTS, type SportSlug } from '../../lib/sports'
 import { prefetchRoute } from '../../lib/queryCache'
 import type { Sport } from '../../types'
@@ -48,9 +47,26 @@ export const SportCardsGrid: React.FC<SportCardsGridProps> = ({
   playerCounts,
   countsLoaded = true
 }) => {
-  const shouldReduceMotion = useReducedMotion()
+  const [shouldReduceMotion, setShouldReduceMotion] = useState<boolean>(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : false
+  )
   const [loadedMap, setLoadedMap] = useState<Record<string, boolean>>({})
   const [errorMap, setErrorMap] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const onChange = () => setShouldReduceMotion(mq.matches)
+    onChange()
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', onChange)
+      return () => mq.removeEventListener('change', onChange)
+    }
+    mq.addListener(onChange)
+    return () => mq.removeListener(onChange)
+  }, [])
 
   const handleImageLoaded = (slug: SportSlug) => {
     setLoadedMap((prev) => (prev[slug] ? prev : { ...prev, [slug]: true }))

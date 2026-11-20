@@ -10,7 +10,7 @@ import {
 } from '@phosphor-icons/react'
 import { BrandMark } from '../../components/layout/BrandMark'
 import { Button, SkeletonBlock } from '../../components/ui'
-import { supabase } from '../../lib/data'
+import { supabase } from '../../lib/data/client'
 import { prefetchRoute } from '../../lib/queryCache'
 
 const HANDBOOK_SESSION_KEY = 'fieldr_handbook_access_code'

@@ -1097,7 +1097,7 @@ const supabasePlayersService: PlayersServiceWithRefund = {
     markLocalMutation(['players', 'athletes', 'auction'])
     const { data: pState } = await supabase
       .from('projector_state')
-      .select('*')
+      .select('season_id, player_id')
       .eq('player_id', id)
       .maybeSingle()
 
@@ -1150,7 +1150,9 @@ const supabasePlayersService: PlayersServiceWithRefund = {
 
     const { data: updatedTeam, error: tErr } = await supabase
       .from('teams')
-      .select('*')
+      .select(
+        'id, season_id, sport, name, short_code, color, logo_url, owner_display_name, owner_photo_url, owner_user_id, starting_purse, current_purse, created_at'
+      )
       .eq('id', teamId)
       .single()
     if (tErr || !updatedTeam) {
@@ -1197,7 +1199,9 @@ const supabasePlayersService: PlayersServiceWithRefund = {
     if (prevTeamId) {
       const { data: t } = await supabase
         .from('teams')
-        .select('*')
+        .select(
+          'id, season_id, sport, name, short_code, color, logo_url, owner_display_name, owner_photo_url, owner_user_id, starting_purse, current_purse, created_at'
+        )
         .eq('id', prevTeamId)
         .single()
       if (t) updatedTeam = t as Team

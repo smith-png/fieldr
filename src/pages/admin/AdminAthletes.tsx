@@ -218,19 +218,23 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
   // Debounced (500ms) realtime subscription for external changes; cancelled on unmount
   const onRealtimeUpdateRef = useRef(onRealtimeUpdate)
   onRealtimeUpdateRef.current = onRealtimeUpdate
+  const loadAthletesRef = useRef(loadAthletes)
+  loadAthletesRef.current = loadAthletes
+  const openAthleteDetailRef = useRef(openAthleteDetail)
+  openAthleteDetailRef.current = openAthleteDetail
 
   useEffect(() => {
     const unsubscribe = subscribeToAthletes(() => {
-      void loadAthletes({ force: true })
+      void loadAthletesRef.current({ force: true })
       if (selectedAthleteRef.current) {
-        openAthleteDetail(selectedAthleteRef.current, { silent: true })
+        void openAthleteDetailRef.current(selectedAthleteRef.current, { silent: true })
       }
       onRealtimeUpdateRef.current?.()
     })
     return () => {
       unsubscribe()
     }
-  }, [loadAthletes, openAthleteDetail])
+  }, [])
 
   const openCreateForm = useCallback(() => {
     setEditingAthlete(null)

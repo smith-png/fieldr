@@ -11,7 +11,9 @@ import {
   SkeletonCard,
   SkeletonText
 } from '../../components/ui'
-import { getAthleteByCode, getAthleteCareer, formatAthleteCode, getActiveSeason } from '../../lib/data'
+import { getAthleteByCode, getAthleteCareer } from '../../lib/data/athletes'
+import { formatAthleteCode } from '../../lib/data/client'
+import { getActiveSeason } from '../../lib/data/seasons'
 import { hasDataChanged, publicCache, type PlayerProfileCacheEntry } from '../../lib/publicCache'
 import {
   isQueryFresh,
@@ -63,7 +65,9 @@ export const PlayerProfilePage: React.FC = () => {
 
     try {
       const [active, profile] = await Promise.all([
-        getActiveSeason(),
+        publicCache.activeSeason.loaded && !options?.force
+          ? Promise.resolve(publicCache.activeSeason.value)
+          : getActiveSeason(),
         getAthleteByCode(code)
       ])
       const prevActive = publicCache.activeSeason.value
@@ -175,9 +179,9 @@ export const PlayerProfilePage: React.FC = () => {
             <div className="p-6 sm:p-8 rounded-3xl bg-surface border border-border shadow-sm flex flex-col sm:flex-row items-center sm:items-start gap-6">
               {/* Photo */}
               <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden bg-surface-2 border border-border shrink-0 flex items-center justify-center">
-                {athlete.photo_url || athlete.photo_thumb_url ? (
+                {athlete.photo_thumb_url || athlete.photo_url ? (
                   <img
-                    src={athlete.photo_url || athlete.photo_thumb_url}
+                    src={athlete.photo_thumb_url || athlete.photo_url}
                     alt={athlete.name}
                     width={112}
                     height={112}

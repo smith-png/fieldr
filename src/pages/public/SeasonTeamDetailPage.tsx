@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowsClockwise,
@@ -19,16 +19,10 @@ import {
   SkeletonText
 } from '../../components/ui'
 import { RosterPlayerCard } from '../../components/roster/RosterPlayerCard'
-import {
-  formatAthleteCode,
-  getActiveSeason,
-  getPublicPlayersBySeason,
-  getPublicTeams,
-  getRolesForSport,
-  getSeason,
-  getSports,
-  supabase
-} from '../../lib/data'
+import { formatAthleteCode, supabase } from '../../lib/data/client'
+import { getActiveSeason, getSeason } from '../../lib/data/seasons'
+import { getPublicPlayersBySeason } from '../../lib/data/players'
+import { getPublicTeams, getRolesForSport, getSports } from '../../lib/data/teams'
 import {
   hasDataChanged,
   publicCache,
@@ -205,7 +199,9 @@ export const SeasonTeamDetailPage: React.FC = () => {
 
     try {
       const [active, s, publicTeams, seasonPlayers, allSports] = await Promise.all([
-        getActiveSeason(),
+        publicCache.activeSeason.loaded && !options?.force
+          ? Promise.resolve(publicCache.activeSeason.value)
+          : getActiveSeason(),
         getSeason(id),
         getPublicTeams(id),
         getPublicPlayersBySeason(id),
@@ -286,6 +282,20 @@ export const SeasonTeamDetailPage: React.FC = () => {
       setIsLoading(false)
     }
   }
+
+  const sportsByAthleteId = useMemo(() => {
+    const map = new Map<string, string[]>()
+    for (const player of allPlayers) {
+      if (!player.athlete_id) continue
+      const existing = map.get(player.athlete_id)
+      if (existing) {
+        existing.push(player.sport)
+      } else {
+        map.set(player.athlete_id, [player.sport])
+      }
+    }
+    return map
+  }, [allPlayers])
 
   useEffect(() => {
     void loadData()
@@ -484,6 +494,10 @@ export const SeasonTeamDetailPage: React.FC = () => {
                 <img
                   src={ownerPhotoUrl}
                   alt={ownerName || 'Franchise Owner'}
+                  width={800}
+                  height={800}
+                  loading="lazy"
+                  decoding="async"
                   referrerPolicy="no-referrer"
                   className="max-w-full max-h-[90vh] w-auto h-auto object-contain rounded-2xl border border-border"
                 />
@@ -822,12 +836,12 @@ export const SeasonTeamDetailPage: React.FC = () => {
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                           {group.players.map((p) => {
-                            const athleteEntries = allPlayers.filter(
-                              (other) => other.athlete_id && other.athlete_id === p.athlete_id
-                            )
-                            const otherSports = athleteEntries
-                              .filter((other) => other.sport !== p.sport)
-                              .map((other) => other.sport)
+                            const athleteSports = p.athlete_id
+                              ? sportsByAthleteId.get(p.athlete_id)
+                              : undefined
+                            const otherSports = athleteSports
+                              ? athleteSports.filter((sp) => sp !== p.sport)
+                              : []
 
                             return (
                               <RosterPlayerCard

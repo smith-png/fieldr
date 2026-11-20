@@ -3,11 +3,9 @@ import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SportCardsGrid } from '../../components/home/SportCardsGrid'
 import { SiteFooter } from '../../components/layout/SiteFooter'
-import {
-  getActiveSeason,
-  getPublicPlayerSportRows,
-  getSports
-} from '../../lib/data'
+import { getActiveSeason } from '../../lib/data/seasons'
+import { getPublicPlayerSportRows } from '../../lib/data/players'
+import { getSports } from '../../lib/data/teams'
 import { hasDataChanged, publicCache } from '../../lib/publicCache'
 import {
   isQueryFresh,
@@ -50,7 +48,9 @@ export const RostersPage: React.FC = () => {
     async function loadData() {
       try {
         const [active, sportRows, sports] = await Promise.all([
-          getActiveSeason(),
+          publicCache.activeSeason.loaded
+            ? Promise.resolve(publicCache.activeSeason.value)
+            : getActiveSeason(),
           getPublicPlayerSportRows(),
           getSports()
         ])

@@ -5,7 +5,9 @@ import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
 import { SkeletonCard } from '../../components/ui'
-import { getActiveSeason, getPublicPlayersBySeason, getPublicTeams } from '../../lib/data'
+import { getActiveSeason } from '../../lib/data/seasons'
+import { getPublicPlayersBySeason } from '../../lib/data/players'
+import { getPublicTeams } from '../../lib/data/teams'
 import { hasDataChanged, publicCache } from '../../lib/publicCache'
 import {
   isQueryFresh,
@@ -101,7 +103,9 @@ export const TeamsPage: React.FC = () => {
       try {
         const knownSeasonId = publicCache.activeSeason.value?.id
         const [season, preloadedTeams, preloadedPlayers] = await Promise.all([
-          getActiveSeason(),
+          publicCache.activeSeason.loaded
+            ? Promise.resolve(publicCache.activeSeason.value)
+            : getActiveSeason(),
           knownSeasonId ? getPublicTeams(knownSeasonId) : Promise.resolve(null),
           knownSeasonId ? getPublicPlayersBySeason(knownSeasonId) : Promise.resolve(null)
         ])

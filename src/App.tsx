@@ -9,19 +9,16 @@ import { Analytics } from '@vercel/analytics/react'
 import { AuthProvider } from './lib/AuthContext'
 import { ToastProvider } from './lib/ToastContext'
 import { ThemeProvider } from './lib/theme'
-import { RouteGuard } from './components/layout/RouteGuard'
+import { RouteGuard, type PreloadableRouteComponent } from './components/layout/RouteGuard'
 import { ErrorBoundary } from './components/layout/ErrorBoundary'
 import {
   AdminShellSkeleton,
   AdminTableSkeleton,
-  ProjectorPageSkeleton,
   PublicPageSkeleton
 } from './components/ui/Skeleton'
 import { AppToaster } from './components/ui/Toast'
 
-const HomePage = lazy(() =>
-  import('./pages/public/HomePage').then((m) => ({ default: m.HomePage }))
-)
+import { HomePage } from './pages/public/HomePage'
 const LoginPage = lazy(() =>
   import('./pages/public/LoginPage').then((m) => ({ default: m.LoginPage }))
 )
@@ -31,9 +28,27 @@ const OwnerLoginPage = lazy(() =>
 const AdminPage = lazy(() =>
   import('./pages/admin/AdminPage').then((m) => ({ default: m.AdminPage }))
 )
-const ProjectorPage = lazy(() =>
-  import('./pages/public/ProjectorPage').then((m) => ({ default: m.ProjectorPage }))
-)
+let cachedProjectorPage: React.ComponentType | null = null
+let projectorPagePromise: Promise<React.ComponentType> | null = null
+
+const projectorRouteComponent: PreloadableRouteComponent = {
+  getCached: () => cachedProjectorPage,
+  load: () => {
+    if (cachedProjectorPage) return Promise.resolve(cachedProjectorPage)
+    if (!projectorPagePromise) {
+      projectorPagePromise = import('./pages/public/ProjectorPage')
+        .then((m) => {
+          cachedProjectorPage = m.ProjectorPage
+          return m.ProjectorPage
+        })
+        .catch((err) => {
+          projectorPagePromise = null
+          throw err
+        })
+    }
+    return projectorPagePromise
+  }
+}
 const TeamsPage = lazy(() =>
   import('./pages/public/TeamsPage').then((m) => ({ default: m.TeamsPage }))
 )
@@ -91,14 +106,7 @@ export default function App() {
           <AuthProvider>
             <ToastProvider>
               <Routes>
-                <Route
-                  path="/"
-                  element={
-                    <Suspense fallback={<PublicPageSkeleton variant="home" />}>
-                      <HomePage />
-                    </Suspense>
-                  }
-                />
+                <Route path="/" element={<HomePage />} />
                 <Route
                   path="/teams"
                   element={
@@ -218,11 +226,10 @@ export default function App() {
                 <Route
                   path="/projector"
                   element={
-                    <RouteGuard allowedRoles={['admin', 'projector']}>
-                      <Suspense fallback={<ProjectorPageSkeleton />}>
-                        <ProjectorPage />
-                      </Suspense>
-                    </RouteGuard>
+                    <RouteGuard
+                      allowedRoles={['admin', 'projector']}
+                      preloadComponent={projectorRouteComponent}
+                    />
                   }
                 />
                 <Route path="*" element={<Navigate to="/" replace />} />

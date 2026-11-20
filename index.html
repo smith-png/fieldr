@@ -24,7 +24,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0a0a0a" id="theme-color-meta" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>Fieldr</title>
     <meta name="description" content="Live sports player auction platform with admin command center and synchronized big-screen projector display." />
     <meta property="og:title" content="Fieldr" />
@@ -33,7 +32,18 @@
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,400&family=DotGothic16&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=DotGothic16&family=Syne:wght@700;800&display=swap"
+      onload="this.onload=null;this.rel='stylesheet'"
+    />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=DotGothic16&family=Syne:wght@700;800&display=swap"
+      />
+    </noscript>
   </head>
   <body class="bg-bg text-text antialiased selection:bg-accent-bright selection:text-white">
     <div id="root"></div>

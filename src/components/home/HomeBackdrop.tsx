@@ -1,26 +1,19 @@
 import React, { useEffect, useRef } from 'react'
-import { useReducedMotion } from 'motion/react'
 
 export const HomeBackdrop: React.FC = () => {
-  const shouldReduceMotion = useReducedMotion()
   const layerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const el = layerRef.current
-    if (!el) return
+    if (!el || typeof window === 'undefined') return
 
-    const prefersReduced =
-      Boolean(shouldReduceMotion) ||
-      (typeof window !== 'undefined' &&
-        window.matchMedia &&
-        window.matchMedia('(prefers-reduced-motion: reduce)').matches)
-
-    if (prefersReduced) {
-      el.style.transform = 'translate3d(0, 0, 0)'
-      return
-    }
+    const mq =
+      typeof window.matchMedia === 'function'
+        ? window.matchMedia('(prefers-reduced-motion: reduce)')
+        : null
 
     let rafId: number | null = null
+    let listening = false
 
     const updateParallax = () => {
       rafId = null
@@ -35,16 +28,51 @@ export const HomeBackdrop: React.FC = () => {
       }
     }
 
-    updateParallax()
-    window.addEventListener('scroll', onScroll, { passive: true })
+    const syncPreference = () => {
+      if (mq?.matches) {
+        if (listening) {
+          window.removeEventListener('scroll', onScroll)
+          listening = false
+        }
+        if (rafId !== null) {
+          window.cancelAnimationFrame(rafId)
+          rafId = null
+        }
+        if (layerRef.current) {
+          layerRef.current.style.transform = 'translate3d(0, 0, 0)'
+        }
+      } else if (!listening) {
+        updateParallax()
+        window.addEventListener('scroll', onScroll, { passive: true })
+        listening = true
+      }
+    }
+
+    syncPreference()
+    if (mq) {
+      if (typeof mq.addEventListener === 'function') {
+        mq.addEventListener('change', syncPreference)
+      } else {
+        mq.addListener(syncPreference)
+      }
+    }
 
     return () => {
-      window.removeEventListener('scroll', onScroll)
+      if (listening) {
+        window.removeEventListener('scroll', onScroll)
+      }
+      if (mq) {
+        if (typeof mq.removeEventListener === 'function') {
+          mq.removeEventListener('change', syncPreference)
+        } else {
+          mq.removeListener(syncPreference)
+        }
+      }
       if (rafId !== null) {
         window.cancelAnimationFrame(rafId)
       }
     }
-  }, [shouldReduceMotion])
+  }, [])
 
   return (
     <div

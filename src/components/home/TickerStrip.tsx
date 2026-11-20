@@ -11,7 +11,7 @@ import {
   removeCachedPublicTicker,
   sanitizeTickerTexts,
   writeCachedPublicTicker
-} from '../../lib/data'
+} from '../../lib/data/site'
 import { hasDataChanged, publicCache } from '../../lib/publicCache'
 
 interface TickerStripProps {

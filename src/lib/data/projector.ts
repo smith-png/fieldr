@@ -238,7 +238,8 @@ const supabaseProjectorService: ProjectorService = {
   ): () => void {
     if (!supabase) return () => {}
 
-    supabaseProjectorService.getProjectorState(seasonId).then(callback).catch(() => {})
+    let active = true
+    let hasSubscribedOnce = false
 
     const sbChannel = supabase
       .channel(`projector_state_${seasonId}`)
@@ -251,18 +252,27 @@ const supabaseProjectorService: ProjectorService = {
           filter: `season_id=eq.${seasonId}`
         },
         (payload) => {
-          if (payload.new) {
+          if (active && payload.new) {
             callback(payload.new as ProjectorState)
           }
         }
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          supabaseProjectorService.getProjectorState(seasonId).then(callback).catch(() => {})
+          if (hasSubscribedOnce) {
+            supabaseProjectorService
+              .getProjectorState(seasonId)
+              .then((state) => {
+                if (active) callback(state)
+              })
+              .catch(() => {})
+          }
+          hasSubscribedOnce = true
         }
       })
 
     return () => {
+      active = false
       if (supabase) {
         supabase.removeChannel(sbChannel)
       }

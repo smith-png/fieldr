@@ -61,7 +61,6 @@ function runOncePrefetch(id: string, loader: () => Promise<unknown>): void {
 export function prefetchRoute(path: string): void {
   const cleanPath = path.split('?')[0].split('#')[0]
   if (cleanPath === '/' || cleanPath === '') {
-    runOncePrefetch('route:/', () => import('../pages/public/HomePage'))
     return
   }
   if (cleanPath === '/teams' || cleanPath === '/season') {
@@ -138,6 +137,9 @@ export function prefetchAdminTab(tab: string): void {
       break
     case 'logs':
       runOncePrefetch('admin:logs', () => import('../pages/admin/AdminLogs'))
+      break
+    case 'accounts':
+      runOncePrefetch('admin:accounts', () => import('../pages/admin/AdminAccounts'))
       break
     case 'seasons':
       runOncePrefetch('admin:seasons', () => import('../pages/admin/AdminSeasons'))
