@@ -8,7 +8,6 @@ import type {
   AuthUser,
   CarouselItem,
   Player,
-  PlayerStatus,
   ProjectorAutoFilter,
   ProjectorState,
   PublicPlayer,

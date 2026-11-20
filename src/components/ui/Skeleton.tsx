@@ -219,7 +219,7 @@ export const AdminShellSkeleton: React.FC<{ children?: React.ReactNode }> = ({ c
   </div>
 )
 
-export const PublicPageSkeleton: React.FC<{ variant?: 'cards' | 'profile' | 'content' | 'home' }> = ({
+export const PublicPageSkeleton: React.FC<{ variant?: 'cards' | 'profile' | 'content' }> = ({
   variant = 'cards'
 }) => (
   <div aria-hidden="true" className="min-h-screen bg-bg text-text flex flex-col">

@@ -7,7 +7,6 @@ import {
   getLocal,
   setLocal,
   notifyChange,
-  demoBroadcastChannel,
   STORAGE_KEYS,
   DEFAULT_CAROUSEL,
   DEFAULT_SETTINGS,

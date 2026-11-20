@@ -109,7 +109,6 @@ export const SeasonTeamDetailPage: React.FC = () => {
   const [activeSeason, setActiveSeason] = useState<Season | null>(
     publicCache.activeSeason.value
   )
-  const [season, setSeason] = useState<Season | null>(initialCached?.season ?? null)
   const [team, setTeam] = useState<PublicTeam | null>(initialCached?.team ?? null)
   const [teamPlayers, setTeamPlayers] = useState<PublicPlayer[]>(
     initialCached?.teamPlayers ?? []
@@ -183,7 +182,6 @@ export const SeasonTeamDetailPage: React.FC = () => {
     const cached = getCachedTeamDetail(id, teamId)
 
     if (cached && !options?.force) {
-      setSeason(cached.season)
       setTeam(cached.team)
       setTeamPlayers(cached.teamPlayers)
       setAllPlayers(cached.allPlayers)
@@ -233,7 +231,6 @@ export const SeasonTeamDetailPage: React.FC = () => {
         }
         publicCache.seasonTeamDetails.set(key, notFoundEntry)
         setCachedQuery(queryKey, notFoundEntry)
-        setSeason(s)
         setTeam(null)
         return
       }
@@ -263,7 +260,6 @@ export const SeasonTeamDetailPage: React.FC = () => {
       setCachedQuery(queryKey, nextEntry)
 
       if (changed) {
-        setSeason(s)
         setTeam(foundTeam)
         setAllPlayers(seasonPlayers)
         setTeamPlayers(nextEntry.teamPlayers)

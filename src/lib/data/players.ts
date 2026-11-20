@@ -19,7 +19,6 @@ import {
   STORAGE_KEYS,
   formatAthleteCode,
   parseAthleteCode,
-  getNextAthleteCode,
   REALTIME_DEBOUNCE_MS,
   markLocalMutation,
   isRealtimeSuppressed
