@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Broadcast,
   MagnifyingGlass,
@@ -41,13 +41,21 @@ import {
   getAutoSlideshowTeams
 } from '../../hooks/useAutoSlideshow'
 import { useToast } from '../../lib/ToastContext'
+import { Button, Dialog, Spinner } from '../../components/ui'
 import {
-  Button,
-  Dialog,
-  PageHeader,
-  SegmentedControl,
-  Spinner
-} from '../../components/ui'
+  ADMIN_CARD_HEADER,
+  ADMIN_CARD_TITLE,
+  ADMIN_DIALOG_CLASS,
+  ADMIN_INPUT,
+  ADMIN_LABEL,
+  ADMIN_PAGE_HEADER,
+  ADMIN_PAGE_TITLE,
+  ADMIN_PAGE_WRAPPER,
+  ADMIN_PILL_BAR,
+  ADMIN_PILL_BAR_OUTER,
+  ADMIN_SELECT,
+  ADMIN_WELL
+} from '../../components/admin/adminStyles'
 
 interface AdminProjectorControlProps {
   activeSeason: Season | null
@@ -68,6 +76,69 @@ const AUTO_FILTER_OPTIONS: readonly { value: ProjectorAutoFilter; label: string 
 function clampInterval(val: number): number {
   const rounded = Math.round(Number(val) || PROJECTOR_AUTO_INTERVAL.DEFAULT)
   return Math.min(PROJECTOR_AUTO_INTERVAL.MAX, Math.max(PROJECTOR_AUTO_INTERVAL.MIN, rounded))
+}
+
+interface PillRadioGroupProps<T extends string> {
+  options: readonly { value: T; label: string }[]
+  value: T
+  onChange: (value: T) => void
+  ariaLabel: string
+}
+
+function PillRadioGroup<T extends string>({
+  options,
+  value,
+  onChange,
+  ariaLabel
+}: PillRadioGroupProps<T>) {
+  const buttonRefs = useRef<(HTMLButtonElement | null)[]>([])
+
+  const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
+    let nextIndex = -1
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault()
+      nextIndex = (index + 1) % options.length
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      nextIndex = (index - 1 + options.length) % options.length
+    }
+
+    if (nextIndex !== -1) {
+      onChange(options[nextIndex].value)
+      buttonRefs.current[nextIndex]?.focus()
+    }
+  }
+
+  return (
+    <div className={ADMIN_PILL_BAR_OUTER}>
+      <div role="radiogroup" aria-label={ariaLabel} className={ADMIN_PILL_BAR}>
+        {options.map((opt, idx) => {
+          const isSelected = value === opt.value
+          return (
+            <button
+              key={opt.value}
+              ref={(el) => {
+                buttonRefs.current[idx] = el
+              }}
+              type="button"
+              role="radio"
+              aria-checked={isSelected}
+              tabIndex={isSelected ? 0 : -1}
+              onClick={() => onChange(opt.value)}
+              onKeyDown={(e) => handleKeyDown(e, idx)}
+              className={`min-h-[34px] px-3.5 py-1 rounded-full text-xs font-sans whitespace-nowrap shrink-0 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright ${
+                isSelected
+                  ? 'bg-btn-bg text-btn-fg font-medium'
+                  : 'text-muted hover:text-text font-normal'
+              }`}
+            >
+              {opt.label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
@@ -329,9 +400,7 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
     [players, playerSport, playerAutoFilter]
   )
 
-  // Running Auto lists (for live summary & Live Stage Preview)
   const isPlayerAutoLive = projectorState.mode === PROJECTOR_MODES.PLAYER_AUTO
-
 
   // Scene actions
   const performSwitchScene = async (
@@ -513,6 +582,8 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
     }
   }
 
+  const isIdleLive = projectorState.mode === PROJECTOR_MODES.IDLE
+
   const isCard2Live =
     projectorState.mode === PROJECTOR_MODES.TEAMS ||
     projectorState.mode === PROJECTOR_MODES.ROSTER ||
@@ -524,9 +595,7 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
 
   const runningAutoTeams = useMemo(
     () =>
-      isTeamAutoLive
-        ? getAutoSlideshowTeams(teams, projectorState.auto_sport)
-        : [],
+      isTeamAutoLive ? getAutoSlideshowTeams(teams, projectorState.auto_sport) : [],
     [isTeamAutoLive, teams, projectorState.auto_sport]
   )
 
@@ -547,336 +616,314 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
     projectorState.mode === PROJECTOR_MODES.PLAYER || isPlayerAutoLive
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        label="Stage Broadcast Control"
-        title="Projector Command Studio"
-        actions={
-          <a
-            href="/projector"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="min-h-[40px] px-4 py-2 rounded-xl bg-btn-bg text-btn-fg font-semibold text-xs hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-sm"
-          >
-            <Television size={18} weight="bold" />
-            <span>Open Fullscreen Projector</span>
-          </a>
-        }
-      />
+    <div className={ADMIN_PAGE_WRAPPER}>
+      <header className={ADMIN_PAGE_HEADER}>
+        <h1 className={ADMIN_PAGE_TITLE}>Projector Command Studio</h1>
+
+        <a
+          href="/projector"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="min-h-[42px] px-5 py-2 rounded-full bg-btn-bg text-btn-fg font-medium text-sm hover:opacity-90 transition-opacity inline-flex items-center justify-center gap-2 self-start sm:self-auto shrink-0"
+        >
+          <Television size={18} weight="regular" />
+          <span>Open Fullscreen Projector</span>
+        </a>
+      </header>
 
       {/* Auction Guard Warning Banner */}
       {isAuctionModeOnStage && (
         <div
           role="alert"
-          className="p-4 rounded-2xl bg-error/10 border border-error/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+          className="p-5 rounded-3xl bg-error/10 border border-error/35 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm"
         >
-          <div className="flex items-center gap-3 text-text font-medium">
-            <Warning size={20} weight="fill" className="text-error shrink-0" />
+          <div className="flex items-center gap-3 text-text">
+            <Warning size={20} weight="regular" className="text-error shrink-0" />
             <span>
-              An auction is on stage: <strong className="font-bold">{auctionStagePlayerName}</strong>. Broadcasting a scene will replace it.
+              An auction is on stage:{' '}
+              <strong className="font-semibold">{auctionStagePlayerName}</strong>. Broadcasting a
+              scene will replace it.
             </span>
           </div>
-          <span className="font-mono text-[11px] uppercase tracking-wider text-error font-semibold shrink-0">
-            Stage Guard Active ({projectorState.mode})
+          <span className="inline-flex items-center px-3 py-1 rounded-full bg-surface border border-error/30 font-mono text-xs uppercase tracking-wider text-error font-medium shrink-0 self-start sm:self-auto">
+            Stage Guard · {projectorState.mode}
           </span>
         </div>
       )}
 
-      {/* Mode Selection Cards */}
-      <div className="flex flex-col gap-4">
-        <div className="text-xs font-mono uppercase tracking-wider text-muted">
-          Select Active Stage Scene
+      {/* Module 1: Idle & Live Announcement */}
+      <section
+        className={`bg-surface border rounded-3xl p-6 sm:p-8 space-y-6 transition-colors min-w-0 ${
+          isIdleLive ? 'border-accent-bright' : 'border-border'
+        }`}
+      >
+        <div className={ADMIN_CARD_HEADER}>
+          <div className="flex items-center gap-3.5 min-w-0">
+            <div
+              className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${
+                isIdleLive
+                  ? 'bg-accent text-on-accent border-accent'
+                  : 'bg-surface-2 text-muted border-border'
+              }`}
+            >
+              <Broadcast size={20} weight="regular" />
+            </div>
+            <div className="flex items-center gap-2.5 flex-wrap min-w-0">
+              <h2 className={ADMIN_CARD_TITLE}>Idle Screen</h2>
+              {isIdleLive && (
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-surface-2 border border-accent-bright text-accent-bright text-xs font-medium">
+                  Live on stage
+                </span>
+              )}
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            variant={isIdleLive ? 'secondary' : 'primary'}
+            size="md"
+            disabled={isUpdating || isIdleLive}
+            onClick={() =>
+              executeOrConfirm('Idle Screen', () =>
+                performSwitchScene(PROJECTOR_MODES.IDLE)
+              )
+            }
+            className="rounded-full px-5 self-start sm:self-auto shrink-0"
+          >
+            {isIdleLive ? 'Currently Active' : 'Broadcast Scene'}
+          </Button>
         </div>
 
-        {/* Mode 1: Idle */}
-        <div
-          className={`p-5 rounded-2xl border transition-colors flex flex-col gap-5 shadow-sm ${
-            projectorState.mode === PROJECTOR_MODES.IDLE
-              ? 'bg-surface border-accent-bright'
-              : 'bg-surface border-border hover:border-accent-bright/60'
-          }`}
-        >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div
-                className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border border-border ${
-                  projectorState.mode === PROJECTOR_MODES.IDLE
-                    ? 'bg-accent text-on-accent'
-                    : 'bg-surface-2 text-muted'
-                }`}
-              >
-                <Broadcast size={22} weight="bold" />
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-syne font-bold text-lg text-text">
-                  1 Idle
-                </h3>
-                {projectorState.mode === PROJECTOR_MODES.IDLE && (
-                  <span className="text-[11px] font-mono uppercase text-accent-bright font-semibold">
-                    · Live on Stage
-                  </span>
-                )}
-              </div>
-            </div>
+        {/* Broadcast Message Well */}
+        <div className={`${ADMIN_WELL} p-4 sm:p-5 space-y-4`}>
+          <div className="flex items-center justify-between gap-2">
+            <label htmlFor="idle-broadcast-message-input" className={ADMIN_LABEL}>
+              Broadcast Announcement
+            </label>
+            <span className="text-xs font-mono text-muted tabular-nums">
+              {broadcastInput.length}/200
+            </span>
+          </div>
 
-            <Button
-              type="button"
-              variant={projectorState.mode === PROJECTOR_MODES.IDLE ? 'secondary' : 'primary'}
-              size="md"
-              disabled={isUpdating || projectorState.mode === PROJECTOR_MODES.IDLE}
-              onClick={() =>
-                executeOrConfirm('1 Idle', () =>
-                  performSwitchScene(PROJECTOR_MODES.IDLE)
-                )
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+            <input
+              id="idle-broadcast-message-input"
+              type="text"
+              maxLength={200}
+              value={broadcastInput}
+              onChange={(e) => {
+                setBroadcastInput(e.target.value.slice(0, 200))
+                if (broadcastError) setBroadcastError(null)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  void handleAnnounceBroadcast()
+                }
+              }}
+              placeholder="Announcement for the projector idle screen..."
+              className={`${ADMIN_INPUT} flex-1 bg-surface`}
+            />
+
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                type="button"
+                variant={isIdleLive ? 'primary' : 'secondary'}
+                size="md"
+                isLoading={isBroadcastPending && Boolean(broadcastInput.trim())}
+                disabled={!broadcastInput.trim() || isBroadcastPending || !activeSeason}
+                onClick={() => void handleAnnounceBroadcast()}
+                className="rounded-full px-5"
+              >
+                Announce
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="md"
+                isLoading={isBroadcastPending && !broadcastInput.trim()}
+                disabled={!activeBroadcastMessage || isBroadcastPending || !activeSeason}
+                onClick={() => void handleClearBroadcast()}
+                className="rounded-full"
+              >
+                Clear
+              </Button>
+            </div>
+          </div>
+
+          {broadcastError && (
+            <div role="alert" className="text-xs font-mono text-error">
+              {broadcastError}
+            </div>
+          )}
+
+          <div className="flex items-baseline gap-2.5 text-xs pt-3 border-t border-border">
+            <span className="font-mono uppercase tracking-wider text-muted shrink-0">
+              Live now:
+            </span>
+            <span
+              className={
+                activeBroadcastMessage
+                  ? 'text-text font-medium break-words'
+                  : 'text-muted'
               }
             >
-              {projectorState.mode === PROJECTOR_MODES.IDLE
-                ? 'Currently Active'
-                : 'Broadcast Scene'}
-            </Button>
-          </div>
-
-          {/* Broadcast Message Section */}
-          <div className="pt-4 border-t border-border flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-2">
-              <label
-                htmlFor="idle-broadcast-message-input"
-                className="text-xs font-mono uppercase tracking-wider text-muted"
-              >
-                Broadcast
-              </label>
-              <span className="text-xs font-mono text-muted tabular-nums">
-                {broadcastInput.length}/200
-              </span>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-              <input
-                id="idle-broadcast-message-input"
-                type="text"
-                maxLength={200}
-                value={broadcastInput}
-                onChange={(e) => {
-                  setBroadcastInput(e.target.value.slice(0, 200))
-                  if (broadcastError) setBroadcastError(null)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    void handleAnnounceBroadcast()
-                  }
-                }}
-                placeholder="Enter a live announcement for the projector idle screen..."
-                className="flex-1 h-10 px-3.5 rounded-xl bg-surface-2 border border-border text-sm font-sans text-text placeholder:text-muted focus:outline-none focus:border-accent-bright"
-              />
-
-              <div className="flex items-center gap-2 shrink-0">
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="md"
-                  isLoading={isBroadcastPending && Boolean(broadcastInput.trim())}
-                  disabled={!broadcastInput.trim() || isBroadcastPending || !activeSeason}
-                  onClick={() => void handleAnnounceBroadcast()}
-                >
-                  Announce
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="md"
-                  isLoading={isBroadcastPending && !broadcastInput.trim()}
-                  disabled={!activeBroadcastMessage || isBroadcastPending || !activeSeason}
-                  onClick={() => void handleClearBroadcast()}
-                >
-                  Clear
-                </Button>
-              </div>
-            </div>
-
-            {broadcastError && (
-              <div role="alert" className="text-xs font-mono text-error">
-                {broadcastError}
-              </div>
-            )}
-
-            <div className="flex items-baseline gap-2 text-xs">
-              <span className="font-mono uppercase tracking-wider text-muted shrink-0">
-                Live now:
-              </span>
-              <span
-                className={
-                  activeBroadcastMessage
-                    ? 'text-text font-medium break-words'
-                    : 'text-muted font-mono'
-                }
-              >
-                {activeBroadcastMessage || 'No broadcast active'}
-              </span>
-            </div>
+              {activeBroadcastMessage || 'No broadcast active'}
+            </span>
           </div>
         </div>
+      </section>
 
-        {/* Mode 2: Teams and Purses */}
-        <div
-          className={`p-5 rounded-2xl border transition-colors flex flex-col gap-5 shadow-sm ${
-            isCard2Live
-              ? 'bg-surface border-accent-bright'
-              : 'bg-surface border-border hover:border-accent-bright/60'
+      {/* Two-Column Modules: Teams & Purses + Player Spotlight */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+        {/* Module 2: Teams and Purses */}
+        <section
+          className={`bg-surface border rounded-3xl p-6 sm:p-8 space-y-6 transition-colors min-w-0 ${
+            isCard2Live ? 'border-accent-bright' : 'border-border'
           }`}
         >
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-            <div className="flex items-start gap-4">
+          <div className={ADMIN_CARD_HEADER}>
+            <div className="flex items-start gap-3.5 min-w-0">
               <div
-                className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border border-border ${
-                  isCard2Live ? 'bg-accent text-on-accent' : 'bg-surface-2 text-muted'
+                className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${
+                  isCard2Live
+                    ? 'bg-accent text-on-accent border-accent'
+                    : 'bg-surface-2 text-muted border-border'
                 }`}
               >
-                <ShieldCheck size={22} weight="bold" />
+                <ShieldCheck size={20} weight="regular" />
               </div>
-              <div>
+              <div className="min-w-0 space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-syne font-bold text-lg text-text">
-                    2 Teams and Purses
-                  </h3>
+                  <h2 className={ADMIN_CARD_TITLE}>Teams &amp; Purses</h2>
                   {isCard2Live && (
-                    <span className="text-[11px] font-mono uppercase text-accent-bright font-semibold">
-                      · LIVE ON STAGE
-                    </span>
-                  )}
-                  {isCard2Live && isTeamAutoLive && (
-                    <span className="px-2 py-0.5 rounded-md bg-accent text-on-accent font-mono text-[10px] uppercase font-bold tracking-wider">
-                      AUTO
-                    </span>
-                  )}
-                  {isCard2Live && !isTeamAutoLive && (
-                    <span className="px-2 py-0.5 rounded-md bg-surface-2 text-text border border-border font-mono text-[10px] uppercase font-bold tracking-wider">
-                      SINGLE TEAM
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-surface-2 border border-accent-bright text-accent-bright text-xs font-medium">
+                      {isTeamAutoLive ? 'Live · Auto' : 'Live · Single'}
                     </span>
                   )}
                 </div>
+
                 {isCard2Live && isTeamAutoLive && (
-                  <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-surface-2 border border-border font-mono text-xs text-accent-bright font-medium">
-                    <span>
-                      Auto: {projectorState.auto_sport}, every {projectorState.auto_interval_seconds}s, {runningAutoTeams.length}{' '}
+                  <div className="inline-flex items-center px-3 py-1 rounded-full bg-bg border border-border font-mono text-xs text-accent-bright max-w-full">
+                    <span className="truncate">
+                      {projectorState.auto_sport} · {projectorState.auto_interval_seconds}s ·{' '}
+                      {runningAutoTeams.length}{' '}
                       {runningAutoTeams.length === 1 ? 'team' : 'teams'} ({teamAnimation})
                     </span>
                   </div>
                 )}
                 {isCard2Live && !isTeamAutoLive && liveTeam && (
-                  <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-surface-2 border border-border font-mono text-xs text-accent-bright font-medium">
-                    <span>
-                      Team: {liveTeam.name} ({liveTeam.short_code}) · {liveTeam.sport} ({teamAnimation})
+                  <div className="inline-flex items-center px-3 py-1 rounded-full bg-bg border border-border font-mono text-xs text-accent-bright max-w-full">
+                    <span className="truncate">
+                      {liveTeam.name} ({liveTeam.short_code}) · {liveTeam.sport} ({teamAnimation})
                     </span>
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap shrink-0">
+            <div className="flex items-center gap-2 flex-wrap shrink-0 self-start sm:self-center">
               {isCard2Live && (
                 <Button
                   type="button"
                   variant="secondary"
-                  size="md"
+                  size="sm"
+                  leftIcon={Stop}
                   disabled={isUpdating}
                   onClick={() => executeOrConfirm('Stop Stage', handleStopAuto)}
+                  className="rounded-full"
                 >
-                  <Stop size={16} weight="bold" />
-                  <span>Stop</span>
+                  Stop
                 </Button>
               )}
               <Button
                 type="button"
                 variant="primary"
-                size="md"
+                size="sm"
                 disabled={
                   isUpdating ||
                   (teamMode === 'single' && !selectedTeamId) ||
                   (teamMode === 'auto' && teamSportTeams.length === 0)
                 }
                 onClick={() =>
-                  executeOrConfirm('2 Teams and Purses', performBroadcastTeams)
+                  executeOrConfirm('Teams and Purses', performBroadcastTeams)
                 }
+                className="rounded-full px-4"
               >
                 {isCard2Live ? 'Update Broadcast' : 'Broadcast Scene'}
               </Button>
             </div>
           </div>
 
-          {/* Form Controls */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-border">
-            {/* 1. Sport select */}
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-mono uppercase tracking-wider text-muted">
-                1. Sport
-              </label>
-              <SegmentedControl
+          {/* Grouped Controls */}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <span className={ADMIN_LABEL}>Sport</span>
+              <PillRadioGroup
                 options={sportSegmentedOptions}
                 value={teamSport}
                 onChange={(val) => setTeamSport(val)}
                 ariaLabel="Teams and Purses Sport"
-                size="sm"
               />
             </div>
 
-            {/* 2. Mode select */}
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-mono uppercase tracking-wider text-muted">
-                2. Mode
-              </label>
-              <SegmentedControl
-                options={[
-                  { value: 'auto', label: 'Auto slideshow' },
-                  { value: 'single', label: 'Single team' }
-                ]}
-                value={teamMode}
-                onChange={(val) => setTeamMode(val as 'auto' | 'single')}
-                ariaLabel="Teams and Purses Mode"
-                size="sm"
-              />
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <span className={ADMIN_LABEL}>Mode</span>
+                <PillRadioGroup
+                  options={[
+                    { value: 'auto', label: 'Auto slideshow' },
+                    { value: 'single', label: 'Single team' }
+                  ]}
+                  value={teamMode}
+                  onChange={(val) => setTeamMode(val as 'auto' | 'single')}
+                  ariaLabel="Teams and Purses Mode"
+                />
+              </div>
 
-            {/* 3. Animation select */}
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-mono uppercase tracking-wider text-muted">
-                3. Animation
-              </label>
-              <SegmentedControl
-                options={[
-                  { value: 'fade', label: 'Fade' },
-                  { value: 'slide', label: 'Slide' },
-                  { value: 'zoom', label: 'Zoom' }
-                ]}
-                value={teamAnimation}
-                onChange={(val) => {
-                  const anim = val as 'fade' | 'slide' | 'zoom'
-                  setTeamAnimation(anim)
-                  if (typeof window !== 'undefined' && window.localStorage) {
-                    window.localStorage.setItem('fieldr_projector_team_animation', anim)
-                  }
-                }}
-                ariaLabel="Teams and Purses Animation"
-                size="sm"
-              />
+              <div className="space-y-2">
+                <span className={ADMIN_LABEL}>Animation</span>
+                <PillRadioGroup
+                  options={[
+                    { value: 'fade', label: 'Fade' },
+                    { value: 'slide', label: 'Slide' },
+                    { value: 'zoom', label: 'Zoom' }
+                  ]}
+                  value={teamAnimation}
+                  onChange={(val) => {
+                    const anim = val as 'fade' | 'slide' | 'zoom'
+                    setTeamAnimation(anim)
+                    if (typeof window !== 'undefined' && window.localStorage) {
+                      window.localStorage.setItem('fieldr_projector_team_animation', anim)
+                    }
+                  }}
+                  ariaLabel="Teams and Purses Animation"
+                />
+              </div>
             </div>
           </div>
 
           {/* Mode-specific detail panel */}
           {teamMode === 'single' ? (
-            <div className="p-4 rounded-xl bg-surface-2 border border-border flex flex-col gap-2">
-              <label className="text-xs font-mono uppercase tracking-wider text-muted">
-                Select Team ({teamSportTeams.length} available in {teamSport})
-              </label>
+            <div className={`${ADMIN_WELL} p-4 sm:p-5 space-y-2.5`}>
+              <div className="flex items-center justify-between gap-2">
+                <label htmlFor="projector-team-select" className={ADMIN_LABEL}>
+                  Team
+                </label>
+                <span className="text-xs font-mono text-muted tabular-nums">
+                  {teamSportTeams.length} in {teamSport}
+                </span>
+              </div>
               {teamSportTeams.length === 0 ? (
-                <div className="text-xs font-mono text-muted py-2">
+                <div className="text-xs text-muted py-1">
                   No teams registered for {teamSport} in this season.
                 </div>
               ) : (
                 <select
+                  id="projector-team-select"
                   value={selectedTeamId}
                   onChange={(e) => setSelectedTeamId(e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl bg-surface border border-border text-sm font-sans text-text focus:outline-none focus:border-accent-bright"
+                  className={`${ADMIN_SELECT} w-full bg-surface`}
                 >
                   {teamSportTeams.map((t) => (
                     <option key={t.id} value={t.id}>
@@ -887,89 +934,83 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
               )}
             </div>
           ) : (
-            <div className="p-4 rounded-xl bg-surface-2 border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="text-xs font-semibold text-text">
-                Looping slideshow across {teamSportTeams.length} {teamSportTeams.length === 1 ? 'team' : 'teams'} in {teamSport}
+            <div
+              className={`${ADMIN_WELL} p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4`}
+            >
+              <div className="text-sm text-text">
+                {teamSportTeams.length}{' '}
+                {teamSportTeams.length === 1 ? 'team' : 'teams'} in {teamSport}
               </div>
 
               <div className="flex items-center gap-3 self-end sm:self-center">
-                <span className="text-xs font-mono uppercase tracking-wider text-muted">
-                  Interval
+                <span className="text-xs font-mono text-muted">
+                  Interval ({PROJECTOR_AUTO_INTERVAL.MIN}–{PROJECTOR_AUTO_INTERVAL.MAX} s)
                 </span>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
+                    aria-label="Decrease seconds per team"
                     onClick={() => setTeamInterval((prev) => clampInterval(prev - 1))}
-                    className="w-8 h-8 rounded-lg bg-surface border border-border flex items-center justify-center text-text hover:bg-surface-3 transition-colors"
+                    className="w-8 h-8 rounded-full bg-surface border border-border flex items-center justify-center text-text hover:bg-surface-2 transition-colors cursor-pointer"
                   >
-                    <Minus size={14} weight="bold" />
+                    <Minus size={14} weight="regular" />
                   </button>
-                  <span className="font-mono text-sm font-bold w-12 text-center text-text tabular-nums">
+                  <span className="font-mono text-sm font-semibold w-10 text-center text-text tabular-nums">
                     {teamInterval}s
                   </span>
                   <button
                     type="button"
+                    aria-label="Increase seconds per team"
                     onClick={() => setTeamInterval((prev) => clampInterval(prev + 1))}
-                    className="w-8 h-8 rounded-lg bg-surface border border-border flex items-center justify-center text-text hover:bg-surface-3 transition-colors"
+                    className="w-8 h-8 rounded-full bg-surface border border-border flex items-center justify-center text-text hover:bg-surface-2 transition-colors cursor-pointer"
                   >
-                    <Plus size={14} weight="bold" />
+                    <Plus size={14} weight="regular" />
                   </button>
                 </div>
               </div>
             </div>
           )}
-        </div>
+        </section>
 
-        {/* Mode 3: Player Spotlight */}
-        <div
-          className={`p-5 rounded-2xl border transition-colors flex flex-col gap-5 shadow-sm ${
-            isCard3Live
-              ? 'bg-surface border-accent-bright'
-              : 'bg-surface border-border hover:border-accent-bright/60'
+        {/* Module 3: Player Spotlight */}
+        <section
+          className={`bg-surface border rounded-3xl p-6 sm:p-8 space-y-6 transition-colors min-w-0 ${
+            isCard3Live ? 'border-accent-bright' : 'border-border'
           }`}
         >
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-            <div className="flex items-start gap-4">
+          <div className={ADMIN_CARD_HEADER}>
+            <div className="flex items-start gap-3.5 min-w-0">
               <div
-                className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border border-border ${
-                  isCard3Live ? 'bg-accent text-on-accent' : 'bg-surface-2 text-muted'
+                className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${
+                  isCard3Live
+                    ? 'bg-accent text-on-accent border-accent'
+                    : 'bg-surface-2 text-muted border-border'
                 }`}
               >
-                <User size={22} weight="bold" />
+                <User size={20} weight="regular" />
               </div>
-              <div>
+              <div className="min-w-0 space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-syne font-bold text-lg text-text">
-                    3 Player Spotlight
-                  </h3>
+                  <h2 className={ADMIN_CARD_TITLE}>Player Spotlight</h2>
                   {isCard3Live && (
-                    <span className="text-[11px] font-mono uppercase text-accent-bright font-semibold">
-                      · LIVE ON STAGE
-                    </span>
-                  )}
-                  {isCard3Live && isPlayerAutoLive && (
-                    <span className="px-2 py-0.5 rounded-md bg-accent text-on-accent font-mono text-[10px] uppercase font-bold tracking-wider">
-                      AUTO
-                    </span>
-                  )}
-                  {isCard3Live && !isPlayerAutoLive && (
-                    <span className="px-2 py-0.5 rounded-md bg-surface-2 text-text border border-border font-mono text-[10px] uppercase font-bold tracking-wider">
-                      SINGLE PLAYER
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-surface-2 border border-accent-bright text-accent-bright text-xs font-medium">
+                      {isPlayerAutoLive ? 'Live · Auto' : 'Live · Single'}
                     </span>
                   )}
                 </div>
+
                 {isCard3Live && isPlayerAutoLive && (
-                  <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-surface-2 border border-border font-mono text-xs text-accent-bright font-medium">
-                    <span>
-                      Auto: {projectorState.auto_sport}, {projectorState.auto_filter || 'all'}, every{' '}
+                  <div className="inline-flex items-center px-3 py-1 rounded-full bg-bg border border-border font-mono text-xs text-accent-bright max-w-full">
+                    <span className="truncate">
+                      {projectorState.auto_sport} · {projectorState.auto_filter || 'all'} ·{' '}
                       {projectorState.auto_interval_seconds}s ({playerAnimation})
                     </span>
                   </div>
                 )}
                 {isCard3Live && !isPlayerAutoLive && livePlayer && (
-                  <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-surface-2 border border-border font-mono text-xs text-accent-bright font-medium">
-                    <span>
-                      Player: #{formatAthleteCode(livePlayer.athlete_code ?? livePlayer.player_code)}{' '}
+                  <div className="inline-flex items-center px-3 py-1 rounded-full bg-bg border border-border font-mono text-xs text-accent-bright max-w-full">
+                    <span className="truncate">
+                      #{formatAthleteCode(livePlayer.athlete_code ?? livePlayer.player_code)}{' '}
                       {livePlayer.name} · {livePlayer.sport} ({playerAnimation})
                     </span>
                   </div>
@@ -977,138 +1018,127 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap shrink-0">
+            <div className="flex items-center gap-2 flex-wrap shrink-0 self-start sm:self-center">
               {isCard3Live && (
                 <Button
                   type="button"
                   variant="secondary"
-                  size="md"
+                  size="sm"
+                  leftIcon={Stop}
                   disabled={isUpdating}
                   onClick={() => executeOrConfirm('Stop Stage', handleStopAuto)}
+                  className="rounded-full"
                 >
-                  <Stop size={16} weight="bold" />
-                  <span>Stop</span>
+                  Stop
                 </Button>
               )}
               <Button
                 type="button"
                 variant="primary"
-                size="md"
+                size="sm"
                 disabled={
                   isUpdating ||
                   (playerMode === 'single' && !matchedPlayer) ||
                   (playerMode === 'auto' && matchingFormAutoPlayers.length === 0)
                 }
                 onClick={() =>
-                  executeOrConfirm('3 Player Spotlight', performBroadcastPlayer)
+                  executeOrConfirm('Player Spotlight', performBroadcastPlayer)
                 }
+                className="rounded-full px-4"
               >
                 {isCard3Live ? 'Update Broadcast' : 'Broadcast Player'}
               </Button>
             </div>
           </div>
 
-          {/* Form Controls */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-border">
-            {/* 1. Sport select */}
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-mono uppercase tracking-wider text-muted">
-                1. Sport
-              </label>
-              <SegmentedControl
+          {/* Grouped Controls */}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <span className={ADMIN_LABEL}>Sport</span>
+              <PillRadioGroup
                 options={sportSegmentedOptions}
                 value={playerSport}
                 onChange={(val) => setPlayerSport(val)}
                 ariaLabel="Player Spotlight Sport"
-                size="sm"
               />
             </div>
 
-            {/* 2. Mode select */}
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-mono uppercase tracking-wider text-muted">
-                2. Mode
-              </label>
-              <SegmentedControl
-                options={[
-                  { value: 'auto', label: 'Auto slideshow' },
-                  { value: 'single', label: 'Single player' }
-                ]}
-                value={playerMode}
-                onChange={(val) => setPlayerMode(val as 'auto' | 'single')}
-                ariaLabel="Player Spotlight Mode"
-                size="sm"
-              />
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <span className={ADMIN_LABEL}>Mode</span>
+                <PillRadioGroup
+                  options={[
+                    { value: 'auto', label: 'Auto slideshow' },
+                    { value: 'single', label: 'Single player' }
+                  ]}
+                  value={playerMode}
+                  onChange={(val) => setPlayerMode(val as 'auto' | 'single')}
+                  ariaLabel="Player Spotlight Mode"
+                />
+              </div>
 
-            {/* 3. Animation select */}
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-mono uppercase tracking-wider text-muted">
-                3. Animation
-              </label>
-              <SegmentedControl
-                options={[
-                  { value: 'fade', label: 'Fade' },
-                  { value: 'slide', label: 'Slide' },
-                  { value: 'zoom', label: 'Zoom' }
-                ]}
-                value={playerAnimation}
-                onChange={(val) => {
-                  const anim = val as 'fade' | 'slide' | 'zoom'
-                  setPlayerAnimation(anim)
-                  if (typeof window !== 'undefined' && window.localStorage) {
-                    window.localStorage.setItem('fieldr_projector_player_animation', anim)
-                  }
-                }}
-                ariaLabel="Player Spotlight Animation"
-                size="sm"
-              />
+              <div className="space-y-2">
+                <span className={ADMIN_LABEL}>Animation</span>
+                <PillRadioGroup
+                  options={[
+                    { value: 'fade', label: 'Fade' },
+                    { value: 'slide', label: 'Slide' },
+                    { value: 'zoom', label: 'Zoom' }
+                  ]}
+                  value={playerAnimation}
+                  onChange={(val) => {
+                    const anim = val as 'fade' | 'slide' | 'zoom'
+                    setPlayerAnimation(anim)
+                    if (typeof window !== 'undefined' && window.localStorage) {
+                      window.localStorage.setItem('fieldr_projector_player_animation', anim)
+                    }
+                  }}
+                  ariaLabel="Player Spotlight Animation"
+                />
+              </div>
             </div>
           </div>
 
           {/* Mode-specific detail panel */}
           {playerMode === 'single' ? (
-            <div className="p-4 rounded-xl bg-surface-2 border border-border flex flex-col gap-3">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                <label
-                  htmlFor="projector-player-code-input"
-                  className="text-xs font-mono uppercase tracking-wider text-muted shrink-0"
-                >
-                  Player ID:
+            <div className={`${ADMIN_WELL} p-4 sm:p-5 space-y-3`}>
+              <div className="flex items-center justify-between gap-2">
+                <label htmlFor="projector-player-code-input" className={ADMIN_LABEL}>
+                  Player ID
                 </label>
-                <div className="relative flex-1 max-w-xs">
-                  <MagnifyingGlass
-                    size={15}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
-                  />
-                  <input
-                    id="projector-player-code-input"
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={6}
-                    value={playerCodeInput}
-                    onChange={(e) => {
-                      const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 6)
-                      setPlayerCodeInput(digitsOnly)
-                    }}
-                    placeholder="Enter ID (e.g. 1, 01, 0001)"
-                    className="w-full pl-9 pr-8 py-2 bg-surface border border-border rounded-xl text-xs font-mono text-text placeholder:text-muted focus:outline-none focus:border-accent-bright"
-                  />
-                  {isLookingUpPlayer && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                      <Spinner size="sm" />
-                    </div>
-                  )}
-                </div>
-                <span className="text-[11px] font-mono text-muted">
-                  Digits only, up to 6 digits
-                </span>
+                <span className="text-xs font-mono text-muted">Up to 6 digits</span>
+              </div>
+
+              <div className="relative">
+                <MagnifyingGlass
+                  size={16}
+                  weight="regular"
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+                />
+                <input
+                  id="projector-player-code-input"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  value={playerCodeInput}
+                  onChange={(e) => {
+                    const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 6)
+                    setPlayerCodeInput(digitsOnly)
+                  }}
+                  placeholder="Enter ID (e.g. 0001)"
+                  className={`${ADMIN_INPUT} bg-surface pl-10 pr-9 font-mono`}
+                />
+                {isLookingUpPlayer && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <Spinner size="sm" />
+                  </div>
+                )}
               </div>
 
               {/* Lookup Result Feedback */}
               {playerCodeInput.trim().length > 0 && !isLookingUpPlayer && lookupResult && (
-                <div className="p-3 rounded-xl bg-surface border border-border">
+                <div className="p-3.5 rounded-2xl bg-surface border border-border">
                   {matchedPlayer ? (
                     <div className="flex items-center justify-between gap-3 flex-wrap">
                       <div className="flex items-center gap-3 min-w-0">
@@ -1121,13 +1151,16 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <User size={18} className="text-muted" />
+                            <User size={18} weight="regular" className="text-muted" />
                           )}
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-mono text-xs font-bold text-accent-bright">
-                              #{formatAthleteCode(matchedPlayer.athlete_code ?? matchedPlayer.player_code)}
+                            <span className="font-mono text-xs font-semibold text-accent-bright">
+                              #
+                              {formatAthleteCode(
+                                matchedPlayer.athlete_code ?? matchedPlayer.player_code
+                              )}
                             </span>
                             <span className="font-syne font-bold text-sm text-text truncate">
                               {matchedPlayer.name}
@@ -1141,127 +1174,117 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
                       </div>
 
                       <span
-                        className={`px-2.5 py-1 rounded-lg font-mono text-[10px] uppercase tracking-wider font-bold border ${
+                        className={`px-2.5 py-0.5 rounded-full font-mono text-[11px] uppercase tracking-wider font-medium border ${
                           matchedPlayer.status === 'sold'
-                            ? 'border-error/40 text-error bg-error/10'
+                            ? 'border-error/30 text-error bg-error/10'
                             : matchedPlayer.status === 'unsold'
                             ? 'border-border text-muted bg-surface-2'
-                            : 'border-accent-bright/40 text-accent-bright bg-accent-bright/10'
+                            : 'border-accent-bright/35 text-accent-bright bg-accent/10'
                         }`}
                       >
                         {(matchedPlayer.status || 'available').toUpperCase()}
                       </span>
                     </div>
                   ) : lookupResult.otherSports.length > 0 ? (
-                    <div className="text-xs font-mono text-text flex items-center justify-between gap-3 flex-wrap">
+                    <div className="text-xs text-text flex items-center justify-between gap-3 flex-wrap">
                       <span>
-                        {formattedLookupCode} is registered for {lookupResult.otherSports[0]}. Switch sport to broadcast him.
+                        {formattedLookupCode} is registered for {lookupResult.otherSports[0]}.
                       </span>
                       <button
                         type="button"
-                        onClick={() => setPlayerSport(resolveSportName(lookupResult.otherSports[0]))}
-                        className="text-xs font-mono font-semibold text-accent-bright hover:underline"
+                        onClick={() =>
+                          setPlayerSport(resolveSportName(lookupResult.otherSports[0]))
+                        }
+                        className="h-7 px-3 rounded-full bg-surface-2 border border-border text-xs font-medium text-accent-bright hover:border-accent-bright transition-colors cursor-pointer"
                       >
                         Switch to {lookupResult.otherSports[0]}
                       </button>
                     </div>
                   ) : (
-                    <div className="text-xs font-mono text-muted">
-                      No player with code {formattedLookupCode} in {playerSport} this season
+                    <div className="text-xs text-muted">
+                      No player with code {formattedLookupCode} in {playerSport} this season.
                     </div>
                   )}
                 </div>
               )}
             </div>
           ) : (
-            <div className="p-4 rounded-xl bg-surface-2 border border-border flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-xs font-mono uppercase tracking-wider text-muted">
-                  Show:
-                </span>
-                <div className="inline-flex items-center p-0.5 bg-surface border border-border rounded-xl gap-0.5">
-                  {AUTO_FILTER_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setPlayerAutoFilter(opt.value)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-mono transition-colors ${
-                        playerAutoFilter === opt.value
-                          ? 'bg-surface-2 text-text font-bold border border-border shadow-sm'
-                          : 'text-muted hover:text-text border border-transparent'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
+            <div className={`${ADMIN_WELL} p-4 sm:p-5 space-y-4`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <PillRadioGroup
+                  options={AUTO_FILTER_OPTIONS}
+                  value={playerAutoFilter}
+                  onChange={(val) => setPlayerAutoFilter(val)}
+                  ariaLabel="Player Auto Filter"
+                />
 
-                <div className="flex items-center gap-2 font-mono text-xs">
+                <div className="flex items-center gap-2 text-xs font-mono shrink-0">
                   <span className="text-text font-semibold tabular-nums">
                     {matchingFormAutoPlayers.length}{' '}
                     {matchingFormAutoPlayers.length === 1 ? 'player' : 'players'}
                   </span>
                   {playerAutoDisabledReason && (
-                    <span className="text-error text-[11px]">
-                      ({playerAutoDisabledReason})
-                    </span>
+                    <span className="text-error">({playerAutoDisabledReason})</span>
                   )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 flex-wrap self-end lg:self-center">
-                <span className="text-xs font-mono uppercase tracking-wider text-muted">
-                  Interval
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    aria-label="Decrease seconds per player"
-                    onClick={() =>
-                      setPlayerAutoInterval((prev) => clampInterval(prev - 1))
-                    }
-                    disabled={playerAutoInterval <= PROJECTOR_AUTO_INTERVAL.MIN}
-                    className="w-8 h-8 rounded-lg bg-surface border border-border flex items-center justify-center text-text hover:bg-surface-3 disabled:opacity-40 transition-colors"
-                  >
-                    <Minus size={14} weight="bold" />
-                  </button>
-                  <span className="font-mono text-sm font-bold w-12 text-center text-text tabular-nums">
-                    {playerAutoInterval}s
+              <div className="pt-4 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xs font-mono text-muted">
+                    Interval ({PROJECTOR_AUTO_INTERVAL.MIN}–{PROJECTOR_AUTO_INTERVAL.MAX} s)
                   </span>
-                  <button
-                    type="button"
-                    aria-label="Increase seconds per player"
-                    onClick={() =>
-                      setPlayerAutoInterval((prev) => clampInterval(prev + 1))
-                    }
-                    disabled={playerAutoInterval >= PROJECTOR_AUTO_INTERVAL.MAX}
-                    className="w-8 h-8 rounded-lg bg-surface border border-border flex items-center justify-center text-text hover:bg-surface-3 disabled:opacity-40 transition-colors"
-                  >
-                    <Plus size={14} weight="bold" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      aria-label="Decrease seconds per player"
+                      onClick={() =>
+                        setPlayerAutoInterval((prev) => clampInterval(prev - 1))
+                      }
+                      disabled={playerAutoInterval <= PROJECTOR_AUTO_INTERVAL.MIN}
+                      className="w-8 h-8 rounded-full bg-surface border border-border flex items-center justify-center text-text hover:bg-surface-2 disabled:opacity-40 transition-colors cursor-pointer"
+                    >
+                      <Minus size={14} weight="regular" />
+                    </button>
+                    <span className="font-mono text-sm font-semibold w-10 text-center text-text tabular-nums">
+                      {playerAutoInterval}s
+                    </span>
+                    <button
+                      type="button"
+                      aria-label="Increase seconds per player"
+                      onClick={() =>
+                        setPlayerAutoInterval((prev) => clampInterval(prev + 1))
+                      }
+                      disabled={playerAutoInterval >= PROJECTOR_AUTO_INTERVAL.MAX}
+                      className="w-8 h-8 rounded-full bg-surface border border-border flex items-center justify-center text-text hover:bg-surface-2 disabled:opacity-40 transition-colors cursor-pointer"
+                    >
+                      <Plus size={14} weight="regular" />
+                    </button>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-1.5">
-                  {PROJECTOR_AUTO_INTERVAL.CHIPS.map((sec) => (
-                    <button
-                      key={sec}
-                      type="button"
-                      onClick={() => setPlayerAutoInterval(sec)}
-                      className={`px-2.5 py-1 rounded-lg font-mono text-[11px] border transition-colors ${
-                        playerAutoInterval === sec
-                          ? 'bg-accent text-on-accent border-accent font-bold'
-                          : 'bg-surface text-muted border-border hover:text-text'
-                      }`}
-                    >
-                      {sec}s
-                    </button>
-                  ))}
+                <div className={ADMIN_PILL_BAR_OUTER}>
+                  <div className="inline-flex flex-nowrap items-center gap-1.5 w-max">
+                    {PROJECTOR_AUTO_INTERVAL.CHIPS.map((sec) => (
+                      <button
+                        key={sec}
+                        type="button"
+                        onClick={() => setPlayerAutoInterval(sec)}
+                        className={`h-7 px-3 rounded-full font-mono text-xs border whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                          playerAutoInterval === sec
+                            ? 'bg-btn-bg text-btn-fg border-transparent font-medium'
+                            : 'bg-surface text-muted border-border hover:text-text'
+                        }`}
+                      >
+                        {sec}s
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
           )}
-        </div>
-
+        </section>
       </div>
 
       {/* Auction Stage Guard Confirmation Dialog */}
@@ -1275,14 +1298,16 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
           pendingAction?.label || 'this scene'
         }" will replace the auction display on all connected projectors.`}
         size="sm"
+        className={ADMIN_DIALOG_CLASS}
       >
-        <div className="flex items-center justify-end gap-3 pt-2">
+        <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-border">
           <Button
             type="button"
-            variant="ghost"
+            variant="secondary"
             size="sm"
             disabled={isUpdating}
             onClick={() => setPendingAction(null)}
+            className="rounded-full"
           >
             Cancel
           </Button>
@@ -1298,6 +1323,7 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
               setPendingAction(null)
               await actionToRun()
             }}
+            className="rounded-full px-4"
           >
             Replace Stage
           </Button>

@@ -27,7 +27,24 @@ import {
 } from '../../lib/data'
 import { getErrorMessage } from '../../lib/errors'
 import { useToast } from '../../lib/ToastContext'
-import { Button, Dialog, EmptyState, PageHeader } from '../../components/ui'
+import { Button, Dialog, EmptyState } from '../../components/ui'
+import {
+  ADMIN_CARD,
+  ADMIN_CARD_HEADER,
+  ADMIN_CARD_TITLE,
+  ADMIN_COUNT_PILL,
+  ADMIN_DIALOG_CLASS,
+  ADMIN_ICON_BTN,
+  ADMIN_ICON_BTN_DANGER,
+  ADMIN_INPUT,
+  ADMIN_LABEL,
+  ADMIN_PAGE_HEADER,
+  ADMIN_PAGE_TITLE,
+  ADMIN_PAGE_WRAPPER,
+  ADMIN_SELECT,
+  ADMIN_TABLE_SHELL,
+  ADMIN_WELL
+} from '../../components/admin/adminStyles'
 
 const SPORT_ORDER = ['Cricket', 'Futsal', 'Volleyball']
 
@@ -147,7 +164,9 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
 
     const cleanLoginId = loginIdInput.trim().toLowerCase()
     if (!/^[a-z0-9._-]{3,30}$/.test(cleanLoginId)) {
-      error('Login ID must be 3 to 30 characters and contain only lowercase letters, numbers, dot, dash, or underscore.')
+      error(
+        'Login ID must be 3 to 30 characters and contain only lowercase letters, numbers, dot, dash, or underscore.'
+      )
       return
     }
 
@@ -249,7 +268,10 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
       const content = event.target?.result as string
       if (!content) return
 
-      const lines = content.split('\n').map((l) => l.trim()).filter(Boolean)
+      const lines = content
+        .split('\n')
+        .map((l) => l.trim())
+        .filter(Boolean)
       if (lines.length <= 1) {
         error('CSV is empty or missing headers')
         return
@@ -269,7 +291,8 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
 
         let rowError: string | undefined
         if (!nameVal) rowError = 'Name is required'
-        else if (!codeClean || codeClean.length > 3) rowError = 'Short code must be 1-3 characters'
+        else if (!codeClean || codeClean.length > 3)
+          rowError = 'Short code must be 1-3 characters'
         else if (existingCodes.has(codeClean)) rowError = `Code "${codeClean}" already in use`
 
         rows.push({
@@ -527,57 +550,57 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <PageHeader
-        label="Franchise Directory"
-        title="Teams & Franchises"
-        actions={
-          <>
-            <label className="min-h-[40px] px-4 py-2 rounded-xl border border-border bg-surface-2 hover:bg-surface text-xs font-medium text-text cursor-pointer transition-colors flex items-center gap-2">
-              <UploadSimple size={16} weight="bold" />
-              <span>Import CSV</span>
-              <input
-                type="file"
-                accept=".csv"
-                onChange={handleCsvUpload}
-                className="hidden"
-              />
-            </label>
-            <Button
-              variant="primary"
-              size="md"
-              leftIcon={Plus}
-              onClick={openCreateModal}
-            >
-              Create Team
-            </Button>
-          </>
-        }
-      />
+    <div className={ADMIN_PAGE_WRAPPER}>
+      <header className={ADMIN_PAGE_HEADER}>
+        <h1 className={ADMIN_PAGE_TITLE}>Teams &amp; Franchises</h1>
+
+        <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+          <label className="min-h-[40px] px-4 py-2 rounded-full border border-border bg-surface-2 hover:bg-surface text-sm font-normal text-text cursor-pointer transition-colors inline-flex items-center gap-2">
+            <UploadSimple size={16} weight="regular" />
+            <span>Import CSV</span>
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleCsvUpload}
+              className="hidden"
+            />
+          </label>
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            leftIcon={Plus}
+            onClick={openCreateModal}
+            className="rounded-full px-5"
+          >
+            Create Team
+          </Button>
+        </div>
+      </header>
 
       {/* Teams Grid Grouped by Sport */}
       {teams.length === 0 ? (
-        <EmptyState
-          icon={ShieldCheck}
-          title="No teams created yet"
-          description="Create your first franchise team to start registering players and allocating purses."
-          actionLabel="Create first team"
-          onAction={openCreateModal}
-        />
+        <section className={ADMIN_CARD}>
+          <EmptyState
+            icon={ShieldCheck}
+            title="No teams created yet"
+            description="Create a franchise team to start registering players and allocating purses."
+            actionLabel="Create first team"
+            onAction={openCreateModal}
+          />
+        </section>
       ) : (
-        <div className="space-y-10">
+        <div className="space-y-6">
           {groupedSports.map((group) => (
-            <section key={group.sport} className="space-y-4">
-              <div className="flex items-center gap-3">
-                <h3 className="font-syne font-bold text-lg text-text tracking-tight">
-                  {group.sport}
-                </h3>
-                <span className="font-mono text-xs text-muted tabular-nums">
+            <section key={group.sport} className={ADMIN_CARD}>
+              <div className={ADMIN_CARD_HEADER}>
+                <h2 className={ADMIN_CARD_TITLE}>{group.sport}</h2>
+                <span className={ADMIN_COUNT_PILL}>
                   {group.teams.length} {group.teams.length === 1 ? 'team' : 'teams'}
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {group.teams.map((team) => {
                   const teamColor = getValidTeamColor(team.color)
                   return (
@@ -588,17 +611,16 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                           ? ({ '--team-color': teamColor } as React.CSSProperties)
                           : undefined
                       }
-                      className={`relative overflow-hidden p-6 rounded-2xl bg-surface border-[1.5px] border-solid transition-colors flex flex-col justify-between gap-4 shadow-sm ${
+                      className={`relative overflow-hidden p-5 rounded-2xl border-[1.5px] border-solid transition-colors flex flex-col justify-between gap-4 ${
                         teamColor
-                          ? 'border-[color:color-mix(in_srgb,var(--team-color)_75%,transparent)]'
-                          : 'border-border'
+                          ? 'bg-[color:color-mix(in_srgb,var(--team-color)_6%,var(--bg))] border-[color:color-mix(in_srgb,var(--team-color)_65%,transparent)]'
+                          : 'bg-bg border-border'
                       }`}
                     >
-                      <div>
-                        {/* Row 1: Logo + Sport label on left, action buttons on right */}
-                        <div className="flex items-center justify-between gap-3 mb-3">
+                      <div className="space-y-4">
+                        {/* Row 1: Logo + Sport on left, action buttons on right */}
+                        <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3 min-w-0">
-                            {/* Team Logo or Initial Badge */}
                             {team.logo_url ? (
                               <img
                                 src={team.logo_url}
@@ -608,18 +630,18 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                                 loading="lazy"
                                 decoding="async"
                                 referrerPolicy="no-referrer"
-                                className="w-12 h-12 rounded-xl object-contain bg-surface-2 border border-border p-1 shrink-0"
+                                className="w-12 h-12 rounded-2xl object-contain bg-surface border border-border p-1 shrink-0"
                               />
                             ) : (
                               <div
-                                className="w-12 h-12 rounded-xl flex items-center justify-center border border-border shrink-0 font-syne font-bold text-base text-white shadow-inner"
+                                className="w-12 h-12 rounded-2xl flex items-center justify-center border border-border shrink-0 font-syne font-bold text-base text-white"
                                 style={{ backgroundColor: teamColor || 'var(--accent-bright)' }}
                               >
                                 {team.short_code}
                               </div>
                             )}
-                            <span className="font-mono text-xs uppercase tracking-wider text-muted truncate">
-                              {team.sport}
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-surface border border-border font-mono text-[11px] uppercase tracking-wider text-muted truncate">
+                              {team.short_code}
                             </span>
                           </div>
 
@@ -630,60 +652,65 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                               onClick={() => openOwnerLoginModal(team)}
                               aria-label={`Owner login for ${team.name}`}
                               title="Owner login"
-                              className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 transition-colors"
+                              className={ADMIN_ICON_BTN}
                             >
-                              <Key size={15} />
+                              <Key size={15} weight="regular" />
                             </button>
                             <button
                               type="button"
                               onClick={() => openEditModal(team)}
                               aria-label={`Edit ${team.name}`}
-                              className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 transition-colors"
+                              title="Edit team"
+                              className={ADMIN_ICON_BTN}
                             >
-                              <PencilSimple size={15} />
+                              <PencilSimple size={15} weight="regular" />
                             </button>
                             <button
                               type="button"
                               onClick={() => setDeleteConfirmTeam(team)}
                               aria-label={`Delete ${team.name}`}
-                              className="p-2 rounded-lg border border-border text-muted hover:text-error hover:bg-error/10 transition-colors"
+                              title="Delete team"
+                              className={ADMIN_ICON_BTN_DANGER}
                             >
-                              <Trash size={15} />
+                              <Trash size={15} weight="regular" />
                             </button>
                           </div>
                         </div>
 
-                        {/* Row 2: Full-width Team Name */}
+                        {/* Row 2: Team Name */}
                         <h3
                           title={team.name}
-                          className="font-syne font-bold text-xl text-text tracking-tight text-balance break-words min-w-0 line-clamp-2 mb-4"
+                          className="font-syne font-bold text-xl text-text tracking-tight text-balance break-words min-w-0 line-clamp-2"
                         >
                           {team.name}
                         </h3>
 
                         {/* Owner Info */}
                         <div className="py-3 border-y border-border text-xs flex items-center justify-between gap-2">
-                          <div>
-                            <span className="block text-[11px] font-mono uppercase tracking-wider text-muted">
-                              Franchise Owner
-                            </span>
-                            <span className="text-text font-medium">
+                          <div className="min-w-0">
+                            <span className="block text-[11px] text-muted">Owner</span>
+                            <span className="text-sm text-text font-medium truncate block">
                               {team.owner_display_name || 'Unassigned'}
                             </span>
                           </div>
-                          <span className="font-mono text-xs text-muted">
-                            {team.short_code}
-                          </span>
+                          {team.owner_photo_url && (
+                            <img
+                              src={team.owner_photo_url}
+                              alt={team.owner_display_name || 'Owner'}
+                              referrerPolicy="no-referrer"
+                              className="w-8 h-8 rounded-full object-cover border border-border shrink-0"
+                            />
+                          )}
                         </div>
                       </div>
 
                       {/* Financial Metric */}
-                      <div className="bg-surface-2 rounded-xl p-3 border border-border flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 text-xs text-muted">
-                          <Wallet size={15} className="text-points" />
+                      <div className="bg-surface rounded-xl px-3.5 py-2.5 border border-border flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 text-xs text-muted">
+                          <Wallet size={15} weight="regular" className="text-points shrink-0" />
                           <span>Current Purse</span>
                         </div>
-                        <div className="font-mono text-sm font-bold text-points tabular-nums">
+                        <div className="font-mono text-sm font-bold text-points tabular-nums whitespace-nowrap">
                           {team.current_purse.toLocaleString()} PTS
                         </div>
                       </div>
@@ -702,27 +729,27 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
         onClose={handleCloseModal}
         title={editingTeam ? 'Edit Team Details' : 'Create Franchise Team'}
         size="lg"
+        className={ADMIN_DIALOG_CLASS}
       >
-        <form onSubmit={handleSaveTeam} className="flex flex-col gap-4 text-xs">
-          <div>
-            <label className="block font-mono text-muted uppercase tracking-wider mb-1.5">
-              Team Name *
-            </label>
+        <form onSubmit={handleSaveTeam} className="space-y-4">
+          <div className="space-y-1.5">
+            <label className={ADMIN_LABEL}>Team Name *</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Royal Strikers"
+              placeholder="Royal Strikers"
               required
-              className="w-full px-3.5 py-2.5 bg-bg border border-border rounded-xl text-xs text-text focus:outline-none focus:border-accent-bright"
+              className={ADMIN_INPUT}
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block font-mono text-muted uppercase tracking-wider mb-1.5">
-                Short Code (3 letters) *
-              </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <label className={ADMIN_LABEL}>Short Code *</label>
+                <span className="text-xs font-mono text-muted">Max 3 letters</span>
+              </div>
               <input
                 type="text"
                 maxLength={3}
@@ -730,18 +757,16 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                 onChange={(e) => setShortCode(e.target.value.toUpperCase())}
                 placeholder="RST"
                 required
-                className="w-full px-3.5 py-2.5 bg-bg border border-border rounded-xl text-xs font-mono text-text focus:outline-none focus:border-accent-bright"
+                className={`${ADMIN_INPUT} font-mono`}
               />
             </div>
 
-            <div>
-              <label className="block font-mono text-muted uppercase tracking-wider mb-1.5">
-                Sport *
-              </label>
+            <div className="space-y-1.5">
+              <label className={ADMIN_LABEL}>Sport *</label>
               <select
                 value={sport}
                 onChange={(e) => setSport(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-bg border border-border rounded-xl text-xs text-text focus:outline-none focus:border-accent-bright"
+                className={`${ADMIN_SELECT} w-full`}
               >
                 {sports.map((s) => (
                   <option key={s.id} value={s.name}>
@@ -752,68 +777,67 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block font-mono text-muted uppercase tracking-wider mb-1.5">
-                Theme Color *
-              </label>
-              <div className="flex items-center gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className={ADMIN_LABEL}>Theme Color *</label>
+              <div className="flex items-center gap-2.5">
                 <input
                   type="color"
                   value={color}
                   onChange={(e) => setColor(e.target.value)}
-                  className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border-0"
+                  className="w-11 h-11 rounded-xl cursor-pointer bg-transparent border-0 shrink-0"
                 />
                 <input
                   type="text"
                   value={color}
                   onChange={(e) => setColor(e.target.value)}
-                  className="flex-1 px-3 py-2 bg-bg border border-border rounded-xl font-mono text-xs text-text focus:outline-none focus:border-accent-bright"
+                  className={`${ADMIN_INPUT} flex-1 font-mono`}
                 />
               </div>
             </div>
 
             {!editingTeam && (
-              <div>
-                <label className="block font-mono text-muted uppercase tracking-wider mb-1.5">
-                  Starting Purse Points
-                </label>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <label className={ADMIN_LABEL}>Starting Purse</label>
+                  <span className="text-xs font-mono text-muted">PTS</span>
+                </div>
                 <input
                   type="number"
                   min={0}
                   value={startingPurse}
                   onChange={(e) => setStartingPurse(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-bg border border-border rounded-xl text-xs font-mono tabular-nums text-points focus:outline-none focus:border-accent-bright"
+                  className={`${ADMIN_INPUT} font-mono tabular-nums text-points`}
                 />
               </div>
             )}
           </div>
 
           {/* Owner Name and Owner Photo side by side */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
-            <div>
-              <label className="block font-mono text-muted uppercase tracking-wider mb-1.5">
-                Team Owner Name
-              </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+            <div className="space-y-1.5">
+              <label className={ADMIN_LABEL}>Owner Name</label>
               <div className="relative">
                 <input
                   type="text"
                   value={ownerDisplayName}
                   onChange={(e) => setOwnerDisplayName(e.target.value)}
-                  placeholder="e.g. Marcus Vance"
-                  className="w-full px-3.5 py-2.5 bg-bg border border-border rounded-xl text-xs text-text focus:outline-none focus:border-accent-bright"
+                  placeholder="Marcus Vance"
+                  className={`${ADMIN_INPUT} pr-10`}
                 />
-                <User size={16} className="absolute right-3.5 top-2.5 text-muted" />
+                <User
+                  size={16}
+                  weight="regular"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+                />
               </div>
             </div>
 
-            <div>
-              <label className="block font-mono text-muted uppercase tracking-wider mb-1.5">
-                Owner Photo
-              </label>
+            <div className="space-y-1.5">
+              <label className={ADMIN_LABEL}>Owner Photo</label>
               <div className="flex items-center gap-2.5">
                 {ownerPhotoUrl ? (
-                  <div className="w-10 h-10 rounded-xl overflow-hidden border border-border bg-surface-2 shrink-0">
+                  <div className="w-11 h-11 rounded-full overflow-hidden border border-border bg-surface-2 shrink-0">
                     <img
                       src={ownerPhotoUrl}
                       alt="Owner photo preview"
@@ -822,19 +846,19 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                     />
                   </div>
                 ) : (
-                  <div className="w-10 h-10 rounded-xl border border-border bg-surface-2 flex items-center justify-center text-muted shrink-0">
-                    <User size={18} />
+                  <div className="w-11 h-11 rounded-full border border-border bg-surface-2 flex items-center justify-center text-muted shrink-0">
+                    <User size={18} weight="regular" />
                   </div>
                 )}
 
-                <label className="flex-1 min-h-[40px] px-3 py-2 rounded-xl bg-surface-2 border border-border hover:border-accent-bright text-center cursor-pointer flex items-center justify-center gap-1.5 text-xs text-text transition-colors">
-                  <UploadSimple size={15} />
+                <label className="flex-1 min-h-[42px] px-3.5 py-2 rounded-full bg-surface-2 border border-border hover:border-accent-bright text-center cursor-pointer inline-flex items-center justify-center gap-1.5 text-xs text-text transition-colors">
+                  <UploadSimple size={15} weight="regular" />
                   <span>
                     {isUploadingOwnerPhoto
                       ? 'Compressing...'
                       : ownerPhotoUrl
-                      ? 'Replace photo'
-                      : 'Upload photo'}
+                      ? 'Replace'
+                      : 'Upload'}
                   </span>
                   <input
                     type="file"
@@ -850,9 +874,9 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                     type="button"
                     onClick={handleRemoveOwnerPhoto}
                     disabled={isUploadingOwnerPhoto || isSubmitting}
-                    className="min-h-[40px] px-2.5 py-2 rounded-xl border border-border bg-surface-2 hover:bg-error/10 text-muted hover:text-error text-xs transition-colors shrink-0"
+                    className="min-h-[42px] px-3 py-2 rounded-full border border-border bg-surface-2 hover:bg-error/10 text-muted hover:text-error text-xs transition-colors shrink-0 cursor-pointer"
                   >
-                    Remove photo
+                    Remove
                   </button>
                 )}
               </div>
@@ -860,13 +884,11 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
           </div>
 
           {/* Logo Upload with Preview */}
-          <div>
-            <label className="block font-mono text-muted uppercase tracking-wider mb-1.5">
-              Team Crest / Logo
-            </label>
-            <div className="flex items-center gap-4">
+          <div className="space-y-1.5">
+            <label className={ADMIN_LABEL}>Team Crest</label>
+            <div className="flex items-center gap-3.5">
               {logoUrl ? (
-                <div className="w-14 h-14 rounded-xl overflow-hidden border border-border bg-surface-2 shrink-0">
+                <div className="w-14 h-14 rounded-2xl overflow-hidden border border-border bg-surface-2 shrink-0">
                   <img
                     src={logoUrl}
                     alt="Logo preview"
@@ -876,15 +898,15 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                 </div>
               ) : (
                 <div
-                  className="w-14 h-14 rounded-xl flex items-center justify-center font-mono font-bold text-white shrink-0"
+                  className="w-14 h-14 rounded-2xl flex items-center justify-center font-mono font-bold text-white shrink-0"
                   style={{ backgroundColor: color }}
                 >
                   {shortCode || 'LOGO'}
                 </div>
               )}
 
-              <label className="flex-1 min-h-[40px] px-4 py-2 rounded-xl bg-surface-2 border border-border hover:border-accent-bright text-center cursor-pointer flex items-center justify-center gap-2 text-xs text-text transition-colors">
-                <UploadSimple size={16} />
+              <label className="flex-1 min-h-[42px] px-4 py-2 rounded-full bg-surface-2 border border-border hover:border-accent-bright text-center cursor-pointer inline-flex items-center justify-center gap-2 text-xs text-text transition-colors">
+                <UploadSimple size={16} weight="regular" />
                 <span>{isUploading ? 'Compressing...' : 'Upload crest image'}</span>
                 <input
                   type="file"
@@ -897,12 +919,13 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-border mt-2">
+          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-border">
             <Button
               type="button"
               variant="secondary"
               size="sm"
               onClick={handleCloseModal}
+              className="rounded-full"
             >
               Cancel
             </Button>
@@ -912,6 +935,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
               size="sm"
               disabled={isSubmitting || isUploading || isUploadingOwnerPhoto}
               isLoading={isSubmitting}
+              className="rounded-full px-4"
             >
               {editingTeam ? 'Update Team' : 'Create Team'}
             </Button>
@@ -923,20 +947,22 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
       <Dialog
         isOpen={!!deleteConfirmTeam}
         onClose={() => setDeleteConfirmTeam(null)}
-        title={deleteConfirmTeam ? `Delete Team "${deleteConfirmTeam.name}"?` : 'Delete Team'}
+        title={deleteConfirmTeam ? `Delete "${deleteConfirmTeam.name}"?` : 'Delete Team'}
         size="sm"
+        className={ADMIN_DIALOG_CLASS}
       >
         <div className="space-y-4">
-          <p className="text-xs text-muted leading-relaxed">
-            This action cannot be undone. All players currently assigned to this team will automatically be released back to the available pool.
+          <p className="text-sm text-muted leading-relaxed">
+            This cannot be undone. Assigned players will be released back to the available pool.
           </p>
 
-          <div className="flex items-center justify-end gap-2.5 pt-2">
+          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-border">
             <Button
               type="button"
               variant="secondary"
               size="sm"
               onClick={() => setDeleteConfirmTeam(null)}
+              className="rounded-full"
             >
               Cancel
             </Button>
@@ -947,8 +973,9 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
               onClick={handleDeleteTeam}
               disabled={isSubmitting}
               isLoading={isSubmitting}
+              className="rounded-full px-4"
             >
-              Confirm Delete & Release Players
+              Delete Team
             </Button>
           </div>
         </div>
@@ -959,74 +986,86 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
         isOpen={isCsvModalOpen}
         onClose={() => !isImporting && setIsCsvModalOpen(false)}
         title="CSV Franchise Teams Import"
-        description={`Previewing ${csvRows.length} team entries.`}
         size="lg"
+        className={ADMIN_DIALOG_CLASS}
       >
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between text-xs">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3 text-xs flex-wrap">
             <span className="text-muted">
-              Valid teams: <strong className="text-text">{csvRows.filter((r) => r.valid).length}</strong> / {csvRows.length}
+              Valid:{' '}
+              <strong className="text-text font-mono tabular-nums">
+                {csvRows.filter((r) => r.valid).length}
+              </strong>{' '}
+              / {csvRows.length}
             </span>
             <button
               type="button"
               onClick={downloadTeamsTemplate}
-              className="text-accent-bright hover:underline flex items-center gap-1"
+              className="h-7 px-3 rounded-full bg-surface-2 border border-border text-accent-bright hover:border-accent-bright inline-flex items-center gap-1.5 transition-colors cursor-pointer"
             >
-              <DownloadSimple size={14} />
-              <span>Download Sample Template</span>
+              <DownloadSimple size={14} weight="regular" />
+              <span>Sample Template</span>
             </button>
           </div>
 
-          <div className="max-h-60 overflow-y-auto border border-border rounded-xl">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-surface-2 text-muted font-mono uppercase text-[10px] sticky top-0">
-                <tr>
-                  <th className="p-2.5 font-normal">Sport</th>
-                  <th className="p-2.5 font-normal">Team Name</th>
-                  <th className="p-2.5 font-normal">Code</th>
-                  <th className="p-2.5 font-normal">Starting Purse</th>
-                  <th className="p-2.5 font-normal">Validation</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {csvRows.map((r, i) => (
-                  <tr key={i} className={r.valid ? '' : 'bg-error/5'}>
-                    <td className="p-2.5 font-medium">{r.sport}</td>
-                    <td className="p-2.5">{r.name}</td>
-                    <td className="p-2.5 font-mono">{r.short_code}</td>
-                    <td className="p-2.5 font-mono tabular-nums text-points">{r.starting_purse} PTS</td>
-                    <td className="p-2.5">
-                      {r.valid ? (
-                        <span className="text-accent-bright flex items-center gap-1 text-[11px]">
-                          <CheckCircle size={14} /> Ready
-                        </span>
-                      ) : (
-                        <span className="text-error flex items-center gap-1 text-[11px]">
-                          <WarningCircle size={14} /> {r.error}
-                        </span>
-                      )}
-                    </td>
+          <div className={ADMIN_TABLE_SHELL}>
+            <div className="max-h-60 overflow-y-auto overflow-x-auto thin-scrollbar">
+              <table className="w-full min-w-[520px] text-left text-xs">
+                <thead className="bg-surface-2 text-muted font-mono uppercase text-[10px] sticky top-0 border-b border-border">
+                  <tr>
+                    <th className="p-3 font-normal">Sport</th>
+                    <th className="p-3 font-normal">Team Name</th>
+                    <th className="p-3 font-normal">Code</th>
+                    <th className="p-3 font-normal">Starting Purse</th>
+                    <th className="p-3 font-normal">Validation</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {csvRows.map((r, i) => (
+                    <tr key={i} className={r.valid ? '' : 'bg-error/5'}>
+                      <td className="p-3 font-medium text-text">{r.sport}</td>
+                      <td className="p-3 text-text">{r.name}</td>
+                      <td className="p-3 font-mono text-text">{r.short_code}</td>
+                      <td className="p-3 font-mono tabular-nums text-points">
+                        {r.starting_purse} PTS
+                      </td>
+                      <td className="p-3">
+                        {r.valid ? (
+                          <span className="text-accent-bright inline-flex items-center gap-1 text-[11px]">
+                            <CheckCircle size={14} weight="regular" /> Ready
+                          </span>
+                        ) : (
+                          <span className="text-error inline-flex items-center gap-1 text-[11px]">
+                            <WarningCircle size={14} weight="regular" /> {r.error}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border">
+          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-border">
             <Button
+              type="button"
               variant="secondary"
               size="sm"
               onClick={() => setIsCsvModalOpen(false)}
               disabled={isImporting}
+              className="rounded-full"
             >
               Cancel
             </Button>
             <Button
+              type="button"
               variant="primary"
               size="sm"
               onClick={confirmBulkImport}
               disabled={isImporting || csvRows.filter((r) => r.valid).length === 0}
               isLoading={isImporting}
+              className="rounded-full px-4"
             >
               Import {csvRows.filter((r) => r.valid).length} Teams
             </Button>
@@ -1038,85 +1077,86 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
       <Dialog
         isOpen={Boolean(loginModalTeam)}
         onClose={closeOwnerLoginModal}
-        title={`Owner login for ${loginModalTeam?.name || ''}`}
+        title={`Owner login · ${loginModalTeam?.name || ''}`}
         size="md"
+        className={ADMIN_DIALOG_CLASS}
       >
         <div className="space-y-5">
           {/* Status Header */}
-          <div className="p-4 rounded-xl bg-surface-2 border border-border flex items-center justify-between text-xs">
-            <span className="text-muted">Current login ID:</span>
+          <div
+            className={`${ADMIN_WELL} p-4 flex items-center justify-between gap-3 text-xs`}
+          >
+            <span className="text-muted">Current login ID</span>
             {isLoadingLoginStatus ? (
-              <span className="font-mono text-muted animate-pulse">Loading status...</span>
+              <span className="font-mono text-muted animate-pulse">Loading...</span>
             ) : currentLoginId ? (
-              <span className="font-mono font-bold text-accent-bright bg-surface px-2.5 py-1 rounded-lg border border-border">
+              <span className="font-mono font-semibold text-accent-bright bg-surface px-3 py-1 rounded-full border border-border">
                 {currentLoginId}
               </span>
             ) : (
-              <span className="font-mono text-muted bg-surface px-2.5 py-1 rounded-lg border border-border">
+              <span className="font-mono text-muted bg-surface px-3 py-1 rounded-full border border-border">
                 No login yet
               </span>
             )}
           </div>
 
           <form onSubmit={handleSaveLogin} className="space-y-4">
-            <div>
-              <label
-                htmlFor="owner-login-id"
-                className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5"
-              >
-                Login ID
-              </label>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <label htmlFor="owner-login-id" className={ADMIN_LABEL}>
+                  Login ID
+                </label>
+                <span className="text-xs font-mono text-muted">3–30 chars · a-z 0-9 . _ -</span>
+              </div>
               <input
                 id="owner-login-id"
                 type="text"
                 value={loginIdInput}
                 onChange={(e) => setLoginIdInput(e.target.value.toLowerCase())}
-                placeholder="e.g. strikers_owner"
+                placeholder="strikers_owner"
                 required
                 disabled={isLoadingLoginStatus || isSavingLogin || isRemovingLogin}
-                className="w-full px-4 py-2.5 bg-bg border border-border rounded-xl font-mono text-xs sm:text-sm text-text placeholder-muted focus:outline-none focus:border-accent-bright disabled:opacity-50"
+                className={`${ADMIN_INPUT} font-mono`}
               />
-              <span className="block text-[11px] text-muted mt-1">
-                3 to 30 characters (lowercase letters, numbers, dot, dash, underscore)
-              </span>
             </div>
 
-            <div>
-              <label
-                htmlFor="owner-login-password"
-                className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5"
-              >
-                Password
-              </label>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <label htmlFor="owner-login-password" className={ADMIN_LABEL}>
+                  Password
+                </label>
+                <span className="text-xs font-mono text-muted">Min 8 chars</span>
+              </div>
               <div className="relative">
                 <input
                   id="owner-login-password"
                   type={showPassword ? 'text' : 'password'}
                   value={passwordInput}
                   onChange={(e) => setPasswordInput(e.target.value)}
-                  placeholder={currentLoginId ? 'Enter new password to reset' : 'Minimum 8 characters'}
+                  placeholder={currentLoginId ? 'New password to reset' : 'At least 8 characters'}
                   required
                   disabled={isLoadingLoginStatus || isSavingLogin || isRemovingLogin}
-                  className="w-full pl-4 pr-11 py-2.5 bg-bg border border-border rounded-xl font-mono text-xs sm:text-sm text-text placeholder-muted focus:outline-none focus:border-accent-bright disabled:opacity-50"
+                  className={`${ADMIN_INPUT} font-mono pr-11`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((prev) => !prev)}
                   tabIndex={-1}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-text p-1 transition-colors"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 transition-colors cursor-pointer"
                 >
-                  {showPassword ? <EyeSlash size={16} /> : <Eye size={16} />}
+                  {showPassword ? (
+                    <EyeSlash size={16} weight="regular" />
+                  ) : (
+                    <Eye size={16} weight="regular" />
+                  )}
                 </button>
               </div>
-              <span className="block text-[11px] text-muted mt-1">
-                Minimum 8 characters
-              </span>
             </div>
 
             {/* Remove confirmation step banner */}
             {isConfirmingRemove && (
-              <div className="p-3.5 rounded-xl bg-error/10 border border-error/30 text-xs text-text space-y-2">
+              <div className="p-4 rounded-2xl bg-error/10 border border-error/30 text-xs text-text space-y-2.5">
                 <div className="font-semibold text-error">Remove owner login?</div>
                 <p className="text-muted">
                   The team owner will no longer be able to log in to manage this franchise.
@@ -1128,6 +1168,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                     size="sm"
                     disabled={isRemovingLogin}
                     onClick={() => setIsConfirmingRemove(false)}
+                    className="rounded-full"
                   >
                     Cancel
                   </Button>
@@ -1138,6 +1179,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                     isLoading={isRemovingLogin}
                     disabled={isRemovingLogin}
                     onClick={handleConfirmRemoveLogin}
+                    className="rounded-full px-4"
                   >
                     Confirm Remove
                   </Button>
@@ -1145,7 +1187,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
               </div>
             )}
 
-            <div className="flex items-center justify-between gap-3 pt-3 border-t border-border">
+            <div className="flex items-center justify-between gap-3 pt-4 border-t border-border">
               {currentLoginId && !isConfirmingRemove ? (
                 <Button
                   type="button"
@@ -1153,6 +1195,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                   size="sm"
                   disabled={isLoadingLoginStatus || isSavingLogin || isRemovingLogin}
                   onClick={() => setIsConfirmingRemove(true)}
+                  className="rounded-full"
                 >
                   Remove login
                 </Button>
@@ -1167,6 +1210,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                   size="sm"
                   disabled={isSavingLogin || isRemovingLogin}
                   onClick={closeOwnerLoginModal}
+                  className="rounded-full"
                 >
                   Cancel
                 </Button>
@@ -1182,6 +1226,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                     !loginIdInput.trim() ||
                     passwordInput.length < 8
                   }
+                  className="rounded-full px-4"
                 >
                   Save login
                 </Button>

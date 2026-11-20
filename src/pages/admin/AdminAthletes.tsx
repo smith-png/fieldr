@@ -38,11 +38,28 @@ import {
   Button,
   Dialog,
   EmptyState,
-  PageHeader,
   Pagination,
   SkeletonTableRow
 } from '../../components/ui'
 import { BulkRegisterPanel } from '../../components/admin'
+import {
+  ADMIN_CARD,
+  ADMIN_CARD_HEADER,
+  ADMIN_CARD_TITLE,
+  ADMIN_COUNT_PILL,
+  ADMIN_DIALOG_CLASS,
+  ADMIN_ICON_BTN,
+  ADMIN_ICON_BTN_DANGER,
+  ADMIN_INPUT,
+  ADMIN_LABEL,
+  ADMIN_PAGE_HEADER,
+  ADMIN_PAGE_TITLE,
+  ADMIN_PAGE_WRAPPER,
+  ADMIN_SELECT,
+  ADMIN_TABLE_SHELL,
+  ADMIN_TEXTAREA,
+  ADMIN_WELL
+} from '../../components/admin/adminStyles'
 
 interface AdminAthletesProps {
   activeSeason: Season | null
@@ -369,377 +386,377 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
   }
 
   return (
-    <div className="space-y-6">
+    <div className={ADMIN_PAGE_WRAPPER}>
       {selectedAthlete ? (
         /* ATHLETE DETAIL VIEW */
         <div className="space-y-6">
-          <PageHeader
-            label={`Athlete Profile #${formatAthleteCode(selectedAthlete.athlete_code)}`}
-            title={selectedAthlete.name}
-            backAction={
-              <Button
-                variant="secondary"
-                size="icon"
+          <header className={ADMIN_PAGE_HEADER}>
+            <div className="flex items-center gap-3.5 min-w-0">
+              <button
+                type="button"
                 onClick={() => setSelectedAthlete(null)}
                 aria-label="Back to Athletes"
+                className="w-10 h-10 rounded-full bg-surface border border-border flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 transition-colors shrink-0 cursor-pointer"
               >
-                <ArrowLeft size={18} weight="bold" />
-              </Button>
-            }
-            actions={
-              <>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  leftIcon={UserPlus}
-                  onClick={() => setIsRegisterToSportOpen(true)}
-                >
-                  Register to sport
-                </Button>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  leftIcon={PencilSimple}
-                  onClick={() => openEditForm(selectedAthlete)}
-                >
-                  Edit Athlete
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  leftIcon={Trash}
-                  onClick={() =>
-                    handleRequestDelete({
-                      ...selectedAthlete,
-                      entries_count: athleteEntries.length
-                    })
-                  }
-                  className="hover:text-error hover:border-error/40"
-                >
-                  Delete
-                </Button>
-              </>
-            }
-          />
-
-          {/* Athlete Profile Card */}
-          <div className="bg-surface border border-border rounded-2xl p-6 flex flex-col sm:flex-row items-start gap-6 shadow-sm">
-            {selectedAthlete.photo_thumb_url || selectedAthlete.photo_url ? (
-              <img
-                src={selectedAthlete.photo_thumb_url || selectedAthlete.photo_url}
-                alt={selectedAthlete.name}
-                width={96}
-                height={96}
-                loading="lazy"
-                decoding="async"
-                referrerPolicy="no-referrer"
-                className="w-24 h-24 rounded-2xl object-cover bg-surface-2 border border-border shrink-0"
-              />
-            ) : (
-              <div className="w-24 h-24 rounded-2xl bg-surface-2 border border-border flex items-center justify-center text-muted shrink-0">
-                <User size={36} />
-              </div>
-            )}
-
-            <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-4 w-full text-xs">
-              <div>
-                <span className="font-mono uppercase text-[10px] tracking-wider text-muted block mb-1">
-                  Athlete Code
+                <ArrowLeft size={18} weight="regular" />
+              </button>
+              <div className="flex items-center gap-3 flex-wrap min-w-0">
+                <h1 className={`${ADMIN_PAGE_TITLE} truncate`}>{selectedAthlete.name}</h1>
+                <span className="inline-flex items-center px-3 py-1 rounded-full bg-surface-2 border border-border font-mono text-xs font-semibold text-accent-bright tabular-nums shrink-0">
+                  #{formatAthleteCode(selectedAthlete.athlete_code)}
                 </span>
-                <span className="font-mono font-bold text-sm text-accent-bright tabular-nums">
-                  {formatAthleteCode(selectedAthlete.athlete_code)}
-                </span>
-              </div>
-
-              <div>
-                <span className="font-mono uppercase text-[10px] tracking-wider text-muted block mb-1">
-                  Academic Year
-                </span>
-                <span className="font-mono font-semibold text-sm text-text">
-                  {getAcademicYearLabel(selectedAthlete.academic_year || '1st')}
-                </span>
-              </div>
-
-              <div>
-                <span className="font-mono uppercase text-[10px] tracking-wider text-muted block mb-1">
-                  Roll No
-                </span>
-                <span className="font-mono text-sm text-text">
-                  {selectedAthlete.roll_no || '—'}
-                </span>
-              </div>
-
-              <div>
-                <span className="font-mono uppercase text-[10px] tracking-wider text-muted block mb-1">
-                  Sport Entries
-                </span>
-                <span className="font-mono font-semibold text-sm text-text tabular-nums">
-                  {athleteEntries.length}
-                </span>
-              </div>
-
-              <div className="col-span-2 sm:col-span-4 pt-3 border-t border-border">
-                <span className="font-mono uppercase text-[10px] tracking-wider text-muted block mb-1">
-                  Notes
-                </span>
-                <p className="text-xs text-text whitespace-pre-wrap">
-                  {selectedAthlete.notes || 'No notes recorded.'}
-                </p>
               </div>
             </div>
-          </div>
 
-          {/* Sport Entries Across Seasons Table */}
-          <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-sm">
-            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <IdentificationBadge size={18} className="text-accent-bright" />
-                <h2 className="font-syne font-bold text-base text-text">
-                  Sport Entries Across Seasons
-                </h2>
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                leftIcon={UserPlus}
+                onClick={() => setIsRegisterToSportOpen(true)}
+                className="rounded-full"
+              >
+                Register to sport
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                leftIcon={PencilSimple}
+                onClick={() => openEditForm(selectedAthlete)}
+                className="rounded-full px-4"
+              >
+                Edit Athlete
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                leftIcon={Trash}
+                onClick={() =>
+                  handleRequestDelete({
+                    ...selectedAthlete,
+                    entries_count: athleteEntries.length
+                  })
+                }
+                className="rounded-full text-error hover:text-error hover:bg-error/10"
+              >
+                Delete
+              </Button>
+            </div>
+          </header>
+
+          {/* Athlete Profile Card */}
+          <section className={ADMIN_CARD}>
+            <div className="flex flex-col sm:flex-row items-start gap-6">
+              {selectedAthlete.photo_thumb_url || selectedAthlete.photo_url ? (
+                <img
+                  src={selectedAthlete.photo_thumb_url || selectedAthlete.photo_url}
+                  alt={selectedAthlete.name}
+                  width={96}
+                  height={96}
+                  loading="lazy"
+                  decoding="async"
+                  referrerPolicy="no-referrer"
+                  className="w-24 h-24 rounded-2xl object-cover bg-surface-2 border border-border shrink-0"
+                />
+              ) : (
+                <div className="w-24 h-24 rounded-2xl bg-bg border border-border flex items-center justify-center text-muted shrink-0">
+                  <User size={36} weight="regular" />
+                </div>
+              )}
+
+              <div className="flex-1 w-full space-y-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+                  <div className={`${ADMIN_WELL} p-4`}>
+                    <span className="text-xs text-muted block mb-1">Athlete Code</span>
+                    <span className="font-mono font-bold text-base text-accent-bright tabular-nums">
+                      {formatAthleteCode(selectedAthlete.athlete_code)}
+                    </span>
+                  </div>
+
+                  <div className={`${ADMIN_WELL} p-4`}>
+                    <span className="text-xs text-muted block mb-1">Academic Year</span>
+                    <span className="font-mono font-semibold text-sm text-text">
+                      {getAcademicYearLabel(selectedAthlete.academic_year || '1st')}
+                    </span>
+                  </div>
+
+                  <div className={`${ADMIN_WELL} p-4`}>
+                    <span className="text-xs text-muted block mb-1">Roll No</span>
+                    <span className="font-mono text-sm text-text">
+                      {selectedAthlete.roll_no || '—'}
+                    </span>
+                  </div>
+
+                  <div className={`${ADMIN_WELL} p-4`}>
+                    <span className="text-xs text-muted block mb-1">Sport Entries</span>
+                    <span className="font-mono font-semibold text-base text-text tabular-nums">
+                      {athleteEntries.length}
+                    </span>
+                  </div>
+                </div>
+
+                <div className={`${ADMIN_WELL} p-4`}>
+                  <span className="text-xs text-muted block mb-1">Notes</span>
+                  <p className="text-sm text-text whitespace-pre-wrap">
+                    {selectedAthlete.notes || 'No notes recorded.'}
+                  </p>
+                </div>
               </div>
-              <span className="text-xs font-mono text-muted tabular-nums">
+            </div>
+          </section>
+
+          {/* Sport Entries Across Seasons Card */}
+          <section className={ADMIN_CARD}>
+            <div className={ADMIN_CARD_HEADER}>
+              <h2 className={ADMIN_CARD_TITLE}>Sport Entries Across Seasons</h2>
+              <span className={ADMIN_COUNT_PILL}>
                 {athleteEntries.length} {athleteEntries.length === 1 ? 'entry' : 'entries'}
               </span>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-border bg-surface-2 text-muted font-mono uppercase tracking-wider text-[11px]">
-                    <th className="py-3 px-4 font-normal">Season Name</th>
-                    <th className="py-3 px-4 font-normal">Sport</th>
-                    <th className="py-3 px-4 font-normal">Role</th>
-                    <th className="py-3 px-4 font-normal">Academic Year</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {isLoadingDetail ? (
-                    Array.from({ length: 3 }).map((_, idx) => (
-                      <SkeletonTableRow key={idx} columns={4} />
-                    ))
-                  ) : athleteEntries.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="py-10 px-4 text-center text-muted">
-                        This athlete has no sport entries in any season yet.
-                      </td>
+            <div className={ADMIN_TABLE_SHELL}>
+              <div className="overflow-x-auto thin-scrollbar">
+                <table className="w-full min-w-[540px] text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-surface-2 text-muted font-mono uppercase tracking-wider text-[11px]">
+                      <th className="py-3.5 px-4 font-normal whitespace-nowrap">Season Name</th>
+                      <th className="py-3.5 px-4 font-normal whitespace-nowrap">Sport</th>
+                      <th className="py-3.5 px-4 font-normal whitespace-nowrap">Role</th>
+                      <th className="py-3.5 px-4 font-normal whitespace-nowrap">Academic Year</th>
                     </tr>
-                  ) : (
-                    athleteEntries.map((entry) => (
-                      <tr key={entry.player_id} className="hover:bg-surface-2/60 transition-colors">
-                        <td className="py-3.5 px-4 font-medium text-text">
-                          <div className="flex items-center gap-2">
-                            <span>{entry.season_name}</span>
-                            {entry.is_season_active && (
-                              <span className="font-mono text-[10px] uppercase text-accent-bright font-semibold">
-                                · Active
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4 text-text">{entry.sport}</td>
-                        <td className="py-3.5 px-4 text-muted">{entry.playing_role}</td>
-                        <td className="py-3.5 px-4 font-mono text-muted">
-                          {getAcademicYearLabel(entry.academic_year || '1st')}
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {isLoadingDetail ? (
+                      Array.from({ length: 3 }).map((_, idx) => (
+                        <SkeletonTableRow key={idx} columns={4} />
+                      ))
+                    ) : athleteEntries.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-10 px-4 text-center text-sm text-muted">
+                          This athlete has no sport entries in any season yet.
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : (
+                      athleteEntries.map((entry) => (
+                        <tr
+                          key={entry.player_id}
+                          className="hover:bg-surface-2/50 transition-colors"
+                        >
+                          <td className="py-3.5 px-4 font-medium text-text whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <span>{entry.season_name}</span>
+                              {entry.is_season_active && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface border border-accent-bright text-accent-bright text-[11px] font-medium">
+                                  Active
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 text-text whitespace-nowrap">{entry.sport}</td>
+                          <td className="py-3.5 px-4 text-muted whitespace-nowrap">
+                            {entry.playing_role}
+                          </td>
+                          <td className="py-3.5 px-4 text-xs font-mono text-muted whitespace-nowrap">
+                            {getAcademicYearLabel(entry.academic_year || '1st')}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          </section>
         </div>
       ) : (
         /* ATHLETES LIST VIEW */
         <>
-          <PageHeader
-            label="Universal Athlete Directory"
-            title="Athletes"
-            actions={
-              <Button
-                variant="primary"
-                size="md"
-                leftIcon={Plus}
-                onClick={openCreateForm}
-              >
-                New Athlete
-              </Button>
-            }
-          />
+          <header className={ADMIN_PAGE_HEADER}>
+            <h1 className={ADMIN_PAGE_TITLE}>Athletes</h1>
 
-          {/* Search Bar */}
-          <div className="bg-surface border border-border rounded-2xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 shadow-sm">
-            <div className="relative flex-1 max-w-md">
-              <MagnifyingGlass
-                size={16}
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted"
-              />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by name, 4-digit code (e.g. 0001), or roll no..."
-                className="w-full bg-bg border border-border rounded-xl pl-10 pr-4 py-2 text-xs text-text placeholder-muted focus:outline-none focus:border-accent-bright"
-              />
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              leftIcon={Plus}
+              onClick={openCreateForm}
+              className="rounded-full px-5 self-start sm:self-auto"
+            >
+              New Athlete
+            </Button>
+          </header>
+
+          {/* Search & Directory Card */}
+          <section className={ADMIN_CARD}>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-border">
+              <div className="relative flex-1 max-w-md">
+                <MagnifyingGlass
+                  size={16}
+                  weight="regular"
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+                />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by name, 4-digit code (0001), or roll no..."
+                  className={`${ADMIN_INPUT} pl-10`}
+                />
+              </div>
+
+              <span className={ADMIN_COUNT_PILL}>{totalCount} athletes</span>
             </div>
 
-            <div className="text-xs font-mono text-muted tabular-nums">
-              Total Athletes: <span className="text-text font-semibold">{totalCount}</span>
-            </div>
-          </div>
-
-          {/* Athletes Table */}
-          <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="border-b border-border bg-surface-2 text-muted font-mono uppercase tracking-wider text-[11px]">
-                    <th className="py-3 px-4 font-normal">Name</th>
-                    <th className="py-3 px-4 font-normal">Code</th>
-                    <th className="py-3 px-4 font-normal">Academic Year</th>
-                    <th className="py-3 px-4 font-normal">Roll No</th>
-                    <th className="py-3 px-4 font-normal">Sport Entries</th>
-                    <th className="py-3 px-4 font-normal text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {isLoading ? (
-                    Array.from({ length: 6 }).map((_, i) => (
-                      <SkeletonTableRow key={i} columns={6} />
-                    ))
-                  ) : athletes.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="p-6">
-                        <EmptyState
-                          icon={IdentificationBadge}
-                          title="No athletes found"
-                          description="Create a new athlete profile or adjust your search query."
-                          actionLabel="New Athlete"
-                          onAction={openCreateForm}
-                        />
-                      </td>
+            {/* Athletes Table */}
+            <div className={ADMIN_TABLE_SHELL}>
+              <div className="overflow-x-auto thin-scrollbar">
+                <table className="w-full min-w-[680px] text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-surface-2 text-muted font-mono uppercase tracking-wider text-[11px]">
+                      <th className="py-3.5 px-4 font-normal whitespace-nowrap">Name</th>
+                      <th className="py-3.5 px-4 font-normal whitespace-nowrap">Code</th>
+                      <th className="py-3.5 px-4 font-normal whitespace-nowrap">Academic Year</th>
+                      <th className="py-3.5 px-4 font-normal whitespace-nowrap">Roll No</th>
+                      <th className="py-3.5 px-4 font-normal whitespace-nowrap">Sport Entries</th>
+                      <th className="py-3.5 px-4 font-normal text-right whitespace-nowrap">
+                        Actions
+                      </th>
                     </tr>
-                  ) : (
-                    athletes.map((athlete) => {
-                      const entriesCount = athlete.entries_count ?? 0
-                      return (
-                        <tr
-                          key={athlete.id}
-                          onClick={() => openAthleteDetail(athlete)}
-                          className="hover:bg-surface-2/60 transition-colors cursor-pointer font-sans"
-                        >
-                          {/* Name */}
-                          <td className="py-3.5 px-4 font-medium text-text">
-                            <span className="hover:text-accent-bright transition-colors">
-                              {athlete.name}
-                            </span>
-                          </td>
-
-                          {/* 4-digit Code */}
-                          <td className="py-3.5 px-4 font-mono text-[11px] text-accent-bright font-semibold tabular-nums">
-                            {formatAthleteCode(athlete.athlete_code)}
-                          </td>
-
-                          {/* Academic Year */}
-                          <td className="py-3.5 px-4 font-mono text-muted">
-                            {getAcademicYearLabel(athlete.academic_year || '1st')}
-                          </td>
-
-                          {/* Roll No */}
-                          <td className="py-3.5 px-4 font-mono text-muted">
-                            {athlete.roll_no || '—'}
-                          </td>
-
-                          {/* Count of Sport Entries */}
-                          <td className="py-3.5 px-4 font-mono text-text tabular-nums">
-                            {entriesCount}
-                          </td>
-
-                          {/* Actions */}
-                          <td
-                            className="py-3.5 px-4 text-right"
-                            onClick={(e) => e.stopPropagation()}
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {isLoading ? (
+                      Array.from({ length: 6 }).map((_, i) => (
+                        <SkeletonTableRow key={i} columns={6} />
+                      ))
+                    ) : athletes.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-6">
+                          <EmptyState
+                            icon={IdentificationBadge}
+                            title="No athletes found"
+                            description="Create a new athlete profile or adjust your search query."
+                            actionLabel="New Athlete"
+                            onAction={openCreateForm}
+                          />
+                        </td>
+                      </tr>
+                    ) : (
+                      athletes.map((athlete) => {
+                        const entriesCount = athlete.entries_count ?? 0
+                        return (
+                          <tr
+                            key={athlete.id}
+                            onClick={() => openAthleteDetail(athlete)}
+                            className="hover:bg-surface-2/50 transition-colors cursor-pointer font-sans"
                           >
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => openEditForm(athlete)}
-                                title="Edit athlete"
-                                className="p-1.5 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 transition-colors"
-                              >
-                                <PencilSimple size={14} />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleRequestDelete(athlete)}
-                                title={
-                                  entriesCount > 0
-                                    ? 'This athlete has sport entries and cannot be deleted.'
-                                    : 'Delete athlete'
-                                }
-                                className="p-1.5 rounded-lg border border-border text-muted hover:text-error hover:bg-error/10 transition-colors"
-                              >
-                                <Trash size={14} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                            {/* Name */}
+                            <td className="py-3.5 px-4 font-medium text-text whitespace-nowrap">
+                              <span className="hover:text-accent-bright transition-colors">
+                                {athlete.name}
+                              </span>
+                            </td>
 
-            {/* 15 per page Pagination */}
-            <div className="py-3 px-4 border-t border-border bg-surface-2">
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                totalCount={totalCount}
-                pageSize={pageSize}
-                onPageChange={(page) => setCurrentPage(page)}
-                isLoading={isLoading}
-              />
+                            {/* 4-digit Code */}
+                            <td className="py-3.5 px-4 font-mono text-xs text-accent-bright font-semibold tabular-nums whitespace-nowrap">
+                              {formatAthleteCode(athlete.athlete_code)}
+                            </td>
+
+                            {/* Academic Year */}
+                            <td className="py-3.5 px-4 font-mono text-xs text-muted whitespace-nowrap">
+                              {getAcademicYearLabel(athlete.academic_year || '1st')}
+                            </td>
+
+                            {/* Roll No */}
+                            <td className="py-3.5 px-4 font-mono text-xs text-muted whitespace-nowrap">
+                              {athlete.roll_no || '—'}
+                            </td>
+
+                            {/* Count of Sport Entries */}
+                            <td className="py-3.5 px-4 font-mono text-xs text-text tabular-nums whitespace-nowrap">
+                              {entriesCount}
+                            </td>
+
+                            {/* Actions */}
+                            <td
+                              className="py-3.5 px-4 text-right whitespace-nowrap"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => openEditForm(athlete)}
+                                  aria-label={`Edit ${athlete.name}`}
+                                  title="Edit athlete"
+                                  className={ADMIN_ICON_BTN}
+                                >
+                                  <PencilSimple size={15} weight="regular" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRequestDelete(athlete)}
+                                  aria-label={`Delete ${athlete.name}`}
+                                  title={
+                                    entriesCount > 0
+                                      ? 'This athlete has sport entries and cannot be deleted.'
+                                      : 'Delete athlete'
+                                  }
+                                  className={ADMIN_ICON_BTN_DANGER}
+                                >
+                                  <Trash size={15} weight="regular" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* 15 per page Pagination */}
+              <div className="py-3.5 px-4 border-t border-border bg-surface-2/60">
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalCount={totalCount}
+                  pageSize={pageSize}
+                  onPageChange={(page) => setCurrentPage(page)}
+                  isLoading={isLoading}
+                />
+              </div>
             </div>
-          </div>
+          </section>
         </>
       )}
 
       {/* New / Edit Athlete Side Panel */}
       {isFormOpen && (
         <div className="fixed inset-0 z-50 flex justify-end">
-          <div
-            className="fixed inset-0 bg-scrim"
-            onClick={() => setIsFormOpen(false)}
-          />
-          <div className="relative w-full max-w-lg frost-strong border-l border-border h-full overflow-y-auto p-6 sm:p-8 flex flex-col justify-between z-10 shadow-2xl">
+          <div className="fixed inset-0 bg-scrim" onClick={() => setIsFormOpen(false)} />
+          <div className="relative w-full max-w-lg frost-strong border-l border-border rounded-l-3xl h-full overflow-y-auto p-6 sm:p-8 flex flex-col justify-between z-10 shadow-2xl">
             <div>
-              <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
-                <div>
-                  <span className="text-xs font-mono uppercase tracking-widest text-accent-bright block mb-1">
-                    {editingAthlete ? 'Update Athlete' : 'New Athlete'}
-                  </span>
-                  <h2 className="font-syne font-bold text-2xl text-text">
-                    {editingAthlete ? 'Edit Athlete' : 'New Athlete'}
-                  </h2>
-                </div>
+              <div className="flex items-center justify-between pb-5 border-b border-border mb-6">
+                <h2 className="font-syne font-bold text-2xl text-text tracking-tight">
+                  {editingAthlete ? 'Edit Athlete' : 'New Athlete'}
+                </h2>
                 <button
                   type="button"
                   onClick={() => setIsFormOpen(false)}
-                  className="p-2 rounded-xl border border-border text-muted hover:text-text hover:bg-surface-2 transition-colors"
+                  aria-label="Close drawer"
+                  className="w-9 h-9 rounded-full border border-border bg-surface-2 flex items-center justify-center text-muted hover:text-text hover:bg-surface transition-colors cursor-pointer"
                 >
-                  <X size={18} weight="bold" />
+                  <X size={18} weight="regular" />
                 </button>
               </div>
 
               <form onSubmit={handleSaveAthlete} className="space-y-4">
                 {/* Read-Only Auto-Assigned Athlete Code */}
-                <div>
-                  <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5">
-                    Athlete Code (4-Digit ID)
-                  </label>
+                <div className="space-y-1.5">
+                  <label className={ADMIN_LABEL}>Athlete Code</label>
                   <input
                     type="text"
                     disabled
@@ -749,74 +766,70 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
                         ? formatAthleteCode(editingAthlete.athlete_code)
                         : 'Auto-assigned on save'
                     }
-                    className="w-full bg-surface-2 border border-border rounded-xl px-3.5 py-2 text-xs font-mono text-accent-bright font-semibold cursor-not-allowed"
+                    className={`${ADMIN_INPUT} font-mono text-accent-bright font-semibold`}
                   />
                 </div>
 
                 {/* Name (Required) */}
-                <div>
-                  <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5">
-                    Name *
-                  </label>
+                <div className="space-y-1.5">
+                  <label className={ADMIN_LABEL}>Name *</label>
                   <input
                     type="text"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Full name"
-                    className="w-full bg-bg border border-border rounded-xl px-3.5 py-2 text-xs text-text focus:outline-none focus:border-accent-bright"
+                    className={ADMIN_INPUT}
                   />
                 </div>
 
-                {/* Academic Year Dropdown (Required) */}
-                <div>
-                  <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5">
-                    Academic Year *
-                  </label>
-                  <select
-                    required
-                    value={academicYear}
-                    onChange={(e) => setAcademicYear(e.target.value as AcademicYear)}
-                    className="w-full bg-bg border border-border rounded-xl px-3.5 py-2 text-xs text-text focus:outline-none focus:border-accent-bright"
-                  >
-                    {ACADEMIC_YEARS.map((yr) => (
-                      <option key={yr.value} value={yr.value}>
-                        {yr.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {/* Academic Year & Roll No */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className={ADMIN_LABEL}>Academic Year *</label>
+                    <select
+                      required
+                      value={academicYear}
+                      onChange={(e) => setAcademicYear(e.target.value as AcademicYear)}
+                      className={`${ADMIN_SELECT} w-full`}
+                    >
+                      {ACADEMIC_YEARS.map((yr) => (
+                        <option key={yr.value} value={yr.value}>
+                          {yr.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                {/* Roll No */}
-                <div>
-                  <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5">
-                    Roll No
-                  </label>
-                  <input
-                    type="text"
-                    value={rollNo}
-                    onChange={(e) => setRollNo(e.target.value)}
-                    placeholder="Optional roll number"
-                    className="w-full bg-bg border border-border rounded-xl px-3.5 py-2 text-xs text-text focus:outline-none focus:border-accent-bright"
-                  />
+                  <div className="space-y-1.5">
+                    <label className={ADMIN_LABEL}>Roll No</label>
+                    <input
+                      type="text"
+                      value={rollNo}
+                      onChange={(e) => setRollNo(e.target.value)}
+                      placeholder="Optional"
+                      className={ADMIN_INPUT}
+                    />
+                  </div>
                 </div>
 
                 {/* Photo Upload */}
-                <div>
-                  <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5">
-                    Athlete Photo (Max 5 MB, JPG/PNG/WebP)
-                  </label>
-                  <div className="flex items-center gap-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className={ADMIN_LABEL}>Athlete Photo</label>
+                    <span className="text-xs font-mono text-muted">Max 5 MB · JPG, PNG, WebP</span>
+                  </div>
+                  <div className="flex items-center gap-3.5">
                     {photoThumbUrl || photoUrl ? (
                       <img
                         src={photoThumbUrl || photoUrl}
                         alt="Preview"
                         referrerPolicy="no-referrer"
-                        className="w-14 h-14 rounded-xl object-cover bg-surface-2 border border-border shrink-0"
+                        className="w-14 h-14 rounded-2xl object-cover bg-surface-2 border border-border shrink-0"
                       />
                     ) : (
-                      <div className="w-14 h-14 rounded-xl bg-surface-2 border border-border flex items-center justify-center text-muted shrink-0">
-                        <User size={24} />
+                      <div className="w-14 h-14 rounded-2xl bg-surface-2 border border-border flex items-center justify-center text-muted shrink-0">
+                        <User size={24} weight="regular" />
                       </div>
                     )}
                     <label className="flex-1 cursor-pointer">
@@ -827,11 +840,11 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
                         onChange={handlePhotoFile}
                         className="hidden"
                       />
-                      <div className="w-full bg-surface-2 border border-border hover:border-accent-bright rounded-xl px-3.5 py-2 text-xs text-text flex items-center justify-center gap-2 transition-colors">
-                        <UploadSimple size={16} />
+                      <div className="w-full min-h-[42px] bg-surface-2 border border-border hover:border-accent-bright rounded-full px-4 py-2 text-xs text-text flex items-center justify-center gap-2 transition-colors">
+                        <UploadSimple size={16} weight="regular" />
                         <span>
                           {isUploadingPhoto
-                            ? 'Processing & generating thumbnail...'
+                            ? 'Processing...'
                             : photoUrl
                             ? 'Change photo'
                             : 'Upload photo'}
@@ -842,25 +855,24 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
                 </div>
 
                 {/* Notes */}
-                <div>
-                  <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5">
-                    Notes
-                  </label>
+                <div className="space-y-1.5">
+                  <label className={ADMIN_LABEL}>Notes</label>
                   <textarea
                     rows={3}
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Optional notes..."
-                    className="w-full bg-bg border border-border rounded-xl p-3 text-xs text-text focus:outline-none focus:border-accent-bright resize-none"
+                    placeholder="Optional notes"
+                    className={ADMIN_TEXTAREA}
                   />
                 </div>
 
-                <div className="pt-4 border-t border-border flex justify-end gap-3">
+                <div className="pt-4 border-t border-border flex justify-end gap-2.5">
                   <Button
                     type="button"
                     variant="secondary"
                     size="sm"
                     onClick={() => setIsFormOpen(false)}
+                    className="rounded-full"
                   >
                     Cancel
                   </Button>
@@ -870,6 +882,7 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
                     size="sm"
                     disabled={isSubmitting || isUploadingPhoto}
                     isLoading={isSubmitting}
+                    className="rounded-full px-4"
                   >
                     {editingAthlete ? 'Save Changes' : 'Create Athlete'}
                   </Button>
@@ -887,17 +900,19 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
         title="Delete Athlete"
         description={
           deleteTarget
-            ? `Are you sure you want to permanently delete ${deleteTarget.name} (#${formatAthleteCode(deleteTarget.athlete_code)})?`
+            ? `Permanently delete ${deleteTarget.name} (#${formatAthleteCode(deleteTarget.athlete_code)})?`
             : ''
         }
         size="sm"
+        className={ADMIN_DIALOG_CLASS}
       >
-        <div className="flex justify-end gap-3 pt-4">
+        <div className="flex justify-end gap-2.5 pt-4 border-t border-border">
           <Button
             type="button"
             variant="secondary"
             size="sm"
             onClick={() => setDeleteTarget(null)}
+            className="rounded-full"
           >
             Cancel
           </Button>
@@ -908,6 +923,7 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
             disabled={isDeleting}
             isLoading={isDeleting}
             onClick={handleConfirmDelete}
+            className="rounded-full px-4"
           >
             Delete Athlete
           </Button>

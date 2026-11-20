@@ -9,7 +9,22 @@ import {
   setActiveSeason
 } from '../../lib/data'
 import { useToast } from '../../lib/ToastContext'
-import { Button, Dialog, PageHeader } from '../../components/ui'
+import { Button, Dialog } from '../../components/ui'
+import {
+  ADMIN_CARD,
+  ADMIN_CARD_HEADER,
+  ADMIN_CARD_TITLE,
+  ADMIN_COUNT_PILL,
+  ADMIN_DIALOG_CLASS,
+  ADMIN_ICON_BTN_DANGER,
+  ADMIN_INPUT,
+  ADMIN_LABEL,
+  ADMIN_PAGE_HEADER,
+  ADMIN_PAGE_TITLE,
+  ADMIN_PAGE_WRAPPER,
+  ADMIN_TEXTAREA,
+  ADMIN_WELL
+} from '../../components/admin/adminStyles'
 
 interface AdminSeasonsProps {
   seasons: Season[]
@@ -161,72 +176,76 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <PageHeader
-        label="Season Management"
-        title="Tournament Seasons"
-      />
+    <div className={ADMIN_PAGE_WRAPPER}>
+      <header className={ADMIN_PAGE_HEADER}>
+        <h1 className={ADMIN_PAGE_TITLE}>Tournament Seasons</h1>
+      </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         {/* Create Season Card */}
-        <div className="p-6 rounded-2xl bg-surface border border-border shadow-sm lg:col-span-1">
-          <h2 className="font-syne font-bold text-lg text-text mb-4">
-            Create New Season
-          </h2>
-          <form onSubmit={handleCreate} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-mono uppercase tracking-wider text-muted">
+        <section className={ADMIN_CARD}>
+          <div className={ADMIN_CARD_HEADER}>
+            <h2 className={ADMIN_CARD_TITLE}>Create Season</h2>
+          </div>
+
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div className="space-y-1.5">
+              <label htmlFor="season-name-input" className={ADMIN_LABEL}>
                 Season Name *
               </label>
               <input
+                id="season-name-input"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Annual Athletic Championship 2027"
+                placeholder="Annual Athletic Championship 2027"
                 required
-                className="px-3.5 py-2.5 bg-bg border border-border rounded-xl text-xs text-text placeholder-muted focus:outline-none focus:border-accent-bright"
+                className={ADMIN_INPUT}
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-mono uppercase tracking-wider text-muted">
-                  Start Date (Optional)
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label htmlFor="season-start-date" className={ADMIN_LABEL}>
+                  Start Date
                 </label>
                 <input
+                  id="season-start-date"
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="px-3.5 py-2.5 bg-bg border border-border rounded-xl text-xs text-text focus:outline-none focus:border-accent-bright"
+                  className={ADMIN_INPUT}
                 />
               </div>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-mono uppercase tracking-wider text-muted">
-                  End Date (Optional)
+              <div className="space-y-1.5">
+                <label htmlFor="season-end-date" className={ADMIN_LABEL}>
+                  End Date
                 </label>
                 <input
+                  id="season-end-date"
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="px-3.5 py-2.5 bg-bg border border-border rounded-xl text-xs text-text focus:outline-none focus:border-accent-bright"
+                  className={ADMIN_INPUT}
                 />
               </div>
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-mono uppercase tracking-wider text-muted">
-                Description (Optional)
+            <div className="space-y-1.5">
+              <label htmlFor="season-desc-input" className={ADMIN_LABEL}>
+                Description
               </label>
               <textarea
+                id="season-desc-input"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Brief summary or guidelines for this tournament season..."
+                placeholder="Optional notes"
                 rows={3}
-                className="px-3.5 py-2.5 bg-bg border border-border rounded-xl text-xs text-text placeholder-muted focus:outline-none focus:border-accent-bright resize-none"
+                className={ADMIN_TEXTAREA}
               />
             </div>
 
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end pt-3 border-t border-border">
               <Button
                 type="submit"
                 variant="primary"
@@ -234,116 +253,122 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
                 leftIcon={Plus}
                 disabled={isSubmitting || !name.trim()}
                 isLoading={isSubmitting}
+                className="rounded-full px-5"
               >
                 Create Season
               </Button>
             </div>
           </form>
-        </div>
+        </section>
 
-        {/* Seasons List */}
-        <div className="flex flex-col gap-3 lg:col-span-2">
-          <h2 className="text-xs font-mono uppercase tracking-wider text-muted">
-            All Seasons ({seasons.length})
-          </h2>
+        {/* Seasons List Card */}
+        <section className={ADMIN_CARD}>
+          <div className={ADMIN_CARD_HEADER}>
+            <h2 className={ADMIN_CARD_TITLE}>All Seasons</h2>
+            <span className={ADMIN_COUNT_PILL}>{seasons.length}</span>
+          </div>
 
-          {seasons.map((season) => {
-            const isActive = season.is_active || season.id === activeSeason?.id
-            const isOnlySeason = seasons.length <= 1
+          <div className="space-y-3">
+            {seasons.map((season) => {
+              const isActive = season.is_active || season.id === activeSeason?.id
+              const isOnlySeason = seasons.length <= 1
 
-            return (
-              <div
-                key={season.id}
-                className={`p-5 rounded-2xl border transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm ${
-                  isActive
-                    ? 'bg-surface border-accent-bright'
-                    : 'bg-surface border-border hover:border-accent-bright/60'
-                }`}
-              >
-                <div className="flex items-start gap-3.5 flex-1 min-w-0">
-                  <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border border-border ${
-                      isActive
-                        ? 'bg-accent text-on-accent'
-                        : 'bg-surface-2 text-muted'
-                    }`}
-                  >
-                    <Calendar size={18} weight={isActive ? 'fill' : 'regular'} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-syne font-bold text-lg text-text truncate">
-                        {season.name}
-                      </span>
-                      {isActive && (
-                        <span className="text-[11px] font-mono uppercase text-accent-bright font-semibold">
-                          · Active
+              return (
+                <div
+                  key={season.id}
+                  className={`p-4 sm:p-5 rounded-2xl border transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                    isActive
+                      ? 'bg-bg border-accent-bright'
+                      : 'bg-bg border-border hover:border-accent-bright/60'
+                  }`}
+                >
+                  <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${
+                        isActive
+                          ? 'bg-accent text-on-accent border-accent'
+                          : 'bg-surface-2 text-muted border-border'
+                      }`}
+                    >
+                      <Calendar size={18} weight="regular" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-syne font-bold text-base text-text truncate">
+                          {season.name}
                         </span>
-                      )}
-                    </div>
-                    {season.description && (
-                      <p className="text-xs text-muted mt-1 line-clamp-1">
-                        {season.description}
-                      </p>
-                    )}
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted font-mono mt-1">
-                      {season.start_date && (
-                        <>
-                          <span>
-                            {season.start_date} {season.end_date ? `to ${season.end_date}` : ''}
+                        {isActive && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-surface border border-accent-bright text-accent-bright text-[11px] font-medium">
+                            Active
                           </span>
-                          <span>·</span>
-                        </>
+                        )}
+                      </div>
+                      {season.description && (
+                        <p className="text-xs text-muted mt-1 line-clamp-1">
+                          {season.description}
+                        </p>
                       )}
-                      <span>Created {new Date(season.created_at).toLocaleDateString()}</span>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted font-mono mt-1.5">
+                        {season.start_date && (
+                          <>
+                            <span>
+                              {season.start_date}{' '}
+                              {season.end_date ? `to ${season.end_date}` : ''}
+                            </span>
+                            <span>·</span>
+                          </>
+                        )}
+                        <span>Created {new Date(season.created_at).toLocaleDateString()}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                  {!isActive && (
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center flex-wrap">
+                    {!isActive && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleSetActive(season.id, season.name)}
+                        className="rounded-full"
+                      >
+                        Set as Active
+                      </Button>
+                    )}
+
                     <Button
                       type="button"
                       variant="secondary"
                       size="sm"
-                      onClick={() => handleSetActive(season.id, season.name)}
+                      leftIcon={PencilSimple}
+                      onClick={() => openRenameDialog(season)}
+                      className="rounded-full"
                     >
-                      Set as Active
+                      Rename
                     </Button>
-                  )}
 
-                  {/* Rename Button */}
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    leftIcon={PencilSimple}
-                    onClick={() => openRenameDialog(season)}
-                  >
-                    Rename
-                  </Button>
-
-                  {/* Delete Button */}
-                  <button
-                    type="button"
-                    onClick={() => openDeleteDialog(season)}
-                    disabled={isActive || isOnlySeason}
-                    title={
-                      isActive
-                        ? 'Make another season active first'
-                        : isOnlySeason
-                        ? 'Cannot delete the only remaining season'
-                        : 'Delete season'
-                    }
-                    className="min-h-[36px] min-w-[36px] p-2 rounded-xl border border-border hover:border-error hover:bg-error/10 hover:text-error text-muted transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
-                  >
-                    <Trash size={16} />
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => openDeleteDialog(season)}
+                      disabled={isActive || isOnlySeason}
+                      aria-label={`Delete ${season.name}`}
+                      title={
+                        isActive
+                          ? 'Make another season active first'
+                          : isOnlySeason
+                          ? 'Cannot delete the only remaining season'
+                          : 'Delete season'
+                      }
+                      className={ADMIN_ICON_BTN_DANGER}
+                    >
+                      <Trash size={15} weight="regular" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+        </section>
       </div>
 
       {/* Rename Season Dialog */}
@@ -352,32 +377,37 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
           isOpen={true}
           onClose={() => !isRenaming && setSeasonToRename(null)}
           title="Rename Season"
-          description="Update the display name for this tournament season (1 to 60 characters)."
           size="sm"
+          className={ADMIN_DIALOG_CLASS}
         >
-          <form onSubmit={handleRenameSubmit} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-mono uppercase tracking-wider text-muted">
-                Season Name
-              </label>
+          <form onSubmit={handleRenameSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <label htmlFor="rename-season-input" className={ADMIN_LABEL}>
+                  Season Name
+                </label>
+                <span className="text-xs font-mono text-muted tabular-nums">1–60 chars</span>
+              </div>
               <input
+                id="rename-season-input"
                 type="text"
                 value={renameInput}
                 onChange={(e) => setRenameInput(e.target.value)}
                 maxLength={60}
                 autoFocus
                 required
-                className="px-3.5 py-2.5 bg-bg border border-border rounded-xl text-xs text-text placeholder-muted focus:outline-none focus:border-accent-bright"
+                className={ADMIN_INPUT}
               />
             </div>
 
-            <div className="flex items-center justify-end gap-2.5 pt-2">
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border">
               <Button
                 type="button"
                 variant="secondary"
                 size="sm"
                 onClick={() => setSeasonToRename(null)}
                 disabled={isRenaming}
+                className="rounded-full"
               >
                 Cancel
               </Button>
@@ -391,6 +421,7 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
                   renameInput.trim().length > 60
                 }
                 isLoading={isRenaming}
+                className="rounded-full px-4"
               >
                 Save
               </Button>
@@ -405,82 +436,101 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
           isOpen={true}
           onClose={() => !isDeleting && setSeasonToDelete(null)}
           title={`Delete "${seasonToDelete.name}"?`}
-          description="This action is permanent and deletes all tournament data linked to this season."
           size="md"
+          className={ADMIN_DIALOG_CLASS}
         >
-          <div className="flex flex-col gap-4">
-            <div className="p-3.5 rounded-xl bg-error/10 border border-error/20 flex items-start gap-2.5 text-xs text-text">
-              <WarningCircle size={18} className="text-error shrink-0 mt-0.5" weight="fill" />
-              <div>
-                <p className="font-medium text-error">Warning: Cascade Deletion</p>
-                <p className="text-muted mt-0.5">
-                  Deleting this season will remove all associated teams, player tournament entries, and purse balances.
+          <div className="space-y-4">
+            <div className="p-4 rounded-2xl bg-error/10 border border-error/25 flex items-start gap-3 text-xs text-text">
+              <WarningCircle
+                size={18}
+                weight="regular"
+                className="text-error shrink-0 mt-0.5"
+              />
+              <div className="space-y-1">
+                <p className="font-semibold text-error">Permanent cascade deletion</p>
+                <p className="text-muted">
+                  Removes all teams, player tournament entries, and purse balances linked to this season.
                 </p>
-                <p className="font-mono text-accent-bright mt-1">
+                <p className="font-mono text-accent-bright">
                   Universal athlete profiles will NOT be deleted.
                 </p>
               </div>
             </div>
 
             {/* Counts Preview */}
-            <div className="p-4 rounded-xl bg-surface-2 border border-border">
-              <span className="text-[11px] font-mono uppercase text-muted block mb-2">
-                Records to be removed:
+            <div className={`${ADMIN_WELL} p-4 space-y-2.5`}>
+              <span className="text-xs font-medium text-muted block">
+                Records to be removed
               </span>
               {isLoadingPreview ? (
-                <div className="text-xs text-muted font-mono py-2">Loading records summary...</div>
+                <div className="text-xs text-muted font-mono py-2">
+                  Loading records summary...
+                </div>
               ) : deletionCounts ? (
                 <div className="grid grid-cols-2 gap-2.5 text-xs">
-                  <div className="p-2.5 rounded-lg bg-surface border border-border">
-                    <span className="text-muted block text-[10px] font-mono uppercase">Teams</span>
-                    <span className="font-mono font-bold text-text tabular-nums">{deletionCounts.teams}</span>
+                  <div className="p-3 rounded-xl bg-surface border border-border">
+                    <span className="text-muted block text-[11px]">Teams</span>
+                    <span className="font-mono font-bold text-sm text-text tabular-nums">
+                      {deletionCounts.teams}
+                    </span>
                   </div>
-                  <div className="p-2.5 rounded-lg bg-surface border border-border">
-                    <span className="text-muted block text-[10px] font-mono uppercase">Player Entries</span>
-                    <span className="font-mono font-bold text-text tabular-nums">{deletionCounts.players}</span>
+                  <div className="p-3 rounded-xl bg-surface border border-border">
+                    <span className="text-muted block text-[11px]">Player Entries</span>
+                    <span className="font-mono font-bold text-sm text-text tabular-nums">
+                      {deletionCounts.players}
+                    </span>
                   </div>
-                  <div className="p-2.5 rounded-lg bg-surface border border-border">
-                    <span className="text-muted block text-[10px] font-mono uppercase">Purse Records</span>
-                    <span className="font-mono font-bold text-text tabular-nums">{deletionCounts.purse_transactions}</span>
+                  <div className="p-3 rounded-xl bg-surface border border-border">
+                    <span className="text-muted block text-[11px]">Purse Records</span>
+                    <span className="font-mono font-bold text-sm text-text tabular-nums">
+                      {deletionCounts.purse_transactions}
+                    </span>
                   </div>
-                  <div className="p-2.5 rounded-lg bg-surface border border-border">
-                    <span className="text-muted block text-[10px] font-mono uppercase">Carousel Items</span>
-                    <span className="font-mono font-bold text-text tabular-nums">{deletionCounts.carousel_items}</span>
+                  <div className="p-3 rounded-xl bg-surface border border-border">
+                    <span className="text-muted block text-[11px]">Carousel Items</span>
+                    <span className="font-mono font-bold text-sm text-text tabular-nums">
+                      {deletionCounts.carousel_items}
+                    </span>
                   </div>
                 </div>
               ) : null}
             </div>
 
             {/* Confirmation input */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-muted">
+            <div className="space-y-1.5">
+              <label htmlFor="delete-season-confirm" className="text-xs text-muted block">
                 Type <strong className="text-text font-mono">{seasonToDelete.name}</strong> to confirm:
               </label>
               <input
+                id="delete-season-confirm"
                 type="text"
                 value={confirmationName}
                 onChange={(e) => setConfirmationName(e.target.value)}
                 placeholder={seasonToDelete.name}
-                className="px-3.5 py-2.5 bg-bg border border-border rounded-xl text-xs font-mono text-text focus:outline-none focus:border-error"
+                className="w-full min-h-[42px] px-3.5 py-2.5 bg-bg border border-border rounded-xl text-sm font-mono text-text focus:outline-none focus:border-error"
               />
             </div>
 
-            <div className="flex items-center justify-end gap-2.5 pt-2">
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border">
               <Button
+                type="button"
                 variant="secondary"
                 size="sm"
                 onClick={() => setSeasonToDelete(null)}
                 disabled={isDeleting}
+                className="rounded-full"
               >
                 Cancel
               </Button>
               <Button
+                type="button"
                 variant="danger"
                 size="sm"
                 leftIcon={Trash}
                 onClick={confirmDelete}
                 disabled={isDeleting || confirmationName.trim() !== seasonToDelete.name.trim()}
                 isLoading={isDeleting}
+                className="rounded-full px-4"
               >
                 Delete Season
               </Button>

@@ -22,6 +22,15 @@ import { ACADEMIC_YEAR_VALUES, getAcademicYearLabel } from '../../lib/academicYe
 import { useToast } from '../../lib/ToastContext'
 import { getErrorMessage } from '../../lib/errors'
 import { Button, Dialog } from '../ui'
+import {
+  ADMIN_DIALOG_CLASS,
+  ADMIN_INPUT,
+  ADMIN_LABEL,
+  ADMIN_PILL_BAR,
+  ADMIN_PILL_BAR_OUTER,
+  ADMIN_SELECT,
+  ADMIN_WELL
+} from './adminStyles'
 
 const YEAR_CHIPS: ReadonlyArray<'All' | AcademicYear> = ['All', ...ACADEMIC_YEAR_VALUES]
 
@@ -321,52 +330,44 @@ export const BulkRegisterPanel: React.FC<BulkRegisterPanelProps> = ({
       {isOpen && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="fixed inset-0 bg-scrim" onClick={onClose} />
-          <div className="relative w-full max-w-xl frost-strong border-l border-border h-full overflow-y-auto p-6 sm:p-8 flex flex-col justify-between z-10 shadow-2xl">
+          <div className="relative w-full max-w-xl frost-strong border-l border-border rounded-l-3xl h-full overflow-y-auto p-6 sm:p-8 flex flex-col justify-between z-10 shadow-2xl">
             <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 space-y-5">
               {/* Header */}
-              <div className="flex items-center justify-between pb-4 border-b border-border">
-                <div>
-                  <span className="text-xs font-mono uppercase tracking-widest text-accent-bright block mb-1">
-                    {initialAthlete ? 'Register Athlete to Sport' : 'Batch Roster Entry'}
-                  </span>
-                  <h2 className="font-syne font-bold text-2xl text-text">
-                    {initialAthlete ? 'Register to Sport' : 'Bulk Register'}
-                  </h2>
-                </div>
+              <div className="flex items-center justify-between pb-5 border-b border-border">
+                <h2 className="font-syne font-bold text-2xl text-text tracking-tight">
+                  {initialAthlete ? 'Register to Sport' : 'Bulk Register'}
+                </h2>
                 <button
                   type="button"
                   onClick={onClose}
-                  className="p-2 rounded-xl border border-border text-muted hover:text-text hover:bg-surface-2 transition-colors"
+                  aria-label="Close drawer"
+                  className="w-9 h-9 rounded-full border border-border bg-surface-2 flex items-center justify-center text-muted hover:text-text hover:bg-surface transition-colors cursor-pointer"
                 >
-                  <X size={18} weight="bold" />
+                  <X size={18} weight="regular" />
                 </button>
               </div>
 
-              {/* Read-Only Selected Tournament Season & Sport / Role / Points */}
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5">
-                    Tournament Season
-                  </label>
+              {/* Season & Sport / Role / Points */}
+              <div className="space-y-3.5">
+                <div className="space-y-1.5">
+                  <label className={ADMIN_LABEL}>Tournament Season</label>
                   <input
                     type="text"
                     disabled
                     readOnly
                     value={activeSeason ? activeSeason.name : 'No active season'}
-                    className="w-full bg-surface-2 border border-border rounded-xl px-3.5 py-2 text-xs font-mono text-muted cursor-not-allowed"
+                    className={`${ADMIN_INPUT} font-mono`}
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5">
-                      Sport *
-                    </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                  <div className="space-y-1.5">
+                    <label className={ADMIN_LABEL}>Sport *</label>
                     <select
                       required
                       value={sport}
                       onChange={(e) => setSport(e.target.value)}
-                      className="w-full bg-bg border border-border rounded-xl px-3 py-2 text-xs text-text focus:outline-none focus:border-accent-bright"
+                      className={`${ADMIN_SELECT} w-full`}
                     >
                       <option value="">Select sport...</option>
                       {sports.map((s) => (
@@ -377,15 +378,13 @@ export const BulkRegisterPanel: React.FC<BulkRegisterPanelProps> = ({
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5">
-                      Default Role
-                    </label>
+                  <div className="space-y-1.5">
+                    <label className={ADMIN_LABEL}>Default Role</label>
                     <select
                       disabled={!sport || availableRoles.length === 0}
                       value={defaultRole}
                       onChange={(e) => setDefaultRole(e.target.value)}
-                      className="w-full bg-bg border border-border rounded-xl px-3 py-2 text-xs text-text focus:outline-none focus:border-accent-bright disabled:bg-surface-2 disabled:text-muted disabled:cursor-not-allowed"
+                      className={`${ADMIN_SELECT} w-full`}
                     >
                       {availableRoles.length === 0 ? (
                         <option value="">Select sport first</option>
@@ -399,26 +398,27 @@ export const BulkRegisterPanel: React.FC<BulkRegisterPanelProps> = ({
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5">
-                      Starting Points
-                    </label>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className={ADMIN_LABEL}>Base Points</label>
+                      <span className="text-xs font-mono text-muted">PTS</span>
+                    </div>
                     <input
                       type="number"
                       min={0}
                       value={basePoints}
                       onChange={(e) => setBasePoints(e.target.value)}
-                      className="w-full bg-bg border border-border rounded-xl px-3.5 py-2 text-xs font-mono tabular-nums text-text focus:outline-none focus:border-accent-bright"
+                      className={`${ADMIN_INPUT} font-mono tabular-nums`}
                     />
                   </div>
                 </div>
               </div>
 
               {/* Search, Academic Year Filter Chips, Select All / Clear, Live Count */}
-              <div className="p-4 rounded-2xl bg-surface-2 border border-border space-y-3 flex-1 flex flex-col min-h-0">
+              <div className={`${ADMIN_WELL} p-4 space-y-3.5 flex-1 flex flex-col min-h-0`}>
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-text font-semibold">
-                    <Users size={16} className="text-accent-bright" />
+                  <div className="flex items-center gap-2 text-sm font-medium text-text">
+                    <Users size={16} weight="regular" className="text-accent-bright" />
                     <span>Select Athletes</span>
                   </div>
                   {onCreateNewAthlete && (
@@ -428,9 +428,9 @@ export const BulkRegisterPanel: React.FC<BulkRegisterPanelProps> = ({
                         onClose()
                         onCreateNewAthlete()
                       }}
-                      className="text-xs font-medium text-accent-bright hover:underline"
+                      className="text-xs font-medium text-accent-bright hover:underline cursor-pointer"
                     >
-                      Create a new athlete
+                      Create new athlete
                     </button>
                   )}
                 </div>
@@ -439,67 +439,71 @@ export const BulkRegisterPanel: React.FC<BulkRegisterPanelProps> = ({
                 <div className="relative">
                   <MagnifyingGlass
                     size={15}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
+                    weight="regular"
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
                   />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search by name, 4-digit code (e.g. 0001), or roll no..."
-                    className="w-full bg-bg border border-border rounded-xl pl-9 pr-3 py-2 text-xs text-text focus:outline-none focus:border-accent-bright"
+                    placeholder="Search by name, code (0001), or roll no..."
+                    className={`${ADMIN_INPUT} bg-surface pl-10`}
                   />
                 </div>
 
-                {/* Academic Year Chips + Bulk Selection Controls */}
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-                  <div className="flex flex-wrap items-center gap-1">
-                    {YEAR_CHIPS.map((chip) => (
-                      <button
-                        key={chip}
-                        type="button"
-                        onClick={() => setSelectedYearChip(chip)}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-mono transition-colors ${
-                          selectedYearChip === chip
-                            ? 'bg-btn-bg text-btn-fg font-semibold'
-                            : 'bg-surface border border-border text-muted hover:text-text'
-                        }`}
-                      >
-                        {chip}
-                      </button>
-                    ))}
+                {/* Academic Year Chips (single non-wrapping scrollable row) + Bulk Selection Controls */}
+                <div className="flex flex-col gap-2.5">
+                  <div className={ADMIN_PILL_BAR_OUTER}>
+                    <div className={ADMIN_PILL_BAR}>
+                      {YEAR_CHIPS.map((chip) => (
+                        <button
+                          key={chip}
+                          type="button"
+                          onClick={() => setSelectedYearChip(chip)}
+                          className={`min-h-[30px] px-3 py-1 rounded-full text-xs font-mono whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                            selectedYearChip === chip
+                              ? 'bg-btn-bg text-btn-fg font-medium'
+                              : 'text-muted hover:text-text'
+                          }`}
+                        >
+                          {chip}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-2 text-xs">
-                    <button
-                      type="button"
-                      onClick={handleSelectAllShown}
-                      className="text-accent-bright hover:underline font-medium text-[11px]"
-                    >
-                      Select all shown
-                    </button>
-                    <span className="text-border">·</span>
-                    <button
-                      type="button"
-                      onClick={handleClearSelection}
-                      className="text-muted hover:text-text font-medium text-[11px]"
-                    >
-                      Clear
-                    </button>
-                    <span className="text-border">·</span>
-                    <span className="font-mono text-[11px] font-semibold text-text tabular-nums">
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={handleSelectAllShown}
+                        className="text-accent-bright hover:underline font-medium cursor-pointer"
+                      >
+                        Select all shown
+                      </button>
+                      <span className="text-border">·</span>
+                      <button
+                        type="button"
+                        onClick={handleClearSelection}
+                        className="text-muted hover:text-text font-medium cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                    <span className="font-mono font-semibold text-text tabular-nums">
                       {selectedIds.size} selected
                     </span>
                   </div>
                 </div>
 
                 {/* Athlete Rows List */}
-                <div className="flex-1 min-h-[260px] max-h-[380px] overflow-y-auto divide-y divide-border border border-border rounded-xl bg-bg">
+                <div className="flex-1 min-h-[260px] max-h-[380px] overflow-y-auto divide-y divide-border border border-border rounded-2xl bg-surface thin-scrollbar">
                   {isLoadingData ? (
                     <div className="py-8 px-4 text-center text-xs font-mono text-muted">
                       Loading athletes...
                     </div>
                   ) : filteredAthletes.length === 0 ? (
-                    <div className="py-8 px-4 text-center text-xs text-muted">
+                    <div className="py-8 px-4 text-center text-sm text-muted">
                       No athletes match the current filters.
                     </div>
                   ) : (
@@ -514,12 +518,12 @@ export const BulkRegisterPanel: React.FC<BulkRegisterPanelProps> = ({
                           onClick={() => {
                             if (!alreadyRegistered) toggleSelectAthlete(athlete)
                           }}
-                          className={`p-2.5 flex items-center justify-between gap-3 text-xs transition-colors ${
+                          className={`px-3.5 py-2.5 flex items-center justify-between gap-3 text-xs transition-colors ${
                             alreadyRegistered
                               ? 'opacity-50 bg-surface-2/50 cursor-not-allowed'
                               : isSelected
                               ? 'bg-accent-bright/5 hover:bg-accent-bright/10 cursor-pointer'
-                              : 'hover:bg-surface-2 cursor-pointer'
+                              : 'hover:bg-surface-2/60 cursor-pointer'
                           }`}
                         >
                           <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -537,18 +541,16 @@ export const BulkRegisterPanel: React.FC<BulkRegisterPanelProps> = ({
                                 src={athlete.photo_thumb_url || athlete.photo_url}
                                 alt={athlete.name}
                                 referrerPolicy="no-referrer"
-                                className="w-8 h-8 rounded-lg object-cover bg-surface-2 border border-border shrink-0"
+                                className="w-8 h-8 rounded-xl object-cover bg-surface-2 border border-border shrink-0"
                               />
                             ) : (
-                              <div className="w-8 h-8 rounded-lg bg-surface-2 border border-border flex items-center justify-center text-muted shrink-0">
-                                <User size={14} />
+                              <div className="w-8 h-8 rounded-xl bg-surface-2 border border-border flex items-center justify-center text-muted shrink-0">
+                                <User size={14} weight="regular" />
                               </div>
                             )}
 
                             <div className="min-w-0 flex-1">
-                              <div className="font-medium text-text truncate">
-                                {athlete.name}
-                              </div>
+                              <div className="font-medium text-text truncate">{athlete.name}</div>
                               <div className="text-[11px] font-mono text-muted truncate">
                                 #{formatAthleteCode(athlete.athlete_code)} &middot;{' '}
                                 {getAcademicYearLabel(athlete.academic_year || '1st')}
@@ -562,8 +564,8 @@ export const BulkRegisterPanel: React.FC<BulkRegisterPanelProps> = ({
                             onClick={(e) => e.stopPropagation()}
                           >
                             {alreadyRegistered ? (
-                              <span className="text-[11px] font-mono text-muted px-2 py-0.5 rounded-md bg-surface-2 border border-border">
-                                Already registered
+                              <span className="text-[11px] font-mono text-muted px-2.5 py-0.5 rounded-full bg-surface-2 border border-border">
+                                Registered
                               </span>
                             ) : isSelected && sport && availableRoles.length > 0 ? (
                               <select
@@ -572,7 +574,7 @@ export const BulkRegisterPanel: React.FC<BulkRegisterPanelProps> = ({
                                   handleRoleOverrideChange(athlete.id, e.target.value)
                                 }
                                 aria-label={`Playing role for ${athlete.name}`}
-                                className="bg-surface border border-border rounded-lg px-2 py-1 text-[11px] text-text focus:outline-none focus:border-accent-bright"
+                                className="bg-bg border border-border rounded-full px-2.5 py-1 text-[11px] text-text focus:outline-none focus:border-accent-bright"
                               >
                                 {availableRoles.map((r) => (
                                   <option key={r} value={r}>
@@ -601,6 +603,7 @@ export const BulkRegisterPanel: React.FC<BulkRegisterPanelProps> = ({
                     size="sm"
                     onClick={onClose}
                     disabled={isSubmitting}
+                    className="rounded-full"
                   >
                     Cancel
                   </Button>
@@ -610,6 +613,7 @@ export const BulkRegisterPanel: React.FC<BulkRegisterPanelProps> = ({
                     size="sm"
                     disabled={!canRegister}
                     isLoading={isSubmitting}
+                    className="rounded-full px-4"
                   >
                     Register
                   </Button>
@@ -625,30 +629,26 @@ export const BulkRegisterPanel: React.FC<BulkRegisterPanelProps> = ({
         isOpen={!!summaryResult}
         onClose={() => setSummaryResult(null)}
         title="Bulk Registration Summary"
-        description={
-          summaryResult
-            ? `Registered ${summaryResult.registered.length}, skipped ${summaryResult.skipped.length}`
-            : ''
-        }
         size="md"
+        className={ADMIN_DIALOG_CLASS}
       >
         {summaryResult && (
           <div className="space-y-4">
-            <div className="p-3 rounded-xl bg-surface-2 border border-border flex items-center justify-between text-xs font-mono">
-              <span className="text-accent-bright flex items-center gap-1.5 font-semibold">
-                <CheckCircle size={16} />
+            <div className={`${ADMIN_WELL} p-3.5 flex items-center justify-between text-xs font-mono`}>
+              <span className="text-accent-bright inline-flex items-center gap-1.5 font-semibold">
+                <CheckCircle size={16} weight="regular" />
                 Registered {summaryResult.registered.length}
               </span>
-              <span className="text-error flex items-center gap-1.5 font-semibold">
-                <WarningCircle size={16} />
+              <span className="text-error inline-flex items-center gap-1.5 font-semibold">
+                <WarningCircle size={16} weight="regular" />
                 Skipped {summaryResult.skipped.length}
               </span>
             </div>
 
             {summaryResult.skipped.length > 0 && (
-              <div className="max-h-60 overflow-y-auto divide-y divide-border border border-border rounded-xl bg-bg">
+              <div className="max-h-60 overflow-y-auto divide-y divide-border border border-border rounded-2xl bg-bg thin-scrollbar">
                 {summaryResult.skipped.map((item, idx) => (
-                  <div key={`${item.athlete_id}-${idx}`} className="p-3 text-xs space-y-1">
+                  <div key={`${item.athlete_id}-${idx}`} className="p-3.5 text-xs space-y-1">
                     <div className="font-medium text-text flex items-center justify-between">
                       <span>{item.athlete_name}</span>
                       {item.athlete_code !== undefined && (
@@ -663,12 +663,13 @@ export const BulkRegisterPanel: React.FC<BulkRegisterPanelProps> = ({
               </div>
             )}
 
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end pt-4 border-t border-border">
               <Button
                 type="button"
                 variant="primary"
                 size="sm"
                 onClick={() => setSummaryResult(null)}
+                className="rounded-full px-4"
               >
                 Done
               </Button>

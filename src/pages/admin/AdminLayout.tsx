@@ -140,18 +140,19 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             transform: scaleX(1);
           }
         }
+        @media (prefers-reduced-transparency: reduce) {
+          .admin-desktop-sidebar {
+            -webkit-backdrop-filter: none !important;
+            backdrop-filter: none !important;
+            background-color: color-mix(in srgb, var(--accent-bright) 2.5%, var(--bg)) !important;
+          }
+        }
       `}</style>
 
-      {/* Fixed faint sage radial glow behind the frosted panel (no blur filter, no grain) */}
-      <div
-        aria-hidden="true"
-        className="fixed inset-0 z-0 pointer-events-none select-none bg-[radial-gradient(620px_540px_at_0%_18%,color-mix(in_srgb,var(--accent)_11%,transparent)_0%,transparent_72%)] dark:bg-[radial-gradient(620px_540px_at_0%_18%,color-mix(in_srgb,var(--accent)_16%,transparent)_0%,transparent_72%)]"
-      />
-
-      {/* Desktop Frosted Floating Sidebar (Collapsible 264px / 72px rail, persisted in localStorage) */}
+      {/* Desktop Frosted Sidebar (Collapsible 264px / 72px rail, persisted in localStorage) */}
       <aside
-        className={`hidden md:flex flex-col shrink-0 self-start sticky top-3 h-[calc(100vh-1.5rem)] my-3 ml-3 rounded-2xl frost-strong border border-border/60 z-20 overflow-hidden ${
-          isCollapsed ? 'w-[72px] p-3' : 'w-[264px] p-4'
+        className={`admin-desktop-sidebar hidden md:flex flex-col shrink-0 self-start sticky top-0 h-screen bg-[color:color-mix(in_srgb,var(--accent-bright)_2.5%,var(--bg))] backdrop-blur-[20px] backdrop-saturate-[1.35] border-r border-[color:color-mix(in_srgb,var(--accent-bright)_12%,transparent)] z-20 overflow-hidden ${
+          isCollapsed ? 'w-[72px] px-3 py-4' : 'w-[264px] px-4 py-5'
         }`}
       >
         <AdminNav
