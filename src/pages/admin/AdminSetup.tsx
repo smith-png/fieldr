@@ -44,8 +44,6 @@ import {
   Dialog,
   EmptyState,
   ErrorState,
-  PageHeader,
-  SegmentedControl,
   SkeletonBlock
 } from '../../components/ui'
 import { normalizeConfettiFallSpeed } from '../../components/projector/ProjectorConfetti'
@@ -64,15 +62,14 @@ import type {
   Team
 } from '../../types'
 
-type SetupTab =
-  | 'carousel'
-  | 'pages'
-  | 'sports'
-  | 'auction'
-  | 'confetti'
-  | 'credits'
-  | 'handbook'
-  | 'rules'
+type SetupTab = 'display' | 'content' | 'documents' | 'sports'
+
+const SETUP_TABS: readonly { value: SetupTab; label: string }[] = [
+  { value: 'display', label: 'Display' },
+  { value: 'content', label: 'Content' },
+  { value: 'documents', label: 'Documents' },
+  { value: 'sports', label: 'Sports' }
+]
 
 const DEFAULT_CONFETTI_FALL_SPEED = 5
 
@@ -112,7 +109,8 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
   onRefresh
 }) => {
   const { showToast } = useToast()
-  const [activeTab, setActiveTab] = useState<SetupTab>('carousel')
+  const [activeTab, setActiveTab] = useState<SetupTab>('display')
+  const tabButtonRefs = useRef<(HTMLButtonElement | null)[]>([])
 
   // Effective season & teams (uses props when passed from AdminPage, or fetches fallback)
   const [fallbackSeason, setFallbackSeason] = useState<Season | null>(null)
@@ -517,7 +515,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
 
   // Measure live preview group width for exact 60px/s base speed
   useEffect(() => {
-    if (activeTab !== 'carousel' || !previewGroupRef.current) return
+    if (activeTab !== 'display' || !previewGroupRef.current) return
 
     const updateWidth = () => {
       if (!previewGroupRef.current) return
@@ -545,7 +543,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
 
   // Update preview marquee playbackRate instantaneously as the slider moves
   useEffect(() => {
-    if (activeTab !== 'carousel' || !previewTrackRef.current) return
+    if (activeTab !== 'display' || !previewTrackRef.current) return
     const mult = getTickerSpeedMultiplier(tickerSpeed)
     const animations = previewTrackRef.current.getAnimations?.()
     if (animations && animations.length > 0) {
@@ -996,209 +994,240 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
       ? Math.min(parsedCountup, previewDurationSec)
       : Math.min(DEFAULT_AUCTION_SETTINGS.price_countup_seconds, previewDurationSec)
 
+  const handleTabKeyDown = (e: React.KeyboardEvent, index: number) => {
+    let nextIndex = -1
+    if (e.key === 'ArrowRight') {
+      e.preventDefault()
+      nextIndex = (index + 1) % SETUP_TABS.length
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault()
+      nextIndex = (index - 1 + SETUP_TABS.length) % SETUP_TABS.length
+    }
+    if (nextIndex !== -1) {
+      setActiveTab(SETUP_TABS[nextIndex].value)
+      tabButtonRefs.current[nextIndex]?.focus()
+    }
+  }
+
   return (
-    <div className="space-y-8">
-      <PageHeader
-        label="Site Configuration"
-        title="System Setup"
-        actions={
-          <SegmentedControl
-            ariaLabel="Setup sections"
-            value={activeTab}
-            onChange={setActiveTab}
-            options={[
-              { value: 'carousel', label: 'Carousel' },
-              { value: 'pages', label: 'Pages' },
-              { value: 'sports', label: 'Sports' },
-              { value: 'auction', label: 'Auction' },
-              { value: 'confetti', label: 'Confetti' },
-              { value: 'credits', label: 'Credits' },
-              { value: 'handbook', label: 'Handbook' },
-              { value: 'rules', label: 'Rules' }
-            ]}
-          />
-        }
-      />
+    <div className="space-y-6">
+      {/* Page Header & Single-Row Horizontal Tab Bar */}
+      <header className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 pb-5 border-b border-border">
+        <h1 className="font-syne font-extrabold text-3xl sm:text-4xl tracking-tight text-text">
+          System Setup
+        </h1>
 
-      {/* Tab 1: Carousel Items */}
-      {activeTab === 'carousel' && (
-        <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface border border-border rounded-2xl p-6 shadow-sm">
-            <div>
-              <h2 className="font-syne font-bold text-xl text-text">Homepage Ticker Strip</h2>
-              <p className="text-xs text-muted mt-1">
-                Manage ticker announcements shown in the home page stadium ribbon. Max 80 characters per item.
-              </p>
-            </div>
-            <Button
-              variant="primary"
-              size="md"
-              leftIcon={Plus}
-              onClick={() => {
-                setEditingItem(null)
-                setItemText('')
-                setIsAddModalOpen(true)
-              }}
-            >
-              Add item
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-            {/* Left / Main: Ticker Content Editor */}
-            <div className="lg:col-span-2 space-y-4">
-              {carouselError && (
-                <ErrorState
-                  title="Failed to load carousel items"
-                  message={carouselError}
-                  onRetry={loadCarousel}
-                />
-              )}
-
-              {isLoadingCarousel ? (
-                <div className="space-y-3">
-                  {[1, 2, 3].map((i) => (
-                    <SkeletonBlock
-                      key={i}
-                      className="h-16 bg-surface border border-border rounded-xl"
-                    />
-                  ))}
-                </div>
-              ) : carouselItems.length === 0 ? (
-                <EmptyState
-                  title="No carousel items configured"
-                  description="Click Add item to introduce announcements to the homepage ticker strip."
-                  actionLabel="Add item"
-                  onAction={() => {
-                    setEditingItem(null)
-                    setItemText('')
-                    setIsAddModalOpen(true)
+        <div className="w-full lg:w-auto overflow-x-auto pb-1 -mb-1">
+          <div
+            role="tablist"
+            aria-label="System Setup sections"
+            className="inline-flex flex-nowrap items-center gap-1 p-1 rounded-full bg-surface-2 border border-border w-max"
+          >
+            {SETUP_TABS.map((tab, index) => {
+              const isSelected = activeTab === tab.value
+              return (
+                <button
+                  key={tab.value}
+                  ref={(el) => {
+                    tabButtonRefs.current[index] = el
                   }}
-                />
-              ) : (
-                <div className="bg-surface border border-border rounded-2xl overflow-hidden divide-y divide-border shadow-sm">
-                  {carouselItems.map((item, index) => (
-                    <div
-                      key={item.id}
-                      className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-surface-2/60 transition-colors"
-                    >
-                      <div className="flex items-center gap-4 flex-1 min-w-0">
-                        <span className="font-mono text-xs text-muted w-6 shrink-0 tabular-nums">
-                          {String(index + 1).padStart(2, '0')}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-text break-all font-sans">
-                            {item.text}
-                          </p>
-                          <span className="text-[10px] font-mono text-muted tabular-nums">
-                            {item.text.length} / 80 chars
-                          </span>
+                  type="button"
+                  role="tab"
+                  aria-selected={isSelected}
+                  tabIndex={isSelected ? 0 : -1}
+                  onClick={() => setActiveTab(tab.value)}
+                  onKeyDown={(e) => handleTabKeyDown(e, index)}
+                  className={`min-h-[38px] px-4 py-1.5 rounded-full text-sm font-sans whitespace-nowrap shrink-0 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright ${
+                    isSelected
+                      ? 'bg-btn-bg text-btn-fg font-medium'
+                      : 'text-muted hover:text-text font-normal'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </header>
+
+      {/* Tab 1: Display (Homepage Ticker Strip, Auction Display and Rules, Confetti) */}
+      {activeTab === 'display' && (
+        <div className="space-y-6">
+          {/* Section 1: Homepage Ticker Strip */}
+          <section className="bg-surface border border-border rounded-3xl p-6 sm:p-8 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-border">
+              <h2 className="font-syne font-bold text-xl text-text tracking-tight">
+                Homepage Ticker Strip
+              </h2>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                leftIcon={Plus}
+                onClick={() => {
+                  setEditingItem(null)
+                  setItemText('')
+                  setIsAddModalOpen(true)
+                }}
+                className="rounded-full self-start sm:self-auto"
+              >
+                Add item
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+              {/* Left: Ticker Items */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-text">Items</span>
+                  <span className="text-xs text-muted tabular-nums">Max 80 chars</span>
+                </div>
+
+                {carouselError && (
+                  <ErrorState
+                    title="Failed to load carousel items"
+                    message={carouselError}
+                    onRetry={loadCarousel}
+                  />
+                )}
+
+                {isLoadingCarousel ? (
+                  <div className="space-y-2.5">
+                    {[1, 2, 3].map((i) => (
+                      <SkeletonBlock
+                        key={i}
+                        className="h-14 bg-bg border border-border rounded-2xl"
+                      />
+                    ))}
+                  </div>
+                ) : carouselItems.length === 0 ? (
+                  <EmptyState
+                    title="No ticker items"
+                    description="Add an announcement for the homepage strip."
+                    actionLabel="Add item"
+                    onAction={() => {
+                      setEditingItem(null)
+                      setItemText('')
+                      setIsAddModalOpen(true)
+                    }}
+                  />
+                ) : (
+                  <div className="bg-bg border border-border rounded-2xl overflow-hidden divide-y divide-border">
+                    {carouselItems.map((item, index) => (
+                      <div
+                        key={item.id}
+                        className="px-4 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-surface-2/40 transition-colors"
+                      >
+                        <p className="text-sm font-normal text-text break-words min-w-0 flex-1">
+                          {item.text}
+                        </p>
+
+                        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                          <button
+                            type="button"
+                            disabled={index === 0}
+                            onClick={() => handleMove(index, 'up')}
+                            title="Move up"
+                            aria-label="Move item up"
+                            className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                          >
+                            <ArrowUp size={15} weight="regular" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={index === carouselItems.length - 1}
+                            onClick={() => handleMove(index, 'down')}
+                            title="Move down"
+                            aria-label="Move item down"
+                            className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                          >
+                            <ArrowDown size={15} weight="regular" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleToggleActive(item)}
+                            className={`h-8 px-3 rounded-full text-xs font-medium border transition-colors cursor-pointer whitespace-nowrap ${
+                              item.active
+                                ? 'bg-surface border-accent-bright text-accent-bright'
+                                : 'bg-surface-2 border-border text-muted hover:text-text'
+                            }`}
+                          >
+                            {item.active ? 'Active' : 'Inactive'}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingItem(item)
+                              setItemText(item.text)
+                              setIsAddModalOpen(true)
+                            }}
+                            title="Edit text"
+                            aria-label="Edit item"
+                            className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 transition-colors cursor-pointer"
+                          >
+                            <PencilSimple size={15} weight="regular" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCarouselItem(item)}
+                            title="Delete item"
+                            aria-label="Delete item"
+                            className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-error hover:bg-error/10 transition-colors cursor-pointer"
+                          >
+                            <Trash size={15} weight="regular" />
+                          </button>
                         </div>
                       </div>
-
-                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                        <button
-                          type="button"
-                          disabled={index === 0}
-                          onClick={() => handleMove(index, 'up')}
-                          title="Move up"
-                          className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                        >
-                          <ArrowUp size={14} weight="bold" />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={index === carouselItems.length - 1}
-                          onClick={() => handleMove(index, 'down')}
-                          title="Move down"
-                          className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                        >
-                          <ArrowDown size={14} weight="bold" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleToggleActive(item)}
-                          className={`px-2.5 py-1.5 rounded-lg text-xs font-mono transition-colors ${
-                            item.active
-                              ? 'bg-surface-2 border border-accent-bright text-accent-bright font-semibold'
-                              : 'bg-surface-2 border border-border text-muted hover:text-text'
-                          }`}
-                        >
-                          {item.active ? 'Active' : 'Inactive'}
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingItem(item)
-                            setItemText(item.text)
-                            setIsAddModalOpen(true)
-                          }}
-                          title="Edit text"
-                          className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 transition-colors"
-                        >
-                          <PencilSimple size={14} />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteCarouselItem(item)}
-                          title="Delete item"
-                          className="p-2 rounded-lg border border-border text-muted hover:text-error hover:bg-error/10 transition-colors"
-                        >
-                          <Trash size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Right: Ticker Speed Control & Live Preview */}
-            <div className="bg-surface border border-border rounded-2xl p-5 sm:p-6 space-y-5 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="font-syne font-bold text-lg text-text">Ticker speed</h3>
-                <span className="px-2.5 py-1 rounded-lg bg-surface-2 border border-border font-mono text-xs font-semibold text-accent-bright tabular-nums shrink-0">
-                  {tickerSpeed}
-                </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              <div className="space-y-2">
-                <input
-                  id="setup-ticker-speed-slider"
-                  type="range"
-                  min={1}
-                  max={10}
-                  step={1}
-                  value={tickerSpeed}
-                  aria-label="Ticker speed"
-                  onChange={(e) => {
-                    const nextVal = normalizeTickerSpeed(Number(e.target.value))
-                    setTickerSpeed(nextVal)
-                    setTickerSpeedSaved(false)
-                    setTickerSpeedError(null)
-                  }}
-                  className="w-full accent-accent-bright cursor-pointer"
-                />
-                <div className="flex items-center justify-between text-[11px] font-mono uppercase tracking-wider text-muted">
-                  <span>Slow</span>
-                  <span className="text-text font-semibold tabular-nums">
+              {/* Right: Ticker Speed & Live Preview */}
+              <div className="bg-bg border border-border rounded-2xl p-5 space-y-5">
+                <div className="flex items-center justify-between gap-3">
+                  <label
+                    htmlFor="setup-ticker-speed-slider"
+                    className="text-sm font-medium text-text"
+                  >
+                    Ticker speed
+                  </label>
+                  <span className="font-mono text-xs text-muted tabular-nums">
                     {tickerSpeed} / 10
                   </span>
-                  <span>Fast</span>
                 </div>
-              </div>
 
-              {/* Small Live Preview Strip directly under slider */}
-              <div className="space-y-1.5">
-                <span className="block text-[10px] font-mono uppercase tracking-wider text-muted">
-                  Live preview
-                </span>
+                <div className="space-y-2">
+                  <input
+                    id="setup-ticker-speed-slider"
+                    type="range"
+                    min={1}
+                    max={10}
+                    step={1}
+                    value={tickerSpeed}
+                    aria-label="Ticker speed"
+                    onChange={(e) => {
+                      const nextVal = normalizeTickerSpeed(Number(e.target.value))
+                      setTickerSpeed(nextVal)
+                      setTickerSpeedSaved(false)
+                      setTickerSpeedError(null)
+                    }}
+                    className="w-full accent-accent-bright cursor-pointer"
+                  />
+                  <div className="flex items-center justify-between text-xs text-muted">
+                    <span>Slow</span>
+                    <span>Fast</span>
+                  </div>
+                </div>
+
+                {/* Live Preview Strip */}
                 <div
                   aria-label="Ticker speed live preview"
-                  className="w-full bg-surface border-y border-border py-3.5 overflow-hidden select-none relative"
+                  className="w-full bg-surface border border-border rounded-xl py-3 overflow-hidden select-none relative"
                 >
                   <div
                     ref={previewTrackRef}
@@ -1209,7 +1238,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
                   >
                     <div
                       ref={previewGroupRef}
-                      className="flex shrink-0 items-center whitespace-nowrap font-dot text-[16px] md:text-[18.5px] leading-normal tracking-[0.16em] text-text"
+                      className="flex shrink-0 items-center whitespace-nowrap font-dot text-[15px] md:text-[17px] leading-normal tracking-[0.16em] text-text"
                     >
                       {TICKER_PREVIEW_SAMPLE_ITEMS.map((sample, idx) => (
                         <span key={`prev-a-${idx}`} className="inline-flex items-center">
@@ -1222,7 +1251,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
                     </div>
                     <div
                       aria-hidden="true"
-                      className="flex shrink-0 items-center whitespace-nowrap font-dot text-[16px] md:text-[18.5px] leading-normal tracking-[0.16em] text-text"
+                      className="flex shrink-0 items-center whitespace-nowrap font-dot text-[15px] md:text-[17px] leading-normal tracking-[0.16em] text-text"
                     >
                       {TICKER_PREVIEW_SAMPLE_ITEMS.map((sample, idx) => (
                         <span key={`prev-b-${idx}`} className="inline-flex items-center">
@@ -1235,891 +1264,954 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {tickerSpeedError && (
-                <p role="alert" className="text-xs font-mono text-error">
-                  {tickerSpeedError}
-                </p>
-              )}
+                {tickerSpeedError && (
+                  <p role="alert" className="text-xs text-error">
+                    {tickerSpeedError}
+                  </p>
+                )}
 
-              <div className="pt-2 border-t border-border flex items-center justify-between gap-2 flex-wrap">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  leftIcon={ArrowCounterClockwise}
-                  disabled={isSavingTickerSpeed || tickerSpeed === DEFAULT_TICKER_SPEED}
-                  onClick={handleResetTickerSpeed}
-                >
-                  Reset to default
-                </Button>
-
-                <div className="flex items-center gap-2.5 ml-auto">
-                  {tickerSpeedSaved && !isTickerSpeedDirty && (
-                    <span className="text-xs font-mono text-accent-bright flex items-center gap-1">
-                      <Check size={14} weight="bold" />
-                      <span>Saved</span>
-                    </span>
-                  )}
+                <div className="pt-4 border-t border-border flex flex-wrap items-center justify-between gap-2.5">
                   <Button
                     type="button"
-                    variant="primary"
+                    variant="ghost"
                     size="sm"
-                    leftIcon={FloppyDisk}
-                    disabled={!isTickerSpeedDirty || isSavingTickerSpeed}
-                    isLoading={isSavingTickerSpeed}
-                    onClick={() => void handleSaveTickerSpeed()}
+                    leftIcon={ArrowCounterClockwise}
+                    disabled={isSavingTickerSpeed || tickerSpeed === DEFAULT_TICKER_SPEED}
+                    onClick={handleResetTickerSpeed}
+                    className="rounded-full"
                   >
-                    Save
+                    Reset to default
                   </Button>
+
+                  <div className="flex items-center gap-2.5 ml-auto">
+                    {tickerSpeedSaved && !isTickerSpeedDirty && (
+                      <span className="text-xs text-accent-bright inline-flex items-center gap-1">
+                        <Check size={14} weight="regular" />
+                        <span>Saved</span>
+                      </span>
+                    )}
+                    <Button
+                      type="button"
+                      variant="primary"
+                      size="sm"
+                      leftIcon={FloppyDisk}
+                      disabled={!isTickerSpeedDirty || isSavingTickerSpeed}
+                      isLoading={isSavingTickerSpeed}
+                      onClick={() => void handleSaveTickerSpeed()}
+                      className="rounded-full px-4"
+                    >
+                      Save
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </section>
 
-      {/* Tab 2: Pages Content Editor */}
-      {activeTab === 'pages' && (
-        <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
-            <h2 className="font-syne font-bold text-xl text-text">Public Pages Editor</h2>
+          {/* Section 2: Auction Display and Rules */}
+          <section className="bg-surface border border-border rounded-3xl p-6 sm:p-8 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-border">
+              <h2 className="font-syne font-bold text-xl text-text tracking-tight">
+                Auction Display and Rules
+              </h2>
 
-            <SegmentedControl
-              ariaLabel="Select public page"
-              size="sm"
-              value={selectedPageKey}
-              onChange={setSelectedPageKey}
-              options={[
-                { value: 'help_page', label: 'Help Page' },
-                { value: 'about_page', label: 'About Page' }
-              ]}
-            />
-          </div>
-
-          <form onSubmit={handleSavePage} className="space-y-5">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-xs font-mono uppercase tracking-wider text-muted">
-                  Page Title
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setIsPreviewingPage(!isPreviewingPage)}
-                  className="text-xs font-mono text-accent-bright hover:underline cursor-pointer"
-                >
-                  {isPreviewingPage ? 'Edit Content' : 'Preview Result'}
-                </button>
+              <div className="px-3.5 py-1.5 rounded-full bg-surface-2 border border-border text-xs text-text shrink-0 self-start sm:self-auto">
+                Applies to the selected season:{' '}
+                <strong className="font-semibold text-accent-bright">
+                  {effectiveSeason?.name || 'None selected'}
+                </strong>
               </div>
-              <input
-                type="text"
-                value={pageTitle}
-                onChange={(e) => setPageTitle(e.target.value)}
-                required
-                className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent-bright"
+            </div>
+
+            {!effectiveSeason ? (
+              <EmptyState
+                title="No active season selected"
+                description="Select or create a season in Seasons to configure auction settings."
               />
-              <span className="block text-[11px] font-mono text-muted mt-1.5">
-                Markdown supported: # heading, **bold**, - list, [text](link)
-              </span>
-            </div>
-
-            <div>
-              <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-2">
-                Page Body Content
-              </label>
-              {isPreviewingPage ? (
-                <div className="w-full bg-bg border border-border rounded-xl p-5 min-h-[220px]">
-                  <span className="block text-[10px] font-mono uppercase tracking-widest text-accent-bright mb-3">
-                    Rendered Preview
-                  </span>
-                  <h1 className="font-syne font-bold text-2xl text-text mb-4">
-                    {pageTitle || 'Untitled Page'}
-                  </h1>
-                  {pageBody.trim() ? (
-                    <MarkdownContent content={pageBody} />
-                  ) : (
-                    <p className="text-xs text-muted italic">No content to preview.</p>
-                  )}
-                </div>
-              ) : (
-                <textarea
-                  value={pageBody}
-                  onChange={(e) => setPageBody(e.target.value)}
-                  rows={8}
-                  placeholder="Enter markdown or plain text for this page..."
-                  className="w-full bg-bg border border-border rounded-xl p-4 text-sm text-text focus:outline-none focus:border-accent-bright leading-relaxed resize-y font-sans font-light"
-                />
-              )}
-              <span className="block text-[11px] font-mono text-muted mt-1.5">
-                Markdown supported: # heading, **bold**, - list, [text](link)
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between pt-2">
-              <Button
-                type="button"
-                variant="secondary"
-                size="md"
-                onClick={() => setIsPreviewingPage(!isPreviewingPage)}
-              >
-                {isPreviewingPage ? 'Edit Markdown' : 'Preview Markdown'}
-              </Button>
-
-              <Button
-                type="submit"
-                variant="primary"
-                size="md"
-                leftIcon={FloppyDisk}
-                disabled={isSavingPage}
-                isLoading={isSavingPage}
-              >
-                Save Page Content
-              </Button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Tab 3: Sports and Roles */}
-      {activeTab === 'sports' && (
-        <div className="space-y-6">
-          <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
-              <h2 className="font-syne font-bold text-xl text-text">Sports and Roles</h2>
-
-              {sportsList.length > 0 && (
-                <SegmentedControl
-                  ariaLabel="Select sport discipline"
-                  size="sm"
-                  value={selectedSport?.id || 'cricket'}
-                  onChange={handleSelectSport}
-                  options={sportsList.map((s) => ({
-                    value: s.id,
-                    label: s.name
-                  }))}
-                />
-              )}
-            </div>
-
-            <form onSubmit={handleAddRole} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              <input
-                type="text"
-                value={newRoleName}
-                onChange={(e) => setNewRoleName(e.target.value)}
-                placeholder={`Add a new role for ${selectedSport?.name || 'sport'}...`}
-                disabled={isSavingRoleAction || !selectedSport}
-                className="flex-1 bg-bg border border-border rounded-xl px-4 py-2.5 text-xs text-text placeholder-muted focus:outline-none focus:border-accent-bright disabled:opacity-50"
-              />
-              <Button
-                type="submit"
-                variant="primary"
-                size="md"
-                leftIcon={Plus}
-                disabled={isSavingRoleAction || !newRoleName.trim() || !selectedSport}
-                isLoading={isSavingRoleAction && !renamingRole}
-              >
-                Add Role
-              </Button>
-            </form>
-
-            {isLoadingSports ? (
-              <div className="space-y-2.5">
+            ) : isLoadingAuctionSettings ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {[1, 2, 3, 4].map((i) => (
                   <SkeletonBlock
                     key={i}
-                    className="h-14 bg-surface-2/60 border border-border rounded-xl"
+                    className="h-20 bg-bg border border-border rounded-2xl"
                   />
                 ))}
               </div>
-            ) : !selectedSport || selectedSport.roles.length === 0 ? (
-              <EmptyState
-                title="No roles configured"
-                description="Add a playing role above for this sport."
-              />
             ) : (
-              <div className="bg-bg border border-border rounded-2xl overflow-hidden divide-y divide-border">
-                {selectedSport.roles.map((role, index) => {
-                  const usedCount = roleUsageCounts[role] || 0
-                  const isRenamingThis = renamingRole === role
-
-                  return (
-                    <div
-                      key={role}
-                      className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-surface-2/50 transition-colors"
+              <form onSubmit={handleSaveAuctionSettings} className="space-y-6">
+                {/* Group 1: Animation & Timing */}
+                <div className="space-y-5">
+                  <div className="flex items-center justify-between gap-4 py-1">
+                    <label
+                      htmlFor="toggle-secured-enabled"
+                      className="text-sm font-medium text-text cursor-pointer"
                     >
-                      <div className="flex items-center gap-3.5 flex-1 min-w-0">
-                        <span className="font-mono text-xs text-muted w-6 shrink-0 tabular-nums">
-                          {String(index + 1).padStart(2, '0')}
-                        </span>
+                      Secured animation
+                    </label>
 
-                        {isRenamingThis ? (
-                          <div className="flex items-center gap-2 flex-1 max-w-md">
-                            <input
-                              type="text"
-                              value={renameValue}
-                              onChange={(e) => setRenameValue(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault()
-                                  handleConfirmRename(role)
-                                } else if (e.key === 'Escape') {
-                                  setRenamingRole(null)
-                                }
-                              }}
-                              autoFocus
-                              disabled={isSavingRoleAction}
-                              className="flex-1 bg-surface border border-accent-bright rounded-xl px-3 py-1.5 text-xs text-text focus:outline-none"
-                            />
-                            <Button
-                              type="button"
-                              variant="primary"
-                              size="sm"
-                              leftIcon={Check}
-                              disabled={isSavingRoleAction || !renameValue.trim()}
-                              isLoading={isSavingRoleAction}
-                              onClick={() => handleConfirmRename(role)}
-                            >
-                              Save
-                            </Button>
-                            <button
-                              type="button"
-                              disabled={isSavingRoleAction}
-                              onClick={() => setRenamingRole(null)}
-                              title="Cancel rename"
-                              className="p-1.5 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 transition-colors"
-                            >
-                              <X size={14} weight="bold" />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="min-w-0 flex items-center gap-3 flex-wrap">
-                            <span className="text-sm font-medium text-text">{role}</span>
-                            <span className="text-[11px] font-mono text-muted tabular-nums">
-                              {usedCount} {usedCount === 1 ? 'player' : 'players'}
-                            </span>
-                          </div>
-                        )}
+                    <button
+                      id="toggle-secured-enabled"
+                      type="button"
+                      role="switch"
+                      aria-checked={securedEnabled}
+                      onClick={() => setSecuredEnabled((v) => !v)}
+                      className="inline-flex items-center gap-3 min-h-[40px] px-3 py-1.5 rounded-full bg-bg border border-border hover:border-text/30 transition-colors shrink-0 cursor-pointer"
+                    >
+                      <span
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                          securedEnabled ? 'bg-accent-bright' : 'bg-surface-2 border border-border'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-3.5 w-3.5 rounded-full transition-transform ${
+                            securedEnabled
+                              ? 'translate-x-5 bg-white'
+                              : 'translate-x-0.5 bg-muted'
+                          }`}
+                        />
+                      </span>
+                      <span className="text-xs font-medium text-text min-w-[22px] text-left">
+                        {securedEnabled ? 'On' : 'Off'}
+                      </span>
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    {/* Secured sequence length */}
+                    <div className="p-4 sm:p-5 rounded-2xl bg-bg border border-border space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <label
+                          htmlFor="secured-duration-number"
+                          className="text-sm font-medium text-text"
+                        >
+                          Secured sequence length
+                        </label>
+                        <span className="font-mono text-xs text-muted tabular-nums">2–15 s</span>
                       </div>
 
-                      {!isRenamingThis && (
-                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                          <button
-                            type="button"
-                            disabled={index === 0 || isSavingRoleAction}
-                            onClick={() => handleMoveRole(index, 'up')}
-                            title="Move role up"
-                            className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                          >
-                            <ArrowUp size={14} weight="bold" />
-                          </button>
-                          <button
-                            type="button"
-                            disabled={
-                              index === selectedSport.roles.length - 1 || isSavingRoleAction
-                            }
-                            onClick={() => handleMoveRole(index, 'down')}
-                            title="Move role down"
-                            className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                          >
-                            <ArrowDown size={14} weight="bold" />
-                          </button>
+                      <div className="flex items-center gap-3.5">
+                        <input
+                          type="range"
+                          min={2}
+                          max={15}
+                          step={0.1}
+                          aria-label="Secured sequence length slider"
+                          value={
+                            !isNaN(parsedDuration)
+                              ? Math.min(15, Math.max(2, parsedDuration))
+                              : 5.6
+                          }
+                          onChange={(e) => setSecuredDurationInput(e.target.value)}
+                          className="flex-1 h-2 bg-surface-2 rounded-full accent-accent-bright cursor-pointer"
+                        />
+                        <div className="relative w-24 shrink-0">
+                          <input
+                            id="secured-duration-number"
+                            type="number"
+                            min={2}
+                            max={15}
+                            step={0.1}
+                            value={securedDurationInput}
+                            onChange={(e) => setSecuredDurationInput(e.target.value)}
+                            className={`w-full min-h-[42px] bg-surface border rounded-xl pl-3 pr-7 py-2 font-mono text-sm font-medium text-text tabular-nums focus:outline-none ${
+                              durationError
+                                ? 'border-error focus:border-error'
+                                : 'border-border focus:border-accent-bright'
+                            }`}
+                          />
+                          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 font-mono text-xs text-muted">
+                            s
+                          </span>
+                        </div>
+                      </div>
 
-                          <button
-                            type="button"
-                            disabled={isSavingRoleAction}
-                            onClick={() => handleStartRename(role)}
-                            title="Rename role"
-                            className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 transition-colors"
-                          >
-                            <PencilSimple size={14} />
-                          </button>
-
-                          <button
-                            type="button"
-                            disabled={isSavingRoleAction}
-                            onClick={() => handleDeleteRole(role)}
-                            title={
-                              usedCount > 0
-                                ? `${usedCount} players use this role. Rename it or change those players first.`
-                                : 'Delete role'
-                            }
-                            className="p-2 rounded-lg border border-border text-muted hover:text-error hover:bg-error/10 disabled:opacity-30 transition-colors"
-                          >
-                            <Trash size={14} />
-                          </button>
+                      {durationError && (
+                        <div className="flex items-center gap-1.5 text-xs text-error">
+                          <WarningCircle size={15} weight="regular" className="shrink-0" />
+                          <span>{durationError}</span>
                         </div>
                       )}
                     </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
-      {/* Tab 4: Auction Display and Rules */}
-      {activeTab === 'auction' && (
-        <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8 space-y-8 shadow-sm">
-          {/* Header & Active Season Note */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
-            <h2 className="font-syne font-bold text-xl text-text">
-              Auction display and rules
-            </h2>
+                    {/* Price count-up */}
+                    <div className="p-4 sm:p-5 rounded-2xl bg-bg border border-border space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <label
+                          htmlFor="price-countup-number"
+                          className="text-sm font-medium text-text"
+                        >
+                          Price count-up
+                        </label>
+                        <span className="font-mono text-xs text-muted tabular-nums">
+                          0.3–6 s, ≤ length
+                        </span>
+                      </div>
 
-            <div className="px-3.5 py-2 rounded-xl bg-surface-2 border border-border text-xs font-mono text-text shrink-0">
-              Applies to the selected season:{' '}
-              <strong className="text-accent-bright font-semibold">
-                {effectiveSeason?.name || 'None selected'}
-              </strong>
-            </div>
-          </div>
+                      <div className="flex items-center gap-3.5">
+                        <input
+                          type="range"
+                          min={0.3}
+                          max={6}
+                          step={0.1}
+                          aria-label="Price count-up slider"
+                          value={
+                            !isNaN(parsedCountup)
+                              ? Math.min(6, Math.max(0.3, parsedCountup))
+                              : 1.8
+                          }
+                          onChange={(e) => setPriceCountupInput(e.target.value)}
+                          className="flex-1 h-2 bg-surface-2 rounded-full accent-accent-bright cursor-pointer"
+                        />
+                        <div className="relative w-24 shrink-0">
+                          <input
+                            id="price-countup-number"
+                            type="number"
+                            min={0.3}
+                            max={6}
+                            step={0.1}
+                            value={priceCountupInput}
+                            onChange={(e) => setPriceCountupInput(e.target.value)}
+                            className={`w-full min-h-[42px] bg-surface border rounded-xl pl-3 pr-7 py-2 font-mono text-sm font-medium text-text tabular-nums focus:outline-none ${
+                              countupError
+                                ? 'border-error focus:border-error'
+                                : 'border-border focus:border-accent-bright'
+                            }`}
+                          />
+                          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 font-mono text-xs text-muted">
+                            s
+                          </span>
+                        </div>
+                      </div>
 
-          {!effectiveSeason ? (
-            <EmptyState
-              title="No active season selected"
-              description="Select or create a tournament season in the Seasons tab to configure auction settings."
-            />
-          ) : isLoadingAuctionSettings ? (
-            <div className="space-y-4">
-              {[1, 2, 3, 4].map((i) => (
-                <SkeletonBlock
-                  key={i}
-                  className="h-20 bg-surface-2/60 border border-border rounded-xl"
-                />
-              ))}
-            </div>
-          ) : (
-            <form onSubmit={handleSaveAuctionSettings} className="space-y-8">
-              {/* 1. Secured Animation Switch */}
-              <div className="p-5 rounded-2xl bg-bg border border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <label
-                  htmlFor="toggle-secured-enabled"
-                  className="font-syne font-bold text-base text-text block cursor-pointer"
-                >
-                  Secured animation
-                </label>
+                      {countupError && (
+                        <div className="flex items-center gap-1.5 text-xs text-error">
+                          <WarningCircle size={15} weight="regular" className="shrink-0" />
+                          <span>{countupError}</span>
+                        </div>
+                      )}
+                    </div>
 
-                <button
-                  id="toggle-secured-enabled"
-                  type="button"
-                  role="switch"
-                  aria-checked={securedEnabled}
-                  onClick={() => setSecuredEnabled((v) => !v)}
-                  className={`min-h-[48px] px-5 py-2.5 rounded-xl font-mono text-xs font-bold uppercase tracking-wider border transition-colors flex items-center gap-3 shrink-0 ${
-                    securedEnabled
-                      ? 'bg-accent-bright/15 border-accent-bright text-accent-bright'
-                      : 'bg-surface-2 border-border text-muted hover:text-text'
-                  }`}
-                >
-                  <span
-                    className={`w-3 h-3 rounded-full transition-colors ${
-                      securedEnabled ? 'bg-accent-bright' : 'bg-muted'
-                    }`}
-                  />
-                  <span>{securedEnabled ? 'On' : 'Off'}</span>
-                </button>
-              </div>
+                    {/* Bid update animation */}
+                    <div className="p-4 sm:p-5 rounded-2xl bg-bg border border-border space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <label
+                          htmlFor="bid-update-ms-input"
+                          className="text-sm font-medium text-text"
+                        >
+                          Bid update animation
+                        </label>
+                        <span className="font-mono text-xs text-muted tabular-nums">
+                          100–2000 ms
+                        </span>
+                      </div>
 
-              {/* 2 & 3. Secured Sequence Length & Price Count-Up */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* 2. Secured sequence length */}
-                <div className="p-5 rounded-2xl bg-bg border border-border space-y-4">
-                  <div>
-                    <label
-                      htmlFor="secured-duration-number"
-                      className="font-syne font-bold text-base text-text block"
-                    >
-                      Secured sequence length
-                    </label>
-                    <p className="text-xs text-muted mt-1">
-                      Total duration of the secured animation in seconds before settling into the static sold card (2 to 15s).
-                    </p>
-                  </div>
+                      <div className="relative max-w-[200px]">
+                        <input
+                          id="bid-update-ms-input"
+                          type="number"
+                          min={100}
+                          max={2000}
+                          step={50}
+                          value={bidUpdateMsInput}
+                          onChange={(e) => setBidUpdateMsInput(e.target.value)}
+                          className={`w-full min-h-[42px] bg-surface border rounded-xl pl-3.5 pr-10 py-2 font-mono text-sm font-medium text-text tabular-nums focus:outline-none ${
+                            bidUpdateError
+                              ? 'border-error focus:border-error'
+                              : 'border-border focus:border-accent-bright'
+                          }`}
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted">
+                          ms
+                        </span>
+                      </div>
 
-                  <div className="flex items-center gap-4">
-                    <input
-                      type="range"
-                      min={2}
-                      max={15}
-                      step={0.1}
-                      aria-label="Secured sequence length slider"
-                      value={
-                        !isNaN(parsedDuration)
-                          ? Math.min(15, Math.max(2, parsedDuration))
-                          : 5.6
-                      }
-                      onChange={(e) => setSecuredDurationInput(e.target.value)}
-                      className="flex-1 h-2 bg-surface-2 rounded-lg accent-accent-bright cursor-pointer"
-                    />
-                    <div className="relative w-28 shrink-0">
-                      <input
-                        id="secured-duration-number"
-                        type="number"
-                        min={2}
-                        max={15}
-                        step={0.1}
-                        value={securedDurationInput}
-                        onChange={(e) => setSecuredDurationInput(e.target.value)}
-                        className="w-full min-h-[48px] bg-surface border border-border rounded-xl pl-3.5 pr-8 py-2 font-mono text-sm font-bold text-text tabular-nums focus:outline-none focus:border-accent-bright"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted">
-                        s
-                      </span>
+                      {bidUpdateError && (
+                        <div className="flex items-center gap-1.5 text-xs text-error">
+                          <WarningCircle size={15} weight="regular" className="shrink-0" />
+                          <span>{bidUpdateError}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Catch-up window after refresh */}
+                    <div className="p-4 sm:p-5 rounded-2xl bg-bg border border-border space-y-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <label
+                          htmlFor="catchup-window-input"
+                          className="text-sm font-medium text-text"
+                        >
+                          Catch-up window after refresh
+                        </label>
+                        <span className="font-mono text-xs text-muted tabular-nums">0–120 s</span>
+                      </div>
+
+                      <div className="relative max-w-[200px]">
+                        <input
+                          id="catchup-window-input"
+                          type="number"
+                          min={0}
+                          max={120}
+                          step={1}
+                          value={catchupWindowInput}
+                          onChange={(e) => setCatchupWindowInput(e.target.value)}
+                          className={`w-full min-h-[42px] bg-surface border rounded-xl pl-3.5 pr-9 py-2 font-mono text-sm font-medium text-text tabular-nums focus:outline-none ${
+                            catchupError
+                              ? 'border-error focus:border-error'
+                              : 'border-border focus:border-accent-bright'
+                          }`}
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted">
+                          s
+                        </span>
+                      </div>
+
+                      {catchupError && (
+                        <div className="flex items-center gap-1.5 text-xs text-error">
+                          <WarningCircle size={15} weight="regular" className="shrink-0" />
+                          <span>{catchupError}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
-
-                  {durationError && (
-                    <div className="flex items-center gap-2 text-xs text-error font-mono">
-                      <WarningCircle size={15} weight="bold" className="shrink-0" />
-                      <span>{durationError}</span>
-                    </div>
-                  )}
                 </div>
 
-                {/* 3. Price count-up */}
-                <div className="p-5 rounded-2xl bg-bg border border-border space-y-4">
-                  <div>
-                    <label
-                      htmlFor="price-countup-number"
-                      className="font-syne font-bold text-base text-text block"
-                    >
-                      Price count-up
-                    </label>
-                    <p className="text-xs text-muted mt-1">
-                      Duration for the sale price to count up from 0 to the final price (0.3 to 6s, cannot exceed sequence length).
-                    </p>
+                {/* Group 2: Bidding & Squad Rules */}
+                <div className="pt-6 border-t border-border grid grid-cols-1 lg:grid-cols-2 gap-5">
+                  {/* Bid increments */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-bg border border-border space-y-3.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <label
+                        htmlFor="new-bid-increment-input"
+                        className="text-sm font-medium text-text"
+                      >
+                        Bid increments
+                      </label>
+                      <span className="font-mono text-xs text-muted">Min 1 value</span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {bidIncrements.map((inc) => (
+                        <div
+                          key={inc}
+                          className="h-9 pl-3 pr-1.5 rounded-full bg-surface border border-border inline-flex items-center gap-1.5 font-mono text-xs font-medium text-points tabular-nums"
+                        >
+                          <span>+{inc.toLocaleString()}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveIncrementChip(inc)}
+                            disabled={bidIncrements.length <= 1}
+                            title={
+                              bidIncrements.length <= 1
+                                ? 'At least one increment is required'
+                                : `Remove +${inc}`
+                            }
+                            aria-label={`Remove increment ${inc}`}
+                            className="w-6 h-6 rounded-full flex items-center justify-center text-muted hover:text-error hover:bg-error/10 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                          >
+                            <X size={13} weight="regular" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        id="new-bid-increment-input"
+                        type="number"
+                        min={1}
+                        step="any"
+                        value={newIncrementInput}
+                        onChange={(e) => {
+                          setNewIncrementInput(e.target.value)
+                          setIncrementError(null)
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleAddIncrementChip()
+                          }
+                        }}
+                        placeholder="Add increment (e.g. 50)"
+                        className="flex-1 min-h-[42px] bg-surface border border-border rounded-xl px-3.5 py-2 font-mono text-sm text-text placeholder-muted focus:outline-none focus:border-accent-bright"
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="md"
+                        leftIcon={Plus}
+                        onClick={handleAddIncrementChip}
+                        disabled={!newIncrementInput.trim()}
+                        className="min-h-[42px] rounded-full shrink-0"
+                      >
+                        Add
+                      </Button>
+                    </div>
+
+                    {incrementError && (
+                      <div className="flex items-center gap-1.5 text-xs text-error">
+                        <WarningCircle size={15} weight="regular" className="shrink-0" />
+                        <span>{incrementError}</span>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <input
-                      type="range"
-                      min={0.3}
-                      max={6}
-                      step={0.1}
-                      aria-label="Price count-up slider"
-                      value={
-                        !isNaN(parsedCountup)
-                          ? Math.min(6, Math.max(0.3, parsedCountup))
-                          : 1.8
-                      }
-                      onChange={(e) => setPriceCountupInput(e.target.value)}
-                      className="flex-1 h-2 bg-surface-2 rounded-lg accent-accent-bright cursor-pointer"
-                    />
-                    <div className="relative w-28 shrink-0">
+                  {/* Maximum squad size */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-bg border border-border space-y-3.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <label
+                        htmlFor="max-squad-size-input"
+                        className="text-sm font-medium text-text"
+                      >
+                        Maximum squad size
+                      </label>
+
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={noSquadLimit}
+                        onClick={() => setNoSquadLimit((v) => !v)}
+                        className="inline-flex items-center gap-2.5 min-h-[36px] px-3 py-1 rounded-full bg-surface border border-border hover:border-text/30 transition-colors shrink-0 cursor-pointer"
+                      >
+                        <span
+                          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                            noSquadLimit ? 'bg-accent-bright' : 'bg-surface-2 border border-border'
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-3.5 w-3.5 rounded-full transition-transform ${
+                              noSquadLimit
+                                ? 'translate-x-5 bg-white'
+                                : 'translate-x-0.5 bg-muted'
+                            }`}
+                          />
+                        </span>
+                        <span className="text-xs font-medium text-text">No limit</span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-3">
                       <input
-                        id="price-countup-number"
+                        id="max-squad-size-input"
                         type="number"
-                        min={0.3}
-                        max={6}
-                        step={0.1}
-                        value={priceCountupInput}
-                        onChange={(e) => setPriceCountupInput(e.target.value)}
-                        className={`w-full min-h-[48px] bg-surface border rounded-xl pl-3.5 pr-8 py-2 font-mono text-sm font-bold text-text tabular-nums focus:outline-none ${
-                          countupError
+                        min={1}
+                        step={1}
+                        disabled={noSquadLimit}
+                        value={noSquadLimit ? '' : maxSquadSizeInput}
+                        placeholder={noSquadLimit ? 'No squad limit' : '12'}
+                        onChange={(e) => setMaxSquadSizeInput(e.target.value)}
+                        className={`w-full max-w-[200px] min-h-[42px] bg-surface border rounded-xl px-3.5 py-2 font-mono text-sm font-medium text-text placeholder-muted focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
+                          maxSquadError
                             ? 'border-error focus:border-error'
                             : 'border-border focus:border-accent-bright'
                         }`}
                       />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-xs text-muted">
-                        s
-                      </span>
+                      {!noSquadLimit && (
+                        <span className="font-mono text-xs text-muted">Min 1</span>
+                      )}
                     </div>
-                  </div>
 
-                  {countupError && (
-                    <div className="flex items-center gap-2 text-xs text-error font-mono">
-                      <WarningCircle size={15} weight="bold" className="shrink-0" />
-                      <span>{countupError}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* 4 & 5. Bid Update Animation & Catch-Up Window After Refresh */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* 4. Bid update animation */}
-                <div className="p-5 rounded-2xl bg-bg border border-border space-y-3">
-                  <div>
-                    <label
-                      htmlFor="bid-update-ms-input"
-                      className="font-syne font-bold text-base text-text block"
-                    >
-                      Bid update animation
-                    </label>
-                    <p className="text-xs text-muted mt-1">
-                      Duration in milliseconds for the live bid number flip and leading-team colour flash (100 to 2000 ms).
-                    </p>
-                  </div>
-
-                  <div className="relative max-w-xs">
-                    <input
-                      id="bid-update-ms-input"
-                      type="number"
-                      min={100}
-                      max={2000}
-                      step={50}
-                      value={bidUpdateMsInput}
-                      onChange={(e) => setBidUpdateMsInput(e.target.value)}
-                      className="w-full min-h-[48px] bg-surface border border-border rounded-xl pl-4 pr-12 py-2.5 font-mono text-sm font-bold text-text tabular-nums focus:outline-none focus:border-accent-bright"
-                    />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 font-mono text-xs text-muted">
-                      ms
-                    </span>
-                  </div>
-
-                  {bidUpdateError && (
-                    <div className="flex items-center gap-2 text-xs text-error font-mono">
-                      <WarningCircle size={15} weight="bold" className="shrink-0" />
-                      <span>{bidUpdateError}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* 5. Catch-up window after refresh */}
-                <div className="p-5 rounded-2xl bg-bg border border-border space-y-3">
-                  <div>
-                    <label
-                      htmlFor="catchup-window-input"
-                      className="font-syne font-bold text-base text-text block"
-                    >
-                      Catch-up window after refresh
-                    </label>
-                    <p className="text-xs text-muted mt-1">
-                      A projector that reloads within this time after a sale still plays the animation; later it shows the static sold card (0 to 120s).
-                    </p>
-                  </div>
-
-                  <div className="relative max-w-xs">
-                    <input
-                      id="catchup-window-input"
-                      type="number"
-                      min={0}
-                      max={120}
-                      step={1}
-                      value={catchupWindowInput}
-                      onChange={(e) => setCatchupWindowInput(e.target.value)}
-                      className="w-full min-h-[48px] bg-surface border border-border rounded-xl pl-4 pr-12 py-2.5 font-mono text-sm font-bold text-text tabular-nums focus:outline-none focus:border-accent-bright"
-                    />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 font-mono text-xs text-muted">
-                      sec
-                    </span>
-                  </div>
-
-                  {catchupError && (
-                    <div className="flex items-center gap-2 text-xs text-error font-mono">
-                      <WarningCircle size={15} weight="bold" className="shrink-0" />
-                      <span>{catchupError}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* 6 & 7. Bid Increments & Maximum Squad Size */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* 6. Bid increments */}
-                <div className="p-5 rounded-2xl bg-bg border border-border space-y-4">
-                  <div>
-                    <label
-                      htmlFor="new-bid-increment-input"
-                      className="font-syne font-bold text-base text-text block"
-                    >
-                      Bid increments
-                    </label>
-                    <p className="text-xs text-muted mt-1">
-                      Quick increment buttons shown in the Auction Room. Positive numbers only, no duplicates, stored sorted ascending.
-                    </p>
-                  </div>
-
-                  {/* Chips List */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    {bidIncrements.map((inc) => (
-                      <div
-                        key={inc}
-                        className="min-h-[42px] pl-3.5 pr-2 py-1.5 rounded-xl bg-surface border border-border flex items-center gap-2 font-mono text-sm font-bold text-points tabular-nums"
-                      >
-                        <span>+{inc.toLocaleString()}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveIncrementChip(inc)}
-                          disabled={bidIncrements.length <= 1}
-                          title={
-                            bidIncrements.length <= 1
-                              ? 'At least one increment is required'
-                              : `Remove +${inc}`
-                          }
-                          aria-label={`Remove increment ${inc}`}
-                          className="w-7 h-7 rounded-lg flex items-center justify-center text-muted hover:text-error hover:bg-error/10 disabled:opacity-30 disabled:pointer-events-none transition-colors"
-                        >
-                          <X size={14} weight="bold" />
-                        </button>
+                    {maxSquadError && (
+                      <div className="flex items-center gap-1.5 text-xs text-error">
+                        <WarningCircle size={15} weight="regular" className="shrink-0" />
+                        <span>{maxSquadError}</span>
                       </div>
-                    ))}
+                    )}
                   </div>
+                </div>
 
-                  {/* Add Increment Input */}
-                  <div className="flex items-center gap-2.5">
-                    <input
-                      id="new-bid-increment-input"
-                      type="number"
-                      min={1}
-                      step="any"
-                      value={newIncrementInput}
-                      onChange={(e) => {
-                        setNewIncrementInput(e.target.value)
-                        setIncrementError(null)
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          handleAddIncrementChip()
-                        }
-                      }}
-                      placeholder="Add increment (e.g. 50)..."
-                      className="flex-1 min-h-[48px] bg-surface border border-border rounded-xl px-4 py-2.5 font-mono text-sm text-text placeholder-muted focus:outline-none focus:border-accent-bright"
-                    />
+                {/* Card Footer: Secondary Actions Left, Single Primary Save Right */}
+                <div className="pt-5 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2.5">
                     <Button
                       type="button"
                       variant="secondary"
-                      size="lg"
-                      leftIcon={Plus}
-                      onClick={handleAddIncrementChip}
-                      disabled={!newIncrementInput.trim()}
-                      className="min-h-[48px] shrink-0"
+                      size="md"
+                      leftIcon={Play}
+                      onClick={() => {
+                        setPreviewReplayKey((k) => k + 1)
+                        setIsPreviewOpen(true)
+                      }}
+                      className="rounded-full"
                     >
-                      Add
+                      Preview secured animation
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="md"
+                      leftIcon={ArrowCounterClockwise}
+                      onClick={handleResetAuctionDefaults}
+                      disabled={isSavingAuctionSettings}
+                      className="rounded-full"
+                    >
+                      Reset to defaults
                     </Button>
                   </div>
 
-                  {incrementError && (
-                    <div className="flex items-center gap-2 text-xs text-error font-mono">
-                      <WarningCircle size={15} weight="bold" className="shrink-0" />
-                      <span>{incrementError}</span>
-                    </div>
-                  )}
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="md"
+                    leftIcon={FloppyDisk}
+                    disabled={!isAuctionFormDirty || !isAuctionFormValid || isSavingAuctionSettings}
+                    isLoading={isSavingAuctionSettings}
+                    className="rounded-full px-5 self-end sm:self-auto"
+                  >
+                    Save settings
+                  </Button>
                 </div>
+              </form>
+            )}
+          </section>
 
-                {/* 7. Maximum squad size */}
-                <div className="p-5 rounded-2xl bg-bg border border-border space-y-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <label
-                      htmlFor="max-squad-size-input"
-                      className="font-syne font-bold text-base text-text block"
-                    >
-                      Maximum squad size
-                    </label>
+          {/* Section 3: Confetti (rendered once, in Display tab only) */}
+          <section className="bg-surface border border-border rounded-3xl p-6 sm:p-8 space-y-6">
+            <div className="pb-5 border-b border-border">
+              <h2 className="font-syne font-bold text-xl text-text tracking-tight">Confetti</h2>
+            </div>
 
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={noSquadLimit}
-                      onClick={() => setNoSquadLimit((v) => !v)}
-                      className={`min-h-[48px] px-4 py-2 rounded-xl font-mono text-xs font-bold uppercase tracking-wider border transition-colors flex items-center gap-2.5 shrink-0 ${
-                        noSquadLimit
-                          ? 'bg-accent-bright/15 border-accent-bright text-accent-bright'
-                          : 'bg-surface border-border text-muted hover:text-text'
-                      }`}
-                    >
-                      <span
-                        className={`w-2.5 h-2.5 rounded-full ${
-                          noSquadLimit ? 'bg-accent-bright' : 'bg-muted'
-                        }`}
-                      />
-                      <span>No limit</span>
-                    </button>
-                  </div>
-
-                  <div className="relative max-w-xs">
-                    <input
-                      id="max-squad-size-input"
-                      type="number"
-                      min={1}
-                      step={1}
-                      disabled={noSquadLimit}
-                      value={noSquadLimit ? '' : maxSquadSizeInput}
-                      placeholder={noSquadLimit ? 'No squad limit' : '12'}
-                      onChange={(e) => setMaxSquadSizeInput(e.target.value)}
-                      className="w-full min-h-[48px] bg-surface border border-border rounded-xl px-4 py-2.5 font-mono text-sm font-bold text-text placeholder-muted focus:outline-none focus:border-accent-bright disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                  </div>
-
-                  {maxSquadError && (
-                    <div className="flex items-center gap-2 text-xs text-error font-mono">
-                      <WarningCircle size={15} weight="bold" className="shrink-0" />
-                      <span>{maxSquadError}</span>
-                    </div>
-                  )}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <label
+                    htmlFor="setup-confetti-fall-speed-slider"
+                    className="text-sm font-medium text-text"
+                  >
+                    Fall speed
+                  </label>
+                  <span className="font-mono text-xs text-muted tabular-nums">
+                    {confettiFallSpeed} / 10
+                  </span>
+                </div>
+                <input
+                  id="setup-confetti-fall-speed-slider"
+                  type="range"
+                  min={1}
+                  max={10}
+                  step={1}
+                  value={confettiFallSpeed}
+                  aria-label="Fall speed"
+                  onChange={(e) => {
+                    const nextVal = normalizeConfettiFallSpeed(Number(e.target.value))
+                    setConfettiFallSpeed(nextVal)
+                    setConfettiSpeedSaved(false)
+                    setConfettiSpeedError(null)
+                  }}
+                  className="w-full accent-accent-bright cursor-pointer"
+                />
+                <div className="flex items-center justify-between text-xs text-muted">
+                  <span>Slow</span>
+                  <span>Fast</span>
                 </div>
               </div>
 
-              {/* Action Buttons Bar */}
-              <div className="pt-4 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="lg"
-                    leftIcon={Play}
-                    onClick={() => {
-                      setPreviewReplayKey((k) => k + 1)
-                      setIsPreviewOpen(true)
-                    }}
-                    className="min-h-[48px]"
-                  >
-                    Preview secured animation
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="lg"
-                    leftIcon={ArrowCounterClockwise}
-                    onClick={handleResetAuctionDefaults}
-                    disabled={isSavingAuctionSettings}
-                    className="min-h-[48px]"
-                  >
-                    Reset to defaults
-                  </Button>
+              {(confettiSpeedError || confettiTestError) && (
+                <div className="space-y-1.5">
+                  {confettiSpeedError && (
+                    <p role="alert" className="text-xs text-error">
+                      {confettiSpeedError}
+                    </p>
+                  )}
+                  {confettiTestError && (
+                    <p role="alert" className="text-xs text-error">
+                      {confettiTestError}
+                    </p>
+                  )}
                 </div>
+              )}
+            </div>
+
+            <div className="pt-5 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="md"
+                  leftIcon={Play}
+                  disabled={isConfettiTestCoolingDown}
+                  onClick={() => void handleTestConfettiOnProjector()}
+                  className="rounded-full"
+                >
+                  Test on projector
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="md"
+                  leftIcon={ArrowCounterClockwise}
+                  disabled={
+                    isSavingConfettiSpeed || confettiFallSpeed === DEFAULT_CONFETTI_FALL_SPEED
+                  }
+                  onClick={handleResetConfettiSpeed}
+                  className="rounded-full"
+                >
+                  Reset to default
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-3 self-end sm:self-auto">
+                {confettiSpeedSaved && !isConfettiSpeedDirty && (
+                  <span className="text-xs text-accent-bright inline-flex items-center gap-1">
+                    <Check size={14} weight="regular" />
+                    <span>Saved</span>
+                  </span>
+                )}
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  leftIcon={FloppyDisk}
+                  disabled={!isConfettiSpeedDirty || isSavingConfettiSpeed}
+                  isLoading={isSavingConfettiSpeed}
+                  onClick={() => void handleSaveConfettiSpeed()}
+                  className="rounded-full px-5"
+                >
+                  Save
+                </Button>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* Tab 2: Content (Public Pages Editor, Credits) */}
+      {activeTab === 'content' && (
+        <div className="space-y-6">
+          {/* Section 1: Public Pages Editor */}
+          <section className="bg-surface border border-border rounded-3xl p-6 sm:p-8 space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-border">
+              <h2 className="font-syne font-bold text-xl text-text tracking-tight">
+                Public Pages Editor
+              </h2>
+
+              <div
+                role="radiogroup"
+                aria-label="Select public page"
+                className="inline-flex flex-nowrap items-center gap-1 p-1 rounded-full bg-surface-2 border border-border w-max self-start sm:self-auto"
+              >
+                {(
+                  [
+                    { value: 'help_page', label: 'Help Page' },
+                    { value: 'about_page', label: 'About Page' }
+                  ] as const
+                ).map((opt) => {
+                  const isSelected = selectedPageKey === opt.value
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={isSelected}
+                      onClick={() => setSelectedPageKey(opt.value)}
+                      className={`min-h-[32px] px-3.5 py-1 rounded-full text-xs whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'bg-btn-bg text-btn-fg font-medium'
+                          : 'text-muted hover:text-text font-normal'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <form onSubmit={handleSavePage} className="space-y-5">
+              <div className="max-w-xl">
+                <label
+                  htmlFor="setup-page-title"
+                  className="block text-sm font-medium text-text mb-2"
+                >
+                  Page title
+                </label>
+                <input
+                  id="setup-page-title"
+                  type="text"
+                  value={pageTitle}
+                  onChange={(e) => setPageTitle(e.target.value)}
+                  required
+                  className="w-full min-h-[44px] bg-bg border border-border rounded-2xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent-bright"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <label
+                    htmlFor="setup-page-body"
+                    className="text-sm font-medium text-text"
+                  >
+                    Page body
+                  </label>
+                  <span className="text-xs text-muted">Markdown</span>
+                </div>
+                {isPreviewingPage ? (
+                  <div className="w-full bg-bg border border-border rounded-2xl p-5 min-h-[220px]">
+                    <h3 className="font-syne font-bold text-2xl text-text mb-4">
+                      {pageTitle || 'Untitled Page'}
+                    </h3>
+                    {pageBody.trim() ? (
+                      <MarkdownContent content={pageBody} />
+                    ) : (
+                      <p className="text-xs text-muted italic">No content to preview.</p>
+                    )}
+                  </div>
+                ) : (
+                  <textarea
+                    id="setup-page-body"
+                    value={pageBody}
+                    onChange={(e) => setPageBody(e.target.value)}
+                    rows={8}
+                    placeholder="Enter markdown or plain text..."
+                    className="w-full bg-bg border border-border rounded-2xl p-4 text-sm text-text focus:outline-none focus:border-accent-bright leading-relaxed resize-y font-sans font-light"
+                  />
+                )}
+              </div>
+
+              <div className="pt-5 border-t border-border flex flex-wrap items-center justify-between gap-3">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="md"
+                  onClick={() => setIsPreviewingPage(!isPreviewingPage)}
+                  className="rounded-full"
+                >
+                  {isPreviewingPage ? 'Edit markdown' : 'Preview'}
+                </Button>
 
                 <Button
                   type="submit"
                   variant="primary"
-                  size="lg"
+                  size="md"
                   leftIcon={FloppyDisk}
-                  disabled={!isAuctionFormDirty || !isAuctionFormValid || isSavingAuctionSettings}
-                  isLoading={isSavingAuctionSettings}
-                  className="min-h-[48px]"
+                  disabled={isSavingPage}
+                  isLoading={isSavingPage}
+                  className="rounded-full px-5"
                 >
-                  Save settings
+                  Save page
                 </Button>
               </div>
             </form>
-          )}
+          </section>
+
+          {/* Section 2: Credits */}
+          <CreditsSetupCard />
         </div>
       )}
 
-      {/* Confetti Section (shown in Confetti tab and alongside Auction display settings) */}
-      {(activeTab === 'confetti' || activeTab === 'auction') && (
-        <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
-            <h2 className="font-syne font-bold text-xl text-text">Confetti</h2>
-            <span className="px-2.5 py-1 rounded-lg bg-surface-2 border border-border font-mono text-xs font-semibold text-accent-bright tabular-nums shrink-0">
-              {confettiFallSpeed}
-            </span>
-          </div>
+      {/* Tab 3: Documents (Handbook, Auction Rules) */}
+      {activeTab === 'documents' && (
+        <div className="space-y-6">
+          <HandbookSetupCard />
+          <RulesSetupCard />
+        </div>
+      )}
 
-          <div className="max-w-xl space-y-5">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label
-                  htmlFor="setup-confetti-fall-speed-slider"
-                  className="text-sm font-medium text-text"
+      {/* Tab 4: Sports */}
+      {activeTab === 'sports' && (
+        <section className="bg-surface border border-border rounded-3xl p-6 sm:p-8 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-border">
+            <h2 className="font-syne font-bold text-xl text-text tracking-tight">
+              Sports and Roles
+            </h2>
+
+            {sportsList.length > 0 && (
+              <div className="w-full sm:w-auto overflow-x-auto pb-1 -mb-1">
+                <div
+                  role="radiogroup"
+                  aria-label="Select sport discipline"
+                  className="inline-flex flex-nowrap items-center gap-1 p-1 rounded-full bg-surface-2 border border-border w-max"
                 >
-                  Fall speed
-                </label>
-                <span className="font-mono text-xs text-accent-bright font-semibold tabular-nums">
-                  {confettiFallSpeed}
-                </span>
+                  {sportsList.map((sport) => {
+                    const isSelected = (selectedSport?.id || 'cricket') === sport.id
+                    return (
+                      <button
+                        key={sport.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={isSelected}
+                        onClick={() => void handleSelectSport(sport.id)}
+                        className={`min-h-[32px] px-3.5 py-1 rounded-full text-xs whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                          isSelected
+                            ? 'bg-btn-bg text-btn-fg font-medium'
+                            : 'text-muted hover:text-text font-normal'
+                        }`}
+                      >
+                        {sport.name}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
-              <input
-                id="setup-confetti-fall-speed-slider"
-                type="range"
-                min={1}
-                max={10}
-                step={1}
-                value={confettiFallSpeed}
-                aria-label="Fall speed"
-                onChange={(e) => {
-                  const nextVal = normalizeConfettiFallSpeed(Number(e.target.value))
-                  setConfettiFallSpeed(nextVal)
-                  setConfettiSpeedSaved(false)
-                  setConfettiSpeedError(null)
-                }}
-                className="w-full accent-accent-bright cursor-pointer"
-              />
-              <div className="flex items-center justify-between text-[11px] font-mono uppercase tracking-wider text-muted">
-                <span>Slow</span>
-                <span className="text-text font-semibold tabular-nums">
-                  {confettiFallSpeed} / 10
-                </span>
-                <span>Fast</span>
-              </div>
-            </div>
-
-            {confettiSpeedError && (
-              <p role="alert" className="text-xs font-mono text-error">
-                {confettiSpeedError}
-              </p>
             )}
-
-            <div className="pt-4 border-t border-border flex flex-wrap items-center gap-2.5">
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                leftIcon={ArrowCounterClockwise}
-                disabled={
-                  isSavingConfettiSpeed ||
-                  confettiFallSpeed === DEFAULT_CONFETTI_FALL_SPEED
-                }
-                onClick={handleResetConfettiSpeed}
-              >
-                Reset to default
-              </Button>
-
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                leftIcon={Play}
-                disabled={isConfettiTestCoolingDown}
-                onClick={() => void handleTestConfettiOnProjector()}
-              >
-                Test on projector
-              </Button>
-
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                leftIcon={FloppyDisk}
-                disabled={!isConfettiSpeedDirty || isSavingConfettiSpeed}
-                isLoading={isSavingConfettiSpeed}
-                onClick={() => void handleSaveConfettiSpeed()}
-              >
-                Save
-              </Button>
-
-              {confettiSpeedSaved && !isConfettiSpeedDirty && (
-                <span className="text-xs font-mono text-accent-bright flex items-center gap-1">
-                  <Check size={14} weight="bold" />
-                  <span>Saved</span>
-                </span>
-              )}
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs text-muted">Save first, then test.</p>
-              {confettiTestError && (
-                <p role="alert" className="text-xs font-mono text-error">
-                  {confettiTestError}
-                </p>
-              )}
-            </div>
           </div>
-        </div>
+
+          <form
+            onSubmit={handleAddRole}
+            className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 max-w-xl"
+          >
+            <input
+              type="text"
+              value={newRoleName}
+              onChange={(e) => setNewRoleName(e.target.value)}
+              placeholder={`New role for ${selectedSport?.name || 'sport'}`}
+              disabled={isSavingRoleAction || !selectedSport}
+              className="flex-1 min-h-[42px] bg-bg border border-border rounded-2xl px-4 py-2 text-sm text-text placeholder-muted focus:outline-none focus:border-accent-bright disabled:opacity-50"
+            />
+            <Button
+              type="submit"
+              variant="primary"
+              size="md"
+              leftIcon={Plus}
+              disabled={isSavingRoleAction || !newRoleName.trim() || !selectedSport}
+              isLoading={isSavingRoleAction && !renamingRole}
+              className="rounded-full px-5 shrink-0"
+            >
+              Add role
+            </Button>
+          </form>
+
+          {isLoadingSports ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {[1, 2, 3, 4].map((i) => (
+                <SkeletonBlock
+                  key={i}
+                  className="h-14 bg-bg border border-border rounded-2xl"
+                />
+              ))}
+            </div>
+          ) : !selectedSport || selectedSport.roles.length === 0 ? (
+            <EmptyState
+              title="No roles configured"
+              description="Add a playing role above for this sport."
+            />
+          ) : (
+            <div className="bg-bg border border-border rounded-2xl overflow-hidden divide-y divide-border">
+              {selectedSport.roles.map((role, index) => {
+                const usedCount = roleUsageCounts[role] || 0
+                const isRenamingThis = renamingRole === role
+
+                return (
+                  <div
+                    key={role}
+                    className="px-4 sm:px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-surface-2/40 transition-colors"
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      {isRenamingThis ? (
+                        <div className="flex items-center gap-2 flex-1 max-w-md">
+                          <input
+                            type="text"
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                handleConfirmRename(role)
+                              } else if (e.key === 'Escape') {
+                                setRenamingRole(null)
+                              }
+                            }}
+                            autoFocus
+                            disabled={isSavingRoleAction}
+                            className="flex-1 bg-surface border border-accent-bright rounded-xl px-3.5 py-1.5 text-sm text-text focus:outline-none"
+                          />
+                          <Button
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            leftIcon={Check}
+                            disabled={isSavingRoleAction || !renameValue.trim()}
+                            isLoading={isSavingRoleAction}
+                            onClick={() => handleConfirmRename(role)}
+                            className="rounded-full"
+                          >
+                            Save
+                          </Button>
+                          <button
+                            type="button"
+                            disabled={isSavingRoleAction}
+                            onClick={() => setRenamingRole(null)}
+                            title="Cancel rename"
+                            aria-label="Cancel rename"
+                            className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 transition-colors cursor-pointer"
+                          >
+                            <X size={14} weight="regular" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="min-w-0 flex items-center gap-2.5 flex-wrap">
+                          <span className="text-sm font-medium text-text">{role}</span>
+                          <span aria-hidden="true" className="text-muted text-xs">
+                            ·
+                          </span>
+                          <span className="text-xs text-muted tabular-nums">
+                            {usedCount} {usedCount === 1 ? 'player' : 'players'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {!isRenamingThis && (
+                      <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                        <button
+                          type="button"
+                          disabled={index === 0 || isSavingRoleAction}
+                          onClick={() => handleMoveRole(index, 'up')}
+                          title="Move role up"
+                          aria-label={`Move ${role} up`}
+                          className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                        >
+                          <ArrowUp size={15} weight="regular" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={
+                            index === selectedSport.roles.length - 1 || isSavingRoleAction
+                          }
+                          onClick={() => handleMoveRole(index, 'down')}
+                          title="Move role down"
+                          aria-label={`Move ${role} down`}
+                          className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                        >
+                          <ArrowDown size={15} weight="regular" />
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={isSavingRoleAction}
+                          onClick={() => handleStartRename(role)}
+                          title="Rename role"
+                          aria-label={`Rename ${role}`}
+                          className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 transition-colors cursor-pointer"
+                        >
+                          <PencilSimple size={15} weight="regular" />
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={isSavingRoleAction}
+                          onClick={() => handleDeleteRole(role)}
+                          title={
+                            usedCount > 0
+                              ? `${usedCount} players use this role. Rename it or change those players first.`
+                              : 'Delete role'
+                          }
+                          aria-label={`Delete ${role}`}
+                          className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-error hover:bg-error/10 disabled:opacity-30 transition-colors cursor-pointer"
+                        >
+                          <Trash size={15} weight="regular" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </section>
       )}
-
-      {/* Tab 5: Credits */}
-      {activeTab === 'credits' && <CreditsSetupCard />}
-
-      {/* Tab 6: Handbook */}
-      {activeTab === 'handbook' && <HandbookSetupCard />}
-
-      {/* Tab 7: Rules */}
-      {activeTab === 'rules' && <RulesSetupCard />}
 
       {/* Full-Screen Preview Overlay for Secured Animation */}
       {isPreviewOpen && (
@@ -2130,14 +2222,13 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
           className="fixed inset-0 z-50 bg-bg text-text overflow-y-auto flex flex-col justify-between p-6 sm:p-10 select-none"
         >
           {/* Preview Controls Bar */}
-          <div className="relative z-30 flex flex-wrap items-center justify-between gap-4 bg-surface/90 backdrop-blur-md border border-border rounded-2xl px-5 py-3.5 shadow-lg max-w-6xl w-full mx-auto">
-            <div className="flex items-center gap-3">
-              <span className="w-2.5 h-2.5 rounded-full bg-accent-bright animate-pulse" />
-              <span className="font-mono text-xs uppercase tracking-widest font-bold text-text">
+          <div className="relative z-30 flex flex-wrap items-center justify-between gap-4 bg-surface/90 backdrop-blur-md border border-border rounded-3xl px-5 py-3.5 shadow-lg max-w-6xl w-full mx-auto">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="font-syne font-bold text-sm text-text">
                 Secured Sequence Preview
               </span>
-              <span className="text-xs font-mono text-muted hidden sm:inline">
-                ({previewDurationSec}s sequence · {previewCountupSec}s price count-up)
+              <span className="text-xs font-mono text-muted tabular-nums">
+                {previewDurationSec}s · {previewCountupSec}s count-up
               </span>
             </div>
 
@@ -2148,7 +2239,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
                 size="md"
                 leftIcon={ArrowCounterClockwise}
                 onClick={() => setPreviewReplayKey((k) => k + 1)}
-                className="min-h-[44px]"
+                className="min-h-[42px] rounded-full"
               >
                 Replay
               </Button>
@@ -2158,7 +2249,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
                 size="md"
                 leftIcon={X}
                 onClick={() => setIsPreviewOpen(false)}
-                className="min-h-[44px]"
+                className="min-h-[42px] rounded-full"
               >
                 Close
               </Button>
@@ -2202,8 +2293,11 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
         <form onSubmit={handleSaveCarouselItem} className="space-y-4">
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-mono uppercase tracking-wider text-muted">
-                Ticker Text
+              <label
+                htmlFor="setup-ticker-item-text"
+                className="text-sm font-medium text-text"
+              >
+                Ticker text
               </label>
               <span
                 className={`font-mono text-xs tabular-nums ${
@@ -2214,6 +2308,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
               </span>
             </div>
             <input
+              id="setup-ticker-item-text"
               type="text"
               maxLength={80}
               value={itemText}
@@ -2222,7 +2317,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
               required
               autoFocus
               disabled={isSavingCarousel}
-              className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent-bright disabled:opacity-50"
+              className="w-full min-h-[44px] bg-bg border border-border rounded-2xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent-bright disabled:opacity-50"
             />
           </div>
 
@@ -2236,6 +2331,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
                 setIsAddModalOpen(false)
                 setEditingItem(null)
               }}
+              className="rounded-full"
             >
               Cancel
             </Button>
@@ -2245,8 +2341,9 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
               size="sm"
               disabled={isSavingCarousel}
               isLoading={isSavingCarousel}
+              className="rounded-full px-4"
             >
-              Save Item
+              Save item
             </Button>
           </div>
         </form>

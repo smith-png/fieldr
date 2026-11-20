@@ -384,6 +384,45 @@ export async function getTickerSpeedSetting(): Promise<number | null> {
   }
 }
 
+export async function getConfettiFallSpeedSetting(): Promise<number | null> {
+  try {
+    if (isDemoMode) {
+      const settings = getLocal<SiteSettings>(STORAGE_KEYS.SETTINGS, DEFAULT_SETTINGS)
+      const raw = settings.confetti_fall_speed
+      if (raw === null || raw === undefined || raw === '' || typeof raw === 'boolean') {
+        return null
+      }
+      const num = typeof raw === 'number' ? raw : Number(raw)
+      return Number.isFinite(num) && num >= 1 && num <= 10 ? Math.round(num) : null
+    }
+
+    if (!supabase) return null
+
+    const { data, error } = await supabase
+      .from('site_settings')
+      .select('key, value')
+      .eq('key', 'confetti_fall_speed')
+      .limit(1)
+      .maybeSingle()
+
+    if (
+      error ||
+      !data ||
+      data.value === undefined ||
+      data.value === null ||
+      data.value === '' ||
+      typeof data.value === 'boolean'
+    ) {
+      return null
+    }
+
+    const num = typeof data.value === 'number' ? data.value : Number(data.value)
+    return Number.isFinite(num) && num >= 1 && num <= 10 ? Math.round(num) : null
+  } catch {
+    return null
+  }
+}
+
 const PUBLIC_TICKER_CACHE_KEY = 'fieldr_public_ticker_v1'
 export const PUBLIC_HOME_CACHE_KEY = 'fieldr_public_home_v1'
 export const HOME_CACHE_TTL_MS = 5 * 60 * 1000

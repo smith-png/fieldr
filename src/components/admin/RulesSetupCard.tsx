@@ -175,22 +175,25 @@ export const RulesSetupCard: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* 1. Upload Card */}
-      <div className="bg-surface border border-border rounded-2xl p-6 shadow-sm space-y-5">
-        <div>
-          <h2 className="font-syne font-bold text-xl text-text">Upload Auction Rules PDF</h2>
-          <p className="text-xs text-muted mt-1">
-            Upload a PDF document (maximum 20 MB) to publish on the public Auction Rules page.
-          </p>
-        </div>
+    <section className="bg-surface border border-border rounded-3xl p-6 sm:p-8 space-y-6">
+      {/* Card Header */}
+      <div className="flex items-center justify-between gap-3 pb-5 border-b border-border">
+        <h2 className="font-syne font-bold text-xl text-text tracking-tight">Auction Rules</h2>
+        <span className="font-mono text-xs text-muted tabular-nums">
+          {documents.length} {documents.length === 1 ? 'file' : 'files'}
+        </span>
+      </div>
+
+      {/* Section 1: Upload PDF */}
+      <div className="space-y-4">
+        <h3 className="text-sm font-medium text-text">Upload PDF</h3>
 
         <form onSubmit={handleUploadRules} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div>
               <label
                 htmlFor="rules-title-input"
-                className="block text-xs font-mono uppercase tracking-wider text-muted mb-2"
+                className="block text-xs font-medium text-muted mb-1.5"
               >
                 Title
               </label>
@@ -199,21 +202,24 @@ export const RulesSetupCard: React.FC = () => {
                 type="text"
                 value={uploadTitle}
                 onChange={(e) => setUploadTitle(e.target.value)}
-                placeholder="e.g. Season 2026 Official Auction Rules"
+                placeholder="Season 2026 Official Auction Rules"
                 disabled={!canWrite || isUploading}
                 required
-                className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent-bright disabled:opacity-50"
+                className="w-full min-h-[42px] bg-bg border border-border rounded-2xl px-4 py-2 text-sm text-text focus:outline-none focus:border-accent-bright disabled:opacity-50"
               />
             </div>
 
             <div>
-              <label
-                htmlFor="rules-pdf-input"
-                className="block text-xs font-mono uppercase tracking-wider text-muted mb-2"
-              >
-                PDF Document (Max 20 MB)
-              </label>
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <label
+                  htmlFor="rules-pdf-input"
+                  className="text-xs font-medium text-muted"
+                >
+                  PDF file
+                </label>
+                <span className="font-mono text-xs text-muted">Max 20 MB</span>
+              </div>
+              <div className="flex items-center gap-2.5 min-h-[42px]">
                 <input
                   ref={fileInputRef}
                   id="rules-pdf-input"
@@ -230,11 +236,12 @@ export const RulesSetupCard: React.FC = () => {
                   leftIcon={FilePdf}
                   disabled={!canWrite || isUploading}
                   onClick={() => fileInputRef.current?.click()}
+                  className="rounded-full shrink-0"
                 >
                   Choose PDF
                 </Button>
                 {selectedPdf ? (
-                  <div className="flex items-center gap-2 min-w-0 flex-1 bg-surface-2 border border-border rounded-xl px-3 py-2 text-xs text-text">
+                  <div className="flex items-center gap-2 min-w-0 flex-1 bg-bg border border-border rounded-full px-3.5 py-2 text-xs text-text">
                     <span className="truncate flex-1">{selectedPdf.name}</span>
                     <span className="font-mono text-muted shrink-0 tabular-nums">
                       {(selectedPdf.size / (1024 * 1024)).toFixed(1)} MB
@@ -244,9 +251,9 @@ export const RulesSetupCard: React.FC = () => {
                       onClick={clearSelectedFile}
                       disabled={isUploading}
                       aria-label="Clear selected PDF"
-                      className="text-muted hover:text-text transition-colors"
+                      className="text-muted hover:text-text transition-colors cursor-pointer"
                     >
-                      <X size={14} weight="bold" />
+                      <X size={14} weight="regular" />
                     </button>
                   </div>
                 ) : (
@@ -256,10 +263,8 @@ export const RulesSetupCard: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-            <div className="text-xs font-mono text-muted">
-              {uploadStage ? uploadStage : ''}
-            </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-xs font-mono text-muted">{uploadStage || ''}</div>
             <Button
               type="submit"
               variant="primary"
@@ -267,63 +272,58 @@ export const RulesSetupCard: React.FC = () => {
               leftIcon={UploadSimple}
               isLoading={isUploading}
               disabled={!canWrite || isUploading || !uploadTitle.trim() || !selectedPdf}
+              className="rounded-full px-5"
             >
-              {isUploading ? 'Uploading...' : 'Upload Rules PDF'}
+              {isUploading ? 'Uploading...' : 'Upload rules PDF'}
             </Button>
           </div>
         </form>
       </div>
 
-      {/* 2. List Card */}
-      <div className="bg-surface border border-border rounded-2xl p-6 shadow-sm space-y-5">
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="font-syne font-bold text-xl text-text">Auction Rules Documents</h2>
-          <span className="text-xs font-mono text-muted tabular-nums">
-            {documents.length} {documents.length === 1 ? 'file' : 'files'}
-          </span>
-        </div>
+      {/* Section 2: Uploaded List */}
+      <div className="pt-6 border-t border-border space-y-3.5">
+        <h3 className="text-sm font-medium text-text">Uploaded documents</h3>
 
         {isLoading ? (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {[1, 2].map((i) => (
               <div
                 key={i}
-                className="h-16 bg-surface-2 border border-border rounded-xl animate-pulse"
+                className="h-14 bg-bg border border-border rounded-2xl animate-pulse"
               />
             ))}
           </div>
         ) : documents.length === 0 ? (
           <EmptyState
             title="No rules documents uploaded"
-            description="Upload a PDF above to publish it on the Auction Rules page."
+            description="Upload a PDF above to publish it."
           />
         ) : (
-          <div className="border border-border rounded-2xl overflow-hidden divide-y divide-border">
+          <div className="bg-bg border border-border rounded-2xl overflow-hidden divide-y divide-border">
             {documents.map((item) => {
               const publicUrl = getRulesPublicUrl(item.file_path)
               return (
                 <div
                   key={item.id}
-                  className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-surface-2/60 transition-colors"
+                  className="px-4 sm:px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-surface-2/40 transition-colors"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="font-syne font-bold text-base text-text break-words">
+                    <div className="text-sm font-medium text-text break-words">
                       {item.title}
                     </div>
-                    <div className="flex flex-wrap items-center gap-3 mt-1 text-xs font-mono text-muted tabular-nums">
-                      <span>{formatRulesDate(item.created_at)}</span>
-                      <span className="truncate max-w-xs">{item.file_path}</span>
+                    <div className="mt-0.5 text-xs text-muted tabular-nums">
+                      {formatRulesDate(item.created_at)}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                     <a
                       href={publicUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-surface-2 border border-border text-xs font-medium text-text hover:bg-border/40 transition-colors"
+                      className="inline-flex items-center gap-1.5 min-h-[34px] px-3.5 py-1.5 rounded-full bg-surface border border-border text-xs font-medium text-text hover:bg-surface-2 transition-colors"
                     >
-                      <ArrowSquareOut size={14} weight="bold" />
+                      <ArrowSquareOut size={14} weight="regular" />
                       <span>Open</span>
                     </a>
                     <Button
@@ -333,6 +333,7 @@ export const RulesSetupCard: React.FC = () => {
                       leftIcon={Trash}
                       disabled={!canWrite}
                       onClick={() => setDocumentToDelete(item)}
+                      className="rounded-full"
                     >
                       Delete
                     </Button>
@@ -356,11 +357,10 @@ export const RulesSetupCard: React.FC = () => {
         size="sm"
       >
         <div className="space-y-4">
-          <div className="p-3.5 rounded-xl bg-error/10 border border-error/30 flex items-start gap-3 text-xs text-text">
-            <WarningCircle size={18} weight="fill" className="text-error shrink-0 mt-0.5" />
+          <div className="p-3.5 rounded-2xl bg-error/10 border border-error/30 flex items-start gap-3 text-xs text-text">
+            <WarningCircle size={18} weight="regular" className="text-error shrink-0 mt-0.5" />
             <div>
-              Are you sure you want to delete{' '}
-              <span className="font-semibold">{documentToDelete?.title}</span>? This will permanently remove the PDF file from storage and remove it from the public rules page.
+              Delete <span className="font-semibold">{documentToDelete?.title}</span>? The PDF file will be permanently removed from storage.
             </div>
           </div>
 
@@ -371,6 +371,7 @@ export const RulesSetupCard: React.FC = () => {
               size="sm"
               disabled={isDeleting}
               onClick={() => setDocumentToDelete(null)}
+              className="rounded-full"
             >
               Cancel
             </Button>
@@ -382,12 +383,13 @@ export const RulesSetupCard: React.FC = () => {
               isLoading={isDeleting}
               disabled={isDeleting}
               onClick={handleConfirmDelete}
+              className="rounded-full px-4"
             >
-              Delete Document
+              Delete
             </Button>
           </div>
         </div>
       </Dialog>
-    </div>
+    </section>
   )
 }

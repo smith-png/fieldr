@@ -23,7 +23,7 @@ import {
 import { getPlayers, subscribeToPlayers } from '../../lib/data/players'
 import { getProjectorState, subscribeToProjector } from '../../lib/data/projector'
 import { getSeasons } from '../../lib/data/seasons'
-import { getSiteSettings } from '../../lib/data/site'
+import { getConfettiFallSpeedSetting } from '../../lib/data/site'
 import { getTeams, subscribeToTeams } from '../../lib/data/teams'
 import { PROJECTOR_MODES } from '../../lib/constants'
 import { getAcademicYearLabel } from '../../lib/academicYears'
@@ -850,6 +850,7 @@ export const ProjectorPage: React.FC = () => {
   // Confetti tracking (remember first confetti_at seen on load and only play when it changes afterwards)
   const hasSeenInitialConfettiRef = useRef(false)
   const lastSeenConfettiAtRef = useRef<string | null>(null)
+  const lastKnownConfettiSpeedRef = useRef<number | null>(null)
   const [confettiTriggerCount, setConfettiTriggerCount] = useState(0)
   const [confettiFallSpeed, setConfettiFallSpeed] = useState<number>(5)
 
@@ -857,18 +858,20 @@ export const ProjectorPage: React.FC = () => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null
     try {
       const timeoutPromise = new Promise<null>((resolve) => {
-        timeoutId = setTimeout(() => resolve(null), 800)
+        timeoutId = setTimeout(() => resolve(null), 3000)
       })
-      const settings = await Promise.race([
-        getSiteSettings().catch(() => null),
+      const rawSpeed = await Promise.race([
+        getConfettiFallSpeedSetting().catch(() => null),
         timeoutPromise
       ])
-      if (!settings || settings.confetti_fall_speed === undefined) {
-        return 5
+      if (rawSpeed !== null) {
+        const normalized = normalizeConfettiFallSpeed(rawSpeed)
+        lastKnownConfettiSpeedRef.current = normalized
+        return normalized
       }
-      return normalizeConfettiFallSpeed(settings.confetti_fall_speed)
+      return lastKnownConfettiSpeedRef.current ?? 5
     } catch {
-      return 5
+      return lastKnownConfettiSpeedRef.current ?? 5
     } finally {
       if (timeoutId !== null) {
         clearTimeout(timeoutId)
@@ -896,6 +899,7 @@ export const ProjectorPage: React.FC = () => {
         ) {
           lastSeenConfettiAtRef.current = incomingConfettiAt
           void readConfettiFallSpeedOnce().then((speed) => {
+            if (!isMountedRef.current) return
             setConfettiFallSpeed(speed)
             setConfettiTriggerCount((c) => c + 1)
           })
@@ -1156,6 +1160,12 @@ export const ProjectorPage: React.FC = () => {
     isMountedRef.current = true
 
     async function init() {
+      void readConfettiFallSpeedOnce().then((speed) => {
+        if (isMountedRef.current) {
+          setConfettiFallSpeed(speed)
+        }
+      })
+
       try {
         const seasonsList = await getSeasons()
         const active = seasonsList.find((s) => s.is_active) || seasonsList[0] || null
@@ -1179,7 +1189,7 @@ export const ProjectorPage: React.FC = () => {
       isMountedRef.current = false
       teardownSeasonChannels()
     }
-  }, [refetchSeasonData, subscribeSeasonChannels, teardownSeasonChannels])
+  }, [readConfettiFallSpeedOnce, refetchSeasonData, subscribeSeasonChannels, teardownSeasonChannels])
 
   // Refetch when tab becomes visible or browser comes back online
   useEffect(() => {
