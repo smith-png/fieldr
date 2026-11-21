@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowsClockwise, Trash } from '@phosphor-icons/react'
+import { ArrowsClockwise, SignOut, Trash } from '@phosphor-icons/react'
 import { supabase } from '../../lib/data/client'
 import {
   getCachedQuery,
@@ -160,6 +160,24 @@ function mapSessionRow(raw: Record<string, unknown>): AdminSessionRow {
   }
 }
 
+function decodeJwtSessionId(accessToken: string | null | undefined): string | null {
+  if (!accessToken) return null
+  const parts = accessToken.split('.')
+  if (parts.length < 2) return null
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=')
+    const binary = atob(padded)
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0))
+    const decoded = new TextDecoder().decode(bytes)
+    const payload = JSON.parse(decoded) as Record<string, unknown>
+    const sessionId = payload.session_id
+    return typeof sessionId === 'string' && sessionId.trim() ? sessionId.trim() : null
+  } catch {
+    return null
+  }
+}
+
 export const AdminAccounts: React.FC = () => {
   const { success, error: showError } = useToast()
 
@@ -167,11 +185,24 @@ export const AdminAccounts: React.FC = () => {
 
   const [accounts, setAccounts] = useState<AdminAccountRow[]>(() => cached?.data.accounts || [])
   const [sessions, setSessions] = useState<AdminSessionRow[]>(() => cached?.data.sessions || [])
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(() => !cached)
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
 
   const [accountToDelete, setAccountToDelete] = useState<AdminAccountRow | null>(null)
   const [isDeleting, setIsDeleting] = useState<boolean>(false)
+  const [isSignOutOthersOpen, setIsSignOutOthersOpen] = useState<boolean>(false)
+  const [isSigningOutOthers, setIsSigningOutOthers] = useState<boolean>(false)
+
+  const resolveCurrentSessionId = useCallback(async () => {
+    if (!supabase) return
+    try {
+      const { data } = await supabase.auth.getSession()
+      setCurrentSessionId(decodeJwtSessionId(data.session?.access_token))
+    } catch {
+      // Leave currentSessionId unchanged on transient read failure
+    }
+  }, [])
 
   const loadData = useCallback(
     async (options?: { force?: boolean }) => {
@@ -199,10 +230,13 @@ export const AdminAccounts: React.FC = () => {
           setIsLoading(true)
         }
 
-        const [accountsRes, sessionsRes] = await Promise.all([
+        const [accountsRes, sessionsRes, sessionRes] = await Promise.all([
           supabase.rpc('admin_list_accounts'),
-          supabase.rpc('admin_list_admin_sessions')
+          supabase.rpc('admin_list_admin_sessions'),
+          supabase.auth.getSession()
         ])
+
+        setCurrentSessionId(decodeJwtSessionId(sessionRes.data.session?.access_token))
 
         let nextAccounts = existingCache?.data.accounts || []
         let nextSessions = existingCache?.data.sessions || []
@@ -243,8 +277,9 @@ export const AdminAccounts: React.FC = () => {
   )
 
   useEffect(() => {
+    void resolveCurrentSessionId()
     void loadData()
-  }, [loadData])
+  }, [loadData, resolveCurrentSessionId])
 
   const sortedAccounts = useMemo(() => {
     return accounts.slice().sort((a, b) => {
@@ -254,13 +289,50 @@ export const AdminAccounts: React.FC = () => {
     })
   }, [accounts])
 
+  const normalizedCurrentSessionId = currentSessionId
+    ? currentSessionId.trim().toLowerCase()
+    : null
+
   const sortedSessions = useMemo(() => {
     return sessions.slice().sort((a, b) => {
+      if (normalizedCurrentSessionId) {
+        const aIsCurrent = a.session_id.trim().toLowerCase() === normalizedCurrentSessionId
+        const bIsCurrent = b.session_id.trim().toLowerCase() === normalizedCurrentSessionId
+        if (aIsCurrent !== bIsCurrent) return aIsCurrent ? -1 : 1
+      }
       const aTime = new Date(a.last_active_at || a.created_at || 0).getTime()
       const bTime = new Date(b.last_active_at || b.created_at || 0).getTime()
       return bTime - aTime
     })
-  }, [sessions])
+  }, [sessions, normalizedCurrentSessionId])
+
+  const handleConfirmSignOutOthers = async () => {
+    if (isSigningOutOthers) return
+
+    if (!supabase) {
+      showError('Accounts service is unavailable.')
+      return
+    }
+
+    try {
+      setIsSigningOutOthers(true)
+      const { error } = await supabase.auth.signOut({ scope: 'others' })
+
+      if (error) {
+        showError(error.message || 'Failed to sign out other sessions')
+        return
+      }
+
+      setIsSignOutOthersOpen(false)
+      await loadData({ force: true })
+      success('Signed out all other sessions')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to sign out other sessions'
+      showError(msg)
+    } finally {
+      setIsSigningOutOthers(false)
+    }
+  }
 
   const handleConfirmDelete = async () => {
     if (!accountToDelete || isDeleting) return
@@ -317,12 +389,26 @@ export const AdminAccounts: React.FC = () => {
       {/* Admin Sessions Card */}
       <section aria-label="Admin sessions" className={ADMIN_CARD}>
         <div className={ADMIN_CARD_HEADER}>
-          <h2 className={ADMIN_CARD_TITLE}>Admin Sessions</h2>
-          {isLoading ? (
-            <SkeletonBlock className="h-7 w-10 rounded-full" />
-          ) : (
-            <span className={ADMIN_COUNT_PILL}>{sortedSessions.length}</span>
-          )}
+          <div className="flex items-center gap-3 min-w-0">
+            <h2 className={ADMIN_CARD_TITLE}>Admin Sessions</h2>
+            {isLoading ? (
+              <SkeletonBlock className="h-7 w-10 rounded-full" />
+            ) : (
+              <span className={ADMIN_COUNT_PILL}>{sortedSessions.length}</span>
+            )}
+          </div>
+
+          <Button
+            type="button"
+            variant="secondary"
+            size="md"
+            leftIcon={SignOut}
+            disabled={isLoading || isSigningOutOthers || sortedSessions.length <= 1}
+            onClick={() => setIsSignOutOthersOpen(true)}
+            className="rounded-full self-start sm:self-auto"
+          >
+            Sign out other sessions
+          </Button>
         </div>
 
         <div className={ADMIN_TABLE_SHELL}>
@@ -339,19 +425,32 @@ export const AdminAccounts: React.FC = () => {
             <div className="px-5 py-6 text-sm text-muted text-center">No active sessions</div>
           ) : (
             <ul className="divide-y divide-border">
-              {sortedSessions.map((session) => (
-                <li
-                  key={session.session_id}
-                  className="px-5 py-4 flex items-center justify-between gap-4 text-sm hover:bg-surface-2/40 transition-colors"
-                >
-                  <span className="font-medium text-text truncate">
-                    {parseUserAgentDevice(session.user_agent)}
-                  </span>
-                  <span className="text-xs font-mono tabular-nums text-muted shrink-0">
-                    {formatLocalDateTime(session.last_active_at || session.created_at)}
-                  </span>
-                </li>
-              ))}
+              {sortedSessions.map((session) => {
+                const isCurrent =
+                  Boolean(normalizedCurrentSessionId) &&
+                  session.session_id.trim().toLowerCase() === normalizedCurrentSessionId
+
+                return (
+                  <li
+                    key={session.session_id}
+                    className="px-5 py-4 flex items-center justify-between gap-4 text-sm hover:bg-surface-2/40 transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="font-medium text-text truncate">
+                        {parseUserAgentDevice(session.user_agent)}
+                      </span>
+                      {isCurrent && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full border text-[11px] font-mono uppercase tracking-wider bg-accent/15 border-accent-bright/30 text-accent-bright shrink-0">
+                          This device
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs font-mono tabular-nums text-muted shrink-0">
+                      {formatLocalDateTime(session.last_active_at || session.created_at)}
+                    </span>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </div>
@@ -545,6 +644,46 @@ export const AdminAccounts: React.FC = () => {
           )}
         </div>
       </section>
+
+      {/* Frosted Sign Out Other Sessions Confirm Dialog */}
+      <Dialog
+        isOpen={isSignOutOthersOpen}
+        onClose={() => {
+          if (!isSigningOutOthers) setIsSignOutOthersOpen(false)
+        }}
+        title="Sign out other sessions"
+        size="sm"
+        frosted={true}
+        className={ADMIN_DIALOG_CLASS}
+      >
+        <p className="text-sm text-text">
+          Sign out all other sessions? This device stays signed in.
+        </p>
+
+        <div className="mt-6 pt-4 border-t border-border flex items-center justify-end gap-2.5">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={isSigningOutOthers}
+            onClick={() => setIsSignOutOthersOpen(false)}
+            className="rounded-full"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            isLoading={isSigningOutOthers}
+            disabled={isSigningOutOthers}
+            onClick={() => void handleConfirmSignOutOthers()}
+            className="rounded-full px-4"
+          >
+            Confirm
+          </Button>
+        </div>
+      </Dialog>
 
       {/* Frosted Delete Confirm Dialog */}
       <Dialog

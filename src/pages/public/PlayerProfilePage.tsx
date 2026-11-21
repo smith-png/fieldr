@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Calendar, Trophy, User } from '@phosphor-icons/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
@@ -30,16 +30,45 @@ import {
   setCachedQuery,
   shouldRevalidateQuery
 } from '../../lib/queryCache'
+import { SPORTS } from '../../lib/sports'
 import type { Athlete, AthleteCareerEntry, Season } from '../../types'
 
 function getProfileCacheKey(code?: string): string {
   return (code || '').trim().toLowerCase()
 }
 
+function resolveSportLabel(slug: string, explicitLabel?: string): string {
+  const known = SPORTS.find((s) => s.slug === slug)
+  if (known) return known.label
+  if (explicitLabel) return explicitLabel
+  return slug ? `${slug.charAt(0).toUpperCase()}${slug.slice(1)}` : ''
+}
+
 export const PlayerProfilePage: React.FC = () => {
   const { code } = useParams<{ code: string }>()
+  const [searchParams] = useSearchParams()
   const cacheKey = getProfileCacheKey(code)
   const initialCached = cacheKey ? publicCache.playerProfiles.get(cacheKey) : undefined
+
+  const rawFromSport = (searchParams.get('from') || '').trim().toLowerCase()
+  const fromSport = /^[a-z0-9-]+$/i.test(rawFromSport) ? rawFromSport : ''
+  const fromSportName = (searchParams.get('sportName') || '').trim()
+  const fromYear = (searchParams.get('year') || '').trim()
+  const fromRole = (searchParams.get('role') || '').trim()
+
+  let backTo = '/rosters'
+  let backPrefetchPath = '/rosters'
+  let backLabel = 'Back to rosters'
+
+  if (fromSport) {
+    const backParams = new URLSearchParams()
+    if (fromYear && fromYear !== 'All') backParams.set('year', fromYear)
+    if (fromRole && fromRole !== 'All') backParams.set('role', fromRole)
+    const qs = backParams.toString()
+    backPrefetchPath = `/rosters/${encodeURIComponent(fromSport)}`
+    backTo = `${backPrefetchPath}${qs ? `?${qs}` : ''}`
+    backLabel = `Back to ${resolveSportLabel(fromSport, fromSportName)} squad`
+  }
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [activeSeason, setActiveSeason] = useState<Season | null>(
@@ -140,14 +169,14 @@ export const PlayerProfilePage: React.FC = () => {
       <main className={PUBLIC_MAIN_MEDIUM}>
         <div className="mb-6">
           <Link
-            to="/rosters"
-            onMouseEnter={() => prefetchRoute('/rosters')}
-            onFocus={() => prefetchRoute('/rosters')}
-            onTouchStart={() => prefetchRoute('/rosters')}
+            to={backTo}
+            onMouseEnter={() => prefetchRoute(backPrefetchPath)}
+            onFocus={() => prefetchRoute(backPrefetchPath)}
+            onTouchStart={() => prefetchRoute(backPrefetchPath)}
             className={PUBLIC_BACK_LINK}
           >
             <ArrowLeft size={14} weight="regular" />
-            <span>Back to rosters</span>
+            <span>{backLabel}</span>
           </Link>
         </div>
 
@@ -220,14 +249,9 @@ export const PlayerProfilePage: React.FC = () => {
                 </h1>
 
                 {career.length > 0 && (
-                  <>
-                    <div className="font-syne font-bold text-lg sm:text-xl text-text mt-2 tracking-tight">
-                      {career[0].playing_role}
-                    </div>
-                    <div className="font-mono text-xs text-points font-semibold tabular-nums mt-0.5">
-                      Base: {career[0].base_points.toLocaleString()} PTS
-                    </div>
-                  </>
+                  <div className="font-syne font-bold text-lg sm:text-xl text-text mt-2 tracking-tight">
+                    {career[0].playing_role}
+                  </div>
                 )}
               </div>
             </section>
@@ -271,10 +295,6 @@ export const PlayerProfilePage: React.FC = () => {
 
                           <div className="font-syne font-bold text-base text-text mt-1 tracking-tight">
                             {entry.playing_role}
-                          </div>
-
-                          <div className="font-mono text-xs text-points font-semibold tabular-nums mt-0.5">
-                            Base: {entry.base_points.toLocaleString()} PTS
                           </div>
 
                           <div className="flex flex-wrap items-center gap-2.5 text-xs text-muted mt-1.5">

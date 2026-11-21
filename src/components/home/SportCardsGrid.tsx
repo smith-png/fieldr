@@ -110,7 +110,7 @@ export const SportCardsGrid: React.FC<SportCardsGridProps> = ({
               onTouchStart={() => prefetchRoute(`/rosters/${sport.slug}`)}
               className="group relative flex flex-col justify-between bg-[#0a0a0c] border border-border rounded-2xl p-6 sm:p-7 hover:border-accent-bright transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright overflow-hidden"
             >
-              {/* Full-bleed Photo Background & Dark Gradient Overlay */}
+              {/* Full-bleed Photo Background & Subtle Bottom Gradient Overlay */}
               <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
                 {!hasError && (
                   <img
@@ -133,7 +133,7 @@ export const SportCardsGrid: React.FC<SportCardsGridProps> = ({
                       transitionDuration: shouldReduceMotion ? '0ms' : '300ms, 600ms',
                       transitionTimingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)'
                     }}
-                    className={`w-full h-full object-cover origin-center [image-rendering:pixelated] dark:[image-rendering:auto] dark:grayscale dark:contrast-150 dark:brightness-75 ${
+                    className={`w-full h-full object-cover origin-center ${
                       isLoaded ? 'opacity-100' : 'opacity-0'
                     } ${
                       shouldReduceMotion
@@ -144,19 +144,10 @@ export const SportCardsGrid: React.FC<SportCardsGridProps> = ({
                 )}
                 <div
                   aria-hidden="true"
-                  className="hidden dark:block absolute inset-0 mix-blend-overlay"
-                  style={{
-                    backgroundImage:
-                      'radial-gradient(circle, rgba(255, 255, 255, 0.18) 0.5px, transparent 0.5px)',
-                    backgroundSize: '3px 3px'
-                  }}
-                />
-                <div
-                  aria-hidden="true"
                   className="absolute inset-0"
                   style={{
                     background:
-                      'linear-gradient(to top, rgba(10, 10, 12, 0.94) 0%, rgba(10, 10, 12, 0.56) 52%, rgba(10, 10, 12, 0.25) 100%)'
+                      'linear-gradient(to top, rgba(10, 10, 12, 0.78) 0%, rgba(10, 10, 12, 0.34) 36%, rgba(10, 10, 12, 0) 68%)'
                   }}
                 />
               </div>

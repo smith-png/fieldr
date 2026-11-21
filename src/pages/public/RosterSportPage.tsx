@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Funnel } from '@phosphor-icons/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
@@ -38,12 +38,25 @@ function getRosterQueryKey(sport: string, year: string, role: string): string {
   return `${sport}::${year}::${role}`
 }
 
+function parseYearParam(raw: string | null): string {
+  const trimmed = (raw || '').trim()
+  return (ACADEMIC_YEAR_FILTER_OPTIONS as readonly string[]).includes(trimmed) ? trimmed : 'All'
+}
+
+function parseRoleParam(raw: string | null): string {
+  const trimmed = (raw || '').trim()
+  return trimmed || 'All'
+}
+
 export const RosterSportPage: React.FC = () => {
   const { sport = '' } = useParams<{ sport: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
   const normalizedSport = sport.toLowerCase().trim()
 
+  const initialYear = parseYearParam(searchParams.get('year'))
+  const initialRole = parseRoleParam(searchParams.get('role'))
   const initialSportInfo = publicCache.rosterSportInfo.get(normalizedSport)
-  const initialQueryKey = getRosterQueryKey(normalizedSport, 'All', 'All')
+  const initialQueryKey = getRosterQueryKey(normalizedSport, initialYear, initialRole)
   const initialCachedQuery = publicCache.rosterPagedQueries.get(initialQueryKey)
   const initialSeason = publicCache.activeSeason.value
   const initialTeams = initialSeason
@@ -53,8 +66,8 @@ export const RosterSportPage: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [activeSeason, setActiveSeason] = useState<Season | null>(initialSeason)
   const [teams, setTeams] = useState<PublicTeam[]>(initialTeams)
-  const [selectedYear, setSelectedYear] = useState<string>('All')
-  const [selectedRole, setSelectedRole] = useState<string>('All')
+  const [selectedYear, setSelectedYear] = useState<string>(initialYear)
+  const [selectedRole, setSelectedRole] = useState<string>(initialRole)
 
   // Dynamic sport & roles loaded from the sports table in database
   const [sportName, setSportName] = useState<string>(initialSportInfo?.name || '')
@@ -95,8 +108,10 @@ export const RosterSportPage: React.FC = () => {
     if (prevSportRef.current === normalizedSport) return
     prevSportRef.current = normalizedSport
 
-    setSelectedRole('All')
-    setSelectedYear('All')
+    const nextYear = parseYearParam(searchParams.get('year'))
+    const nextRole = parseRoleParam(searchParams.get('role'))
+    setSelectedRole(nextRole)
+    setSelectedYear(nextYear)
     setExpandedPlayer(null)
 
     const cachedInfo = publicCache.rosterSportInfo.get(normalizedSport)
@@ -110,7 +125,7 @@ export const RosterSportPage: React.FC = () => {
       setIsSportValid(true)
     }
 
-    const defaultKey = getRosterQueryKey(normalizedSport, 'All', 'All')
+    const defaultKey = getRosterQueryKey(normalizedSport, nextYear, nextRole)
     const cachedQuery = publicCache.rosterPagedQueries.get(defaultKey)
     if (cachedQuery) {
       setPlayers(cachedQuery.players)
@@ -127,7 +142,15 @@ export const RosterSportPage: React.FC = () => {
       setIsFilterLoading(false)
       setHasLoadedSportOnce(false)
     }
-  }, [normalizedSport])
+  }, [normalizedSport, searchParams])
+
+  // Keep filter state synced if query params change on the same sport route
+  useEffect(() => {
+    const paramYear = parseYearParam(searchParams.get('year'))
+    const paramRole = parseRoleParam(searchParams.get('role'))
+    setSelectedYear((prev) => (prev === paramYear ? prev : paramYear))
+    setSelectedRole((prev) => (prev === paramRole ? prev : paramRole))
+  }, [searchParams])
 
   // Load initial season and public teams data in parallel
   useEffect(() => {
@@ -234,11 +257,22 @@ export const RosterSportPage: React.FC = () => {
     }
   }, [normalizedSport])
 
+  const updateFilterParams = useCallback(
+    (nextYear: string, nextRole: string) => {
+      const next = new URLSearchParams()
+      if (nextYear !== 'All') next.set('year', nextYear)
+      if (nextRole !== 'All') next.set('role', nextRole)
+      setSearchParams(next, { replace: true })
+    },
+    [setSearchParams]
+  )
+
   const handleSelectYear = (yr: string) => {
     if (yr === selectedYear) return
     const nextKey = getRosterQueryKey(normalizedSport, yr, selectedRole)
     const cached = publicCache.rosterPagedQueries.get(nextKey)
     setSelectedYear(yr)
+    updateFilterParams(yr, selectedRole)
     if (cached) {
       setPlayers(cached.players)
       setTotalCount(cached.totalCount)
@@ -255,6 +289,7 @@ export const RosterSportPage: React.FC = () => {
     const nextKey = getRosterQueryKey(normalizedSport, selectedYear, role)
     const cached = publicCache.rosterPagedQueries.get(nextKey)
     setSelectedRole(role)
+    updateFilterParams(selectedYear, role)
     if (cached) {
       setPlayers(cached.players)
       setTotalCount(cached.totalCount)
@@ -565,6 +600,10 @@ export const RosterSportPage: React.FC = () => {
       <RosterScoutModal
         player={expandedPlayer}
         team={expandedPlayer?.team_id ? teamsById.get(expandedPlayer.team_id) ?? null : null}
+        originSport={normalizedSport}
+        originSportLabel={sportName || normalizedSport}
+        originYear={selectedYear}
+        originRole={selectedRole}
         onClose={handleCloseModal}
       />
 

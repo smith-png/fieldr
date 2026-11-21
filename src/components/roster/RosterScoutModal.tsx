@@ -8,6 +8,10 @@ import { formatAthleteCode } from '../../lib/data/client'
 export interface RosterScoutModalProps {
   player: PublicPlayer | null
   team?: PublicTeam | null
+  originSport?: string
+  originSportLabel?: string
+  originYear?: string
+  originRole?: string
   onClose: () => void
 }
 
@@ -15,7 +19,15 @@ function formatAthleteName(name: string): string {
   return name.replace(/\s+(\d+)$/, '\u00A0$1')
 }
 
-export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({ player, team, onClose }) => {
+export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({
+  player,
+  team,
+  originSport,
+  originSportLabel,
+  originYear,
+  originRole,
+  onClose
+}) => {
   const modalRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
@@ -43,6 +55,22 @@ export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({ player, team
   const primaryPhotoSrc = player.photo_url || player.photo_thumb_url
   const backdropPhotoSrc = player.photo_thumb_url || player.photo_url
   const displayName = formatAthleteName(player.name)
+
+  const profileParams = new URLSearchParams()
+  if (originSport) {
+    profileParams.set('from', originSport)
+    if (originSportLabel && originSportLabel.toLowerCase() !== originSport.toLowerCase()) {
+      profileParams.set('sportName', originSportLabel)
+    }
+    if (originYear && originYear !== 'All') {
+      profileParams.set('year', originYear)
+    }
+    if (originRole && originRole !== 'All') {
+      profileParams.set('role', originRole)
+    }
+  }
+  const profileQuery = profileParams.toString()
+  const profileHref = `/players/${player.athlete_code || formattedCode}${profileQuery ? `?${profileQuery}` : ''}`
 
   return (
     <div
@@ -158,7 +186,7 @@ export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({ player, team
             )}
 
             <Link
-              to={`/players/${player.athlete_code || formattedCode}`}
+              to={profileHref}
               className="group w-full h-12 rounded-full bg-btn-bg text-btn-fg hover:opacity-90 active:scale-[0.99] transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 flex items-center justify-between pl-6 pr-2 font-sans font-medium text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
             >
               <span>View full profile</span>
