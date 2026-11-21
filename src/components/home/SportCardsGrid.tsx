@@ -29,17 +29,17 @@ const sportPhotos: Record<SportSlug, SportPhotoConfig> = {
   },
   futsal: {
     src: '/images/rosters/futsal.jpg',
-    alt: 'Football on a green grass pitch with a player boot beside it',
-    objectPosition: '75% 45%',
-    width: 900,
-    height: 526
+    alt: 'Worn futsal ball resting beside a white line on grass',
+    objectPosition: '50% 50%',
+    width: 1000,
+    height: 1250
   },
   volleyball: {
     src: '/images/rosters/volleyball.jpg',
-    alt: 'Volleyball players jumping at the net in silhouette against sunset sky',
+    alt: 'Volleyball resting on a court line in a dark gym',
     objectPosition: '50% 50%',
-    width: 900,
-    height: 519
+    width: 1000,
+    height: 1250
   }
 }
 
