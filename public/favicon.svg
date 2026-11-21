@@ -1,21 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
   <defs>
-    <linearGradient id="bg-base" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#0E2E1D" />
-      <stop offset="55%" stop-color="#082215" />
-      <stop offset="100%" stop-color="#0A0D0A" />
-    </linearGradient>
-    <radialGradient id="sage-tl" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(12 10) rotate(45) scale(42)">
-      <stop offset="0%" stop-color="#395F3D" stop-opacity="0.85" />
-      <stop offset="100%" stop-color="#395F3D" stop-opacity="0" />
-    </radialGradient>
-    <radialGradient id="sage-br" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(54 50) rotate(225) scale(44)">
-      <stop offset="0%" stop-color="#047554" stop-opacity="0.9" />
-      <stop offset="100%" stop-color="#047554" stop-opacity="0" />
-    </radialGradient>
+    <clipPath id="c"><rect width="64" height="64" rx="14" /></clipPath>
+    <filter id="b" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3.5" /></filter>
   </defs>
-  <rect width="64" height="64" rx="14" fill="url(#bg-base)" />
-  <rect width="64" height="64" rx="14" fill="url(#sage-tl)" />
-  <rect width="64" height="64" rx="14" fill="url(#sage-br)" />
+  <rect width="64" height="64" rx="14" fill="#06241A" />
+  <g clip-path="url(#c)" filter="url(#b)">
+    <ellipse cx="20" cy="22" rx="18" ry="14" fill="#047554" />
+    <ellipse cx="47" cy="45" rx="12" ry="17" fill="#395F3D" />
+    <ellipse cx="36" cy="42" rx="9" ry="6" fill="#CBD1CB" fill-opacity="0.6" />
+    <ellipse cx="30" cy="24" rx="8" ry="18" fill="#0A9A6C" fill-opacity="0.55" />
+    <ellipse cx="50" cy="28" rx="13" ry="7" fill="#021A12" fill-opacity="0.85" />
+  </g>
   <path d="M19 16H46V23.5H28.5V29.5H41V36.5H28.5V48H19V16Z" fill="#FFFFFF" />
 </svg>
