@@ -377,7 +377,7 @@ const ProjectorStagePhoto: React.FC<{
   return (
     <>
       {(!cleanUrl || !isLoaded || hasFailed) && (
-        <div className="flex flex-col items-center justify-center gap-3 text-muted select-none">
+        <div className="flex flex-col items-center justify-center text-muted select-none">
           {initials ? (
             <span
               aria-hidden="true"
@@ -388,14 +388,9 @@ const ProjectorStagePhoto: React.FC<{
           ) : (
             <User
               size={fallbackVariant === 'unsold' ? 80 : 96}
-              weight="thin"
+              weight="regular"
               className="text-muted"
             />
-          )}
-          {fallbackVariant !== 'unsold' && (
-            <span className="font-mono text-xs sm:text-sm tracking-wider uppercase">
-              {fallbackVariant === 'stage' ? 'No Photo' : 'No Photo Uploaded'}
-            </span>
           )}
         </div>
       )}
@@ -502,7 +497,7 @@ const PlayerSpotlightSceneContent: React.FC<{
         initial={shouldReduceMotion || isAutoSlide ? false : { scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.5, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
-        className="w-64 h-80 sm:w-80 sm:h-96 md:w-96 md:h-[460px] rounded-3xl bg-surface border-2 border-border shadow-xl overflow-hidden shrink-0 flex items-center justify-center relative"
+        className="w-64 h-80 sm:w-80 sm:h-96 md:w-96 md:h-[460px] rounded-[32px] bg-surface border border-border overflow-hidden shrink-0 flex items-center justify-center relative"
       >
         <ProjectorStagePhoto
           url={player.photo_url || player.photo_thumb_url}
@@ -514,7 +509,7 @@ const PlayerSpotlightSceneContent: React.FC<{
         {/* Status Indicator */}
         <div className="absolute top-4 right-4">
           <span
-            className={`px-3 py-1 rounded-lg text-xs font-mono uppercase tracking-widest font-bold border bg-surface/90 backdrop-blur-md ${
+            className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold border bg-surface/95 ${
               player.status === 'sold'
                 ? 'border-error/40 text-error'
                 : player.status === 'unsold'
@@ -523,28 +518,32 @@ const PlayerSpotlightSceneContent: React.FC<{
             }`}
           >
             {player.status === 'sold'
-              ? 'SOLD / DRAFTED'
+              ? 'Sold'
               : player.status === 'unsold'
-              ? 'UNSOLD'
-              : 'AVAILABLE'}
+              ? 'Unsold'
+              : 'Available'}
           </span>
         </div>
       </motion.div>
 
       {/* Player Credentials & Stats */}
-      <div className="flex flex-col gap-6 text-left max-w-2xl">
+      <div className="flex flex-col gap-6 text-left max-w-2xl min-w-0">
         <div>
-          {/* Sport Eyebrow */}
-          <div className="flex items-center gap-3 text-sm md:text-base font-mono uppercase tracking-widest text-accent-bright font-semibold mb-3">
-            <span>
+          {/* Code & Sport Pills */}
+          <div className="flex items-center gap-2.5 flex-wrap mb-4">
+            <span className="inline-flex items-center px-3.5 py-1 rounded-full bg-surface-2 border border-border font-mono text-sm md:text-base font-semibold text-accent-bright tabular-nums">
               #{formatAthleteCode(player.player_code || player.athlete_code)}
             </span>
-            <span className="text-muted">/</span>
-            <span>{player.sport}</span>
+            <span className="inline-flex items-center px-3.5 py-1 rounded-full bg-surface-2 border border-border text-sm md:text-base font-medium text-text">
+              {player.sport}
+            </span>
           </div>
 
           {/* Huge Name Display */}
-          <h2 className="font-syne font-extrabold text-5xl sm:text-7xl md:text-8xl text-text tracking-tighter leading-[0.95]">
+          <h2
+            className="font-syne font-extrabold text-5xl sm:text-7xl md:text-8xl text-text tracking-tight leading-[0.96] break-words"
+            style={{ textWrap: 'balance' }}
+          >
             {player.name}
           </h2>
 
@@ -552,41 +551,42 @@ const PlayerSpotlightSceneContent: React.FC<{
           <div className="font-syne font-bold text-2xl sm:text-4xl md:text-5xl text-text tracking-tight mt-3 sm:mt-4">
             {player.playing_role}
           </div>
-
-          {/* Small monospace line below the role in amber */}
-          <div className="font-mono text-sm sm:text-base text-points font-semibold tabular-nums mt-1.5">
-            Base: {player.base_points.toLocaleString()} PTS
-          </div>
         </div>
 
-        {/* Metadata Grid */}
-        <div className="grid grid-cols-2 gap-6 pt-6 border-t border-border font-mono">
-          <div>
-            <span className="text-xs text-muted uppercase tracking-wider block">
-              Academic Year
+        {/* Key Figures Wells */}
+        <div className="flex flex-wrap items-stretch gap-3 sm:gap-4">
+          <div className="rounded-[24px] bg-surface-2 px-5 py-3.5 sm:px-6 sm:py-4 min-w-[160px]">
+            <span className="text-xs sm:text-sm font-medium text-muted block">
+              Base points
             </span>
-            <span className="font-syne font-bold text-xl md:text-2xl text-text mt-1 block">
+            <span className="font-mono font-bold text-xl sm:text-2xl text-points tabular-nums mt-0.5 block">
+              {player.base_points.toLocaleString()} PTS
+            </span>
+          </div>
+
+          <div className="rounded-[24px] bg-surface-2 px-5 py-3.5 sm:px-6 sm:py-4 min-w-[160px]">
+            <span className="text-xs sm:text-sm font-medium text-muted block">
+              Year
+            </span>
+            <span className="font-syne font-bold text-xl sm:text-2xl text-text mt-0.5 block">
               {getAcademicYearLabel(player.academic_year || '1st')}
             </span>
           </div>
 
           {player.roll_no && (
-            <div>
-              <span className="text-xs text-muted uppercase tracking-wider block">
-                Roll Number
+            <div className="rounded-[24px] bg-surface-2 px-5 py-3.5 sm:px-6 sm:py-4 min-w-[140px]">
+              <span className="text-xs sm:text-sm font-medium text-muted block">
+                Roll no
               </span>
-              <span className="font-syne font-bold text-xl md:text-2xl text-text mt-1 block">
-                #{player.roll_no}
+              <span className="font-mono font-bold text-xl sm:text-2xl text-text tabular-nums mt-0.5 block">
+                {player.roll_no}
               </span>
             </div>
           )}
         </div>
 
         {player.notes && (
-          <div className="p-4 rounded-2xl bg-surface border border-border text-sm text-text leading-relaxed">
-            <span className="font-mono text-xs uppercase text-muted block mb-1">
-              Scouting Bio
-            </span>
+          <div className="px-6 py-4 rounded-[24px] bg-surface border border-border text-base text-text leading-relaxed">
             {player.notes}
           </div>
         )}
@@ -600,6 +600,7 @@ const TeamsAndPursesSceneContent: React.FC<{
   rosterPlayers: Player[]
 }> = ({ team, rosterPlayers }) => {
   const count = rosterPlayers.length
+  const teamAccent = team.color || 'var(--accent-bright)'
 
   // Dynamic layout & sizing scaling so it fits on one screen without scrolling
   const isCompactHeader = count > 10
@@ -609,7 +610,7 @@ const TeamsAndPursesSceneContent: React.FC<{
       : count <= 8
       ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3'
       : count <= 14
-      ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2'
+      ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5'
       : count <= 20
       ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2'
       : 'grid-cols-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 gap-1.5'
@@ -642,14 +643,14 @@ const TeamsAndPursesSceneContent: React.FC<{
       ? 'text-xs sm:text-sm'
       : 'text-[11px] sm:text-xs'
 
-  const roleSize =
+  const rolePillClass =
     count <= 4
-      ? 'text-xs sm:text-sm'
+      ? 'px-2.5 py-0.5 text-xs'
       : count <= 8
-      ? 'text-xs'
+      ? 'px-2 py-0.5 text-[11px]'
       : count <= 14
-      ? 'text-[11px]'
-      : 'text-[10px]'
+      ? 'px-2 py-px text-[10px]'
+      : 'px-1.5 py-px text-[10px]'
 
   const priceSize =
     count <= 4
@@ -661,30 +662,31 @@ const TeamsAndPursesSceneContent: React.FC<{
       : 'text-[10px]'
 
   return (
-    <div className="flex flex-col justify-between w-full h-full max-h-[calc(100vh-140px)] overflow-hidden gap-4">
-      {/* Franchise Header Banner */}
+    <div className="flex flex-col justify-between w-full h-full max-h-[calc(100vh-140px)] overflow-hidden gap-5">
+      {/* Franchise Header Card */}
       <div
-        className={`rounded-2xl bg-surface border border-border shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all shrink-0 ${
-          isCompactHeader ? 'p-4 sm:p-5' : 'p-6 sm:p-8'
+        className={`rounded-[32px] bg-surface border-[1.5px] flex flex-col md:flex-row md:items-center justify-between gap-5 transition-colors shrink-0 ${
+          isCompactHeader ? 'p-4 sm:p-5' : 'p-6 sm:p-7'
         }`}
         style={{
-          borderTop: `4px solid ${team.color || 'var(--accent-bright)'}`,
-          boxShadow: team.color ? `0 0 28px ${team.color}18` : undefined
+          borderColor: `color-mix(in srgb, ${teamAccent} 40%, transparent)`
         }}
       >
         <div className="flex items-center gap-4 sm:gap-6 min-w-0">
           <div
-            className={`rounded-2xl flex items-center justify-center font-syne font-extrabold text-white overflow-hidden border border-border shrink-0 shadow-sm transition-all ${
-              isCompactHeader ? 'w-14 h-14 text-xl' : 'w-18 h-18 sm:w-20 sm:h-20 text-2xl'
+            className={`rounded-[28%] flex items-center justify-center font-syne font-extrabold text-white overflow-hidden shrink-0 ${
+              isCompactHeader
+                ? 'w-16 h-16 text-xl'
+                : 'w-20 h-20 sm:w-24 sm:h-24 text-2xl sm:text-3xl'
             }`}
-            style={{ backgroundColor: team.color || 'var(--accent-bright)' }}
+            style={{ backgroundColor: teamAccent }}
           >
             {team.logo_url ? (
               <img
                 src={team.logo_url}
                 alt={team.name}
-                width={80}
-                height={80}
+                width={96}
+                height={96}
                 decoding="async"
                 referrerPolicy="no-referrer"
                 className="w-full h-full object-cover"
@@ -693,46 +695,60 @@ const TeamsAndPursesSceneContent: React.FC<{
               <span>{team.short_code}</span>
             )}
           </div>
+
           <div className="min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
               <h2
                 className={`font-syne font-bold text-text tracking-tight truncate ${
-                  isCompactHeader ? 'text-2xl sm:text-3xl lg:text-4xl' : 'text-3xl sm:text-4xl lg:text-5xl'
+                  isCompactHeader
+                    ? 'text-2xl sm:text-3xl lg:text-4xl'
+                    : 'text-3xl sm:text-4xl lg:text-5xl'
                 }`}
               >
                 {team.name}
               </h2>
-              <span className="font-mono text-sm sm:text-base text-muted font-bold">
-                · {team.short_code}
+              <span className="inline-flex items-center px-3 py-1 rounded-full bg-surface-2 border border-border font-mono text-xs sm:text-sm font-semibold text-muted tracking-wider shrink-0">
+                {team.short_code}
               </span>
             </div>
-            <div className="text-xs sm:text-sm text-muted mt-1 flex items-center gap-3 flex-wrap">
-              <span className="flex items-center gap-1.5">
+
+            <div className="mt-2.5 flex items-center gap-3 flex-wrap">
+              <span
+                className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs sm:text-sm font-medium text-text shrink-0"
+                style={{
+                  backgroundColor: `color-mix(in srgb, ${teamAccent} 14%, var(--surface-2))`
+                }}
+              >
                 <span
-                  className="w-2.5 h-2.5 rounded-full inline-block border border-border shrink-0"
-                  style={{ backgroundColor: team.color || 'var(--accent-bright)' }}
+                  aria-hidden="true"
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: teamAccent }}
                 />
-                <span>Sport: <strong className="text-text">{team.sport}</strong></span>
+                <span>{team.sport}</span>
               </span>
               {team.owner_display_name && (
-                <>
-                  <span>·</span>
-                  <span>
-                    Owner: <strong className="text-text">{team.owner_display_name}</strong>
-                  </span>
-                </>
+                <span className="text-sm sm:text-base font-medium text-muted truncate">
+                  {team.owner_display_name}
+                </span>
               )}
             </div>
           </div>
         </div>
 
-        <div className="text-left md:text-right font-mono shrink-0">
-          <span className="text-xs uppercase tracking-wider text-muted block font-mono">
-            Remaining Purse
+        {/* Remaining Purse Inset Well */}
+        <div
+          className={`rounded-[24px] bg-surface-2 text-left md:text-right shrink-0 ${
+            isCompactHeader ? 'px-5 py-3' : 'px-6 py-4 sm:px-7 sm:py-4'
+          }`}
+        >
+          <span className="text-xs sm:text-sm font-medium text-muted block">
+            Remaining purse
           </span>
           <div
             className={`font-mono font-bold text-points tabular-nums mt-0.5 flex items-baseline md:justify-end gap-1.5 ${
-              isCompactHeader ? 'text-2xl sm:text-3xl lg:text-4xl' : 'text-3xl sm:text-4xl lg:text-5xl'
+              isCompactHeader
+                ? 'text-2xl sm:text-3xl lg:text-4xl'
+                : 'text-3xl sm:text-4xl lg:text-5xl'
             }`}
           >
             <AnimatedCounter value={team.current_purse} />
@@ -741,25 +757,30 @@ const TeamsAndPursesSceneContent: React.FC<{
         </div>
       </div>
 
-      {/* Acquired Players Grid */}
+      {/* Squad Section */}
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-        <div className="flex items-center justify-between font-mono text-xs uppercase tracking-wider text-muted mb-2 shrink-0">
-          <span>Acquired Squad ({rosterPlayers.length} {rosterPlayers.length === 1 ? 'Player' : 'Players'})</span>
+        <div className="flex items-center gap-2.5 mb-3 shrink-0">
+          <span className="font-syne font-bold text-base sm:text-lg text-text tracking-tight">
+            Squad
+          </span>
+          <span className="inline-flex items-center justify-center min-w-[30px] h-7 px-3 rounded-full bg-surface-2 border border-border text-xs sm:text-sm font-mono font-semibold tabular-nums text-muted">
+            {rosterPlayers.length}
+          </span>
         </div>
 
         {rosterPlayers.length === 0 ? (
-          <div className="py-16 text-center text-sm font-mono text-muted border border-dashed border-border rounded-2xl bg-surface/50 my-auto">
-            No athletes acquired to this franchise squad yet.
+          <div className="py-16 px-6 text-center text-base sm:text-lg font-medium text-muted rounded-[24px] bg-surface-2 my-auto">
+            No players yet.
           </div>
         ) : (
           <div className={`grid ${gridClass} overflow-hidden my-auto w-full`}>
             {rosterPlayers.map((player) => (
               <div
                 key={player.id}
-                className={`${cardPadding} rounded-xl bg-surface border border-border flex items-center gap-2.5 sm:gap-3 shadow-sm min-w-0`}
+                className={`${cardPadding} rounded-2xl bg-surface border border-border flex items-center gap-2.5 sm:gap-3 min-w-0`}
               >
                 <div
-                  className={`${thumbSize} rounded-lg bg-surface-2 border border-border overflow-hidden shrink-0 flex items-center justify-center`}
+                  className={`${thumbSize} rounded-xl bg-surface-2 overflow-hidden shrink-0 flex items-center justify-center`}
                 >
                   {player.photo_thumb_url || player.photo_url ? (
                     <img
@@ -773,21 +794,23 @@ const TeamsAndPursesSceneContent: React.FC<{
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <User size={iconSize} className="text-muted" />
+                    <User size={iconSize} weight="regular" className="text-muted" />
                   )}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <h4 className={`font-syne font-bold text-text truncate ${nameSize}`}>
+                <div className="min-w-0 flex-1 flex flex-col items-start gap-1">
+                  <h4 className={`font-syne font-bold text-text truncate w-full leading-tight ${nameSize}`}>
                     {player.name}
                   </h4>
-                  <div className={`text-accent-bright font-medium truncate ${roleSize}`}>
+                  <span
+                    className={`inline-flex items-center max-w-full rounded-full bg-surface-2 text-muted font-medium truncate ${rolePillClass}`}
+                  >
                     {player.playing_role}
-                  </div>
-                  <div className={`font-mono text-points tabular-nums font-semibold truncate ${priceSize}`}>
+                  </span>
+                  <div className={`font-mono text-points tabular-nums font-semibold truncate w-full ${priceSize}`}>
                     {player.purchase_price
                       ? `${player.purchase_price.toLocaleString()} PTS`
                       : player.base_points
-                      ? `Base: ${player.base_points.toLocaleString()} PTS`
+                      ? `${player.base_points.toLocaleString()} PTS`
                       : '—'}
                   </div>
                 </div>
@@ -1784,28 +1807,11 @@ export const ProjectorPage: React.FC = () => {
               transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
               className="w-full max-w-7xl my-auto relative"
             >
-              {/* Single Team-Colour Flash Overlay when Bid or Leading Team Changes */}
-              <AnimatePresence>
-                {bidFlashKey > 0 && leadingTeam && (
-                  <motion.div
-                    key={`bid-flash-${bidFlashKey}`}
-                    initial={{ opacity: 0.42 }}
-                    animate={{ opacity: 0 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: bidFlashDurationSec, ease: 'easeOut' }}
-                    className="fixed inset-0 pointer-events-none z-0"
-                    style={{
-                      background: `radial-gradient(circle at 65% 50%, ${leadingTeam.color}55 0%, transparent 72%)`
-                    }}
-                  />
-                )}
-              </AnimatePresence>
-
               {stagePlayer ? (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-stretch relative z-10">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-stretch relative z-10">
                   {/* Left: Large Player Card */}
-                  <div className="lg:col-span-5 p-6 sm:p-8 rounded-3xl bg-surface border-2 border-border shadow-xl flex flex-col justify-between gap-6">
-                    <div className="w-full aspect-[4/4.4] max-h-[420px] rounded-2xl bg-surface-2 border border-border overflow-hidden relative flex items-center justify-center">
+                  <div className="lg:col-span-5 p-6 sm:p-7 rounded-[32px] bg-surface border border-border flex flex-col justify-between gap-6">
+                    <div className="w-full aspect-[4/4.4] max-h-[420px] rounded-[24px] bg-surface-2 overflow-hidden relative flex items-center justify-center">
                       <ProjectorStagePhoto
                         url={stagePlayer.photo_url || stagePlayer.photo_thumb_url}
                         name={stagePlayer.name}
@@ -1813,41 +1819,44 @@ export const ProjectorPage: React.FC = () => {
                         fallbackVariant="stage"
                       />
 
-                      {/* 4-Digit Player Code Badge */}
-                      <div className="absolute top-4 left-4 px-3.5 py-1.5 rounded-xl bg-bg/90 backdrop-blur-md border border-border font-mono text-base sm:text-lg font-bold tracking-wider text-accent-bright shadow-sm">
+                      {/* 4-Digit Player Code Pill */}
+                      <div className="absolute top-4 left-4 px-3.5 py-1.5 rounded-full bg-surface/95 border border-border font-mono text-sm sm:text-base font-bold tracking-wider text-accent-bright tabular-nums">
                         #{formatAthleteCode(stagePlayer.player_code || stagePlayer.athlete_code)}
                       </div>
 
-                      {/* Sport Tag */}
-                      <div className="absolute top-4 right-4 px-3.5 py-1.5 rounded-xl bg-bg/90 backdrop-blur-md border border-border font-mono text-xs sm:text-sm font-bold uppercase tracking-widest text-text shadow-sm">
+                      {/* Sport Pill */}
+                      <div className="absolute top-4 right-4 px-3.5 py-1.5 rounded-full bg-surface/95 border border-border text-xs sm:text-sm font-semibold text-text">
                         {stagePlayer.sport}
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-5">
                       <div>
-                        <span className="font-mono text-xs sm:text-sm uppercase tracking-widest text-accent-bright font-semibold block mb-1">
+                        <span className="inline-flex items-center px-3.5 py-1 rounded-full bg-surface-2 text-xs sm:text-sm font-semibold text-accent-bright mb-2.5">
                           {stagePlayer.playing_role}
                         </span>
-                        <h2 className="font-syne font-extrabold text-4xl sm:text-5xl xl:text-6xl text-text tracking-tight leading-[0.98] break-words">
+                        <h2
+                          className="font-syne font-extrabold text-4xl sm:text-5xl xl:text-6xl text-text tracking-tight leading-[0.98] break-words"
+                          style={{ textWrap: 'balance' }}
+                        >
                           {stagePlayer.name}
                         </h2>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border font-mono">
+                      <div className="grid grid-cols-2 gap-4 rounded-[24px] bg-surface-2 px-5 py-4">
                         <div>
-                          <span className="text-xs uppercase tracking-wider text-muted block">
-                            Academic Year
+                          <span className="text-xs sm:text-sm font-medium text-muted block">
+                            Year
                           </span>
                           <span className="font-syne font-bold text-xl sm:text-2xl text-text mt-0.5 block">
                             {getAcademicYearLabel(stagePlayer.academic_year || '1st')}
                           </span>
                         </div>
                         <div className="text-right">
-                          <span className="text-xs uppercase tracking-wider text-muted block">
-                            Base Points
+                          <span className="text-xs sm:text-sm font-medium text-muted block">
+                            Base
                           </span>
-                          <span className="font-syne font-extrabold text-xl sm:text-2xl text-points tabular-nums mt-0.5 block">
+                          <span className="font-mono font-bold text-xl sm:text-2xl text-points tabular-nums mt-0.5 block">
                             {stagePlayer.base_points.toLocaleString()} PTS
                           </span>
                         </div>
@@ -1857,25 +1866,19 @@ export const ProjectorPage: React.FC = () => {
 
                   {/* Right: Centred Current Bid & Leading Team Display */}
                   <div
-                    className="lg:col-span-7 p-8 sm:p-12 rounded-3xl bg-surface border-2 shadow-xl flex flex-col items-center justify-between text-center relative overflow-hidden transition-colors duration-300"
+                    className="lg:col-span-7 p-8 sm:p-10 rounded-[32px] bg-surface border-[1.5px] flex flex-col items-center justify-between text-center relative overflow-hidden transition-colors duration-300"
                     style={{
-                      borderColor: leadingTeam?.color || 'var(--border)'
+                      borderColor: leadingTeam?.color
+                        ? `color-mix(in srgb, ${leadingTeam.color} 45%, transparent)`
+                        : 'var(--border)'
                     }}
                   >
-                    {/* Top Team Accent Bar */}
-                    <div
-                      className="absolute top-0 left-0 right-0 h-3 transition-colors duration-300"
-                      style={{
-                        backgroundColor: leadingTeam?.color || 'var(--accent-bright)'
-                      }}
-                    />
-
-                    {/* Flash Border Pulse on New Bid */}
+                    {/* Subtle Card Fill Pulse on New Bid */}
                     <AnimatePresence>
                       {bidFlashKey > 0 && leadingTeam && (
                         <motion.div
                           key={`card-flash-${bidFlashKey}`}
-                          initial={{ opacity: 0.32 }}
+                          initial={{ opacity: 0.18 }}
                           animate={{ opacity: 0 }}
                           exit={{ opacity: 0 }}
                           transition={{ duration: bidFlashDurationSec, ease: 'easeOut' }}
@@ -1885,21 +1888,15 @@ export const ProjectorPage: React.FC = () => {
                       )}
                     </AnimatePresence>
 
-                    {/* Stage Header Status */}
-                    <div className="w-full flex items-center justify-center gap-3 pt-2">
-                      <span
-                        className="w-3 h-3 rounded-full"
-                        style={{
-                          backgroundColor: leadingTeam?.color || 'var(--accent-bright)'
-                        }}
-                      />
-                      <span className="font-mono text-sm sm:text-base uppercase tracking-[0.22em] font-bold text-muted">
-                        {leadingTeam ? 'Current Bid on Stage' : 'Opening Stage Valuation'}
+                    {/* Stage Header Pill */}
+                    <div className="w-full flex items-center justify-center relative z-10">
+                      <span className="inline-flex items-center px-4 py-1.5 rounded-full bg-surface-2 text-sm sm:text-base font-medium text-muted">
+                        {leadingTeam ? 'Current bid' : 'Opening bid'}
                       </span>
                     </div>
 
                     {/* Huge Centred Current Bid */}
-                    <div className="my-auto py-8 flex flex-col items-center justify-center">
+                    <div className="my-auto py-8 flex flex-col items-center justify-center relative z-10">
                       <div className="flex items-baseline justify-center gap-4 flex-wrap">
                         <AuctionBidNumber
                           value={
@@ -1917,8 +1914,8 @@ export const ProjectorPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Leading Team or Awaiting Bids Footer Box */}
-                    <div className="w-full pt-6 border-t border-border">
+                    {/* Leading Team or Awaiting Bids Inset Well */}
+                    <div className="w-full relative z-10">
                       {leadingTeam ? (
                         <motion.div
                           key={`leading-team-${leadingTeam.id}`}
@@ -1928,17 +1925,11 @@ export const ProjectorPage: React.FC = () => {
                             duration: bidFlashDurationSec * 0.55,
                             ease: [0.16, 1, 0.3, 1]
                           }}
-                          className="p-5 sm:p-6 rounded-2xl bg-surface-2 border border-border flex flex-col sm:flex-row items-center justify-between gap-5 relative overflow-hidden"
+                          className="p-5 sm:p-6 rounded-[24px] bg-surface-2 flex flex-col sm:flex-row items-center justify-between gap-5"
                         >
-                          {/* Team Colour Bar */}
-                          <div
-                            className="w-full sm:w-2.5 h-2.5 sm:h-full absolute top-0 left-0"
-                            style={{ backgroundColor: leadingTeam.color || 'var(--accent-bright)' }}
-                          />
-
-                          <div className="flex items-center gap-4 sm:pl-3">
+                          <div className="flex items-center gap-4 min-w-0">
                             <div
-                              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center font-syne font-extrabold text-2xl text-white overflow-hidden border border-border shrink-0 shadow-md"
+                              className="w-16 h-16 sm:w-20 sm:h-20 rounded-[28%] flex items-center justify-center font-syne font-extrabold text-2xl text-white overflow-hidden shrink-0"
                               style={{ backgroundColor: leadingTeam.color || 'var(--accent-bright)' }}
                             >
                               {leadingTeam.logo_url ? (
@@ -1956,48 +1947,36 @@ export const ProjectorPage: React.FC = () => {
                               )}
                             </div>
 
-                            <div className="text-center sm:text-left">
-                              <span className="font-mono text-xs sm:text-sm uppercase tracking-widest text-muted block">
-                                Leading Franchise
+                            <div className="text-center sm:text-left min-w-0">
+                              <span className="text-xs sm:text-sm font-medium text-muted block">
+                                Leading
                               </span>
-                              <h3 className="font-syne font-extrabold text-3xl sm:text-4xl md:text-5xl text-text tracking-tight leading-tight">
+                              <h3 className="font-syne font-extrabold text-3xl sm:text-4xl md:text-5xl text-text tracking-tight leading-tight truncate">
                                 {leadingTeam.name}
                               </h3>
                             </div>
                           </div>
 
-                          <div
-                            className="px-4 py-2 rounded-xl font-mono text-sm sm:text-base font-bold uppercase tracking-widest border shrink-0"
-                            style={{
-                              borderColor: `${leadingTeam.color}66`,
-                              color: leadingTeam.color || 'var(--text)'
-                            }}
-                          >
+                          <span className="px-4 py-1.5 rounded-full bg-surface border border-border font-mono text-sm sm:text-base font-semibold text-muted tracking-wider shrink-0">
                             {leadingTeam.short_code}
-                          </div>
+                          </span>
                         </motion.div>
                       ) : (
-                        <div className="p-6 sm:p-8 rounded-2xl bg-surface-2/80 border border-dashed border-border flex flex-col sm:flex-row items-center justify-between gap-4">
-                          <div className="flex items-center gap-3">
-                            <span className="w-3 h-3 rounded-full bg-points animate-pulse" />
-                            <span className="font-syne font-bold text-2xl sm:text-3xl text-text tracking-tight">
-                              Awaiting bids
-                            </span>
-                          </div>
-                          <div className="font-mono text-base sm:text-xl text-muted">
-                            Base Points:{' '}
-                            <strong className="text-points font-bold tabular-nums">
-                              {stagePlayer.base_points.toLocaleString()} PTS
-                            </strong>
-                          </div>
+                        <div className="p-6 sm:p-7 rounded-[24px] bg-surface-2 flex flex-col sm:flex-row items-center justify-between gap-4">
+                          <span className="font-syne font-bold text-2xl sm:text-3xl text-text tracking-tight">
+                            Awaiting bids
+                          </span>
+                          <span className="font-mono text-lg sm:text-xl font-bold text-points tabular-nums">
+                            {stagePlayer.base_points.toLocaleString()} PTS
+                          </span>
                         </div>
                       )}
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="py-24 text-center font-mono text-2xl text-muted">
-                  Awaiting player on stage...
+                <div className="py-20 px-8 rounded-[24px] bg-surface-2 text-center font-medium text-2xl text-muted max-w-xl mx-auto">
+                  Awaiting player
                 </div>
               )}
             </motion.div>
@@ -2037,18 +2016,17 @@ export const ProjectorPage: React.FC = () => {
               ) : (
                 /* ---------- CALM STATIC SOLD CARD (Player, Team, Price) ---------- */
                 <div
-                  className="w-full max-w-6xl bg-surface border-2 rounded-3xl p-8 sm:p-12 shadow-xl relative overflow-hidden"
-                  style={{ borderColor: soldTeam?.color || 'var(--border)' }}
+                  className="w-full max-w-6xl bg-surface border-[1.5px] rounded-[32px] p-8 sm:p-10 relative overflow-hidden"
+                  style={{
+                    borderColor: soldTeam?.color
+                      ? `color-mix(in srgb, ${soldTeam.color} 45%, transparent)`
+                      : 'var(--border)'
+                  }}
                 >
-                  <div
-                    className="absolute top-0 left-0 right-0 h-3"
-                    style={{ backgroundColor: soldTeam?.color || 'var(--accent-bright)' }}
-                  />
-
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center">
                     {/* Player Portrait */}
                     <div className="lg:col-span-4 flex flex-col items-center">
-                      <div className="w-60 h-72 sm:w-72 sm:h-88 rounded-3xl bg-surface-2 border border-border overflow-hidden flex items-center justify-center relative shadow-md">
+                      <div className="w-60 h-72 sm:w-72 sm:h-88 rounded-[24px] bg-surface-2 overflow-hidden flex items-center justify-center relative">
                         {soldPlayer?.photo_url || soldPlayer?.photo_thumb_url ? (
                           <img
                             src={soldPlayer.photo_url || soldPlayer.photo_thumb_url}
@@ -2060,9 +2038,9 @@ export const ProjectorPage: React.FC = () => {
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <User size={88} weight="thin" className="text-muted" />
+                          <User size={88} weight="regular" className="text-muted" />
                         )}
-                        <div className="absolute top-4 left-4 px-3 py-1 rounded-lg bg-bg/90 backdrop-blur-md border border-border font-mono text-sm font-bold text-accent-bright">
+                        <div className="absolute top-4 left-4 px-3.5 py-1 rounded-full bg-surface/95 border border-border font-mono text-sm font-bold text-accent-bright tabular-nums">
                           #{formatAthleteCode(soldPlayer?.player_code || soldPlayer?.athlete_code)}
                         </div>
                       </div>
@@ -2070,43 +2048,52 @@ export const ProjectorPage: React.FC = () => {
 
                     {/* Static Sold Details */}
                     <div className="lg:col-span-8 flex flex-col gap-6 text-center lg:text-left">
-                      <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3">
+                      <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2.5">
                         <span
-                          className="px-4 py-1.5 rounded-xl font-mono text-sm font-bold uppercase tracking-widest border"
+                          className="px-4 py-1.5 rounded-full font-syne text-sm sm:text-base font-extrabold uppercase tracking-wider"
                           style={{
-                            borderColor: soldTeam?.color || 'var(--accent-bright)',
                             color: soldTeam?.color || 'var(--accent-bright)',
-                            backgroundColor: `${soldTeam?.color || '#10B981'}18`
+                            backgroundColor: `color-mix(in srgb, ${soldTeam?.color || 'var(--accent-bright)'} 14%, var(--surface-2))`
                           }}
                         >
-                          SOLD
+                          Sold
                         </span>
                         {soldPlayer && (
-                          <span className="font-mono text-sm uppercase tracking-wider text-muted">
-                            {soldPlayer.sport} · {soldPlayer.playing_role} ·{' '}
-                            {getAcademicYearLabel(soldPlayer.academic_year || '1st')}
-                          </span>
+                          <>
+                            <span className="px-3.5 py-1.5 rounded-full bg-surface-2 text-xs sm:text-sm font-medium text-text">
+                              {soldPlayer.sport}
+                            </span>
+                            <span className="px-3.5 py-1.5 rounded-full bg-surface-2 text-xs sm:text-sm font-medium text-muted">
+                              {soldPlayer.playing_role}
+                            </span>
+                            <span className="px-3.5 py-1.5 rounded-full bg-surface-2 text-xs sm:text-sm font-medium text-muted">
+                              {getAcademicYearLabel(soldPlayer.academic_year || '1st')}
+                            </span>
+                          </>
                         )}
                       </div>
 
-                      <h2 className="font-syne font-extrabold text-5xl sm:text-6xl md:text-7xl text-text tracking-tight leading-[0.98]">
+                      <h2
+                        className="font-syne font-extrabold text-5xl sm:text-6xl md:text-7xl text-text tracking-tight leading-[0.98]"
+                        style={{ textWrap: 'balance' }}
+                      >
                         {soldPlayer?.name || 'Drafted Athlete'}
                       </h2>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6 border-t border-border items-center">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 rounded-[24px] bg-surface-2 p-5 sm:p-6 items-center">
                         {/* Buyer Team */}
                         {soldTeam ? (
-                          <div className="flex items-center justify-center lg:justify-start gap-4">
+                          <div className="flex items-center justify-center lg:justify-start gap-4 min-w-0">
                             <div
-                              className="w-16 h-16 rounded-2xl flex items-center justify-center font-syne font-extrabold text-xl text-white overflow-hidden border border-border shrink-0 shadow-sm"
+                              className="w-16 h-16 sm:w-18 sm:h-18 rounded-[28%] flex items-center justify-center font-syne font-extrabold text-xl text-white overflow-hidden shrink-0"
                               style={{ backgroundColor: soldTeam.color || 'var(--accent-bright)' }}
                             >
                               {soldTeam.logo_url ? (
                                 <img
                                   src={soldTeam.logo_url}
                                   alt={soldTeam.name}
-                                  width={64}
-                                  height={64}
+                                  width={72}
+                                  height={72}
                                   decoding="async"
                                   referrerPolicy="no-referrer"
                                   className="w-full h-full object-cover"
@@ -2116,8 +2103,8 @@ export const ProjectorPage: React.FC = () => {
                               )}
                             </div>
                             <div className="text-left min-w-0">
-                              <span className="font-mono text-xs uppercase tracking-widest text-muted block">
-                                Franchise
+                              <span className="text-xs sm:text-sm font-medium text-muted block">
+                                Team
                               </span>
                               <div className="font-syne font-bold text-2xl sm:text-3xl text-text truncate">
                                 {soldTeam.name}
@@ -2125,20 +2112,20 @@ export const ProjectorPage: React.FC = () => {
                             </div>
                           </div>
                         ) : (
-                          <div className="font-mono text-sm text-muted">Franchise Assigned</div>
+                          <div className="text-sm font-medium text-muted">Assigned</div>
                         )}
 
                         {/* Final Price */}
                         <div className="text-center sm:text-right">
-                          <span className="font-mono text-xs uppercase tracking-widest text-muted block">
-                            Winning Bid
+                          <span className="text-xs sm:text-sm font-medium text-muted block">
+                            Winning bid
                           </span>
                           <div
-                            className="font-syne font-extrabold text-4xl sm:text-5xl md:text-6xl tabular-nums mt-0.5"
+                            className="font-mono font-bold text-4xl sm:text-5xl md:text-6xl tabular-nums mt-0.5"
                             style={{ color: soldTeam?.color || 'var(--points)' }}
                           >
                             {soldPrice.toLocaleString()}{' '}
-                            <span className="font-mono text-xl font-bold text-muted">PTS</span>
+                            <span className="text-xl font-bold text-muted">PTS</span>
                           </div>
                         </div>
                       </div>
@@ -2161,9 +2148,9 @@ export const ProjectorPage: React.FC = () => {
               className="w-full max-w-5xl my-auto"
             >
               {stagePlayer ? (
-                <div className="p-8 sm:p-12 rounded-3xl bg-surface/90 border border-border shadow-md flex flex-col md:flex-row items-center gap-8 md:gap-12">
+                <div className="p-8 sm:p-10 rounded-[32px] bg-surface border border-border flex flex-col md:flex-row items-center gap-8 md:gap-10">
                   {/* Muted Portrait */}
-                  <div className="w-56 h-68 sm:w-64 sm:h-80 rounded-2xl bg-surface-2 border border-border overflow-hidden shrink-0 flex items-center justify-center relative grayscale opacity-75">
+                  <div className="w-56 h-68 sm:w-64 sm:h-80 rounded-[24px] bg-surface-2 overflow-hidden shrink-0 flex items-center justify-center relative grayscale opacity-75">
                     <ProjectorStagePhoto
                       url={stagePlayer.photo_url || stagePlayer.photo_thumb_url}
                       name={stagePlayer.name}
@@ -2173,35 +2160,43 @@ export const ProjectorPage: React.FC = () => {
                   </div>
 
                   {/* Unsold Details */}
-                  <div className="flex-1 flex flex-col items-center md:items-start text-center md:text-left gap-5">
-                    <div className="inline-flex items-center gap-3 px-4 py-1.5 rounded-xl bg-surface-2 border border-border font-mono text-sm sm:text-base font-bold uppercase tracking-[0.2em] text-muted">
-                      UNSOLD
+                  <div className="flex-1 flex flex-col items-center md:items-start text-center md:text-left gap-5 min-w-0">
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5">
+                      <span className="inline-flex items-center px-4 py-1.5 rounded-full bg-surface-2 border border-border font-syne text-sm sm:text-base font-bold uppercase tracking-wider text-muted">
+                        Unsold
+                      </span>
+                      <span className="inline-flex items-center px-3.5 py-1.5 rounded-full bg-surface-2 font-mono text-xs sm:text-sm font-semibold text-muted tabular-nums">
+                        #{formatAthleteCode(stagePlayer.player_code || stagePlayer.athlete_code)}
+                      </span>
+                      <span className="inline-flex items-center px-3.5 py-1.5 rounded-full bg-surface-2 text-xs sm:text-sm font-medium text-muted">
+                        {stagePlayer.sport}
+                      </span>
+                      <span className="inline-flex items-center px-3.5 py-1.5 rounded-full bg-surface-2 text-xs sm:text-sm font-medium text-muted">
+                        {stagePlayer.playing_role}
+                      </span>
                     </div>
 
-                    <div>
-                      <div className="font-mono text-xs sm:text-sm uppercase tracking-widest text-muted mb-1.5">
-                        #{formatAthleteCode(stagePlayer.player_code || stagePlayer.athlete_code)} ·{' '}
-                        {stagePlayer.sport} · {stagePlayer.playing_role}
-                      </div>
-                      <h2 className="font-syne font-extrabold text-4xl sm:text-6xl text-text/85 tracking-tight leading-tight">
-                        {stagePlayer.name}
-                      </h2>
-                    </div>
+                    <h2
+                      className="font-syne font-extrabold text-4xl sm:text-6xl text-text/85 tracking-tight leading-tight break-words"
+                      style={{ textWrap: 'balance' }}
+                    >
+                      {stagePlayer.name}
+                    </h2>
 
-                    <div className="w-full grid grid-cols-2 gap-6 pt-5 border-t border-border font-mono">
+                    <div className="w-full grid grid-cols-2 gap-6 rounded-[24px] bg-surface-2 px-6 py-4">
                       <div>
-                        <span className="text-xs uppercase tracking-wider text-muted block">
-                          Academic Year
+                        <span className="text-xs sm:text-sm font-medium text-muted block">
+                          Year
                         </span>
-                        <span className="font-syne font-bold text-xl sm:text-2xl text-text/80 mt-1 block">
+                        <span className="font-syne font-bold text-xl sm:text-2xl text-text/80 mt-0.5 block">
                           {getAcademicYearLabel(stagePlayer.academic_year || '1st')}
                         </span>
                       </div>
                       <div>
-                        <span className="text-xs uppercase tracking-wider text-muted block">
-                          Base Points
+                        <span className="text-xs sm:text-sm font-medium text-muted block">
+                          Base
                         </span>
-                        <span className="font-syne font-bold text-xl sm:text-2xl text-muted tabular-nums mt-1 block">
+                        <span className="font-mono font-bold text-xl sm:text-2xl text-muted tabular-nums mt-0.5 block">
                           {stagePlayer.base_points.toLocaleString()} PTS
                         </span>
                       </div>
@@ -2209,8 +2204,8 @@ export const ProjectorPage: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <div className="py-20 text-center font-mono text-xl text-muted">
-                  Player marked unsold.
+                <div className="py-16 px-8 rounded-[24px] bg-surface-2 text-center font-medium text-xl text-muted max-w-md mx-auto">
+                  Unsold
                 </div>
               )}
             </motion.div>
@@ -2248,8 +2243,8 @@ export const ProjectorPage: React.FC = () => {
                   </motion.div>
                 </AnimatePresence>
               ) : (
-                <div className="py-24 text-center font-mono text-2xl text-muted">
-                  No teams registered for {projectorState.auto_sport || 'Sport'}
+                <div className="py-20 px-8 rounded-[24px] bg-surface-2 text-center font-medium text-2xl text-muted max-w-xl mx-auto">
+                  No teams for {projectorState.auto_sport || 'this sport'}.
                 </div>
               )}
             </motion.div>
@@ -2278,7 +2273,7 @@ export const ProjectorPage: React.FC = () => {
                       duration: teamTransitionDuration,
                       ease: [0.22, 1, 0.36, 1]
                     }}
-                    className="flex flex-col lg:flex-row items-center justify-center gap-10 md:gap-16 lg:gap-24 w-full"
+                    className="flex flex-col lg:flex-row items-center justify-center gap-10 md:gap-16 lg:gap-20 w-full"
                   >
                     <PlayerSpotlightSceneContent
                       player={spotlightPlayer}
@@ -2287,8 +2282,8 @@ export const ProjectorPage: React.FC = () => {
                   </motion.div>
                 </AnimatePresence>
               ) : (
-                <div className="text-center font-mono text-xl text-muted">
-                  No player currently selected in Spotlight.
+                <div className="py-16 px-8 rounded-[24px] bg-surface-2 text-center font-medium text-xl text-muted">
+                  No player selected.
                 </div>
               )}
             </motion.div>
@@ -2317,7 +2312,7 @@ export const ProjectorPage: React.FC = () => {
                       duration: teamTransitionDuration,
                       ease: [0.22, 1, 0.36, 1]
                     }}
-                    className="flex flex-col lg:flex-row items-center justify-center gap-10 md:gap-16 lg:gap-24 w-full"
+                    className="flex flex-col lg:flex-row items-center justify-center gap-10 md:gap-16 lg:gap-20 w-full"
                   >
                     <PlayerSpotlightSceneContent
                       player={autoSpotlightPlayer}
@@ -2327,8 +2322,8 @@ export const ProjectorPage: React.FC = () => {
                   </motion.div>
                 </AnimatePresence>
               ) : (
-                <div className="py-24 text-center font-mono text-2xl text-muted">
-                  No players to show for {projectorState.auto_sport || 'Sport'}
+                <div className="py-20 px-8 rounded-[24px] bg-surface-2 text-center font-medium text-2xl text-muted">
+                  No players for {projectorState.auto_sport || 'this sport'}.
                 </div>
               )}
             </motion.div>
