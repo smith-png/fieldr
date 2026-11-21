@@ -1,8 +1,12 @@
-import React from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import {
   ArrowRight,
   ArrowsLeftRight,
+  CircleNotch,
   Coins,
+  EyeSlash,
+  Megaphone,
+  PaperPlaneTilt,
   ShieldCheck,
   Television,
   Users
@@ -12,13 +16,38 @@ import {
   ADMIN_CARD,
   ADMIN_CARD_HEADER,
   ADMIN_CARD_TITLE,
+  ADMIN_COUNT_PILL,
   ADMIN_PAGE_HEADER,
   ADMIN_PAGE_TITLE,
   ADMIN_PAGE_WRAPPER,
   ADMIN_TABLE_SHELL,
+  ADMIN_TEXTAREA,
   ADMIN_WELL
 } from '../../components/admin/adminStyles'
+import { supabase } from '../../lib/data/client'
+import { useToast } from '../../lib/ToastContext'
 import type { AdminTab, Player, PurseTransaction, Season, Team } from '../../types'
+
+interface OwnerAnnouncementRow {
+  id: string
+  season_id: string
+  message: string
+  is_active: boolean
+  created_at: string
+}
+
+const MAX_ANNOUNCEMENT_LENGTH = 200
+
+function formatAnnouncementTime(isoString: string): string {
+  const date = new Date(isoString)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  })
+}
 
 interface AdminDashboardProps {
   activeSeason: Season | null
@@ -35,9 +64,120 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   transactions,
   onGoToTab
 }) => {
+  const toast = useToast()
   const totalPurse = teams.reduce((acc, t) => acc + (t.current_purse || 0), 0)
   const soldPlayers = players.filter((p) => p.status === 'sold')
   const availablePlayers = players.filter((p) => p.status === 'available')
+
+  // Owner Announcements state
+  const [announcementText, setAnnouncementText] = useState('')
+  const [recentAnnouncements, setRecentAnnouncements] = useState<OwnerAnnouncementRow[]>([])
+  const [isLoadingAnnouncements, setIsLoadingAnnouncements] = useState(false)
+  const [isSendingAnnouncement, setIsSendingAnnouncement] = useState(false)
+  const [hidingAnnouncementId, setHidingAnnouncementId] = useState<string | null>(null)
+
+  const loadAnnouncements = useCallback(async () => {
+    if (!supabase || !activeSeason?.id) {
+      setRecentAnnouncements([])
+      return
+    }
+    setIsLoadingAnnouncements(true)
+    try {
+      const { data, error } = await supabase
+        .from('owner_announcements')
+        .select('id, season_id, message, is_active, created_at')
+        .eq('season_id', activeSeason.id)
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (error) {
+        console.error('Failed to load owner announcements:', error.message)
+        return
+      }
+
+      setRecentAnnouncements((data as OwnerAnnouncementRow[]) || [])
+    } catch (err) {
+      console.error('Failed to load owner announcements:', err)
+    } finally {
+      setIsLoadingAnnouncements(false)
+    }
+  }, [activeSeason?.id])
+
+  useEffect(() => {
+    void loadAnnouncements()
+  }, [loadAnnouncements])
+
+  const handleSendAnnouncement = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!supabase || !activeSeason?.id || isSendingAnnouncement) return
+
+    const trimmed = announcementText.trim()
+    if (!trimmed) return
+    if (trimmed.length > MAX_ANNOUNCEMENT_LENGTH) {
+      toast.error(`Announcement must be ${MAX_ANNOUNCEMENT_LENGTH} characters or fewer.`)
+      return
+    }
+
+    setIsSendingAnnouncement(true)
+    try {
+      const { error } = await supabase.from('owner_announcements').insert({
+        season_id: activeSeason.id,
+        message: trimmed,
+        is_active: true
+      })
+
+      if (error) {
+        toast.error(error.message || 'Could not send announcement.')
+        return
+      }
+
+      setAnnouncementText('')
+      toast.success('Announcement sent to owners.')
+      await loadAnnouncements()
+    } catch (err) {
+      console.error('Failed to send announcement:', err)
+      toast.error('Could not send announcement.')
+    } finally {
+      setIsSendingAnnouncement(false)
+    }
+  }
+
+  const handleHideAnnouncement = async (announcementId: string) => {
+    if (!supabase || !activeSeason?.id || hidingAnnouncementId) return
+
+    setHidingAnnouncementId(announcementId)
+    try {
+      const { error } = await supabase
+        .from('owner_announcements')
+        .update({ is_active: false })
+        .eq('id', announcementId)
+        .eq('season_id', activeSeason.id)
+
+      if (error) {
+        toast.error(error.message || 'Could not hide announcement.')
+        return
+      }
+
+      setRecentAnnouncements((prev) =>
+        prev.map((item) =>
+          item.id === announcementId ? { ...item, is_active: false } : item
+        )
+      )
+      toast.success('Announcement hidden.')
+    } catch (err) {
+      console.error('Failed to hide announcement:', err)
+      toast.error('Could not hide announcement.')
+    } finally {
+      setHidingAnnouncementId(null)
+    }
+  }
+
+  const trimmedAnnouncement = announcementText.trim()
+  const canSendAnnouncement =
+    Boolean(supabase && activeSeason?.id) &&
+    trimmedAnnouncement.length > 0 &&
+    announcementText.length <= MAX_ANNOUNCEMENT_LENGTH &&
+    !isSendingAnnouncement
 
   return (
     <div className={ADMIN_PAGE_WRAPPER}>
@@ -214,6 +354,136 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
         </section>
       </div>
+
+      {/* Owner Announcements Card */}
+      <section className={ADMIN_CARD}>
+        <div className={ADMIN_CARD_HEADER}>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="w-9 h-9 rounded-full bg-surface-2 border border-border flex items-center justify-center shrink-0">
+              <Megaphone size={18} weight="regular" className="text-accent-bright" />
+            </span>
+            <div className="min-w-0">
+              <h2 className={ADMIN_CARD_TITLE}>Owner announcements</h2>
+              <p className="text-xs text-muted mt-0.5">
+                Broadcast a live banner update to team owners in this season.
+              </p>
+            </div>
+          </div>
+          <span className={ADMIN_COUNT_PILL}>{recentAnnouncements.length}</span>
+        </div>
+
+        <form onSubmit={handleSendAnnouncement} className="space-y-3">
+          <div>
+            <label htmlFor="owner-announcement-input" className="sr-only">
+              Announcement message
+            </label>
+            <textarea
+              id="owner-announcement-input"
+              rows={2}
+              maxLength={MAX_ANNOUNCEMENT_LENGTH}
+              value={announcementText}
+              onChange={(e) => setAnnouncementText(e.target.value)}
+              disabled={!supabase || !activeSeason?.id || isSendingAnnouncement}
+              placeholder={
+                activeSeason
+                  ? 'Write a short update for team owners...'
+                  : 'Select an active season to send announcements.'
+              }
+              className={ADMIN_TEXTAREA}
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-mono text-xs tabular-nums text-muted">
+              {announcementText.length} / {MAX_ANNOUNCEMENT_LENGTH}
+            </span>
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              leftIcon={PaperPlaneTilt}
+              isLoading={isSendingAnnouncement}
+              disabled={!canSendAnnouncement}
+              className="rounded-full px-5"
+            >
+              Send
+            </Button>
+          </div>
+        </form>
+
+        <div className="pt-4 border-t border-border space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+              Recent announcements
+            </span>
+            {isLoadingAnnouncements && (
+              <CircleNotch
+                size={14}
+                weight="regular"
+                className="text-muted animate-spin motion-reduce:animate-none"
+              />
+            )}
+          </div>
+
+          {recentAnnouncements.length === 0 ? (
+            <p className={`${ADMIN_WELL} px-4 py-4 text-xs text-muted text-center`}>
+              No announcements sent for this season yet.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {recentAnnouncements.map((item) => {
+                const isHiding = hidingAnnouncementId === item.id
+                return (
+                  <li
+                    key={item.id}
+                    className={`${ADMIN_WELL} px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                      item.is_active ? '' : 'opacity-60'
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <p className="text-sm text-text break-words leading-snug">
+                        {item.message}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono text-muted tabular-nums">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full border ${
+                            item.is_active
+                              ? 'bg-accent/10 border-accent-bright/30 text-accent-bright font-medium'
+                              : 'bg-surface-2 border-border text-muted'
+                          }`}
+                        >
+                          {item.is_active ? 'Active' : 'Hidden'}
+                        </span>
+                        <span>{formatAnnouncementTime(item.created_at)}</span>
+                      </div>
+                    </div>
+
+                    {item.is_active && (
+                      <button
+                        type="button"
+                        onClick={() => void handleHideAnnouncement(item.id)}
+                        disabled={Boolean(hidingAnnouncementId)}
+                        className="frost self-start sm:self-center inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border text-xs font-medium text-muted hover:text-text hover:border-accent-bright/50 transition-colors disabled:opacity-45 cursor-pointer shrink-0"
+                      >
+                        {isHiding ? (
+                          <CircleNotch
+                            size={13}
+                            weight="regular"
+                            className="animate-spin motion-reduce:animate-none"
+                          />
+                        ) : (
+                          <EyeSlash size={13} weight="regular" />
+                        )}
+                        <span>Hide</span>
+                      </button>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      </section>
 
       {/* Recent Purse Activity Card */}
       <section className={ADMIN_CARD}>

@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { Monitor, Moon, Sun, type Icon } from '@phosphor-icons/react'
+import { DownloadSimple, Monitor, Moon, Sun, type Icon } from '@phosphor-icons/react'
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock'
 import { useAuth } from '../../lib/AuthContext'
+import { triggerPwaInstall, usePwaInstall } from '../../lib/pwaInstall'
 import { prefetchRoute } from '../../lib/queryCache'
 import { type ThemePreference, useTheme } from '../../lib/theme'
+import { Dialog } from '../ui/Dialog'
 import type { Season } from '../../types'
 
 interface NavigationMenuProps {
@@ -39,6 +41,8 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
   const dragStartYRef = useRef<number | null>(null)
   const [dragOffsetY, setDragOffsetY] = useState<number>(0)
   const [isDragging, setIsDragging] = useState<boolean>(false)
+  const { canPromptInstall, isInstalled, isIOSSafari } = usePwaInstall()
+  const [isIOSInstallOpen, setIsIOSInstallOpen] = useState<boolean>(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -238,6 +242,27 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
     navigate('/login')
   }
 
+  const isExcludedInstallRoute =
+    location.pathname === '/projector' ||
+    location.pathname.startsWith('/projector/') ||
+    location.pathname === '/admin' ||
+    location.pathname.startsWith('/admin/')
+
+  const showInstallItem =
+    !isExcludedInstallRoute && !isInstalled && (canPromptInstall || isIOSSafari)
+
+  const handleInstallClick = async () => {
+    if (canPromptInstall) {
+      await triggerPwaInstall()
+      handleClose()
+      return
+    }
+    if (isIOSSafari) {
+      handleClose()
+      setIsIOSInstallOpen(true)
+    }
+  }
+
   const panelInitial = shouldReduceMotion
     ? { opacity: 0 }
     : isDesktop
@@ -257,8 +282,9 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
     : { x: '0%', y: '100%' }
 
   return (
-    <AnimatePresence>
-      {isOpen && (
+    <>
+      <AnimatePresence>
+        {isOpen && (
         <motion.div
           key="public-navigation-overlay"
           initial={{ opacity: 1 }}
@@ -385,6 +411,20 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
               </div>
             )}
 
+            {/* Optional Install App Item (public pages only, supported browsers & iOS Safari) */}
+            {showInstallItem && (
+              <div className="pt-1 pb-2">
+                <button
+                  type="button"
+                  onClick={() => void handleInstallClick()}
+                  className="w-full inline-flex items-center justify-center gap-2 h-10 px-4 rounded-full bg-surface/70 hover:bg-surface-2 border border-border/80 font-sans text-xs font-medium text-muted hover:text-text transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                >
+                  <DownloadSimple size={15} weight="regular" />
+                  <span>Install app</span>
+                </button>
+              </div>
+            )}
+
             {/* Appearance Selector */}
             <div className="pt-4 mt-3 lg:mt-auto border-t border-text/[0.09] flex items-center justify-between gap-3">
               <span
@@ -430,6 +470,29 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
         </motion.div>
       )}
     </AnimatePresence>
+
+    <Dialog
+      isOpen={isIOSInstallOpen}
+      onClose={() => setIsIOSInstallOpen(false)}
+      title="Install Fieldr"
+      maxWidth="sm"
+      frosted={true}
+    >
+      <p className="text-sm text-muted leading-relaxed">
+        Tap <span className="font-medium text-text">Share</span>, then tap{' '}
+        <span className="font-medium text-text">Add to Home Screen</span>.
+      </p>
+      <div className="mt-5 flex justify-end">
+        <button
+          type="button"
+          onClick={() => setIsIOSInstallOpen(false)}
+          className="inline-flex items-center justify-center h-9 px-4 rounded-full bg-surface-2 hover:opacity-85 border border-border text-xs font-medium text-text transition-opacity cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+        >
+          Done
+        </button>
+      </div>
+    </Dialog>
+    </>
   )
 }
 

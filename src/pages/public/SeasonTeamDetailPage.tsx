@@ -1,12 +1,21 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
   ArrowsClockwise,
+  Check,
   CircleNotch,
+  MagnifyingGlass,
+  Megaphone,
+  Minus,
+  PencilSimple,
+  Plus,
+  ShareNetwork,
   ShieldCheck,
   SignOut,
-  Users
+  Star,
+  Users,
+  X
 } from '@phosphor-icons/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
@@ -32,6 +41,7 @@ import { formatAthleteCode, supabase } from '../../lib/data/client'
 import { getActiveSeason, getSeason } from '../../lib/data/seasons'
 import { getPublicPlayersBySeason } from '../../lib/data/players'
 import { getPublicTeams, getRolesForSport, getSports } from '../../lib/data/teams'
+import { getAuctionSettings } from '../../lib/data/auction'
 import {
   hasDataChanged,
   publicCache,
@@ -45,10 +55,45 @@ import {
 } from '../../lib/queryCache'
 import { formatPoints, getInitials } from '../../lib/utils'
 import { useAuth } from '../../lib/AuthContext'
+import { useToast } from '../../lib/ToastContext'
 import type { PublicPlayer, PublicTeam, Season } from '../../types'
 
 function getTeamCacheKey(seasonId?: string, teamId?: string): string {
   return `${seasonId || ''}::${teamId || ''}`
+}
+
+interface OwnerShortlistRow {
+  id: string
+  player_id: string
+  note: string | null
+  created_at: string
+  updated_at: string
+}
+
+interface OwnerPlayerMeta {
+  base_points: number | null
+  status: string | null
+}
+
+interface OwnerAnnouncementRow {
+  id: string
+  season_id: string
+  message: string
+  is_active: boolean
+  created_at: string
+}
+
+const SHORTLIST_NOTE_MAX = 140
+const ANNOUNCEMENT_REALTIME_DEBOUNCE_MS = 250
+
+function formatShortTime(isoString?: string | null): string {
+  if (!isoString) return ''
+  const date = new Date(isoString)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit'
+  })
 }
 
 const DISALLOWED_CSS_COLORS = new Set([
@@ -112,12 +157,14 @@ export const SeasonTeamDetailPage: React.FC = () => {
   const { id, teamId } = useParams<{ id: string; teamId: string }>()
   const navigate = useNavigate()
   const { user, logout } = useAuth()
+  const toast = useToast()
   const initialCached = getCachedTeamDetail(id, teamId)
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [activeSeason, setActiveSeason] = useState<Season | null>(
     publicCache.activeSeason.value
   )
+  const [season, setSeason] = useState<Season | null>(initialCached?.season ?? null)
   const [team, setTeam] = useState<PublicTeam | null>(initialCached?.team ?? null)
   const [teamPlayers, setTeamPlayers] = useState<PublicPlayer[]>(
     initialCached?.teamPlayers ?? []
@@ -140,17 +187,359 @@ export const SeasonTeamDetailPage: React.FC = () => {
     Boolean(user?.role === 'owner' && teamId && supabase)
   )
   const [overviewUpdatedAt, setOverviewUpdatedAt] = useState<Date | null>(null)
+  const [ownerMaxSquadSize, setOwnerMaxSquadSize] = useState<number | null>(null)
+  const [ownerMinAvailableBase, setOwnerMinAvailableBase] = useState<number | null>(null)
+  const [ownerPublicBaseById, setOwnerPublicBaseById] = useState<Record<string, number> | null>(null)
+  const [ownerPlayerMetaById, setOwnerPlayerMetaById] = useState<Record<string, OwnerPlayerMeta>>({})
+  const [customTargetSquadSize, setCustomTargetSquadSize] = useState<number | null>(null)
   const [failedBoughtPhotoUrls, setFailedBoughtPhotoUrls] = useState<Record<string, true>>({})
+  const [isSharingPublic, setIsSharingPublic] = useState<boolean>(false)
+  const [isSharingOwner, setIsSharingOwner] = useState<boolean>(false)
+
+  // Owner Shortlist State (private per owner)
+  const [shortlistRows, setShortlistRows] = useState<OwnerShortlistRow[]>([])
+  const [isLoadingShortlist, setIsLoadingShortlist] = useState<boolean>(false)
+  const [isShortlistPickerOpen, setIsShortlistPickerOpen] = useState<boolean>(false)
+  const [shortlistSearch, setShortlistSearch] = useState<string>('')
+  const [shortlistScope, setShortlistScope] = useState<'team_sport' | 'all'>('team_sport')
+  const [editingNoteRowId, setEditingNoteRowId] = useState<string | null>(null)
+  const [editingNoteValue, setEditingNoteValue] = useState<string>('')
+  const [shortlistBusyKey, setShortlistBusyKey] = useState<string | null>(null)
+
+  // Owner Announcements State (Owner Panel only)
+  const [latestAnnouncement, setLatestAnnouncement] = useState<OwnerAnnouncementRow | null>(null)
+  const [dismissedAnnouncementId, setDismissedAnnouncementId] = useState<string | null>(null)
+  const dismissedAnnouncementIdRef = useRef<string | null>(null)
+  const hasLoadedAnnouncementRef = useRef<boolean>(false)
+  const seenAnnouncementIdsRef = useRef<Set<string>>(new Set())
+  const announcementReqIdRef = useRef<number>(0)
+
+  const isOwnerPanelActive = Boolean(
+    supabase && user?.role === 'owner' && ownerOverview && id
+  )
+
+  useEffect(() => {
+    if (!id || typeof window === 'undefined') {
+      setDismissedAnnouncementId(null)
+      dismissedAnnouncementIdRef.current = null
+      return
+    }
+    try {
+      const saved = window.localStorage.getItem(`fieldr_owner_dismissed_announcement_${id}`)
+      const clean = saved && saved.trim() ? saved.trim() : null
+      setDismissedAnnouncementId(clean)
+      dismissedAnnouncementIdRef.current = clean
+    } catch {
+      setDismissedAnnouncementId(null)
+      dismissedAnnouncementIdRef.current = null
+    }
+  }, [id])
+
+  useEffect(() => {
+    if (!teamId || typeof window === 'undefined') {
+      setCustomTargetSquadSize(null)
+      return
+    }
+    try {
+      const saved = window.localStorage.getItem(`fieldr_owner_target_squad_${teamId}`)
+      if (saved) {
+        const parsed = Number.parseInt(saved, 10)
+        if (Number.isFinite(parsed) && parsed > 0) {
+          setCustomTargetSquadSize(parsed)
+          return
+        }
+      }
+    } catch {
+      // Ignore storage access errors
+    }
+    setCustomTargetSquadSize(null)
+  }, [teamId])
+
+  const updateTargetSquadSize = (nextSize: number) => {
+    const clean = Math.max(1, Math.round(nextSize))
+    setCustomTargetSquadSize(clean)
+    if (teamId && typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem(`fieldr_owner_target_squad_${teamId}`, String(clean))
+      } catch {
+        // Ignore storage access errors
+      }
+    }
+  }
+
+  const fetchOwnerShortlist = useCallback(async () => {
+    if (!supabase || !user || user.role !== 'owner' || !id) {
+      setShortlistRows([])
+      return
+    }
+    setIsLoadingShortlist(true)
+    try {
+      const { data, error } = await supabase
+        .from('owner_shortlist')
+        .select('id, player_id, note, created_at, updated_at')
+        .eq('season_id', id)
+        .eq('owner_user_id', user.id)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Failed to load owner shortlist:', error.message)
+        return
+      }
+      setShortlistRows((data as OwnerShortlistRow[]) || [])
+    } catch (err) {
+      console.error('Failed to load owner shortlist:', err)
+    } finally {
+      setIsLoadingShortlist(false)
+    }
+  }, [id, user])
+
+  const handleToggleShortlist = async (playerId: string) => {
+    if (!supabase || !user || user.role !== 'owner' || !id || shortlistBusyKey) return
+
+    const existing = shortlistRows.find((r) => r.player_id === playerId)
+    setShortlistBusyKey(playerId)
+    try {
+      if (existing) {
+        const { error } = await supabase
+          .from('owner_shortlist')
+          .delete()
+          .eq('id', existing.id)
+          .eq('owner_user_id', user.id)
+
+        if (error) {
+          toast.error(error.message || 'Could not remove player from shortlist.')
+          return
+        }
+
+        setShortlistRows((prev) => prev.filter((r) => r.id !== existing.id))
+        if (editingNoteRowId === existing.id) {
+          setEditingNoteRowId(null)
+          setEditingNoteValue('')
+        }
+      } else {
+        const nowIso = new Date().toISOString()
+        const { data, error } = await supabase
+          .from('owner_shortlist')
+          .upsert(
+            {
+              owner_user_id: user.id,
+              season_id: id,
+              player_id: playerId,
+              note: null,
+              updated_at: nowIso
+            },
+            { onConflict: 'owner_user_id,season_id,player_id' }
+          )
+          .select('id, player_id, note, created_at, updated_at')
+          .single()
+
+        if (error || !data) {
+          toast.error(error?.message || 'Could not add player to shortlist.')
+          return
+        }
+
+        const inserted = data as OwnerShortlistRow
+        setShortlistRows((prev) => [
+          inserted,
+          ...prev.filter((r) => r.player_id !== inserted.player_id)
+        ])
+      }
+    } catch (err) {
+      console.error('Failed to update shortlist:', err)
+      toast.error('Could not update shortlist.')
+    } finally {
+      setShortlistBusyKey(null)
+    }
+  }
+
+  const handleSaveShortlistNote = async (rowId: string) => {
+    if (!supabase || !user || user.role !== 'owner' || shortlistBusyKey) return
+
+    const trimmed = editingNoteValue.trim().slice(0, SHORTLIST_NOTE_MAX)
+    const nextNote = trimmed.length > 0 ? trimmed : null
+
+    setShortlistBusyKey(rowId)
+    try {
+      const { data, error } = await supabase
+        .from('owner_shortlist')
+        .update({
+          note: nextNote,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', rowId)
+        .eq('owner_user_id', user.id)
+        .select('id, player_id, note, created_at, updated_at')
+        .single()
+
+      if (error || !data) {
+        toast.error(error?.message || 'Could not save shortlist note.')
+        return
+      }
+
+      const updated = data as OwnerShortlistRow
+      setShortlistRows((prev) => prev.map((r) => (r.id === rowId ? updated : r)))
+      setEditingNoteRowId(null)
+      setEditingNoteValue('')
+    } catch (err) {
+      console.error('Failed to save shortlist note:', err)
+      toast.error('Could not save shortlist note.')
+    } finally {
+      setShortlistBusyKey(null)
+    }
+  }
+
+  const fetchLatestAnnouncement = useCallback(
+    async (options?: { notifyIfNew?: boolean }) => {
+      if (!supabase || !id || !user || user.role !== 'owner') return
+
+      const reqId = ++announcementReqIdRef.current
+      try {
+        const { data, error } = await supabase
+          .from('owner_announcements')
+          .select('id, season_id, message, is_active, created_at')
+          .eq('season_id', id)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+          .limit(1)
+
+        if (reqId !== announcementReqIdRef.current) return
+        if (error) {
+          console.error('Failed to load owner announcements:', error.message)
+          return
+        }
+
+        const next = ((data as OwnerAnnouncementRow[] | null) ?? [])[0] ?? null
+        setLatestAnnouncement(next)
+
+        if (next) {
+          const alreadySeen = seenAnnouncementIdsRef.current.has(next.id)
+          const isDismissed = next.id === dismissedAnnouncementIdRef.current
+          if (
+            hasLoadedAnnouncementRef.current &&
+            options?.notifyIfNew &&
+            !alreadySeen &&
+            !isDismissed
+          ) {
+            seenAnnouncementIdsRef.current.add(next.id)
+            toast.toast(`Announcement: ${next.message}`, 'info')
+          } else {
+            seenAnnouncementIdsRef.current.add(next.id)
+          }
+        }
+        hasLoadedAnnouncementRef.current = true
+      } catch (err) {
+        console.error('Failed to load owner announcements:', err)
+      }
+    },
+    [id, user, toast]
+  )
+
+  const handleDismissAnnouncement = (announcementId: string) => {
+    setDismissedAnnouncementId(announcementId)
+    dismissedAnnouncementIdRef.current = announcementId
+    seenAnnouncementIdsRef.current.add(announcementId)
+    if (id && typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem(
+          `fieldr_owner_dismissed_announcement_${id}`,
+          announcementId
+        )
+      } catch {
+        // Ignore storage access errors
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (!isOwnerPanelActive) {
+      setShortlistRows([])
+      setIsShortlistPickerOpen(false)
+      setEditingNoteRowId(null)
+      setEditingNoteValue('')
+      return
+    }
+    void fetchOwnerShortlist()
+  }, [isOwnerPanelActive, fetchOwnerShortlist])
+
+  useEffect(() => {
+    if (!isOwnerPanelActive || !supabase || !id) {
+      setLatestAnnouncement(null)
+      hasLoadedAnnouncementRef.current = false
+      seenAnnouncementIdsRef.current = new Set()
+      return
+    }
+
+    hasLoadedAnnouncementRef.current = false
+    seenAnnouncementIdsRef.current = new Set(
+      dismissedAnnouncementIdRef.current ? [dismissedAnnouncementIdRef.current] : []
+    )
+
+    void fetchLatestAnnouncement({ notifyIfNew: false })
+
+    let active = true
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null
+
+    const scheduleAnnouncementFetch = () => {
+      if (!active) return
+      if (debounceTimer) clearTimeout(debounceTimer)
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null
+        if (!active) return
+        void fetchLatestAnnouncement({ notifyIfNew: true })
+      }, ANNOUNCEMENT_REALTIME_DEBOUNCE_MS)
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void fetchLatestAnnouncement({ notifyIfNew: true })
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    const channel = supabase
+      .channel(`owner_announcements_${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'owner_announcements',
+          filter: `season_id=eq.${id}`
+        },
+        () => {
+          scheduleAnnouncementFetch()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      active = false
+      if (debounceTimer) clearTimeout(debounceTimer)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      if (supabase) {
+        supabase.removeChannel(channel)
+      }
+    }
+  }, [isOwnerPanelActive, id, user?.id, fetchLatestAnnouncement])
 
   const fetchOwnerOverview = async () => {
     if (!user || user.role !== 'owner' || !teamId || !supabase) {
       setOwnerOverview(null)
       setOverviewUpdatedAt(null)
+      setOwnerMaxSquadSize(null)
+      setOwnerMinAvailableBase(null)
+      setOwnerPublicBaseById(null)
+      setOwnerPlayerMetaById({})
       return
     }
     try {
       setIsLoadingOverview(true)
-      const { data, error } = await supabase.rpc('owner_team_overview')
+      const [overviewRes, settingsRes] = await Promise.all([
+        supabase.rpc('owner_team_overview'),
+        id ? getAuctionSettings(id).catch(() => null) : Promise.resolve(null)
+      ])
+
+      const { data, error } = overviewRes
       if (error) {
         console.error('owner_team_overview error:', error)
         setOwnerOverview(null)
@@ -163,6 +552,103 @@ export const SeasonTeamDetailPage: React.FC = () => {
       )
       setOwnerOverview(matched || null)
       setOverviewUpdatedAt(matched ? new Date() : null)
+
+      const rawSettingsMax = settingsRes?.max_squad_size
+      const resolvedSettingsMax =
+        rawSettingsMax !== null &&
+        rawSettingsMax !== undefined &&
+        Number.isFinite(Number(rawSettingsMax)) &&
+        Number(rawSettingsMax) > 0
+          ? Math.round(Number(rawSettingsMax))
+          : null
+      setOwnerMaxSquadSize(resolvedSettingsMax)
+
+      if (matched && id) {
+        const directMinBase =
+          matched.min_available_base_points ??
+          matched.lowest_available_base_points ??
+          matched.min_base_points
+        const hasDirectMinBase =
+          directMinBase !== undefined &&
+          directMinBase !== null &&
+          Number.isFinite(Number(directMinBase))
+
+        const { data: seasonPlayerRows, error: seasonPlayerErr } = await supabase
+          .from('players')
+          .select('id, base_points, status')
+          .eq('season_id', id)
+
+        if (!seasonPlayerErr && Array.isArray(seasonPlayerRows)) {
+          const metaMap: Record<string, OwnerPlayerMeta> = {}
+          const availableBases: number[] = []
+          for (const row of seasonPlayerRows as Array<{
+            id?: string
+            base_points?: unknown
+            status?: unknown
+          }>) {
+            if (!row.id) continue
+            const parsedBase =
+              row.base_points !== null &&
+              row.base_points !== undefined &&
+              Number.isFinite(Number(row.base_points))
+                ? Math.max(0, Number(row.base_points))
+                : null
+            const statusStr =
+              typeof row.status === 'string' && row.status.trim()
+                ? row.status.trim().toLowerCase()
+                : null
+            metaMap[String(row.id)] = {
+              base_points: parsedBase,
+              status: statusStr
+            }
+            if (statusStr === 'available' && parsedBase !== null) {
+              availableBases.push(parsedBase)
+            }
+          }
+          setOwnerPlayerMetaById(metaMap)
+          setOwnerPublicBaseById(null)
+          if (hasDirectMinBase) {
+            setOwnerMinAvailableBase(Math.max(0, Number(directMinBase)))
+          } else {
+            setOwnerMinAvailableBase(
+              availableBases.length > 0 ? Math.min(...availableBases) : 0
+            )
+          }
+        } else {
+          setOwnerPlayerMetaById({})
+          const { data: pubBaseRows, error: pubBaseErr } = await supabase
+            .from('public_players')
+            .select('id, base_points')
+            .eq('season_id', id)
+
+          if (!pubBaseErr && Array.isArray(pubBaseRows)) {
+            const baseMap: Record<string, number> = {}
+            for (const row of pubBaseRows as Array<{ id?: string; base_points?: unknown }>) {
+              if (
+                row.id &&
+                row.base_points !== null &&
+                row.base_points !== undefined &&
+                Number.isFinite(Number(row.base_points))
+              ) {
+                baseMap[String(row.id)] = Math.max(0, Number(row.base_points))
+              }
+            }
+            setOwnerPublicBaseById(Object.keys(baseMap).length > 0 ? baseMap : null)
+          } else {
+            setOwnerPublicBaseById(null)
+          }
+
+          if (hasDirectMinBase) {
+            setOwnerMinAvailableBase(Math.max(0, Number(directMinBase)))
+          } else {
+            setOwnerMinAvailableBase(null)
+          }
+        }
+      } else {
+        setOwnerMinAvailableBase(null)
+        setOwnerPublicBaseById(null)
+        setOwnerPlayerMetaById({})
+      }
     } catch (err) {
       console.error('Failed to load owner overview:', err)
       setOwnerOverview(null)
@@ -176,13 +662,21 @@ export const SeasonTeamDetailPage: React.FC = () => {
     if (user?.role === 'owner' && teamId) {
       setOwnerOverview(null)
       setOverviewUpdatedAt(null)
+      setOwnerMaxSquadSize(null)
+      setOwnerMinAvailableBase(null)
+      setOwnerPublicBaseById(null)
+      setOwnerPlayerMetaById({})
       fetchOwnerOverview()
     } else {
       setOwnerOverview(null)
       setOverviewUpdatedAt(null)
+      setOwnerMaxSquadSize(null)
+      setOwnerMinAvailableBase(null)
+      setOwnerPublicBaseById(null)
+      setOwnerPlayerMetaById({})
       setIsLoadingOverview(false)
     }
-  }, [user?.role, user?.id, teamId])
+  }, [user?.role, user?.id, id, teamId])
 
   const loadData = async (options?: { force?: boolean }) => {
     if (!id || !teamId) return
@@ -191,6 +685,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
     const cached = getCachedTeamDetail(id, teamId)
 
     if (cached && !options?.force) {
+      setSeason(cached.season)
       setTeam(cached.team)
       setTeamPlayers(cached.teamPlayers)
       setAllPlayers(cached.allPlayers)
@@ -269,6 +764,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
       setCachedQuery(queryKey, nextEntry)
 
       if (changed) {
+        setSeason(s)
         setTeam(foundTeam)
         setAllPlayers(seasonPlayers)
         setTeamPlayers(nextEntry.teamPlayers)
@@ -311,6 +807,108 @@ export const SeasonTeamDetailPage: React.FC = () => {
   const showOwnerPhoto =
     Boolean(ownerPhotoUrl) && failedOwnerPhotoUrl !== ownerPhotoUrl
   const showOwnerSection = Boolean(ownerName) || showOwnerPhoto
+
+  const handleSharePublicSquad = async () => {
+    if (!team || isSharingPublic) return
+    if (teamPlayers.length === 0) {
+      toast.toast('No players in this squad to share yet.', 'info')
+      return
+    }
+
+    setIsSharingPublic(true)
+    try {
+      const orderedRoleKeys = [
+        ...sportRoles,
+        ...Array.from(
+          new Set(
+            teamPlayers
+              .map((p) => p.playing_role)
+              .filter(
+                (r) =>
+                  !sportRoles.some((sr) => sr.toLowerCase() === r.toLowerCase())
+              )
+          )
+        )
+      ]
+      const orderedPlayers = orderedRoleKeys.flatMap((role) =>
+        teamPlayers.filter(
+          (p) => p.playing_role.toLowerCase() === role.toLowerCase()
+        )
+      )
+      const playersForShare = (orderedPlayers.length > 0 ? orderedPlayers : teamPlayers).map(
+        (p) => ({
+          name: p.name,
+          role: p.playing_role,
+          photoUrl: p.photo_thumb_url || p.photo_url || null
+        })
+      )
+
+      const { shareSquadImage } = await import('../../lib/shareSquadImage')
+      const result = await shareSquadImage({
+        teamName: team.name,
+        sport: team.sport,
+        seasonName: season?.name || activeSeason?.name || null,
+        ownerName: ownerName || null,
+        teamColor: getValidTeamColor(team.color),
+        players: playersForShare,
+        showPrices: false
+      })
+
+      if (result.outcome === 'downloaded') {
+        toast.success('Squad image downloaded.')
+      }
+    } catch (err) {
+      console.error('Failed to generate squad share image:', err)
+      toast.error('Could not generate squad image.')
+    } finally {
+      setIsSharingPublic(false)
+    }
+  }
+
+  const handleShareOwnerSquad = async (
+    boughtPlayers: Array<{
+      name: string
+      playing_role: string
+      purchase_price: number
+      photo_url: string | null
+    }>,
+    purseSummary: { spent: number; remaining: number }
+  ) => {
+    if (!team || isSharingOwner) return
+    if (boughtPlayers.length === 0) {
+      toast.toast('No players acquired yet to share.', 'info')
+      return
+    }
+
+    setIsSharingOwner(true)
+    try {
+      const { shareSquadImage } = await import('../../lib/shareSquadImage')
+      const result = await shareSquadImage({
+        teamName: team.name,
+        sport: team.sport,
+        seasonName: season?.name || activeSeason?.name || null,
+        ownerName: ownerName || null,
+        teamColor: getValidTeamColor(team.color),
+        players: boughtPlayers.map((bp) => ({
+          name: bp.name,
+          role: bp.playing_role,
+          photoUrl: bp.photo_url,
+          price: bp.purchase_price
+        })),
+        showPrices: true,
+        purseSummary
+      })
+
+      if (result.outcome === 'downloaded') {
+        toast.success('Squad image downloaded.')
+      }
+    } catch (err) {
+      console.error('Failed to generate owner squad share image:', err)
+      toast.error('Could not generate squad image.')
+    } finally {
+      setIsSharingOwner(false)
+    }
+  }
 
   useEffect(() => {
     if (!isOwnerPhotoOpen) return
@@ -594,16 +1192,32 @@ export const SeasonTeamDetailPage: React.FC = () => {
                 list = rawPlayers
               }
 
-              const boughtPlayers = list.map((p: any) => {
+              const boughtPlayers = list.map((p: any, index: number) => {
                 const rawPhoto = p.photo_thumb_url ?? p.photo_url ?? null
                 const photoUrl =
                   typeof rawPhoto === 'string' && rawPhoto.trim() ? rawPhoto.trim() : null
+                const rawSoldAt =
+                  p.sold_at ?? p.purchased_at ?? p.sale_at ?? p.bought_at ?? p.created_at ?? null
+                const parsedSoldAt =
+                  rawSoldAt && !Number.isNaN(new Date(rawSoldAt).getTime())
+                    ? new Date(rawSoldAt)
+                    : null
+                const rawPurseAfter = p.purse_after ?? p.balance_after ?? null
+                const explicitPurseAfter =
+                  rawPurseAfter !== null &&
+                  rawPurseAfter !== undefined &&
+                  Number.isFinite(Number(rawPurseAfter))
+                    ? Math.max(0, Number(rawPurseAfter))
+                    : null
                 return {
+                  index,
                   athlete_code: formatAthleteCode(p.athlete_code ?? p.player_code ?? p.code ?? p.id),
                   name: String(p.name || p.player_name || 'Unnamed Player'),
                   playing_role: String(p.playing_role || p.role || 'Player'),
                   purchase_price: Number(p.purchase_price ?? p.price ?? p.amount ?? 0),
-                  photo_url: photoUrl
+                  photo_url: photoUrl,
+                  sold_at: parsedSoldAt,
+                  purse_after: explicitPurseAfter
                 }
               })
 
@@ -638,29 +1252,286 @@ export const SeasonTeamDetailPage: React.FC = () => {
                   })
                 : null
 
+              // 1. Max Bid calculation
+              const rawOverviewMaxSquad =
+                ownerOverview.max_squad_size ??
+                ownerOverview.maximum_squad_size ??
+                ownerOverview.squad_limit ??
+                null
+              const resolvedMaxSquadSize =
+                rawOverviewMaxSquad !== null &&
+                rawOverviewMaxSquad !== undefined &&
+                Number.isFinite(Number(rawOverviewMaxSquad)) &&
+                Number(rawOverviewMaxSquad) > 0
+                  ? Math.round(Number(rawOverviewMaxSquad))
+                  : ownerMaxSquadSize
+
+              const lowestAvailableBaseFromLoaded = (() => {
+                if (ownerMinAvailableBase !== null) return ownerMinAvailableBase
+                const availableBases: number[] = []
+                for (const p of allPlayers) {
+                  const isAvailable = p.status === 'available' || (!p.status && !p.team_id)
+                  if (!isAvailable) continue
+                  const baseVal =
+                    p.base_points !== undefined && p.base_points !== null
+                      ? Number(p.base_points)
+                      : ownerPublicBaseById && ownerPublicBaseById[p.id] !== undefined
+                      ? ownerPublicBaseById[p.id]
+                      : null
+                  if (baseVal !== null && Number.isFinite(baseVal)) {
+                    availableBases.push(Math.max(0, baseVal))
+                  }
+                }
+                if (availableBases.length > 0) {
+                  return Math.min(...availableBases)
+                }
+                return null
+              })()
+
+              const hasConfiguredMaxSquad =
+                resolvedMaxSquadSize !== null && resolvedMaxSquadSize > 0
+              const minTargetSquadSize = rosterCount + 1
+              const effectiveTargetSquadSize = Math.max(
+                minTargetSquadSize,
+                customTargetSquadSize ?? minTargetSquadSize
+              )
+              const activeSquadLimit = hasConfiguredMaxSquad
+                ? resolvedMaxSquadSize
+                : effectiveTargetSquadSize
+
+              const remainingSlots = Math.max(0, activeSquadLimit - rosterCount)
+              const reserveSlots = Math.max(0, remainingSlots - 1)
+              const effectiveMinBase = lowestAvailableBaseFromLoaded ?? 0
+              const rawMaxBid = safeRemaining - reserveSlots * effectiveMinBase
+              const isNotEnoughPurse =
+                remainingSlots > 0 &&
+                lowestAvailableBaseFromLoaded !== null &&
+                lowestAvailableBaseFromLoaded > 0 &&
+                rawMaxBid < lowestAvailableBaseFromLoaded
+              const maxBidValue =
+                remainingSlots > 0 && !isNotEnoughPurse ? Math.max(0, rawMaxBid) : 0
+
+              // 2. Role coverage in the sport's configured role order (numbers only)
+              const roleCoverageCounts = sportRoles.map((role) => {
+                const target = role.trim().toLowerCase()
+                const count = boughtPlayers.filter(
+                  (bp) => bp.playing_role.trim().toLowerCase() === target
+                ).length
+                return { role, count }
+              })
+
+              // 3. Merged Players Bought & Purchases timeline computed in the browser
+              const hasAnySaleTime = boughtPlayers.some((bp) => bp.sold_at !== null)
+              const orderedTimelineSource = hasAnySaleTime
+                ? [...boughtPlayers].sort((a, b) => {
+                    const ta = a.sold_at ? a.sold_at.getTime() : Number.MAX_SAFE_INTEGER
+                    const tb = b.sold_at ? b.sold_at.getTime() : Number.MAX_SAFE_INTEGER
+                    return ta - tb || a.index - b.index
+                  })
+                : boughtPlayers
+
+              const totalPurchaseSum = orderedTimelineSource.reduce(
+                (sum, bp) => sum + bp.purchase_price,
+                0
+              )
+              let runningPurse = safeRemaining + totalPurchaseSum
+              const mergedPurchases = orderedTimelineSource.map((bp) => {
+                runningPurse = Math.max(0, runningPurse - bp.purchase_price)
+                return {
+                  key: `${bp.athlete_code}-${bp.index}`,
+                  athlete_code: bp.athlete_code,
+                  name: bp.name,
+                  playing_role: bp.playing_role,
+                  photo_url: bp.photo_url,
+                  price: bp.purchase_price,
+                  purseAfter: bp.purse_after !== null ? bp.purse_after : runningPurse,
+                  timeLabel: bp.sold_at
+                    ? bp.sold_at.toLocaleTimeString([], {
+                        hour: 'numeric',
+                        minute: '2-digit'
+                      })
+                    : null
+                }
+              })
+
+              const ownerSharePayload = {
+                spent: safeSpent,
+                remaining: safeRemaining
+              }
+
+              // 4. Shortlist derived data
+              const allPlayersById = new Map<string, PublicPlayer>()
+              for (const p of allPlayers) {
+                allPlayersById.set(p.id, p)
+              }
+
+              const shortlistedIds = new Set(shortlistRows.map((r) => r.player_id))
+
+              const enrichedShortlist = shortlistRows
+                .map((row) => {
+                  const player = allPlayersById.get(row.player_id)
+                  const meta = ownerPlayerMetaById[row.player_id]
+                  const resolvedStatus = (
+                    meta?.status ??
+                    player?.status ??
+                    'available'
+                  ).toLowerCase()
+                  const resolvedBase =
+                    meta?.base_points ??
+                    (player?.base_points !== undefined && player?.base_points !== null
+                      ? Number(player.base_points)
+                      : ownerPublicBaseById?.[row.player_id] ?? null)
+                  return {
+                    row,
+                    name: player?.name || 'Player',
+                    athleteCode: player
+                      ? formatAthleteCode(player.athlete_code ?? player.player_code)
+                      : null,
+                    playingRole: player?.playing_role || 'Player',
+                    sport: player?.sport || '',
+                    photoUrl: player?.photo_thumb_url || player?.photo_url || null,
+                    basePoints: resolvedBase,
+                    status: resolvedStatus,
+                    isSold: resolvedStatus === 'sold'
+                  }
+                })
+                .sort((a, b) => Number(a.isSold) - Number(b.isSold))
+
+              const teamSportLower = team.sport.trim().toLowerCase()
+              const hasOtherSports = allPlayers.some(
+                (p) => p.sport.trim().toLowerCase() !== teamSportLower
+              )
+              const cleanSearch = shortlistSearch.trim().toLowerCase()
+              const availableSeasonPlayers = allPlayers
+                .filter((p) => {
+                  const effStatus = (
+                    ownerPlayerMetaById[p.id]?.status ??
+                    p.status ??
+                    'available'
+                  ).toLowerCase()
+                  if (effStatus !== 'available') return false
+                  if (
+                    shortlistScope === 'team_sport' &&
+                    p.sport.trim().toLowerCase() !== teamSportLower
+                  ) {
+                    return false
+                  }
+                  if (!cleanSearch) return true
+                  const codeStr = formatAthleteCode(p.athlete_code ?? p.player_code).toLowerCase()
+                  return (
+                    p.name.toLowerCase().includes(cleanSearch) ||
+                    p.playing_role.toLowerCase().includes(cleanSearch) ||
+                    codeStr.includes(cleanSearch)
+                  )
+                })
+                .map((p) => {
+                  const meta = ownerPlayerMetaById[p.id]
+                  const basePoints =
+                    meta?.base_points ??
+                    (p.base_points !== undefined && p.base_points !== null
+                      ? Number(p.base_points)
+                      : ownerPublicBaseById?.[p.id] ?? null)
+                  return {
+                    player: p,
+                    athleteCode: formatAthleteCode(p.athlete_code ?? p.player_code),
+                    basePoints,
+                    isStarred: shortlistedIds.has(p.id)
+                  }
+                })
+
+              const showAnnouncementBanner = Boolean(
+                latestAnnouncement &&
+                  latestAnnouncement.is_active &&
+                  latestAnnouncement.id !== dismissedAnnouncementId
+              )
+
               return (
-                <div className="bg-surface border border-border rounded-3xl p-5 sm:p-8 shadow-sm relative overflow-hidden font-dm-sans">
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-border">
+                <div className="bg-surface border border-border rounded-3xl p-4 sm:p-6 shadow-sm relative overflow-hidden font-dm-sans">
+                  {showAnnouncementBanner && latestAnnouncement && (
+                    <div
+                      role="status"
+                      className="frost border border-accent-bright/35 rounded-2xl px-3.5 py-3 mb-4 flex items-start justify-between gap-3"
+                    >
+                      <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                        <span className="w-8 h-8 rounded-full bg-accent/15 border border-accent-bright/30 flex items-center justify-center shrink-0 mt-0.5">
+                          <Megaphone
+                            size={15}
+                            weight="regular"
+                            className="text-accent-bright"
+                          />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent-bright font-semibold">
+                              Announcement
+                            </span>
+                            {latestAnnouncement.created_at && (
+                              <span className="font-mono text-[11px] text-muted tabular-nums">
+                                {formatShortTime(latestAnnouncement.created_at)}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-text mt-0.5 break-words leading-snug">
+                            {latestAnnouncement.message}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDismissAnnouncement(latestAnnouncement.id)}
+                        aria-label="Dismiss announcement"
+                        className="w-7 h-7 rounded-full bg-surface-2 border border-border inline-flex items-center justify-center text-muted hover:text-text hover:border-accent-bright/40 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                      >
+                        <X size={14} weight="bold" />
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-4 border-b border-border">
                     <div>
-                      <span className="block text-[11px] font-mono uppercase tracking-[0.16em] text-accent-bright font-semibold mb-1.5">
+                      <span className="block text-[11px] font-mono uppercase tracking-[0.16em] text-accent-bright font-semibold mb-1">
                         CONFIDENTIAL FRANCHISE PORTAL
                       </span>
                       <h2 className="font-syne font-bold text-2xl sm:text-3xl text-text tracking-tight">
                         Owner Panel
                       </h2>
                       {updatedTimeLabel && (
-                        <span className="block font-mono text-[11px] text-muted mt-1.5 tabular-nums">
+                        <span className="block font-mono text-[11px] text-muted mt-1 tabular-nums">
                           Updated {updatedTimeLabel}
                         </span>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2 self-start shrink-0">
+                    <div className="flex flex-wrap items-center gap-2 self-start shrink-0">
                       <button
                         type="button"
-                        onClick={fetchOwnerOverview}
+                        onClick={() => void handleShareOwnerSquad(boughtPlayers, ownerSharePayload)}
+                        disabled={isSharingOwner}
+                        className="hidden sm:inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-accent text-on-accent hover:opacity-90 active:scale-[0.98] text-sm font-semibold transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                      >
+                        {isSharingOwner ? (
+                          <CircleNotch
+                            size={16}
+                            weight="regular"
+                            className="animate-spin motion-reduce:animate-none"
+                          />
+                        ) : (
+                          <ShareNetwork size={16} weight="regular" />
+                        )}
+                        <span>Share squad</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void loadData({ force: true })
+                          void fetchOwnerOverview()
+                          void fetchOwnerShortlist()
+                          void fetchLatestAnnouncement({ notifyIfNew: false })
+                        }}
                         disabled={isLoadingOverview}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-surface-2 hover:opacity-85 active:scale-[0.98] border border-border text-xs font-medium text-text transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 disabled:opacity-50 cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-surface-2 hover:opacity-85 active:scale-[0.98] border border-border text-xs font-medium text-text transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 disabled:opacity-50 cursor-pointer"
                       >
                         {isLoadingOverview ? (
                           <CircleNotch
@@ -675,7 +1546,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => logout()}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-surface-2 hover:opacity-85 active:scale-[0.98] border border-border text-xs font-medium text-muted hover:text-text transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-surface-2 hover:opacity-85 active:scale-[0.98] border border-border text-xs font-medium text-muted hover:text-text transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 cursor-pointer"
                       >
                         <SignOut size={14} />
                         <span>Sign out</span>
@@ -684,111 +1555,631 @@ export const SeasonTeamDetailPage: React.FC = () => {
                   </div>
 
                   {/* Purse Block */}
-                  <div className="py-6 border-b border-border flex flex-col md:flex-row md:items-end justify-between gap-6">
-                    <div className="flex-1 min-w-0">
-                      <span className="block font-mono text-[11px] uppercase tracking-[0.14em] text-muted mb-1.5">
-                        PURSE REMAINING
-                      </span>
-                      <div className="font-mono text-3xl sm:text-4xl font-bold text-accent-bright tabular-nums tracking-tight leading-none">
-                        {formatPoints(currentPurse)}
-                      </div>
-                      <div
-                        role="progressbar"
-                        aria-label="Purse spent"
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                        aria-valuenow={Math.round(spentRatio * 100)}
-                        className="mt-4 h-1.5 w-full max-w-md rounded-full bg-surface-2 overflow-hidden"
-                      >
+                  <div className="py-4 border-b border-border space-y-4">
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <span className="block font-mono text-[11px] uppercase tracking-[0.14em] text-muted mb-1">
+                          PURSE REMAINING
+                        </span>
+                        <div className="font-mono text-3xl sm:text-4xl font-bold text-accent-bright tabular-nums tracking-tight leading-none">
+                          {formatPoints(currentPurse)}
+                        </div>
                         <div
-                          className="h-full w-full rounded-full bg-accent-bright origin-left transition-transform duration-300 motion-reduce:transition-none"
-                          style={{ transform: `scaleX(${spentRatio})` }}
+                          role="progressbar"
+                          aria-label="Purse spent"
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-valuenow={Math.round(spentRatio * 100)}
+                          className="mt-3 h-1.5 w-full max-w-md rounded-full bg-surface-2 overflow-hidden"
+                        >
+                          <div
+                            className="h-full w-full rounded-full bg-accent-bright origin-left transition-transform duration-300 motion-reduce:transition-none"
+                            style={{ transform: `scaleX(${spentRatio})` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-start gap-x-7 gap-y-3 md:shrink-0 md:pb-0.5">
+                        <div>
+                          <span className="block font-mono text-[11px] uppercase tracking-[0.14em] text-muted mb-0.5">
+                            PURSE SPENT
+                          </span>
+                          <span className="font-mono text-lg sm:text-xl font-bold text-text tabular-nums">
+                            {formatPoints(purseSpent)}
+                          </span>
+                        </div>
+
+                        <div>
+                          <span className="block font-mono text-[11px] uppercase tracking-[0.14em] text-muted mb-0.5">
+                            ROSTER COUNT
+                          </span>
+                          <span className="font-mono text-lg sm:text-xl font-bold text-text tabular-nums">
+                            {rosterCount}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Mobile primary Share squad button directly under purse stats */}
+                    <button
+                      type="button"
+                      onClick={() => void handleShareOwnerSquad(boughtPlayers, ownerSharePayload)}
+                      disabled={isSharingOwner}
+                      className="sm:hidden w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full bg-accent text-on-accent hover:opacity-90 active:scale-[0.98] text-sm font-semibold transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 disabled:opacity-50 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                    >
+                      {isSharingOwner ? (
+                        <CircleNotch
+                          size={16}
+                          weight="regular"
+                          className="animate-spin motion-reduce:animate-none"
                         />
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-start gap-x-8 gap-y-4 md:shrink-0 md:pb-0.5">
-                      <div>
-                        <span className="block font-mono text-[11px] uppercase tracking-[0.14em] text-muted mb-1">
-                          PURSE SPENT
-                        </span>
-                        <span className="font-mono text-lg sm:text-xl font-bold text-text tabular-nums">
-                          {formatPoints(purseSpent)}
-                        </span>
-                      </div>
-
-                      <div>
-                        <span className="block font-mono text-[11px] uppercase tracking-[0.14em] text-muted mb-1">
-                          ROSTER COUNT
-                        </span>
-                        <span className="font-mono text-lg sm:text-xl font-bold text-text tabular-nums">
-                          {rosterCount}
-                        </span>
-                      </div>
-                    </div>
+                      ) : (
+                        <ShareNetwork size={16} weight="regular" />
+                      )}
+                      <span>Share squad</span>
+                    </button>
                   </div>
 
-                  {/* Players Bought */}
-                  <div className="pt-6">
-                    <h3 className="font-syne font-bold text-base text-text mb-3">
-                      Players Bought ({boughtPlayers.length})
-                    </h3>
+                  {/* Max Bid & Role Coverage side by side on wide screens */}
+                  <div
+                    className={`py-4 border-b border-border grid grid-cols-1 gap-3 ${
+                      roleCoverageCounts.length > 0
+                        ? 'lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]'
+                        : ''
+                    }`}
+                  >
+                    {/* 1. Max Bid Card */}
+                    <div className="frost border border-border rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between gap-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+                          MAX BID
+                        </span>
 
-                    {boughtPlayers.length === 0 ? (
-                      <p className="px-4 py-5 rounded-2xl bg-surface-2 border border-border text-xs text-muted text-center">
+                        {!hasConfiguredMaxSquad && (
+                          <div className="inline-flex items-center gap-2">
+                            <span className="text-xs text-muted">Target squad size</span>
+                            <div className="inline-flex items-center rounded-full bg-surface-2 border border-border p-0.5">
+                              <button
+                                type="button"
+                                aria-label="Decrease target squad size"
+                                disabled={effectiveTargetSquadSize <= minTargetSquadSize}
+                                onClick={() =>
+                                  updateTargetSquadSize(effectiveTargetSquadSize - 1)
+                                }
+                                className="w-6 h-6 rounded-full inline-flex items-center justify-center text-text hover:bg-surface disabled:opacity-35 cursor-pointer disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                              >
+                                <Minus size={12} weight="bold" />
+                              </button>
+                              <span className="px-2 font-mono text-xs font-bold text-text tabular-nums min-w-[24px] text-center">
+                                {effectiveTargetSquadSize}
+                              </span>
+                              <button
+                                type="button"
+                                aria-label="Increase target squad size"
+                                onClick={() =>
+                                  updateTargetSquadSize(effectiveTargetSquadSize + 1)
+                                }
+                                className="w-6 h-6 rounded-full inline-flex items-center justify-center text-text hover:bg-surface cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                              >
+                                <Plus size={12} weight="bold" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <span className="block text-[11px] text-muted">Purse left</span>
+                          <div className="font-mono text-lg sm:text-xl font-bold text-text tabular-nums mt-0.5">
+                            {formatPoints(safeRemaining)}
+                          </div>
+                        </div>
+
+                        <div>
+                          <span className="block text-[11px] text-muted">Remaining slots</span>
+                          <div className="font-mono text-lg sm:text-xl font-bold text-text tabular-nums mt-0.5">
+                            {remainingSlots}
+                            <span className="text-[11px] font-normal text-muted ml-1">
+                              / {activeSquadLimit}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <span className="block text-[11px] text-muted">Max bid</span>
+                          {remainingSlots === 0 ? (
+                            <div className="font-syne font-bold text-lg sm:text-xl text-text tracking-tight mt-0.5">
+                              Squad full
+                            </div>
+                          ) : (
+                            <div className="font-mono text-lg sm:text-xl font-bold text-accent-bright tabular-nums mt-0.5">
+                              {formatPoints(maxBidValue)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-border space-y-1 text-xs text-muted">
+                        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
+                          <span className="font-mono text-[11px] tabular-nums">
+                            Lowest base available:{' '}
+                            <span className="text-text font-semibold">
+                              {lowestAvailableBaseFromLoaded !== null
+                                ? formatPoints(lowestAvailableBaseFromLoaded)
+                                : '—'}
+                            </span>
+                          </span>
+                          {isNotEnoughPurse && (
+                            <span className="text-error font-medium">
+                              Not enough purse to fill the squad
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] leading-snug">
+                          {remainingSlots === 0
+                            ? `All ${activeSquadLimit} squad slots are filled (${rosterCount} owned).`
+                            : `Purse (${formatPoints(safeRemaining)}) minus (${remainingSlots} - 1) remaining ${
+                                reserveSlots === 1 ? 'slot' : 'slots'
+                              } x ${formatPoints(effectiveMinBase)} lowest base available.`}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 2. Role Coverage */}
+                    {roleCoverageCounts.length > 0 && (
+                      <div className="frost border border-border rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between gap-2.5">
+                        <span className="block font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+                          ROLE COVERAGE
+                        </span>
+                        <div className="flex flex-wrap items-center gap-2 my-auto">
+                          {roleCoverageCounts.map(({ role, count }) => (
+                            <div
+                              key={role}
+                              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-2 border border-border"
+                            >
+                              <span className="text-xs text-muted">{role}</span>
+                              <span className="font-mono text-sm font-bold text-text tabular-nums">
+                                {count}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Merged Players Bought & Purchases Timeline */}
+                  <div className="pt-4">
+                    <div className="flex items-center justify-between gap-3 mb-2.5">
+                      <h3 className="font-syne font-bold text-base text-text">
+                        Players Bought ({mergedPurchases.length})
+                      </h3>
+                    </div>
+
+                    {mergedPurchases.length === 0 ? (
+                      <p className="px-4 py-4 rounded-2xl bg-surface-2 border border-border text-xs text-muted text-center">
                         No players acquired yet.
                       </p>
                     ) : (
-                      <ul className="space-y-2.5">
-                        {boughtPlayers.map((bp, idx) => {
+                      <ul className="space-y-2">
+                        {mergedPurchases.map((entry) => {
                           const showPhoto =
-                            Boolean(bp.photo_url) &&
-                            !failedBoughtPhotoUrls[bp.photo_url as string]
+                            Boolean(entry.photo_url) &&
+                            !failedBoughtPhotoUrls[entry.photo_url as string]
                           return (
                             <li
-                              key={`${bp.athlete_code}-${idx}`}
-                              className="rounded-2xl bg-surface-2 border border-border px-3.5 py-3 sm:px-4 flex items-center justify-between gap-3"
+                              key={entry.key}
+                              className="rounded-2xl bg-surface-2 border border-border px-3 py-2.5 sm:px-3.5 flex items-center justify-between gap-3"
                             >
-                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <div className="flex items-center gap-2.5 min-w-0 flex-1">
                                 {showPhoto && (
                                   <img
-                                    src={bp.photo_url as string}
-                                    alt={bp.name}
-                                    width={40}
-                                    height={40}
+                                    src={entry.photo_url as string}
+                                    alt={entry.name}
+                                    width={36}
+                                    height={36}
                                     loading="lazy"
                                     decoding="async"
                                     referrerPolicy="no-referrer"
                                     onError={() => {
-                                      if (bp.photo_url) {
+                                      if (entry.photo_url) {
                                         setFailedBoughtPhotoUrls((prev) =>
-                                          prev[bp.photo_url as string]
+                                          prev[entry.photo_url as string]
                                             ? prev
-                                            : { ...prev, [bp.photo_url as string]: true }
+                                            : { ...prev, [entry.photo_url as string]: true }
                                         )
                                       }
                                     }}
-                                    className="w-10 h-10 rounded-xl object-cover border border-border shrink-0"
+                                    className="w-9 h-9 rounded-xl object-cover border border-border shrink-0"
                                   />
                                 )}
-                                <div className="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2.5">
+                                <div className="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2">
                                   <div className="flex items-center gap-2 min-w-0">
                                     <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface border border-border font-mono text-[11px] font-bold text-accent-bright tabular-nums shrink-0">
-                                      {bp.athlete_code}
+                                      {entry.athlete_code}
                                     </span>
                                     <span className="font-medium text-sm text-text truncate">
-                                      {bp.name}
+                                      {entry.name}
                                     </span>
                                   </div>
-                                  <span className="text-xs text-muted truncate">
-                                    {bp.playing_role}
-                                  </span>
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="text-xs text-muted truncate">
+                                      {entry.playing_role}
+                                    </span>
+                                    {entry.timeLabel && (
+                                      <span className="font-mono text-[11px] text-muted tabular-nums shrink-0">
+                                        {entry.timeLabel}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
 
-                              <span className="font-mono text-xs sm:text-sm font-semibold text-text tabular-nums shrink-0 text-right">
-                                {formatPoints(bp.purchase_price)}
-                              </span>
+                              <div className="flex flex-col items-end shrink-0 text-right">
+                                <span className="font-mono text-xs sm:text-sm font-semibold text-text tabular-nums">
+                                  {formatPoints(entry.price)}
+                                </span>
+                                <span className="font-mono text-[11px] text-muted tabular-nums">
+                                  Purse after {formatPoints(entry.purseAfter)}
+                                </span>
+                              </div>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                  </div>
+
+                  {/* Private Owner Shortlist */}
+                  <div className="pt-4 mt-4 border-t border-border">
+                    <div className="flex flex-wrap items-center justify-between gap-2.5 mb-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <h3 className="font-syne font-bold text-base text-text">
+                          Shortlist ({enrichedShortlist.length})
+                        </h3>
+                        <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted px-2 py-0.5 rounded-full bg-surface-2 border border-border">
+                          Private
+                        </span>
+                        {isLoadingShortlist && (
+                          <CircleNotch
+                            size={14}
+                            weight="regular"
+                            className="text-muted animate-spin motion-reduce:animate-none"
+                          />
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsShortlistPickerOpen((prev) => !prev)}
+                        className="frost inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border text-xs font-medium text-text hover:border-accent-bright/50 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                      >
+                        {isShortlistPickerOpen ? (
+                          <>
+                            <X size={13} weight="bold" />
+                            <span>Done</span>
+                          </>
+                        ) : (
+                          <>
+                            <Star size={13} weight="regular" className="text-accent-bright" />
+                            <span>Star available players</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {isShortlistPickerOpen && (
+                      <div className="frost border border-border rounded-2xl p-3 sm:p-3.5 mb-3 space-y-2.5">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                          <div className="relative flex-1 min-w-0">
+                            <MagnifyingGlass
+                              size={14}
+                              weight="regular"
+                              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+                            />
+                            <input
+                              type="text"
+                              value={shortlistSearch}
+                              onChange={(e) => setShortlistSearch(e.target.value)}
+                              placeholder="Search available players by name, ID, or role..."
+                              className="w-full h-9 pl-8 pr-3 rounded-xl bg-bg border border-border text-xs text-text placeholder:text-muted focus:outline-none focus:border-accent-bright"
+                            />
+                          </div>
+
+                          {hasOtherSports && (
+                            <div className="inline-flex items-center gap-1 p-0.5 rounded-full bg-surface-2 border border-border self-start shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setShortlistScope('team_sport')}
+                                className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors cursor-pointer ${
+                                  shortlistScope === 'team_sport'
+                                    ? 'bg-accent text-on-accent'
+                                    : 'text-muted hover:text-text'
+                                }`}
+                              >
+                                {team.sport}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setShortlistScope('all')}
+                                className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors cursor-pointer ${
+                                  shortlistScope === 'all'
+                                    ? 'bg-accent text-on-accent'
+                                    : 'text-muted hover:text-text'
+                                }`}
+                              >
+                                All sports
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {availableSeasonPlayers.length === 0 ? (
+                          <p className="text-xs text-muted text-center py-3">
+                            No available players match this filter.
+                          </p>
+                        ) : (
+                          <ul className="max-h-56 overflow-y-auto thin-scrollbar space-y-1.5 pr-0.5">
+                            {availableSeasonPlayers.map(
+                              ({ player, athleteCode, basePoints, isStarred }) => {
+                                const isBusy = shortlistBusyKey === player.id
+                                return (
+                                  <li
+                                    key={player.id}
+                                    className="rounded-xl bg-surface-2 border border-border px-3 py-2 flex items-center justify-between gap-2.5"
+                                  >
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-surface border border-border font-mono text-[10px] font-bold text-accent-bright tabular-nums shrink-0">
+                                          {athleteCode}
+                                        </span>
+                                        <span className="text-xs sm:text-sm font-medium text-text truncate">
+                                          {player.name}
+                                        </span>
+                                      </div>
+                                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted mt-0.5">
+                                        <span>{player.playing_role}</span>
+                                        {shortlistScope === 'all' && (
+                                          <span>· {player.sport}</span>
+                                        )}
+                                        {basePoints !== null && (
+                                          <span className="font-mono tabular-nums">
+                                            · Base {formatPoints(basePoints)}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleToggleShortlist(player.id)}
+                                      disabled={Boolean(shortlistBusyKey)}
+                                      aria-label={
+                                        isStarred
+                                          ? `Remove ${player.name} from shortlist`
+                                          : `Add ${player.name} to shortlist`
+                                      }
+                                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-medium transition-colors cursor-pointer disabled:opacity-45 shrink-0 ${
+                                        isStarred
+                                          ? 'bg-accent/15 border-accent-bright/40 text-accent-bright'
+                                          : 'bg-surface border-border text-muted hover:text-text hover:border-accent-bright/40'
+                                      }`}
+                                    >
+                                      {isBusy ? (
+                                        <CircleNotch
+                                          size={13}
+                                          weight="regular"
+                                          className="animate-spin motion-reduce:animate-none"
+                                        />
+                                      ) : (
+                                        <Star
+                                          size={13}
+                                          weight={isStarred ? 'fill' : 'regular'}
+                                        />
+                                      )}
+                                      <span>{isStarred ? 'Starred' : 'Star'}</span>
+                                    </button>
+                                  </li>
+                                )
+                              }
+                            )}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+
+                    {enrichedShortlist.length === 0 ? (
+                      <p className="px-4 py-4 rounded-2xl bg-surface-2 border border-border text-xs text-muted text-center">
+                        No players shortlisted yet. Star available players to track targets and private notes.
+                      </p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {enrichedShortlist.map((item) => {
+                          const isEditingNote = editingNoteRowId === item.row.id
+                          const isRowBusy =
+                            shortlistBusyKey === item.row.id ||
+                            shortlistBusyKey === item.row.player_id
+                          const showPhoto =
+                            Boolean(item.photoUrl) &&
+                            !failedBoughtPhotoUrls[item.photoUrl as string]
+                          const statusLabel = item.isSold
+                            ? 'Sold'
+                            : item.status === 'unsold'
+                            ? 'Unsold'
+                            : 'Available'
+
+                          return (
+                            <li
+                              key={item.row.id}
+                              className={`rounded-2xl bg-surface-2 border border-border px-3 py-2.5 sm:px-3.5 space-y-2 transition-opacity ${
+                                item.isSold ? 'opacity-55' : ''
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2.5">
+                                <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                                  {showPhoto && (
+                                    <img
+                                      src={item.photoUrl as string}
+                                      alt={item.name}
+                                      width={36}
+                                      height={36}
+                                      loading="lazy"
+                                      decoding="async"
+                                      referrerPolicy="no-referrer"
+                                      onError={() => {
+                                        if (item.photoUrl) {
+                                          setFailedBoughtPhotoUrls((prev) =>
+                                            prev[item.photoUrl as string]
+                                              ? prev
+                                              : { ...prev, [item.photoUrl as string]: true }
+                                          )
+                                        }
+                                      }}
+                                      className={`w-9 h-9 rounded-xl object-cover border border-border shrink-0 mt-0.5 ${
+                                        item.isSold ? 'grayscale' : ''
+                                      }`}
+                                    />
+                                  )}
+
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                      {item.athleteCode && (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface border border-border font-mono text-[11px] font-bold text-accent-bright tabular-nums shrink-0">
+                                          {item.athleteCode}
+                                        </span>
+                                      )}
+                                      <span className="font-medium text-sm text-text truncate">
+                                        {item.name}
+                                      </span>
+                                      <span
+                                        className={`inline-flex items-center px-2 py-0.5 rounded-full border font-mono text-[10px] uppercase tracking-wider shrink-0 ${
+                                          item.isSold
+                                            ? 'bg-surface border-border text-muted'
+                                            : item.status === 'available'
+                                            ? 'bg-accent/10 border-accent-bright/30 text-accent-bright font-medium'
+                                            : 'bg-surface border-border text-muted'
+                                        }`}
+                                      >
+                                        {statusLabel}
+                                      </span>
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-muted mt-0.5">
+                                      <span>{item.playingRole}</span>
+                                      <span className="font-mono text-[11px] tabular-nums">
+                                        Base{' '}
+                                        <span className="text-text font-medium">
+                                          {item.basePoints !== null
+                                            ? formatPoints(item.basePoints)
+                                            : '—'}
+                                        </span>
+                                      </span>
+                                    </div>
+
+                                    {!isEditingNote && item.row.note && (
+                                      <p className="text-xs text-muted mt-1.5 break-words leading-snug">
+                                        {item.row.note}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  {!isEditingNote && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingNoteRowId(item.row.id)
+                                        setEditingNoteValue(item.row.note || '')
+                                      }}
+                                      disabled={Boolean(shortlistBusyKey)}
+                                      aria-label={
+                                        item.row.note
+                                          ? `Edit note for ${item.name}`
+                                          : `Add note for ${item.name}`
+                                      }
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface border border-border text-[11px] font-medium text-muted hover:text-text hover:border-accent-bright/40 transition-colors cursor-pointer disabled:opacity-45"
+                                    >
+                                      <PencilSimple size={12} weight="regular" />
+                                      <span className="hidden sm:inline">
+                                        {item.row.note ? 'Edit note' : 'Note'}
+                                      </span>
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleToggleShortlist(item.row.player_id)}
+                                    disabled={Boolean(shortlistBusyKey)}
+                                    aria-label={`Remove ${item.name} from shortlist`}
+                                    className="w-7 h-7 rounded-full bg-surface border border-border inline-flex items-center justify-center text-accent-bright hover:border-accent-bright/50 transition-colors cursor-pointer disabled:opacity-45 shrink-0"
+                                  >
+                                    {isRowBusy ? (
+                                      <CircleNotch
+                                        size={13}
+                                        weight="regular"
+                                        className="animate-spin motion-reduce:animate-none"
+                                      />
+                                    ) : (
+                                      <Star size={14} weight="fill" />
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+
+                              {isEditingNote && (
+                                <form
+                                  onSubmit={(e) => {
+                                    e.preventDefault()
+                                    void handleSaveShortlistNote(item.row.id)
+                                  }}
+                                  className="pt-2 border-t border-border space-y-2"
+                                >
+                                  <input
+                                    type="text"
+                                    maxLength={SHORTLIST_NOTE_MAX}
+                                    value={editingNoteValue}
+                                    onChange={(e) => setEditingNoteValue(e.target.value)}
+                                    placeholder="Optional private note (max 140 characters)..."
+                                    className="w-full h-9 px-3 rounded-xl bg-bg border border-border text-xs text-text placeholder:text-muted focus:outline-none focus:border-accent-bright"
+                                  />
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="font-mono text-[11px] text-muted tabular-nums">
+                                      {editingNoteValue.length} / {SHORTLIST_NOTE_MAX}
+                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingNoteRowId(null)
+                                          setEditingNoteValue('')
+                                        }}
+                                        disabled={isRowBusy}
+                                        className="px-3 py-1 rounded-full bg-surface border border-border text-xs font-medium text-muted hover:text-text transition-colors cursor-pointer"
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        type="submit"
+                                        disabled={isRowBusy}
+                                        className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-accent text-on-accent text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
+                                      >
+                                        {isRowBusy ? (
+                                          <CircleNotch
+                                            size={12}
+                                            weight="regular"
+                                            className="animate-spin motion-reduce:animate-none"
+                                          />
+                                        ) : (
+                                          <Check size={12} weight="bold" />
+                                        )}
+                                        <span>Save</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                </form>
+                              )}
                             </li>
                           )
                         })}
@@ -801,12 +2192,33 @@ export const SeasonTeamDetailPage: React.FC = () => {
 
             {/* Team Roster Squad */}
             <section className="space-y-6">
-              <div className="flex items-center justify-between gap-3 pb-4 border-b border-border">
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-border">
                 <h2 className={`${PUBLIC_SECTION_TITLE} flex items-center gap-2.5`}>
                   <Users size={20} weight="regular" className="text-accent-bright shrink-0" />
                   <span>Squad Roster</span>
                 </h2>
-                <span className={PUBLIC_COUNT_PILL}>{teamPlayers.length}</span>
+                <div className="flex items-center gap-2.5 shrink-0">
+                  {!ownerOverview && (
+                    <button
+                      type="button"
+                      onClick={() => void handleSharePublicSquad()}
+                      disabled={isSharingPublic}
+                      className="frost inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-border text-xs font-medium text-text hover:border-accent-bright/50 active:scale-[0.98] transition-[border-color,opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                    >
+                      {isSharingPublic ? (
+                        <CircleNotch
+                          size={14}
+                          weight="regular"
+                          className="animate-spin motion-reduce:animate-none"
+                        />
+                      ) : (
+                        <ShareNetwork size={14} weight="regular" />
+                      )}
+                      <span>Share squad</span>
+                    </button>
+                  )}
+                  <span className={PUBLIC_COUNT_PILL}>{teamPlayers.length}</span>
+                </div>
               </div>
 
               {teamPlayers.length === 0 ? (
