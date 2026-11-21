@@ -7,3 +7,5 @@ export * from './Pagination'
 export * from './PageHeader'
 export * from './Spinner'
 export * from './SegmentedControl'
+export * from './Skeleton'
+

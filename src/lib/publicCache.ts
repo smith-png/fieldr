@@ -5,6 +5,7 @@ import type {
   PageContentSetting,
   PublicPlayer,
   PublicTeam,
+  RulesDocument,
   Season,
   Sport
 } from '../types'
@@ -89,5 +90,9 @@ export const publicCache = {
   },
   seasonDetails: new Map<string, SeasonDetailCacheEntry>(),
   seasonTeamDetails: new Map<string, SeasonTeamDetailCacheEntry>(),
-  playerProfiles: new Map<string, PlayerProfileCacheEntry>()
+  playerProfiles: new Map<string, PlayerProfileCacheEntry>(),
+  rulesDocuments: {
+    loaded: false,
+    value: [] as RulesDocument[]
+  }
 }

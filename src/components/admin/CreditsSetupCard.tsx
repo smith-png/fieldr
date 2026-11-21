@@ -425,18 +425,13 @@ export const CreditsSetupCard: React.FC = () => {
     : editingPerson?.photo_url || null
 
   return (
-    <div className="bg-surface border border-border rounded-2xl p-6 sm:p-8 space-y-8 shadow-sm">
+    <section className="bg-surface border border-border rounded-3xl p-6 sm:p-8 space-y-6">
       {/* Card Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
-        <div>
-          <h2 className="font-syne font-bold text-xl text-text">Credits</h2>
-          <p className="text-xs text-muted mt-1">
-            Manage main organizers and contributors displayed in the Credits section on the public About page.
-          </p>
-        </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-border">
+        <h2 className="font-syne font-bold text-xl text-text tracking-tight">Credits</h2>
 
         {isDemoMode && (
-          <div className="px-3.5 py-2 rounded-xl bg-surface-2 border border-border text-xs font-mono text-muted shrink-0">
+          <div className="px-3.5 py-1.5 rounded-full bg-surface-2 border border-border text-xs text-muted shrink-0 self-start sm:self-auto">
             Read-only in demo mode
           </div>
         )}
@@ -449,40 +444,34 @@ export const CreditsSetupCard: React.FC = () => {
           onRetry={() => loadCredits()}
         />
       ) : isLoading ? (
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {[1, 2].map((i) => (
             <div
               key={i}
-              className="h-20 bg-surface-2/60 border border-border rounded-xl animate-pulse"
+              className="h-32 bg-bg border border-border rounded-2xl animate-pulse"
             />
           ))}
         </div>
       ) : (
-        <div className="space-y-10">
-          {/* LIST 1: Main people (max 5) */}
-          <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3 flex-wrap">
-                <h3 className="font-syne font-bold text-lg text-text">
-                  Main people (max 5)
-                </h3>
-                <span className="px-2.5 py-1 rounded-lg bg-surface-2 border border-border font-mono text-xs text-text tabular-nums">
-                  {coreCount} of {MAX_CORE_PEOPLE}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          {/* Column 1: Main people (max 5) */}
+          <div className="space-y-3.5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-baseline gap-2.5 flex-wrap">
+                <h3 className="text-sm font-medium text-text">Main people</h3>
+                <span className="font-mono text-xs text-muted tabular-nums">
+                  {coreCount} / {MAX_CORE_PEOPLE}
                 </span>
-                {isCoreFull && (
-                  <span className="text-xs text-muted font-sans">
-                    Maximum of 5 main people reached.
-                  </span>
-                )}
               </div>
 
               <Button
                 type="button"
-                variant="primary"
+                variant="secondary"
                 size="sm"
                 leftIcon={Plus}
                 disabled={isCoreFull || !canWrite}
                 onClick={() => openAddDialog('core')}
+                className="rounded-full"
               >
                 Add main person
               </Button>
@@ -490,57 +479,53 @@ export const CreditsSetupCard: React.FC = () => {
 
             {corePeople.length === 0 ? (
               <EmptyState
-                title="No main people added"
-                description="Add up to 5 main people with large photos, roles, and descriptions."
+                title="No main people"
+                description="Add up to 5 main people."
               />
             ) : (
               <div className="bg-bg border border-border rounded-2xl overflow-hidden divide-y divide-border">
                 {corePeople.map((person, index) => (
                   <div
                     key={person.id}
-                    className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-surface-2/50 transition-colors"
+                    className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-surface-2/40 transition-colors"
                   >
-                    <div className="flex items-start sm:items-center gap-4 min-w-0 flex-1">
-                      <span className="font-mono text-xs text-muted w-6 shrink-0 tabular-nums pt-1 sm:pt-0">
-                        {String(index + 1).padStart(2, '0')}
-                      </span>
-
+                    <div className="flex items-start sm:items-center gap-3.5 min-w-0 flex-1">
                       <CreditAvatar
                         name={person.name}
                         photoUrl={person.photo_url}
-                        className="w-14 h-14 rounded-xl shrink-0"
-                        initialsClassName="text-base"
+                        className="w-12 h-12 rounded-2xl shrink-0"
+                        initialsClassName="text-sm"
                       />
 
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2.5 flex-wrap">
-                          <span className="font-syne font-bold text-sm sm:text-base text-text truncate">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className="font-syne font-bold text-sm text-text truncate">
                             {person.name}
                           </span>
                           {person.role && (
-                            <span className="text-xs font-sans font-normal text-accent-bright">
+                            <span className="text-xs text-accent-bright truncate">
                               {person.role}
                             </span>
                           )}
                         </div>
                         {person.description && (
-                          <p className="text-xs text-muted mt-1 line-clamp-2 leading-relaxed">
+                          <p className="text-xs text-muted mt-0.5 line-clamp-2 leading-relaxed">
                             {person.description}
                           </p>
                         )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
                       <button
                         type="button"
                         disabled={index === 0 || isReordering || !canWrite}
                         onClick={() => handleMovePerson('core', index, 'up')}
                         title="Move up"
                         aria-label={`Move ${person.name} up`}
-                        className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                        className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
                       >
-                        <ArrowUp size={14} weight="bold" />
+                        <ArrowUp size={15} weight="regular" />
                       </button>
                       <button
                         type="button"
@@ -550,9 +535,9 @@ export const CreditsSetupCard: React.FC = () => {
                         onClick={() => handleMovePerson('core', index, 'down')}
                         title="Move down"
                         aria-label={`Move ${person.name} down`}
-                        className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                        className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
                       >
-                        <ArrowDown size={14} weight="bold" />
+                        <ArrowDown size={15} weight="regular" />
                       </button>
                       <button
                         type="button"
@@ -560,9 +545,9 @@ export const CreditsSetupCard: React.FC = () => {
                         onClick={() => openEditDialog(person)}
                         title="Edit entry"
                         aria-label={`Edit ${person.name}`}
-                        className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                        className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
                       >
-                        <PencilSimple size={14} />
+                        <PencilSimple size={15} weight="regular" />
                       </button>
                       <button
                         type="button"
@@ -570,9 +555,9 @@ export const CreditsSetupCard: React.FC = () => {
                         onClick={() => setPersonToDelete(person)}
                         title="Delete entry"
                         aria-label={`Delete ${person.name}`}
-                        className="p-2 rounded-lg border border-border text-muted hover:text-error hover:bg-error/10 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                        className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-error hover:bg-error/10 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
                       >
-                        <Trash size={14} />
+                        <Trash size={15} weight="regular" />
                       </button>
                     </div>
                   </div>
@@ -581,12 +566,12 @@ export const CreditsSetupCard: React.FC = () => {
             )}
           </div>
 
-          {/* LIST 2: Contributors */}
-          <div className="space-y-4 pt-4 border-t border-border">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3 flex-wrap">
-                <h3 className="font-syne font-bold text-lg text-text">Contributors</h3>
-                <span className="px-2.5 py-1 rounded-lg bg-surface-2 border border-border font-mono text-xs text-muted tabular-nums">
+          {/* Column 2: Contributors */}
+          <div className="space-y-3.5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-baseline gap-2.5 flex-wrap">
+                <h3 className="text-sm font-medium text-text">Contributors</h3>
+                <span className="font-mono text-xs text-muted tabular-nums">
                   {contributorPeople.length}
                 </span>
               </div>
@@ -598,6 +583,7 @@ export const CreditsSetupCard: React.FC = () => {
                 leftIcon={Plus}
                 disabled={!canWrite}
                 onClick={() => openAddDialog('contributor')}
+                className="rounded-full"
               >
                 Add contributor
               </Button>
@@ -605,26 +591,22 @@ export const CreditsSetupCard: React.FC = () => {
 
             {contributorPeople.length === 0 ? (
               <EmptyState
-                title="No contributors added"
-                description="Add contributors to appear under 'Also thanks to' on the About page."
+                title="No contributors"
+                description="Add contributors to appear on the About page."
               />
             ) : (
               <div className="bg-bg border border-border rounded-2xl overflow-hidden divide-y divide-border">
                 {contributorPeople.map((person, index) => (
                   <div
                     key={person.id}
-                    className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-surface-2/50 transition-colors"
+                    className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-surface-2/40 transition-colors"
                   >
-                    <div className="flex items-center gap-4 min-w-0 flex-1">
-                      <span className="font-mono text-xs text-muted w-6 shrink-0 tabular-nums">
-                        {String(index + 1).padStart(2, '0')}
-                      </span>
-
+                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
                       <CreditAvatar
                         name={person.name}
                         photoUrl={person.photo_url}
-                        className="w-11 h-11 rounded-xl shrink-0"
-                        initialsClassName="text-sm"
+                        className="w-10 h-10 rounded-2xl shrink-0"
+                        initialsClassName="text-xs"
                       />
 
                       <div className="min-w-0 flex-1">
@@ -632,23 +614,23 @@ export const CreditsSetupCard: React.FC = () => {
                           {person.name}
                         </div>
                         {person.role && (
-                          <div className="text-xs font-sans font-normal text-muted truncate mt-0.5">
+                          <div className="text-xs text-muted truncate mt-0.5">
                             {person.role}
                           </div>
                         )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
                       <button
                         type="button"
                         disabled={index === 0 || isReordering || !canWrite}
                         onClick={() => handleMovePerson('contributor', index, 'up')}
                         title="Move up"
                         aria-label={`Move ${person.name} up`}
-                        className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                        className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
                       >
-                        <ArrowUp size={14} weight="bold" />
+                        <ArrowUp size={15} weight="regular" />
                       </button>
                       <button
                         type="button"
@@ -660,9 +642,9 @@ export const CreditsSetupCard: React.FC = () => {
                         onClick={() => handleMovePerson('contributor', index, 'down')}
                         title="Move down"
                         aria-label={`Move ${person.name} down`}
-                        className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                        className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
                       >
-                        <ArrowDown size={14} weight="bold" />
+                        <ArrowDown size={15} weight="regular" />
                       </button>
                       <button
                         type="button"
@@ -670,9 +652,9 @@ export const CreditsSetupCard: React.FC = () => {
                         onClick={() => openEditDialog(person)}
                         title="Edit entry"
                         aria-label={`Edit ${person.name}`}
-                        className="p-2 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                        className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
                       >
-                        <PencilSimple size={14} />
+                        <PencilSimple size={15} weight="regular" />
                       </button>
                       <button
                         type="button"
@@ -680,9 +662,9 @@ export const CreditsSetupCard: React.FC = () => {
                         onClick={() => setPersonToDelete(person)}
                         title="Delete entry"
                         aria-label={`Delete ${person.name}`}
-                        className="p-2 rounded-lg border border-border text-muted hover:text-error hover:bg-error/10 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                        className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-error hover:bg-error/10 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
                       >
-                        <Trash size={14} />
+                        <Trash size={15} weight="regular" />
                       </button>
                     </div>
                   </div>
@@ -698,29 +680,26 @@ export const CreditsSetupCard: React.FC = () => {
         isOpen={isDialogOpen}
         onClose={closeEditDialog}
         title={editingPerson ? 'Edit Credit Entry' : 'Add Credit Entry'}
-        description="Configure name, role, photo, and group placement for the public Credits section."
         size="lg"
       >
         <form onSubmit={handleSavePerson} className="space-y-5">
           {/* Group Toggle: Main vs Contributor */}
           <div>
-            <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-2">
-              Group
-            </label>
+            <label className="block text-sm font-medium text-text mb-2">Group</label>
             <div
               role="radiogroup"
               aria-label="Credit entry group"
-              className="inline-flex items-center p-1 bg-surface-2 border border-border rounded-xl gap-1"
+              className="inline-flex items-center p-1 bg-surface-2 border border-border rounded-full gap-1"
             >
               <button
                 type="button"
                 role="radio"
                 aria-checked={formKind === 'core'}
                 onClick={() => handleToggleFormKind('core')}
-                className={`min-h-[36px] px-4 py-1.5 rounded-lg text-xs font-sans transition-colors ${
+                className={`min-h-[34px] px-4 py-1 rounded-full text-xs font-sans transition-colors cursor-pointer ${
                   formKind === 'core'
-                    ? 'bg-surface text-text font-medium border border-border shadow-sm'
-                    : 'text-muted font-normal hover:text-text border border-transparent'
+                    ? 'bg-btn-bg text-btn-fg font-medium'
+                    : 'text-muted font-normal hover:text-text'
                 }`}
               >
                 Main ({otherCoreCount + (formKind === 'core' ? 1 : 0)}/{MAX_CORE_PEOPLE})
@@ -730,10 +709,10 @@ export const CreditsSetupCard: React.FC = () => {
                 role="radio"
                 aria-checked={formKind === 'contributor'}
                 onClick={() => handleToggleFormKind('contributor')}
-                className={`min-h-[36px] px-4 py-1.5 rounded-lg text-xs font-sans transition-colors ${
+                className={`min-h-[34px] px-4 py-1 rounded-full text-xs font-sans transition-colors cursor-pointer ${
                   formKind === 'contributor'
-                    ? 'bg-surface text-text font-medium border border-border shadow-sm'
-                    : 'text-muted font-normal hover:text-text border border-transparent'
+                    ? 'bg-btn-bg text-btn-fg font-medium'
+                    : 'text-muted font-normal hover:text-text'
                 }`}
               >
                 Contributor
@@ -743,18 +722,19 @@ export const CreditsSetupCard: React.FC = () => {
 
           {/* Photo Preview & Upload */}
           <div>
-            <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-2">
-              Photo (JPG, PNG, or WebP, max 5 MB)
-            </label>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <label className="text-sm font-medium text-text">Photo</label>
+              <span className="text-xs text-muted">JPG, PNG, WebP · max 5 MB</span>
+            </div>
             <div className="flex items-center gap-4">
               <CreditAvatar
                 name={formName || 'Preview'}
                 photoUrl={effectivePreviewUrl}
-                className="w-20 h-20 rounded-2xl shrink-0"
-                initialsClassName="text-xl"
+                className="w-18 h-18 rounded-2xl shrink-0"
+                initialsClassName="text-lg"
               />
 
-              <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -763,90 +743,88 @@ export const CreditsSetupCard: React.FC = () => {
                   disabled={isSaving}
                   className="hidden"
                 />
-                <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  leftIcon={UploadSimple}
+                  disabled={isSaving}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="rounded-full"
+                >
+                  {effectivePreviewUrl ? 'Replace photo' : 'Upload photo'}
+                </Button>
+
+                {effectivePreviewUrl && (
                   <Button
                     type="button"
-                    variant="secondary"
+                    variant="ghost"
                     size="sm"
-                    leftIcon={UploadSimple}
+                    leftIcon={X}
                     disabled={isSaving}
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => {
+                      clearSelectedFile()
+                      setRemoveExistingPhoto(true)
+                    }}
+                    className="rounded-full"
                   >
-                    {effectivePreviewUrl ? 'Replace photo' : 'Upload photo'}
+                    Remove photo
                   </Button>
-
-                  {effectivePreviewUrl && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      leftIcon={X}
-                      disabled={isSaving}
-                      onClick={() => {
-                        clearSelectedFile()
-                        setRemoveExistingPhoto(true)
-                      }}
-                    >
-                      Remove photo
-                    </Button>
-                  )}
-                </div>
-                <span className="text-[11px] text-muted">
-                  Resized automatically before upload ({formKind === 'core' ? 'max 900 px' : 'max 400 px'}).
-                </span>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Name (required, max 80) */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label
-                htmlFor="credit-person-name"
-                className="text-xs font-mono uppercase tracking-wider text-muted"
-              >
-                Name *
-              </label>
-              <span className="font-mono text-[11px] text-muted tabular-nums">
-                {formName.length} / 80
-              </span>
+          {/* Name & Role */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label
+                  htmlFor="credit-person-name"
+                  className="text-sm font-medium text-text"
+                >
+                  Name
+                </label>
+                <span className="font-mono text-xs text-muted tabular-nums">
+                  {formName.length} / 80
+                </span>
+              </div>
+              <input
+                id="credit-person-name"
+                type="text"
+                maxLength={80}
+                required
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                placeholder="Full name"
+                disabled={isSaving}
+                className="w-full min-h-[42px] bg-bg border border-border rounded-2xl px-4 py-2 text-sm text-text placeholder-muted focus:outline-none focus:border-accent-bright disabled:opacity-50"
+              />
             </div>
-            <input
-              id="credit-person-name"
-              type="text"
-              maxLength={80}
-              required
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-              placeholder="Full name"
-              disabled={isSaving}
-              className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm text-text placeholder-muted focus:outline-none focus:border-accent-bright disabled:opacity-50"
-            />
-          </div>
 
-          {/* Role (optional, max 80) */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label
-                htmlFor="credit-person-role"
-                className="text-xs font-mono uppercase tracking-wider text-muted"
-              >
-                Role (optional)
-              </label>
-              <span className="font-mono text-[11px] text-muted tabular-nums">
-                {formRole.length} / 80
-              </span>
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label
+                  htmlFor="credit-person-role"
+                  className="text-sm font-medium text-text"
+                >
+                  Role
+                </label>
+                <span className="font-mono text-xs text-muted tabular-nums">
+                  {formRole.length} / 80
+                </span>
+              </div>
+              <input
+                id="credit-person-role"
+                type="text"
+                maxLength={80}
+                value={formRole}
+                onChange={(e) => setFormRole(e.target.value)}
+                placeholder="Optional"
+                disabled={isSaving}
+                className="w-full min-h-[42px] bg-bg border border-border rounded-2xl px-4 py-2 text-sm text-text placeholder-muted focus:outline-none focus:border-accent-bright disabled:opacity-50"
+              />
             </div>
-            <input
-              id="credit-person-role"
-              type="text"
-              maxLength={80}
-              value={formRole}
-              onChange={(e) => setFormRole(e.target.value)}
-              placeholder="e.g. Tournament Director, Lead Organizer, Developer"
-              disabled={isSaving}
-              className="w-full bg-bg border border-border rounded-xl px-4 py-2.5 text-sm text-text placeholder-muted focus:outline-none focus:border-accent-bright disabled:opacity-50"
-            />
           </div>
 
           {/* Description (optional, max 400, only for Main people) */}
@@ -855,11 +833,11 @@ export const CreditsSetupCard: React.FC = () => {
               <div className="flex items-center justify-between mb-1.5">
                 <label
                   htmlFor="credit-person-description"
-                  className="text-xs font-mono uppercase tracking-wider text-muted"
+                  className="text-sm font-medium text-text"
                 >
-                  Description (optional)
+                  Description
                 </label>
-                <span className="font-mono text-[11px] text-muted tabular-nums">
+                <span className="font-mono text-xs text-muted tabular-nums">
                   {formDescription.length} / 400
                 </span>
               </div>
@@ -869,9 +847,9 @@ export const CreditsSetupCard: React.FC = () => {
                 maxLength={400}
                 value={formDescription}
                 onChange={(e) => setFormDescription(e.target.value)}
-                placeholder="Short bio or contribution summary..."
+                placeholder="Optional short bio"
                 disabled={isSaving}
-                className="w-full bg-bg border border-border rounded-xl p-3.5 text-sm text-text placeholder-muted focus:outline-none focus:border-accent-bright leading-relaxed resize-y disabled:opacity-50"
+                className="w-full bg-bg border border-border rounded-2xl p-3.5 text-sm text-text placeholder-muted focus:outline-none focus:border-accent-bright leading-relaxed resize-y disabled:opacity-50"
               />
             </div>
           )}
@@ -879,9 +857,9 @@ export const CreditsSetupCard: React.FC = () => {
           {dialogError && (
             <div
               role="alert"
-              className="p-3 rounded-xl bg-error/10 border border-error/30 flex items-start gap-2.5 text-xs text-error"
+              className="p-3 rounded-2xl bg-error/10 border border-error/30 flex items-start gap-2.5 text-xs text-error"
             >
-              <WarningCircle size={16} weight="bold" className="shrink-0 mt-0.5" />
+              <WarningCircle size={16} weight="regular" className="shrink-0 mt-0.5" />
               <span>{dialogError}</span>
             </div>
           )}
@@ -893,6 +871,7 @@ export const CreditsSetupCard: React.FC = () => {
               size="sm"
               disabled={isSaving}
               onClick={closeEditDialog}
+              className="rounded-full"
             >
               Cancel
             </Button>
@@ -902,8 +881,9 @@ export const CreditsSetupCard: React.FC = () => {
               size="sm"
               disabled={isSaving || !formName.trim()}
               isLoading={isSaving}
+              className="rounded-full px-4"
             >
-              {editingPerson ? 'Save Changes' : 'Add Entry'}
+              {editingPerson ? 'Save changes' : 'Add entry'}
             </Button>
           </div>
         </form>
@@ -918,7 +898,7 @@ export const CreditsSetupCard: React.FC = () => {
         title="Delete Credit Entry"
         description={
           personToDelete
-            ? `Are you sure you want to remove "${personToDelete.name}" from Credits? This action cannot be undone.`
+            ? `Remove "${personToDelete.name}" from Credits? This cannot be undone.`
             : undefined
         }
         size="sm"
@@ -930,6 +910,7 @@ export const CreditsSetupCard: React.FC = () => {
             size="sm"
             disabled={isDeleting}
             onClick={() => setPersonToDelete(null)}
+            className="rounded-full"
           >
             Cancel
           </Button>
@@ -940,11 +921,12 @@ export const CreditsSetupCard: React.FC = () => {
             disabled={isDeleting}
             isLoading={isDeleting}
             onClick={handleConfirmDelete}
+            className="rounded-full px-4"
           >
             Delete
           </Button>
         </div>
       </Dialog>
-    </div>
+    </section>
   )
 }

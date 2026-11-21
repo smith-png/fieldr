@@ -5,8 +5,24 @@ import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
 import { CreditsSection } from '../../components/credits/CreditsSection'
-import { getActiveSeason, getSiteSettings } from '../../lib/data'
+import { MarkdownContent } from '../../components/common/MarkdownContent'
+import {
+  PUBLIC_BACK_LINK,
+  PUBLIC_CARD,
+  PUBLIC_MAIN_NARROW,
+  PUBLIC_PAGE_SHELL,
+  PUBLIC_PAGE_TITLE
+} from '../../components/public/publicStyles'
+import { SkeletonText } from '../../components/ui'
+import { getActiveSeason } from '../../lib/data/seasons'
+import { getSiteSettings } from '../../lib/data/site'
 import { hasDataChanged, publicCache } from '../../lib/publicCache'
+import {
+  isQueryFresh,
+  prefetchRoute,
+  setCachedQuery,
+  shouldRevalidateQuery
+} from '../../lib/queryCache'
 import type { PageContentSetting, Season } from '../../types'
 
 interface ContentPageProps {
@@ -46,11 +62,17 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
 
   useEffect(() => {
     let mounted = true
+    const queryKey = `public:contentPage:${pageKey}`
     const cached = getCachedPageContent(pageKey)
 
     if (cached.hasCache) {
       setContent(cached.value)
       setIsLoading(false)
+      if (isQueryFresh(queryKey) && !shouldRevalidateQuery(queryKey)) {
+        return () => {
+          mounted = false
+        }
+      }
     } else {
       setIsLoading(true)
     }
@@ -58,7 +80,9 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
     async function loadData() {
       try {
         const [season, settings] = await Promise.all([
-          getActiveSeason(),
+          publicCache.activeSeason.loaded
+            ? Promise.resolve(publicCache.activeSeason.value)
+            : getActiveSeason(),
           getSiteSettings()
         ])
 
@@ -78,6 +102,8 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
 
         publicCache.pageContent.set('help_page', helpVal)
         publicCache.pageContent.set('about_page', aboutVal)
+        setCachedQuery('public:contentPage:help_page', helpVal)
+        setCachedQuery('public:contentPage:about_page', aboutVal)
 
         if (
           mounted &&
@@ -96,14 +122,14 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
       }
     }
 
-    loadData()
+    void loadData()
     return () => {
       mounted = false
     }
   }, [pageKey])
 
   return (
-    <div className="min-h-screen bg-bg text-text flex flex-col justify-between selection:bg-accent-bright selection:text-on-accent relative">
+    <div className={PUBLIC_PAGE_SHELL}>
       <HeaderBar onOpenMenu={() => setIsMenuOpen(true)} />
       <NavigationMenu
         isOpen={isMenuOpen}
@@ -111,37 +137,38 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
         activeSeason={activeSeason}
       />
 
-      <main className="flex-1 max-w-4xl mx-auto w-full px-6 md:px-16 lg:px-24 pt-36 sm:pt-44 md:pt-48 pb-20">
+      <main className={PUBLIC_MAIN_NARROW}>
         <div className="mb-6">
           <Link
             to="/"
-            className="inline-flex items-center gap-2 text-xs font-medium text-muted hover:text-text transition-colors"
+            onMouseEnter={() => prefetchRoute('/')}
+            onFocus={() => prefetchRoute('/')}
+            onTouchStart={() => prefetchRoute('/')}
+            className={PUBLIC_BACK_LINK}
           >
-            <ArrowLeft size={14} weight="bold" />
+            <ArrowLeft size={14} weight="regular" />
             <span>Return Home</span>
           </Link>
         </div>
 
-        <div className="bg-surface border border-border rounded-2xl p-8 sm:p-12">
-          <span className="text-xs font-mono uppercase tracking-widest text-accent-bright block mb-2">
-            INFORMATION
-          </span>
-          <h1 className="font-syne font-extrabold text-3xl sm:text-5xl text-text tracking-tight mb-6">
-            {content?.title || fallbackTitle}
-          </h1>
+        <div className={PUBLIC_CARD}>
+          <div className="pb-5 mb-6 border-b border-border">
+            <h1 className={PUBLIC_PAGE_TITLE}>
+              {content?.title || fallbackTitle}
+            </h1>
+          </div>
 
           {isLoading ? (
-            <div className="space-y-4 animate-pulse">
-              <div className="h-4 bg-surface-2 rounded w-3/4" />
-              <div className="h-4 bg-surface-2 rounded w-1/2" />
+            <div className="space-y-4">
+              <SkeletonText width="w-3/4" className="h-4" />
+              <SkeletonText width="w-1/2" className="h-4" />
+              <SkeletonText width="w-2/3" className="h-4" />
             </div>
           ) : content?.body ? (
-            <div className="text-base text-text/85 leading-relaxed whitespace-pre-wrap font-sans">
-              {content.body}
-            </div>
+            <MarkdownContent content={content.body} />
           ) : (
             <div className="py-8">
-              <p className="text-xl text-muted font-syne font-semibold">
+              <p className="text-lg text-muted font-syne font-semibold">
                 Coming soon
               </p>
             </div>

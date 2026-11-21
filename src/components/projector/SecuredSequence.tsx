@@ -105,7 +105,7 @@ export const SecuredSequence: React.FC<SecuredSequenceProps> = ({
   const effectiveCountupDelaySec = Math.min(scaledRevealDelaySec, maxAllowedDelaySec)
 
   return (
-    <div className="w-full py-8 sm:py-12 flex flex-col items-center justify-center relative overflow-hidden rounded-3xl">
+    <div className="w-full py-8 sm:py-12 flex flex-col items-center justify-center relative overflow-hidden rounded-[32px]">
       {/* 1. Buying Team Colour Wash / Wipe Across Screen */}
       {shouldReduceMotion ? (
         <motion.div
@@ -113,7 +113,7 @@ export const SecuredSequence: React.FC<SecuredSequenceProps> = ({
           animate={{ opacity: 0.16 }}
           transition={{ duration: 0.6 * scale }}
           className="fixed inset-0 pointer-events-none z-0"
-          style={{ backgroundColor: accentColor }}
+          style={{ backgroundColor: `color-mix(in srgb, ${accentColor} 35%, transparent)` }}
         />
       ) : (
         <>
@@ -123,7 +123,7 @@ export const SecuredSequence: React.FC<SecuredSequenceProps> = ({
             transition={{ duration: 1.35 * scale, ease: [0.22, 1, 0.36, 1] }}
             className="fixed inset-0 pointer-events-none z-20"
             style={{
-              background: `linear-gradient(90deg, transparent 0%, ${accentColor} 50%, transparent 100%)`
+              background: `linear-gradient(90deg, transparent 0%, color-mix(in srgb, ${accentColor} 65%, transparent) 50%, transparent 100%)`
             }}
           />
           <motion.div
@@ -132,13 +132,13 @@ export const SecuredSequence: React.FC<SecuredSequenceProps> = ({
             transition={{ duration: 1.1 * scale, ease: 'easeOut' }}
             className="fixed inset-0 pointer-events-none z-0"
             style={{
-              background: `radial-gradient(circle at 50% 45%, ${accentColor} 0%, transparent 75%)`
+              backgroundColor: `color-mix(in srgb, ${accentColor} 30%, transparent)`
             }}
           />
         </>
       )}
 
-      {/* 2. Thin Light Sweep & Soft Accent Lines in Team Colour */}
+      {/* 2. Thin Light Sweep & Soft Accent Line in Team Colour */}
       {!shouldReduceMotion && (
         <>
           <motion.div
@@ -151,7 +151,7 @@ export const SecuredSequence: React.FC<SecuredSequenceProps> = ({
             }}
             className="absolute inset-y-0 w-32 pointer-events-none z-20"
             style={{
-              background: `linear-gradient(90deg, transparent, ${accentColor}88, rgba(255,255,255,0.6), transparent)`
+              background: `linear-gradient(90deg, transparent, color-mix(in srgb, ${accentColor} 45%, transparent), rgba(255,255,255,0.4), transparent)`
             }}
           />
           <motion.div
@@ -170,10 +170,12 @@ export const SecuredSequence: React.FC<SecuredSequenceProps> = ({
 
       {/* Main Sequence Content Container */}
       <div
-        className="w-full max-w-6xl bg-surface/95 border-2 rounded-3xl p-8 sm:p-12 shadow-2xl relative z-10 overflow-hidden"
-        style={{ borderColor: accentColor }}
+        className="w-full max-w-6xl bg-surface border-[1.5px] rounded-[32px] p-8 sm:p-10 relative z-10 overflow-hidden"
+        style={{
+          borderColor: `color-mix(in srgb, ${accentColor} 45%, transparent)`
+        }}
       >
-        {/* Subtle Accent Line Inside Stage */}
+        {/* Subtle Inset Accent Pill Inside Stage */}
         <motion.div
           initial={shouldReduceMotion ? { opacity: 0 } : { scaleX: 0, opacity: 0 }}
           animate={{ scaleX: 1, opacity: 1 }}
@@ -182,11 +184,11 @@ export const SecuredSequence: React.FC<SecuredSequenceProps> = ({
             delay: 0.3 * scale,
             ease: [0.16, 1, 0.3, 1]
           }}
-          className="absolute top-0 left-0 right-0 h-3 origin-left"
+          className="w-24 h-1.5 rounded-full mb-6 mx-auto lg:mx-0 origin-left"
           style={{ backgroundColor: accentColor }}
         />
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center">
           {/* 3. Player Photo & Name with Depth Effect */}
           <div className="lg:col-span-5 flex flex-col items-center lg:items-start text-center lg:text-left">
             <div className="relative mb-6">
@@ -207,7 +209,7 @@ export const SecuredSequence: React.FC<SecuredSequenceProps> = ({
                   delay: 0.35 * scale,
                   ease: [0.16, 1, 0.3, 1]
                 }}
-                className="absolute inset-0 rounded-3xl pointer-events-none"
+                className="absolute inset-0 rounded-[24px] pointer-events-none"
                 style={{ backgroundColor: accentColor }}
               />
 
@@ -223,7 +225,7 @@ export const SecuredSequence: React.FC<SecuredSequenceProps> = ({
                   delay: 0.25 * scale,
                   ease: [0.16, 1, 0.3, 1]
                 }}
-                className="w-60 h-72 sm:w-72 sm:h-88 rounded-3xl bg-surface-2 border-2 border-border overflow-hidden relative z-10 shadow-xl flex items-center justify-center"
+                className="w-60 h-72 sm:w-72 sm:h-88 rounded-[24px] bg-surface-2 overflow-hidden relative z-10 flex items-center justify-center"
               >
                 {photoUrl ? (
                   <img
@@ -233,7 +235,7 @@ export const SecuredSequence: React.FC<SecuredSequenceProps> = ({
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <User size={88} weight="thin" className="text-muted" />
+                  <User size={88} weight="regular" className="text-muted" />
                 )}
               </motion.div>
             </div>
@@ -246,15 +248,27 @@ export const SecuredSequence: React.FC<SecuredSequenceProps> = ({
                 delay: 0.45 * scale,
                 ease: [0.16, 1, 0.3, 1]
               }}
+              className="flex flex-col items-center lg:items-start gap-2.5"
             >
-              <div className="font-mono text-xs sm:text-sm uppercase tracking-widest text-muted mb-1">
-                #{playerCode} · {sport} · {playingRole}
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2">
+                <span className="inline-flex items-center px-3 py-1 rounded-full bg-surface-2 font-mono text-xs sm:text-sm font-semibold text-accent-bright tabular-nums">
+                  #{playerCode}
+                </span>
+                <span className="inline-flex items-center px-3 py-1 rounded-full bg-surface-2 text-xs sm:text-sm font-medium text-text">
+                  {sport}
+                </span>
+                <span className="inline-flex items-center px-3 py-1 rounded-full bg-surface-2 text-xs sm:text-sm font-medium text-muted">
+                  {playingRole}
+                </span>
               </div>
-              <h2 className="font-syne font-extrabold text-4xl sm:text-5xl text-text tracking-tight leading-tight">
+              <h2
+                className="font-syne font-extrabold text-4xl sm:text-5xl text-text tracking-tight leading-tight"
+                style={{ textWrap: 'balance' }}
+              >
                 {playerName}
               </h2>
               {academicYearLabel && (
-                <div className="font-mono text-sm text-muted mt-1">{academicYearLabel}</div>
+                <div className="text-sm sm:text-base font-medium text-muted">{academicYearLabel}</div>
               )}
             </motion.div>
           </div>
@@ -274,10 +288,10 @@ export const SecuredSequence: React.FC<SecuredSequenceProps> = ({
                 delay: 0.7 * scale,
                 ease: [0.16, 1, 0.3, 1]
               }}
-              className="inline-flex items-center gap-3 px-6 py-2.5 rounded-2xl border-2"
+              className="inline-flex items-center px-7 py-2.5 rounded-full border-[1.5px]"
               style={{
-                borderColor: accentColor,
-                backgroundColor: `${accentColor}1F`
+                borderColor: `color-mix(in srgb, ${accentColor} 45%, transparent)`,
+                backgroundColor: `color-mix(in srgb, ${accentColor} 14%, var(--surface-2))`
               }}
             >
               <span
@@ -302,10 +316,10 @@ export const SecuredSequence: React.FC<SecuredSequenceProps> = ({
                   delay: 1.0 * scale,
                   ease: [0.16, 1, 0.3, 1]
                 }}
-                className="flex flex-col sm:flex-row items-center gap-5 p-5 rounded-2xl bg-surface-2 border border-border w-full"
+                className="flex flex-col sm:flex-row items-center gap-5 p-5 sm:p-6 rounded-[24px] bg-surface-2 w-full"
               >
                 <div
-                  className="w-20 h-20 rounded-2xl flex items-center justify-center font-syne font-extrabold text-2xl text-white overflow-hidden border border-border shrink-0 shadow-md"
+                  className="w-20 h-20 rounded-[28%] flex items-center justify-center font-syne font-extrabold text-2xl text-white overflow-hidden shrink-0"
                   style={{ backgroundColor: accentColor }}
                 >
                   {teamLogoUrl ? (
@@ -320,8 +334,8 @@ export const SecuredSequence: React.FC<SecuredSequenceProps> = ({
                   )}
                 </div>
                 <div className="min-w-0">
-                  <span className="font-mono text-xs uppercase tracking-widest text-muted block">
-                    Acquired By Franchise
+                  <span className="text-xs sm:text-sm font-medium text-muted block">
+                    Team
                   </span>
                   <h3 className="font-syne font-extrabold text-3xl sm:text-4xl md:text-5xl text-text tracking-tight truncate">
                     {teamName}
@@ -335,14 +349,14 @@ export const SecuredSequence: React.FC<SecuredSequenceProps> = ({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.45 * scale, delay: effectiveCountupDelaySec }}
-              className="pt-2"
+              className="rounded-[24px] bg-surface-2 px-6 py-4 sm:px-7 sm:py-5 w-full sm:w-auto"
             >
-              <span className="font-mono text-xs sm:text-sm uppercase tracking-widest text-muted block mb-1">
-                Final Winning Bid
+              <span className="text-xs sm:text-sm font-medium text-muted block mb-1">
+                Winning bid
               </span>
               <div className="flex items-baseline justify-center lg:justify-start gap-3">
                 <span
-                  className="font-syne font-extrabold text-6xl sm:text-7xl md:text-8xl tabular-nums leading-none"
+                  className="font-mono font-bold text-6xl sm:text-7xl md:text-8xl tabular-nums leading-none"
                   style={{ color: accentColor }}
                 >
                   <SalePriceCountUp

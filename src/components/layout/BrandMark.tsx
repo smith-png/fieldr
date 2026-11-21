@@ -1,4 +1,5 @@
 import React from 'react'
+import FooterMark from './FooterMark'
 
 interface BrandMarkProps {
   onClick?: () => void
@@ -17,35 +18,7 @@ export const BrandMark: React.FC<BrandMarkProps> = ({
 
   const content = (
     <>
-      {/* Organic tile with feathered edges and rotating blobs - identical in both themes */}
-      <div
-        className={`relative rounded-[22%] overflow-hidden bg-[#0A0D0A] shadow-[0_0_24px_rgba(4,117,84,0.18)] p-0.5 transform-gpu shrink-0 ${
-          isSmall ? 'w-8 h-8' : 'w-[52px] h-[52px]'
-        }`}
-      >
-        {/* Slow rotating blob container (14s) */}
-        <div className="absolute inset-0 animate-blob-rotate origin-center pointer-events-none opacity-85">
-          {/* Sage Dark blob */}
-          <div className="absolute -top-3 -left-3 w-8 h-8 rounded-full bg-[#395F3D] blur-[7px] animate-blob-drift-a" />
-          {/* Sage Mid blob */}
-          <div className="absolute top-4 -right-2 w-9 h-9 rounded-full bg-[#047554] blur-[8px] animate-blob-drift-b" />
-          {/* Sage Light blob */}
-          <div className="absolute -bottom-2 left-2 w-7 h-7 rounded-full bg-[#CBD1CB] blur-[9px] opacity-40 animate-blob-drift-a" />
-          {/* Very Dark Green blob */}
-          <div className="absolute bottom-3 right-3 w-8 h-8 rounded-full bg-[#082215] blur-[6px]" />
-        </div>
-
-        {/* Crisp white F in Syne ExtraBold */}
-        <div className="relative z-10 w-full h-full flex items-center justify-center">
-          <span
-            className={`font-syne font-extrabold text-white leading-none tracking-tight select-none ${
-              isSmall ? 'text-base' : 'text-[27px]'
-            }`}
-          >
-            F
-          </span>
-        </div>
-      </div>
+      <FooterMark size={isSmall ? 32 : 52} />
 
       {showWordmark && (
         <div className="flex flex-col text-left">

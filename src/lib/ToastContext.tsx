@@ -1,12 +1,6 @@
-import React, { createContext, useContext, useState } from 'react'
-import { AnimatePresence, motion } from 'motion/react'
-import { ToastItem, type ToastType } from '../components/ui/Toast'
-
-interface ToastMessage {
-  id: string
-  type: ToastType
-  text: string
-}
+import React, { createContext, useContext } from 'react'
+import { toast as sonnerToast } from 'sonner'
+import type { ToastType } from '../components/ui/Toast'
 
 interface ToastContextType {
   toast: (text: string, type?: ToastType) => void
@@ -17,53 +11,33 @@ interface ToastContextType {
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined)
 
+function dispatchToast(text: string, type: ToastType = 'info') {
+  if (
+    typeof window !== 'undefined' &&
+    (window.location.pathname === '/projector' ||
+      window.location.pathname.startsWith('/projector/'))
+  ) {
+    return
+  }
+
+  if (type === 'success') {
+    sonnerToast.success(text, { duration: 3500 })
+  } else if (type === 'error') {
+    sonnerToast.error(text, { duration: 5000 })
+  } else {
+    sonnerToast.info(text, { duration: 3500 })
+  }
+}
+
+const contextValue: ToastContextType = {
+  toast: dispatchToast,
+  showToast: dispatchToast,
+  success: (text: string) => dispatchToast(text, 'success'),
+  error: (text: string) => dispatchToast(text, 'error')
+}
+
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [toasts, setToasts] = useState<ToastMessage[]>([])
-
-  const addToast = (text: string, type: ToastType = 'info') => {
-    const id = `toast-${Date.now()}-${Math.random()}`
-    setToasts((prev) => [...prev, { id, type, text }])
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id))
-    }, 4000)
-  }
-
-  const removeToast = (id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id))
-  }
-
-  return (
-    <ToastContext.Provider
-      value={{
-        toast: addToast,
-        showToast: addToast,
-        success: (text) => addToast(text, 'success'),
-        error: (text) => addToast(text, 'error')
-      }}
-    >
-      {children}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none max-w-sm w-full px-4">
-        <AnimatePresence>
-          {toasts.map((t) => (
-            <motion.div
-              key={t.id}
-              initial={{ opacity: 0, y: 16, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.96 }}
-              transition={{ duration: 0.2 }}
-            >
-              <ToastItem
-                id={t.id}
-                message={t.text}
-                type={t.type}
-                onDismiss={removeToast}
-              />
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
-    </ToastContext.Provider>
-  )
+  return <ToastContext.Provider value={contextValue}>{children}</ToastContext.Provider>
 }
 
 export function useToast() {
@@ -73,3 +47,4 @@ export function useToast() {
   }
   return context
 }
+

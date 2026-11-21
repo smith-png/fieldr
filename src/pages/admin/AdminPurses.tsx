@@ -9,7 +9,17 @@ import {
 import type { PurseTransaction, PurseTransactionType, Season, Team } from '../../types'
 import { executePurseTransaction, resetAllPurses } from '../../lib/data'
 import { useToast } from '../../lib/ToastContext'
-import { Button, Dialog, EmptyState, PageHeader } from '../../components/ui'
+import { Button, Dialog, EmptyState } from '../../components/ui'
+import {
+  ADMIN_CARD,
+  ADMIN_CARD_HEADER,
+  ADMIN_CARD_TITLE,
+  ADMIN_DIALOG_CLASS,
+  ADMIN_INPUT,
+  ADMIN_LABEL,
+  ADMIN_TABLE_SHELL,
+  ADMIN_WELL
+} from '../../components/admin/adminStyles'
 
 interface AdminPursesProps {
   activeSeason: Season | null
@@ -112,48 +122,52 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
     : []
 
   return (
-    <div className="flex flex-col gap-8">
-      <PageHeader
-        label="Financial Ledger"
-        title="Purses & Balances"
-        subtitle="Manage franchise points, credit/debit balances with audit logs, and enforce strict zero-deficit rules."
-        actions={
-          <Button
-            variant="secondary"
-            size="md"
-            leftIcon={ArrowsClockwise}
-            onClick={() => setIsResetModalOpen(true)}
-          >
-            Reset All Purses
-          </Button>
-        }
-      />
+    <section className={ADMIN_CARD}>
+      <div className={ADMIN_CARD_HEADER}>
+        <h2 className={ADMIN_CARD_TITLE}>Purses &amp; Balances</h2>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          leftIcon={ArrowsClockwise}
+          onClick={() => setIsResetModalOpen(true)}
+          className="rounded-full self-start sm:self-auto"
+        >
+          Reset All Purses
+        </Button>
+      </div>
 
       {/* Purses Table */}
       {teams.length === 0 ? (
         <EmptyState
           icon={ShieldCheck}
           title="No teams available"
-          description="Please register franchise teams in the Teams tab before allocating purse points."
+          description="Register franchise teams before allocating purse points."
         />
       ) : (
-        <div className="rounded-2xl bg-surface border border-border overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
+        <div className={ADMIN_TABLE_SHELL}>
+          <div className="overflow-x-auto thin-scrollbar">
+            <table className="w-full min-w-[700px] text-left border-collapse text-sm">
               <thead>
                 <tr className="border-b border-border text-muted font-mono uppercase tracking-wider bg-surface-2 text-[11px]">
-                  <th className="py-3 px-4 font-normal">Team</th>
-                  <th className="py-3 px-4 font-normal">Sport</th>
-                  <th className="py-3 px-4 font-normal text-right">Starting Purse</th>
-                  <th className="py-3 px-4 font-normal text-right">Current Balance</th>
-                  <th className="py-3 px-4 font-normal text-right">Purse Controls</th>
+                  <th className="py-3.5 px-4 font-normal whitespace-nowrap">Team</th>
+                  <th className="py-3.5 px-4 font-normal whitespace-nowrap">Sport</th>
+                  <th className="py-3.5 px-4 font-normal text-right whitespace-nowrap">
+                    Starting Purse
+                  </th>
+                  <th className="py-3.5 px-4 font-normal text-right whitespace-nowrap">
+                    Current Balance
+                  </th>
+                  <th className="py-3.5 px-4 font-normal text-right whitespace-nowrap">
+                    Purse Controls
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {teams.map((team) => (
-                  <tr key={team.id} className="hover:bg-surface-2/60 transition-colors">
+                  <tr key={team.id} className="hover:bg-surface-2/50 transition-colors">
                     {/* Team */}
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
                         <span
                           className="w-3 h-3 rounded-full shrink-0 border border-border"
@@ -171,58 +185,64 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
                     </td>
 
                     {/* Sport */}
-                    <td className="py-3.5 px-4 text-text font-medium">
+                    <td className="py-3.5 px-4 text-text font-medium whitespace-nowrap">
                       {team.sport}
                     </td>
 
                     {/* Starting Purse */}
-                    <td className="py-3.5 px-4 text-right font-mono tabular-nums text-muted">
+                    <td className="py-3.5 px-4 text-right font-mono text-xs sm:text-sm tabular-nums text-muted whitespace-nowrap">
                       {team.starting_purse.toLocaleString()} PTS
                     </td>
 
                     {/* Current Balance */}
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
                       <span className="font-mono font-bold text-sm text-points tabular-nums">
                         {team.current_purse.toLocaleString()} PTS
                       </span>
                     </td>
 
                     {/* Actions */}
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
                         <Button
+                          type="button"
                           variant="secondary"
                           size="sm"
                           leftIcon={Plus}
                           onClick={() => openTxModal(team, 'add')}
-                          className="text-accent-bright"
+                          className="rounded-full text-accent-bright"
                         >
                           Add
                         </Button>
 
                         <Button
+                          type="button"
                           variant="secondary"
                           size="sm"
                           leftIcon={Minus}
                           onClick={() => openTxModal(team, 'deduct')}
-                          className="text-error"
+                          className="rounded-full text-error"
                         >
                           Deduct
                         </Button>
 
                         <Button
+                          type="button"
                           variant="secondary"
                           size="sm"
                           leftIcon={PencilSimple}
                           onClick={() => openTxModal(team, 'set')}
+                          className="rounded-full"
                         >
                           Set
                         </Button>
 
                         <Button
+                          type="button"
                           variant="ghost"
                           size="sm"
                           onClick={() => setHistoryTeam(team)}
+                          className="rounded-full"
                         >
                           History
                         </Button>
@@ -245,53 +265,55 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
             ? `${txType.charAt(0).toUpperCase() + txType.slice(1)} Points · ${selectedTeam.name}`
             : 'Update Purse'
         }
-        description="Ledger Modification"
         size="md"
+        className={ADMIN_DIALOG_CLASS}
       >
         {selectedTeam && (
           <div className="space-y-4">
-            <div className="p-3.5 rounded-xl bg-surface-2 border border-border flex items-center justify-between text-xs">
-              <span className="text-muted">Current Available Purse</span>
+            <div className={`${ADMIN_WELL} p-4 flex items-center justify-between text-xs`}>
+              <span className="text-muted">Current Balance</span>
               <span className="font-mono font-bold text-sm text-points tabular-nums">
                 {selectedTeam.current_purse.toLocaleString()} PTS
               </span>
             </div>
 
-            <form onSubmit={handleExecuteTransaction} className="flex flex-col gap-4 text-xs">
-              <div>
-                <label className="block font-mono text-muted uppercase tracking-wider mb-1.5">
-                  {txType === 'set' ? 'New Target Balance *' : 'Points Amount *'}
-                </label>
+            <form onSubmit={handleExecuteTransaction} className="space-y-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <label className={ADMIN_LABEL}>
+                    {txType === 'set' ? 'New Target Balance *' : 'Amount *'}
+                  </label>
+                  <span className="text-xs font-mono text-muted">PTS</span>
+                </div>
                 <input
                   type="number"
                   min={0}
                   value={txAmount}
                   onChange={(e) => setTxAmount(e.target.value)}
-                  placeholder="e.g. 150"
+                  placeholder="150"
                   required
-                  className="w-full px-3.5 py-2.5 bg-bg border border-border rounded-xl text-xs font-mono tabular-nums text-text focus:outline-none focus:border-accent-bright"
+                  className={`${ADMIN_INPUT} font-mono tabular-nums`}
                 />
               </div>
 
-              <div>
-                <label className="block font-mono text-muted uppercase tracking-wider mb-1.5">
-                  Reason for Adjustment (Optional)
-                </label>
+              <div className="space-y-1.5">
+                <label className={ADMIN_LABEL}>Reason</label>
                 <input
                   type="text"
                   value={txReason}
                   onChange={(e) => setTxReason(e.target.value)}
-                  placeholder="e.g. Penalty deduction, Sponsor bonus, Auction correction"
-                  className="w-full px-3.5 py-2.5 bg-bg border border-border rounded-xl text-xs text-text focus:outline-none focus:border-accent-bright"
+                  placeholder="Optional note"
+                  className={ADMIN_INPUT}
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border">
+              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-border">
                 <Button
                   type="button"
                   variant="secondary"
                   size="sm"
                   onClick={() => setSelectedTeam(null)}
+                  className="rounded-full"
                 >
                   Cancel
                 </Button>
@@ -301,6 +323,7 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
                   size="sm"
                   disabled={isSubmitting || !txAmount}
                   isLoading={isSubmitting}
+                  className="rounded-full px-4"
                 >
                   Execute {txType}
                 </Button>
@@ -316,34 +339,38 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
         onClose={() => setIsResetModalOpen(false)}
         title="Reset All Team Purses"
         size="md"
+        className={ADMIN_DIALOG_CLASS}
       >
         <div className="space-y-4">
-          <p className="text-xs text-muted leading-relaxed">
-            This will update the starting purse and current purse for{' '}
-            <strong className="text-text">all {teams.length} teams</strong> in this season to the specified uniform value. Every change will be recorded in the audit ledger.
+          <p className="text-sm text-muted leading-relaxed">
+            Resets starting and current purse for{' '}
+            <strong className="text-text">all {teams.length} teams</strong> in this season. Every
+            change is logged.
           </p>
 
-          <form onSubmit={handleGlobalReset} className="flex flex-col gap-4 text-xs">
-            <div>
-              <label className="block font-mono text-muted uppercase tracking-wider mb-1.5">
-                Uniform Purse Points *
-              </label>
+          <form onSubmit={handleGlobalReset} className="space-y-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <label className={ADMIN_LABEL}>Uniform Purse *</label>
+                <span className="text-xs font-mono text-muted">PTS</span>
+              </div>
               <input
                 type="number"
                 min={0}
                 value={globalStartingAmount}
                 onChange={(e) => setGlobalStartingAmount(e.target.value)}
                 required
-                className="w-full px-3.5 py-2.5 bg-bg border border-border rounded-xl text-xs font-mono tabular-nums text-text focus:outline-none focus:border-accent-bright"
+                className={`${ADMIN_INPUT} font-mono tabular-nums`}
               />
             </div>
 
-            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border">
+            <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-border">
               <Button
                 type="button"
                 variant="secondary"
                 size="sm"
                 onClick={() => setIsResetModalOpen(false)}
+                className="rounded-full"
               >
                 Cancel
               </Button>
@@ -353,6 +380,7 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
                 size="sm"
                 disabled={isSubmitting || !globalStartingAmount}
                 isLoading={isSubmitting}
+                className="rounded-full px-4"
               >
                 Apply Global Reset
               </Button>
@@ -366,65 +394,74 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
         isOpen={!!historyTeam}
         onClose={() => setHistoryTeam(null)}
         title={historyTeam ? `Purse History · ${historyTeam.name}` : 'Purse History'}
-        description="Audit Ledger"
         size="lg"
+        className={ADMIN_DIALOG_CLASS}
       >
         <div className="space-y-4">
           {teamTransactions.length === 0 ? (
-            <div className="py-10 text-center text-xs text-muted border border-dashed border-border rounded-xl">
+            <div className="py-10 text-center text-sm text-muted border border-dashed border-border rounded-2xl">
               No recorded transactions for this franchise yet.
             </div>
           ) : (
-            <div className="flex flex-col divide-y divide-border max-h-80 overflow-y-auto">
-              {teamTransactions.map((tx) => (
-                <div key={tx.id} className="py-3 flex items-center justify-between gap-3 text-xs">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`font-mono uppercase text-[10px] font-semibold ${
-                          tx.type === 'deduct' || tx.type === 'purchase'
-                            ? 'text-error'
-                            : tx.type === 'add' || tx.type === 'refund'
-                            ? 'text-accent-bright'
-                            : 'text-muted'
-                        }`}
-                      >
-                        {tx.type}
+            <div className={`${ADMIN_TABLE_SHELL} divide-y divide-border max-h-80 overflow-y-auto thin-scrollbar`}>
+              {teamTransactions.map((tx) => {
+                const isDebit = tx.type === 'deduct' || tx.type === 'purchase'
+                const isCredit = tx.type === 'add' || tx.type === 'refund'
+                return (
+                  <div
+                    key={tx.id}
+                    className="px-4 py-3.5 flex items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-full border font-mono uppercase text-[10px] font-medium ${
+                            isDebit
+                              ? 'bg-error/10 border-error/25 text-error'
+                              : isCredit
+                              ? 'bg-accent/10 border-accent-bright/30 text-accent-bright'
+                              : 'bg-surface-2 border-border text-muted'
+                          }`}
+                        >
+                          {tx.type}
+                        </span>
+                        <span className="font-medium text-text truncate">
+                          {tx.reason || 'Ledger adjustment'}
+                        </span>
+                      </div>
+                      <span className="text-[11px] font-mono text-muted mt-1 block">
+                        {new Date(tx.created_at).toLocaleString()}
                       </span>
-                      <span>·</span>
-                      <span className="font-medium text-text">{tx.reason || 'Ledger adjustment'}</span>
                     </div>
-                    <span className="text-[10px] font-mono text-muted mt-0.5 block">
-                      {new Date(tx.created_at).toLocaleString()}
-                    </span>
-                  </div>
 
-                  <div className="text-right">
-                    <span className="font-mono font-semibold tabular-nums text-text text-sm block">
-                      {tx.type === 'deduct' || tx.type === 'purchase' ? '-' : '+'}
-                      {Math.abs(tx.amount).toLocaleString()} PTS
-                    </span>
-                    <span className="text-[10px] font-mono tabular-nums text-points">
-                      Bal: {tx.balance_after.toLocaleString()} PTS
-                    </span>
+                    <div className="text-right shrink-0">
+                      <span className="font-mono font-semibold tabular-nums text-text text-sm block">
+                        {isDebit ? '-' : '+'}
+                        {Math.abs(tx.amount).toLocaleString()} PTS
+                      </span>
+                      <span className="text-[11px] font-mono tabular-nums text-points">
+                        Bal: {tx.balance_after.toLocaleString()} PTS
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
 
-          <div className="pt-3 border-t border-border flex justify-end">
+          <div className="pt-4 border-t border-border flex justify-end">
             <Button
               type="button"
               variant="secondary"
               size="sm"
               onClick={() => setHistoryTeam(null)}
+              className="rounded-full"
             >
-              Close History
+              Close
             </Button>
           </div>
         </div>
       </Dialog>
-    </div>
+    </section>
   )
 }

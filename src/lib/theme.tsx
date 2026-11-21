@@ -85,7 +85,7 @@ export function applyThemeToDom(resolved: ResolvedTheme, disableTransitions = tr
   const isReducedMotion =
     typeof window !== 'undefined' &&
     window.matchMedia &&
-    window.matchMedia('(prefers-color-scheme: reduce)').matches
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
   if (disableTransitions && !isReducedMotion) {
     root.classList.add('no-transitions')
@@ -234,14 +234,3 @@ export function useProjectorTheme(): {
   return { projectorTheme, setProjectorTheme, toggleProjectorTheme }
 }
 
-export function useForceDarkTheme(): void {
-  const { preference } = useTheme()
-
-  useEffect(() => {
-    applyThemeToDom('dark', false)
-    return () => {
-      const restored = resolveTheme(preference)
-      applyThemeToDom(restored, false)
-    }
-  }, [preference])
-}

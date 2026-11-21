@@ -7,8 +7,25 @@ import {
 } from '@phosphor-icons/react'
 import type { ActivityLogEntry, Season, Team } from '../../types'
 import { getAdminActivityLog } from '../../lib/data'
+import {
+  getCachedQuery,
+  isQueryFresh,
+  setCachedQuery,
+  shouldRevalidateQuery
+} from '../../lib/queryCache'
 import { useToast } from '../../lib/ToastContext'
-import { Button, EmptyState, Spinner } from '../../components/ui'
+import { Button, EmptyState, SkeletonTableRow } from '../../components/ui'
+import {
+  ADMIN_CARD,
+  ADMIN_INPUT,
+  ADMIN_PAGE_HEADER,
+  ADMIN_PAGE_TITLE,
+  ADMIN_PAGE_WRAPPER,
+  ADMIN_PILL_BAR,
+  ADMIN_PILL_BAR_OUTER,
+  ADMIN_SELECT,
+  ADMIN_TABLE_SHELL
+} from '../../components/admin/adminStyles'
 
 interface AdminLogsProps {
   activeSeason: Season | null
@@ -95,37 +112,63 @@ function getLocalDateSlug(): string {
 export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => {
   const { error } = useToast()
 
-  const [entries, setEntries] = useState<ActivityLogEntry[]>([])
-  const [isLoading, setIsLoading] = useState<boolean>(true)
+  const cacheKey = activeSeason?.id ? `admin:logs:${activeSeason.id}` : ''
+  const cachedLogs = cacheKey ? getCachedQuery<ActivityLogEntry[]>(cacheKey) : null
+
+  const [entries, setEntries] = useState<ActivityLogEntry[]>(
+    () => cachedLogs?.data || []
+  )
+  const [isLoading, setIsLoading] = useState<boolean>(
+    () => Boolean(activeSeason?.id && !cachedLogs)
+  )
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false)
-  const [hasMore, setHasMore] = useState<boolean>(false)
+  const [hasMore, setHasMore] = useState<boolean>(
+    () => (cachedLogs?.data.length || 0) === LOG_PAGE_SIZE
+  )
 
   // Client-side filters
   const [typeFilter, setTypeFilter] = useState<LogFilterType>('all')
   const [teamFilter, setTeamFilter] = useState<string>('all')
   const [playerSearch, setPlayerSearch] = useState<string>('')
 
-  const loadInitialLogs = useCallback(async () => {
-    if (!activeSeason?.id) {
-      setEntries([])
-      setHasMore(false)
-      setIsLoading(false)
-      return
-    }
+  const loadInitialLogs = useCallback(
+    async (options?: { force?: boolean }) => {
+      if (!activeSeason?.id) {
+        setEntries([])
+        setHasMore(false)
+        setIsLoading(false)
+        return
+      }
 
-    try {
-      setIsLoading(true)
-      const rows = await getAdminActivityLog(activeSeason.id, LOG_PAGE_SIZE, 0)
-      setEntries(rows)
-      setHasMore(rows.length === LOG_PAGE_SIZE)
-    } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : 'Failed to load activity log'
-      error(msg)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [activeSeason?.id, error])
+      const key = `admin:logs:${activeSeason.id}`
+      const cached = getCachedQuery<ActivityLogEntry[]>(key)
+      if (cached && !options?.force) {
+        setEntries(cached.data)
+        setHasMore(cached.data.length === LOG_PAGE_SIZE)
+        setIsLoading(false)
+        if (isQueryFresh(key) && !shouldRevalidateQuery(key)) {
+          return
+        }
+      }
+
+      try {
+        if (!cached) {
+          setIsLoading(true)
+        }
+        const rows = await getAdminActivityLog(activeSeason.id, LOG_PAGE_SIZE, 0)
+        setEntries(rows)
+        setHasMore(rows.length === LOG_PAGE_SIZE)
+        setCachedQuery(key, rows)
+      } catch (err: unknown) {
+        const msg =
+          err instanceof Error ? err.message : 'Failed to load activity log'
+        error(msg)
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [activeSeason?.id, error]
+  )
 
   useEffect(() => {
     setTeamFilter('all')
@@ -240,20 +283,10 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
   }
 
   return (
-    <div className="flex flex-col gap-6 font-sans">
+    <div className={ADMIN_PAGE_WRAPPER}>
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-6 border-b border-border">
-        <div>
-          <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-accent-bright font-semibold block mb-1.5">
-            Season Audit Trail
-          </span>
-          <h1 className="font-syne font-extrabold text-2xl sm:text-3xl text-text tracking-tight">
-            Activity Log
-          </h1>
-          <p className="text-xs sm:text-sm text-muted mt-1.5 max-w-2xl leading-relaxed">
-            Read-only record of auction actions and purse changes for the active season.
-          </p>
-        </div>
+      <header className={ADMIN_PAGE_HEADER}>
+        <h1 className={ADMIN_PAGE_TITLE}>Activity Log</h1>
 
         <div className="flex items-center gap-2.5 flex-wrap shrink-0">
           <Button
@@ -262,7 +295,8 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
             size="md"
             leftIcon={ArrowsClockwise}
             disabled={isLoading || isLoadingMore || !activeSeason}
-            onClick={() => void loadInitialLogs()}
+            onClick={() => void loadInitialLogs({ force: true })}
+            className="rounded-full"
           >
             Refresh
           </Button>
@@ -273,55 +307,54 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
             leftIcon={DownloadSimple}
             disabled={isLoading || filteredEntries.length === 0}
             onClick={handleDownloadCsv}
+            className="rounded-full px-5"
           >
             Download CSV
           </Button>
         </div>
-      </div>
+      </header>
 
-      {/* Filters Bar */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-surface border border-border shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        {/* Type Filter */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-normal text-muted mr-1">Type:</span>
-          <div
-            role="radiogroup"
-            aria-label="Filter by activity type"
-            className="inline-flex items-center p-1 bg-surface-2 border border-border rounded-xl gap-1 flex-wrap"
-          >
-            {TYPE_FILTER_OPTIONS.map((opt) => {
-              const isSelected = typeFilter === opt.value
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={isSelected}
-                  onClick={() => setTypeFilter(opt.value)}
-                  className={`min-h-[32px] px-3 py-1 rounded-lg text-xs transition-colors ${
-                    isSelected
-                      ? 'bg-surface text-text font-medium border border-border shadow-sm'
-                      : 'text-muted font-normal hover:text-text border border-transparent'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              )
-            })}
+      {/* Filters & Log Table Card */}
+      <section className={ADMIN_CARD}>
+        {/* Filters Bar */}
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pb-5 border-b border-border">
+          {/* Type Filter — single horizontally scrollable row on mobile */}
+          <div className={`${ADMIN_PILL_BAR_OUTER} xl:w-auto`}>
+            <div
+              role="radiogroup"
+              aria-label="Filter by activity type"
+              className={ADMIN_PILL_BAR}
+            >
+              {TYPE_FILTER_OPTIONS.map((opt) => {
+                const isSelected = typeFilter === opt.value
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={isSelected}
+                    onClick={() => setTypeFilter(opt.value)}
+                    className={`min-h-[36px] px-4 py-1.5 rounded-full text-xs sm:text-sm font-sans whitespace-nowrap shrink-0 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright ${
+                      isSelected
+                        ? 'bg-btn-bg text-btn-fg font-medium'
+                        : 'text-muted hover:text-text font-normal'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
           </div>
-        </div>
 
-        {/* Team Dropdown + Player Name Search */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 lg:max-w-xl lg:justify-end">
-          <div className="flex items-center gap-2">
-            <label htmlFor="log-team-filter" className="text-xs font-normal text-muted shrink-0">
-              Team:
-            </label>
+          {/* Team Dropdown + Player Name Search */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 xl:max-w-xl xl:justify-end">
             <select
               id="log-team-filter"
+              aria-label="Filter by team"
               value={teamFilter}
               onChange={(e) => setTeamFilter(e.target.value)}
-              className="min-h-[38px] px-3 py-1.5 bg-bg border border-border rounded-xl text-xs text-text focus:outline-none focus:border-accent-bright"
+              className={`${ADMIN_SELECT} sm:max-w-[220px]`}
             >
               <option value="all">All Teams</option>
               {sortedTeams.map((t) => (
@@ -330,126 +363,151 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
                 </option>
               ))}
             </select>
-          </div>
 
-          <div className="relative flex-1 min-w-[200px]">
-            <MagnifyingGlass
-              size={15}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
-            />
-            <input
-              type="text"
-              value={playerSearch}
-              onChange={(e) => setPlayerSearch(e.target.value)}
-              placeholder="Search player name..."
-              aria-label="Search player name"
-              className="w-full min-h-[38px] pl-9 pr-3 py-1.5 bg-bg border border-border rounded-xl text-xs text-text placeholder:text-muted focus:outline-none focus:border-accent-bright"
-            />
+            <div className="relative flex-1 min-w-[200px]">
+              <MagnifyingGlass
+                size={16}
+                weight="regular"
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+              />
+              <input
+                type="text"
+                value={playerSearch}
+                onChange={(e) => setPlayerSearch(e.target.value)}
+                placeholder="Search player name..."
+                aria-label="Search player name"
+                className={`${ADMIN_INPUT} pl-10`}
+              />
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Table Card */}
-      <div className="bg-surface border border-border rounded-2xl shadow-sm overflow-hidden flex flex-col">
+        {/* Table Shell */}
         {isLoading ? (
-          <div className="py-20 flex flex-col items-center justify-center gap-3 text-muted text-xs font-mono">
-            <Spinner size="md" />
-            <span>Loading activity log...</span>
+          <div className={ADMIN_TABLE_SHELL}>
+            <div className="max-h-[600px] overflow-y-auto overflow-x-auto thin-scrollbar">
+              <table className="w-full min-w-[780px] text-left border-collapse text-xs font-sans">
+                <thead className="sticky top-0 z-10 bg-surface-2 border-b border-border text-muted uppercase tracking-wider text-[11px] font-mono">
+                  <tr>
+                    <th className="py-3.5 px-4 font-normal whitespace-nowrap">Time</th>
+                    <th className="py-3.5 px-4 font-normal whitespace-nowrap">Action</th>
+                    <th className="py-3.5 px-4 font-normal whitespace-nowrap">Player</th>
+                    <th className="py-3.5 px-4 font-normal whitespace-nowrap">Team</th>
+                    <th className="py-3.5 px-4 font-normal text-right whitespace-nowrap">
+                      Amount
+                    </th>
+                    <th className="py-3.5 px-4 font-normal text-right whitespace-nowrap">
+                      Balance
+                    </th>
+                    <th className="py-3.5 px-4 font-normal">Note</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <SkeletonTableRow key={i} columns={7} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : entries.length === 0 ? (
-          <div className="p-8">
-            <EmptyState
-              icon={ClockCounterClockwise}
-              title="No activity yet for this season"
-              description="Auction bids, player sales, reversals, and purse adjustments for the active season will appear here."
-            />
-          </div>
+          <EmptyState
+            icon={ClockCounterClockwise}
+            title="No activity yet for this season"
+            description="Auction bids, player sales, reversals, and purse adjustments will appear here."
+          />
         ) : filteredEntries.length === 0 ? (
-          <div className="py-16 px-6 text-center text-xs text-muted">
+          <div className="py-14 px-6 text-center text-sm text-muted bg-bg border border-border rounded-2xl">
             No activity log entries match the selected filters.
           </div>
         ) : (
-          <div className="max-h-[600px] overflow-y-auto overflow-x-auto thin-scrollbar">
-            <table className="w-full min-w-[780px] text-left border-collapse text-xs font-sans">
-              <thead className="sticky top-0 z-10 bg-surface-2 border-b border-border text-muted uppercase tracking-wider text-[11px] font-mono">
-                <tr>
-                  <th className="py-3.5 px-4 font-normal whitespace-nowrap">Time</th>
-                  <th className="py-3.5 px-4 font-normal whitespace-nowrap">Action</th>
-                  <th className="py-3.5 px-4 font-normal whitespace-nowrap">Player</th>
-                  <th className="py-3.5 px-4 font-normal whitespace-nowrap">Team</th>
-                  <th className="py-3.5 px-4 font-normal text-right whitespace-nowrap">
-                    Amount
-                  </th>
-                  <th className="py-3.5 px-4 font-normal text-right whitespace-nowrap">
-                    Balance
-                  </th>
-                  <th className="py-3.5 px-4 font-normal">Note</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {filteredEntries.map((row, idx) => {
-                  const hasPlayer = Boolean(row.player_name && row.player_name.trim())
-                  const hasTeam = Boolean(row.team_name && row.team_name.trim())
-                  const hasNote = Boolean(row.note && row.note.trim())
-                  const hasAmount = row.amount !== null && row.amount !== undefined
-                  const hasBalance =
-                    row.balance_after !== null && row.balance_after !== undefined
+          <div className={ADMIN_TABLE_SHELL}>
+            <div className="max-h-[600px] overflow-y-auto overflow-x-auto thin-scrollbar">
+              <table className="w-full min-w-[780px] text-left border-collapse text-xs sm:text-sm font-sans">
+                <thead className="sticky top-0 z-10 bg-surface-2 border-b border-border text-muted uppercase tracking-wider text-[11px] font-mono">
+                  <tr>
+                    <th className="py-3.5 px-4 font-normal whitespace-nowrap">Time</th>
+                    <th className="py-3.5 px-4 font-normal whitespace-nowrap">Action</th>
+                    <th className="py-3.5 px-4 font-normal whitespace-nowrap">Player</th>
+                    <th className="py-3.5 px-4 font-normal whitespace-nowrap">Team</th>
+                    <th className="py-3.5 px-4 font-normal text-right whitespace-nowrap">
+                      Amount
+                    </th>
+                    <th className="py-3.5 px-4 font-normal text-right whitespace-nowrap">
+                      Balance
+                    </th>
+                    <th className="py-3.5 px-4 font-normal">Note</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredEntries.map((row, idx) => {
+                    const hasPlayer = Boolean(row.player_name && row.player_name.trim())
+                    const hasTeam = Boolean(row.team_name && row.team_name.trim())
+                    const hasNote = Boolean(row.note && row.note.trim())
+                    const hasAmount = row.amount !== null && row.amount !== undefined
+                    const hasBalance =
+                      row.balance_after !== null && row.balance_after !== undefined
 
-                  return (
-                    <tr
-                      key={`${row.occurred_at}-${row.action}-${idx}`}
-                      className="hover:bg-surface-2/60 transition-colors"
-                    >
-                      <td className="py-3.5 px-4 text-muted whitespace-nowrap">
-                        {formatLocalLogTime(row.occurred_at)}
-                      </td>
-                      <td className="py-3.5 px-4 font-semibold text-text whitespace-nowrap">
-                        {row.action || '—'}
-                      </td>
-                      <td className="py-3.5 px-4 text-text whitespace-nowrap">
-                        {hasPlayer ? row.player_name : '—'}
-                      </td>
-                      <td className="py-3.5 px-4 text-text whitespace-nowrap">
-                        {hasTeam ? row.team_name : '—'}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-mono tabular-nums font-semibold text-text whitespace-nowrap">
-                        {hasAmount ? Number(row.amount).toLocaleString() : '—'}
-                      </td>
-                      <td className="py-3.5 px-4 text-right font-mono tabular-nums font-semibold text-points whitespace-nowrap">
-                        {hasBalance ? Number(row.balance_after).toLocaleString() : '—'}
-                      </td>
-                      <td className="py-3.5 px-4 text-muted max-w-xs truncate" title={hasNote ? row.note || undefined : undefined}>
-                        {hasNote ? row.note : '—'}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                    return (
+                      <tr
+                        key={`${row.occurred_at}-${row.action}-${idx}`}
+                        className="hover:bg-surface-2/50 transition-colors"
+                      >
+                        <td className="py-3.5 px-4 text-xs font-mono text-muted whitespace-nowrap">
+                          {formatLocalLogTime(row.occurred_at)}
+                        </td>
+                        <td className="py-3.5 px-4 font-medium text-text whitespace-nowrap">
+                          {row.action || '—'}
+                        </td>
+                        <td className="py-3.5 px-4 text-text whitespace-nowrap">
+                          {hasPlayer ? row.player_name : '—'}
+                        </td>
+                        <td className="py-3.5 px-4 text-text whitespace-nowrap">
+                          {hasTeam ? row.team_name : '—'}
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono tabular-nums font-semibold text-text whitespace-nowrap">
+                          {hasAmount ? Number(row.amount).toLocaleString() : '—'}
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono tabular-nums font-semibold text-points whitespace-nowrap">
+                          {hasBalance ? Number(row.balance_after).toLocaleString() : '—'}
+                        </td>
+                        <td
+                          className="py-3.5 px-4 text-xs text-muted max-w-xs truncate"
+                          title={hasNote ? row.note || undefined : undefined}
+                        >
+                          {hasNote ? row.note : '—'}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer for 1000-row pagination / Load More */}
+            {hasMore && (
+              <div className="px-4 py-3.5 border-t border-border bg-surface-2/60 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <span className="text-xs text-muted">
+                  {entries.length === LOG_PAGE_SIZE
+                    ? 'Showing the latest 1000 entries'
+                    : `Showing the latest ${entries.length.toLocaleString()} entries`}
+                </span>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  isLoading={isLoadingMore}
+                  disabled={isLoadingMore}
+                  onClick={() => void handleLoadMore()}
+                  className="rounded-full"
+                >
+                  Load more
+                </Button>
+              </div>
+            )}
           </div>
         )}
-
-        {/* Footer for 1000-row pagination / Load More */}
-        {!isLoading && hasMore && (
-          <div className="p-4 border-t border-border bg-surface-2/50 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <span className="text-xs text-muted">
-              {entries.length === LOG_PAGE_SIZE
-                ? 'Showing the latest 1000 entries'
-                : `Showing the latest ${entries.length.toLocaleString()} entries`}
-            </span>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              isLoading={isLoadingMore}
-              disabled={isLoadingMore}
-              onClick={() => void handleLoadMore()}
-            >
-              Load more
-            </Button>
-          </div>
-        )}
-      </div>
+      </section>
     </div>
   )
 }

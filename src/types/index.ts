@@ -26,7 +26,6 @@ export interface Season {
   id: string
   name: string
   is_active: boolean
-  is_archived?: boolean
   start_date?: string
   end_date?: string
   description?: string
@@ -186,6 +185,8 @@ export interface ProjectorState {
   auto_filter?: ProjectorAutoFilter | null
   auto_interval_seconds?: number | null
   auto_started_at?: string | null
+  broadcast_message?: string | null
+  confetti_at?: string | null
   updated_at: string
 }
 
@@ -253,5 +254,12 @@ export interface CreditPerson {
   description?: string | null
   photo_url?: string | null
   sort_order: number
+  created_at: string
+}
+
+export interface RulesDocument {
+  id: string
+  title: string
+  file_path: string
   created_at: string
 }

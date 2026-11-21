@@ -1,11 +1,18 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '../../lib/AuthContext'
+import FooterMark from './FooterMark'
 
 export const SiteFooter: React.FC = () => {
+  const { user, logout } = useAuth()
+  const isOwner = user?.role === 'owner'
+
   return (
-    <footer className="border-t border-border py-12 px-6 md:px-16 lg:px-24 bg-bg text-muted">
+    <footer className="border-t border-border py-12 px-6 md:px-16 lg:px-24 bg-[#F1F1F2] dark:bg-[#171817] text-muted">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div>
+        <div className="flex items-center gap-4">
+<FooterMark size={44} />
+<div>
           <div className="font-syne font-extrabold text-xl text-text tracking-tight">
             Fieldr
           </div>
@@ -13,8 +20,9 @@ export const SiteFooter: React.FC = () => {
             Real-time athletic player auctions and squad management.
           </p>
         </div>
+        </div>
 
-        <nav aria-label="Footer links" className="flex items-center gap-6 text-xs font-medium">
+        <nav aria-label="Footer links" className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs font-medium">
           <Link
             to="/rosters"
             className="hover:text-text transition-colors"
@@ -30,10 +38,10 @@ export const SiteFooter: React.FC = () => {
           </Link>
           <span className="text-border">·</span>
           <Link
-            to="/season"
+            to="/rules"
             className="hover:text-text transition-colors"
           >
-            Season
+            Auction Rules
           </Link>
           <span className="text-border">·</span>
           <Link
@@ -49,6 +57,23 @@ export const SiteFooter: React.FC = () => {
           >
             About
           </Link>
+          <span className="text-border">·</span>
+          {isOwner ? (
+            <button
+              type="button"
+              onClick={() => logout()}
+              className="hover:text-text transition-colors cursor-pointer"
+            >
+              Sign out
+            </button>
+          ) : (
+            <Link
+              to="/owner-login"
+              className="hover:text-text transition-colors"
+            >
+              Owner login
+            </Link>
+          )}
         </nav>
       </div>
     </footer>

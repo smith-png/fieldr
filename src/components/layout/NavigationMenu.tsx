@@ -1,8 +1,10 @@
-import React, { useEffect, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { ArrowRight, Monitor, Moon, Sun, X, type Icon } from '@phosphor-icons/react'
+import { Monitor, Moon, Sun, type Icon } from '@phosphor-icons/react'
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock'
 import { useAuth } from '../../lib/AuthContext'
+import { prefetchRoute } from '../../lib/queryCache'
 import { type ThemePreference, useTheme } from '../../lib/theme'
 import type { Season } from '../../types'
 
@@ -14,39 +16,198 @@ interface NavigationMenuProps {
 
 export const NavigationMenu: React.FC<NavigationMenuProps> = ({
   isOpen,
-  onClose,
-  activeSeason
+  onClose
 }) => {
-  const { user, logout } = useAuth()
+  const { user, isLoading, logout } = useAuth()
   const { preference, setPreference } = useTheme()
   const navigate = useNavigate()
-  const menuRef = useRef<HTMLDivElement>(null)
+  const location = useLocation()
+  const sheetRef = useRef<HTMLDivElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const optionRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const wasOpenRef = useRef<boolean>(false)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+  const initialPathnameRef = useRef(location.pathname)
   const shouldReduceMotion = useReducedMotion()
 
-  const optionRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const [isDesktop, setIsDesktop] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 1024px)').matches : false
+  )
 
-  // Lock body scroll and trap Esc key
+  const dragStartYRef = useRef<number | null>(null)
+  const [dragOffsetY, setDragOffsetY] = useState<number>(0)
+  const [isDragging, setIsDragging] = useState<boolean>(false)
+
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden'
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') onClose()
-      }
-      window.addEventListener('keydown', handleKeyDown)
-      return () => {
-        document.body.style.overflow = ''
-        window.removeEventListener('keydown', handleKeyDown)
+    if (typeof window === 'undefined') return
+    const mediaQuery = window.matchMedia('(min-width: 1024px)')
+    const handleMediaChange = (e: MediaQueryListEvent) => {
+      setIsDesktop(e.matches)
+      setDragOffsetY(0)
+      setIsDragging(false)
+      dragStartYRef.current = null
+    }
+    setIsDesktop(mediaQuery.matches)
+    mediaQuery.addEventListener('change', handleMediaChange)
+    return () => {
+      mediaQuery.removeEventListener('change', handleMediaChange)
+    }
+  }, [])
+
+  const handleClose = useCallback(() => {
+    setDragOffsetY(0)
+    setIsDragging(false)
+    dragStartYRef.current = null
+    onCloseRef.current()
+  }, [])
+
+  // Close menu if route changes while open
+  useEffect(() => {
+    if (location.pathname !== initialPathnameRef.current) {
+      initialPathnameRef.current = location.pathname
+      if (isOpen) {
+        handleClose()
       }
     }
-  }, [isOpen, onClose])
+  }, [location.pathname, isOpen, handleClose])
+
+  useBodyScrollLock(isOpen)
+
+  // Move focus into sheet, trap focus, handle Escape, and return focus on close
+  useEffect(() => {
+    if (isOpen) {
+      wasOpenRef.current = true
+      previousFocusRef.current = document.activeElement as HTMLElement | null
+      setDragOffsetY(0)
+      setIsDragging(false)
+      dragStartYRef.current = null
+
+      const focusTimer = window.setTimeout(() => {
+        closeButtonRef.current?.focus()
+      }, 20)
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          handleClose()
+          return
+        }
+
+        if (e.key === 'Tab' && sheetRef.current) {
+          const focusable = Array.from(
+            sheetRef.current.querySelectorAll<HTMLElement>(
+              'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            )
+          )
+          if (focusable.length === 0) return
+
+          const first = focusable[0]
+          const last = focusable[focusable.length - 1]
+          const active = document.activeElement as HTMLElement | null
+
+          if (e.shiftKey) {
+            if (!active || active === first || !sheetRef.current.contains(active)) {
+              e.preventDefault()
+              last.focus()
+            }
+          } else {
+            if (!active || active === last || !sheetRef.current.contains(active)) {
+              e.preventDefault()
+              first.focus()
+            }
+          }
+        }
+      }
+
+      window.addEventListener('keydown', handleKeyDown)
+      return () => {
+        window.clearTimeout(focusTimer)
+        window.removeEventListener('keydown', handleKeyDown)
+      }
+    } else if (wasOpenRef.current) {
+      wasOpenRef.current = false
+      const prev = previousFocusRef.current
+      previousFocusRef.current = null
+      if (prev && prev.isConnected) {
+        prev.focus()
+      }
+    }
+  }, [isOpen, handleClose])
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isDesktop) return
+    if ((e.target as HTMLElement).closest('button')) return
+    dragStartYRef.current = e.clientY
+    setIsDragging(true)
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId)
+    } catch {
+      // ignore pointer capture error
+    }
+  }
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isDesktop || dragStartYRef.current === null) return
+    const delta = Math.max(0, e.clientY - dragStartYRef.current)
+    setDragOffsetY(delta)
+  }
+
+  const handlePointerEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isDesktop || dragStartYRef.current === null) return
+    const delta = e.clientY - dragStartYRef.current
+    dragStartYRef.current = null
+    setIsDragging(false)
+    if (delta > 80) {
+      handleClose()
+    } else {
+      setDragOffsetY(0)
+    }
+  }
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (isDesktop) return
+    if ((e.target as HTMLElement).closest('button')) return
+    const touch = e.touches[0]
+    if (!touch) return
+    dragStartYRef.current = touch.clientY
+    setIsDragging(true)
+  }
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (isDesktop || dragStartYRef.current === null) return
+    const touch = e.touches[0]
+    if (!touch) return
+    const delta = Math.max(0, touch.clientY - dragStartYRef.current)
+    setDragOffsetY(delta)
+  }
+
+  const handleTouchEnd = () => {
+    if (isDesktop || dragStartYRef.current === null) return
+    const shouldDismiss = dragOffsetY > 80
+    dragStartYRef.current = null
+    setIsDragging(false)
+    if (shouldDismiss) {
+      handleClose()
+    } else {
+      setDragOffsetY(0)
+    }
+  }
 
   const links = [
     { title: 'Home', path: '/', visible: true },
     { title: 'Teams', path: '/teams', visible: true },
-    { title: 'Season', path: '/season', visible: true },
+    { title: 'Auction Rules', path: '/rules', visible: true },
     { title: 'Dashboard', path: '/admin', visible: !!user },
-    { title: 'Projector', path: '/projector', visible: user?.role === 'admin' || user?.role === 'projector' }
+    {
+      title: 'Projector',
+      path: '/projector',
+      visible: user?.role === 'admin' || user?.role === 'projector'
+    }
   ]
+
+  const visibleLinks = links.filter((l) => l.visible)
 
   const appearanceOptions: { value: ThemePreference; label: string; icon: Icon }[] = [
     { value: 'system', label: 'System', icon: Monitor },
@@ -73,213 +234,196 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
 
   const handleSignOut = async () => {
     await logout()
-    onClose()
+    handleClose()
     navigate('/login')
   }
+
+  const panelInitial = shouldReduceMotion
+    ? { opacity: 0 }
+    : isDesktop
+    ? { x: '-100%', y: '0%' }
+    : { x: '0%', y: '100%' }
+
+  const panelAnimate = shouldReduceMotion
+    ? { opacity: 1 }
+    : isDesktop
+    ? { x: '0%', y: '0%' }
+    : { x: '0%', y: dragOffsetY > 0 ? dragOffsetY : '0%' }
+
+  const panelExit = shouldReduceMotion
+    ? { opacity: 0 }
+    : isDesktop
+    ? { x: '-100%', y: '0%' }
+    : { x: '0%', y: '100%' }
 
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          ref={menuRef}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Navigation Menu"
-          className="fixed inset-0 z-50 overflow-hidden p-6 md:p-12 text-white"
+          key="public-navigation-overlay"
+          initial={{ opacity: 1 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 1 }}
+          transition={
+            shouldReduceMotion
+              ? { duration: 0.15 }
+              : { duration: 0.38, ease: [0.22, 1, 0.36, 1] }
+          }
+          className="fixed inset-0 z-50 flex flex-col justify-end items-center sm:px-4 lg:flex-row lg:justify-start lg:items-stretch lg:px-0"
         >
-          {/* Expanding Circle Background in deep sage (--menu-bg) */}
+          {/* Lighter dimmed backdrop so the frosted surface blur stays visible */}
           <motion.div
             aria-hidden="true"
-            className="absolute rounded-full bg-menu-bg pointer-events-none"
-            style={{
-              width: '300vmax',
-              height: '300vmax',
-              left: 'calc(46px - 150vmax)',
-              top: 'calc(46px - 150vmax)',
-              transformOrigin: 'center',
-              willChange: 'transform'
-            }}
-            initial={shouldReduceMotion ? { opacity: 0 } : { scale: 0 }}
-            animate={shouldReduceMotion ? { opacity: 1 } : { scale: 1 }}
-            exit={shouldReduceMotion ? { opacity: 0 } : { scale: 0 }}
+            onClick={handleClose}
+            className="fixed inset-0 bg-black/25 dark:bg-black/45"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             transition={
               shouldReduceMotion
                 ? { duration: 0.15 }
-                : { duration: 0.55, ease: [0.22, 1, 0.36, 1] }
+                : { duration: 0.38, ease: [0.22, 1, 0.36, 1] }
             }
           />
 
-          {/* Menu Content Wrapper Above Circle */}
+          {/* Mobile Bottom Sheet / Desktop Left Full-Height Panel (380px) */}
           <motion.div
-            className="relative z-10 w-full h-full flex flex-col justify-between"
-            initial={{ opacity: 0 }}
-            animate={{
-              opacity: 1,
-              transition: {
-                duration: shouldReduceMotion ? 0.15 : 0.25,
-                delay: shouldReduceMotion ? 0 : 0.2
+            id="public-navigation-sheet"
+            ref={sheetRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="public-navigation-sheet-title"
+            className="frost relative z-10 flex flex-col w-full max-w-[36rem] lg:w-[380px] lg:max-w-[380px] lg:h-full border border-border/60 lg:border-y-0 lg:border-l-0 lg:border-r lg:border-border/60 rounded-t-[24px] sm:rounded-[24px] sm:mb-6 lg:rounded-none lg:rounded-r-[24px] lg:mb-0 p-6 lg:p-7 text-text max-h-[88svh] lg:max-h-none overflow-y-auto focus:outline-none"
+              initial={panelInitial}
+              animate={panelAnimate}
+              exit={panelExit}
+              transition={
+                isDragging
+                  ? { duration: 0 }
+                  : shouldReduceMotion
+                  ? { duration: 0.15 }
+                  : { duration: 0.38, ease: [0.22, 1, 0.36, 1] }
               }
-            }}
-            exit={{
-              opacity: 0,
-              transition: {
-                duration: 0.12,
-                delay: 0
-              }
-            }}
-          >
-            {/* Top Row: Close button positioned identically to the top-left icon */}
-            <div className="flex items-center justify-between">
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Close menu"
-                className="w-[52px] h-[52px] rounded-[22%] bg-white/10 border border-white/15 flex items-center justify-center text-white hover:text-white hover:border-accent-bright transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
-              >
-                <X size={24} weight="bold" />
-              </button>
+            >
+            {/* Swipeable Handle Area (mobile) & Header Row */}
+            <div
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerEnd}
+              onPointerCancel={handlePointerEnd}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              className="touch-none select-none cursor-grab active:cursor-grabbing lg:cursor-default -mt-2 pt-2 lg:mt-0 lg:pt-0"
+            >
+              <div
+                aria-hidden="true"
+                className="w-10 h-1 rounded-full bg-text/20 mx-auto mb-4 lg:hidden"
+              />
 
-              {user && (
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/15 text-xs text-white/80">
-                  <span className="w-1.5 h-1.5 rounded-full bg-accent-bright" />
-                  <span className="font-medium tracking-wide uppercase">{user.role}</span>
-                  <span className="text-white/40">·</span>
-                  <span className="text-white/70">{user.email}</span>
-                </div>
-              )}
+              <div className="flex items-center justify-between gap-4 pb-3.5 border-b border-border/60">
+                <span
+                  id="public-navigation-sheet-title"
+                  className="font-sans text-[11px] font-medium uppercase tracking-[0.2em] text-muted"
+                >
+                  NAVIGATION
+                </span>
+                <button
+                  ref={closeButtonRef}
+                  type="button"
+                  onClick={handleClose}
+                  aria-label="Close menu"
+                  className="inline-flex items-center justify-center h-8 px-3.5 rounded-full bg-surface/70 hover:bg-surface-2 border border-border/80 font-sans text-[11px] font-medium uppercase tracking-[0.18em] text-text transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                >
+                  Close
+                </button>
+              </div>
             </div>
 
-            {/* Staggered Navigation Links */}
-            <div className="flex flex-col gap-5 md:gap-7 max-w-2xl my-auto">
-              {links.filter((l) => l.visible).map((link, idx) => (
-                <motion.div
+            {/* Vertical Page Links separated by subtle hairlines (~9% text color) */}
+            <nav aria-label="Site navigation" className="divide-y divide-text/[0.09] mt-1">
+              {visibleLinks.map((link) => (
+                <Link
                   key={link.path}
-                  initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 35 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{
-                    duration: 0.5,
-                    delay: shouldReduceMotion ? 0 : 0.15 + idx * 0.08,
-                    ease: [0.22, 1, 0.36, 1]
-                  }}
+                  to={link.path}
+                  onClick={handleClose}
+                  onMouseEnter={() => prefetchRoute(link.path)}
+                  onFocus={() => prefetchRoute(link.path)}
+                  onTouchStart={() => prefetchRoute(link.path)}
+                  className="group flex items-center py-3.5 text-text hover:text-accent-bright transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright focus-visible:rounded-lg"
                 >
-                  <Link
-                    to={link.path}
-                    onClick={onClose}
-                    className="group flex items-center gap-4 text-3xl sm:text-6xl md:text-7xl font-syne font-bold tracking-tight leading-tight text-white/85 hover:text-white transition-colors transition-transform transform hover:translate-x-3"
-                  >
-                    <span>{link.title}</span>
-                    <ArrowRight
-                      size={36}
-                      weight="regular"
-                      className="opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-[opacity,transform] text-accent-bright"
-                    />
-                  </Link>
-                </motion.div>
+                  <span className="font-syne font-bold text-[20px] leading-snug tracking-tight">
+                    {link.title}
+                  </span>
+                </Link>
               ))}
+            </nav>
 
-              {/* Auth Action */}
-              <motion.div
-                initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 35 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{
-                  duration: 0.5,
-                  delay: shouldReduceMotion ? 0 : 0.15 + links.length * 0.08,
-                  ease: [0.22, 1, 0.36, 1]
-                }}
-                className="pt-4 border-t border-white/15"
-              >
+            {/* Separate Sign in / Sign out Rounded Pill Button */}
+            {!isLoading && (
+              <div className="pt-5 pb-2">
                 {user ? (
                   <button
                     type="button"
                     onClick={handleSignOut}
-                    className="group flex items-center gap-3 text-2xl sm:text-3xl font-sans font-light text-white/60 hover:text-error transition-colors transition-transform transform hover:translate-x-2"
+                    className="w-full inline-flex items-center justify-center h-11 px-5 rounded-full bg-surface/70 hover:bg-error/10 border border-border/80 hover:border-error/40 font-sans text-[11px] font-medium uppercase tracking-[0.18em] text-text hover:text-error transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
                   >
-                    <span>Sign out</span>
-                    <ArrowRight
-                      size={24}
-                      weight="regular"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
-                    />
+                    Sign out
                   </button>
                 ) : (
                   <Link
                     to="/login"
-                    onClick={onClose}
-                    className="group flex items-center gap-3 text-2xl sm:text-3xl font-sans font-medium text-white/90 hover:text-white transition-colors transition-transform transform hover:translate-x-2"
+                    onClick={handleClose}
+                    onMouseEnter={() => prefetchRoute('/login')}
+                    onFocus={() => prefetchRoute('/login')}
+                    onTouchStart={() => prefetchRoute('/login')}
+                    className="w-full inline-flex items-center justify-center h-11 px-5 rounded-full bg-btn-bg text-btn-fg hover:opacity-90 font-sans text-[11px] font-medium uppercase tracking-[0.18em] transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
                   >
-                    <span>Sign in</span>
-                    <ArrowRight
-                      size={24}
-                      weight="regular"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-accent-bright"
-                    />
+                    Sign in
                   </Link>
                 )}
-              </motion.div>
-
-              {/* Appearance Segmented Control */}
-              <motion.div
-                initial={{ opacity: 0, y: shouldReduceMotion ? 0 : 35 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{
-                  duration: 0.5,
-                  delay: shouldReduceMotion ? 0 : 0.15 + (links.length + 1) * 0.08,
-                  ease: [0.22, 1, 0.36, 1]
-                }}
-                className="pt-4"
-              >
-                <span
-                  id="appearance-label"
-                  className="text-xs font-sans font-medium uppercase tracking-wide text-white/60 block mb-2.5"
-                >
-                  Appearance
-                </span>
-                <div
-                  role="radiogroup"
-                  aria-labelledby="appearance-label"
-                  className="inline-flex items-center p-1 bg-white/10 border border-white/15 rounded-xl gap-1"
-                >
-                  {appearanceOptions.map((opt, idx) => {
-                    const IconComponent = opt.icon
-                    const isSelected = preference === opt.value
-                    return (
-                      <button
-                        key={opt.value}
-                        ref={(el) => {
-                          optionRefs.current[idx] = el
-                        }}
-                        type="button"
-                        role="radio"
-                        aria-checked={isSelected}
-                        tabIndex={isSelected ? 0 : -1}
-                        onClick={() => setPreference(opt.value)}
-                        onKeyDown={(e) => handleKeyDownAppearance(e, idx)}
-                        className={`min-h-[44px] min-w-[44px] px-3.5 py-2 rounded-lg flex items-center gap-2 text-xs font-sans tracking-normal transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright ${
-                          isSelected
-                            ? 'bg-white/25 text-white font-medium border border-white/30 shadow-sm'
-                            : 'text-white/65 font-normal hover:text-white hover:bg-white/10 border border-transparent'
-                        }`}
-                      >
-                        <IconComponent size={16} weight="regular" />
-                        <span>{opt.label}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-              </motion.div>
-            </div>
-
-            {/* Footer Metadata */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-6 border-t border-white/15 text-xs text-white/60">
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-white/90">
-                  {activeSeason?.name || 'Fieldr Tournaments'}
-                </span>
-                <span>·</span>
-                <span>Tournament Console</span>
               </div>
-              <div className="font-sans font-medium tracking-wide text-accent-bright uppercase">
-                Draft. Bid. Win.
+            )}
+
+            {/* Appearance Selector */}
+            <div className="pt-4 mt-3 lg:mt-auto border-t border-text/[0.09] flex items-center justify-between gap-3">
+              <span
+                id="appearance-label"
+                className="font-sans text-[11px] font-medium uppercase tracking-[0.18em] text-muted"
+              >
+                Appearance
+              </span>
+              <div
+                role="radiogroup"
+                aria-labelledby="appearance-label"
+                className="inline-flex items-center p-1 bg-surface-2/80 border border-border/80 rounded-full gap-1"
+              >
+                {appearanceOptions.map((opt, idx) => {
+                  const IconComponent = opt.icon
+                  const isSelected = preference === opt.value
+                  return (
+                    <button
+                      key={opt.value}
+                      ref={(el) => {
+                        optionRefs.current[idx] = el
+                      }}
+                      type="button"
+                      role="radio"
+                      aria-checked={isSelected}
+                      tabIndex={isSelected ? 0 : -1}
+                      onClick={() => setPreference(opt.value)}
+                      onKeyDown={(e) => handleKeyDownAppearance(e, idx)}
+                      className={`h-7 px-2.5 rounded-full flex items-center gap-1.5 text-[11px] font-sans transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright ${
+                        isSelected
+                          ? 'bg-surface text-text font-medium border border-border/80'
+                          : 'text-muted font-normal hover:text-text border border-transparent'
+                      }`}
+                    >
+                      <IconComponent size={13} weight="regular" />
+                      <span>{opt.label}</span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           </motion.div>
@@ -288,3 +432,5 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
     </AnimatePresence>
   )
 }
+
+

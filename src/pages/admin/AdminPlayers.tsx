@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowsLeftRight,
-  CheckCircle,
   DownloadSimple,
   Funnel,
   IdentificationBadge,
@@ -10,18 +9,24 @@ import {
   PencilSimple,
   Plus,
   Trash,
-  UploadSimple,
   User,
   UserMinus,
   UserPlus,
   Users,
-  WarningCircle,
   X
 } from '@phosphor-icons/react'
-import type { AcademicYear, AdminTab, Athlete, Player, PlayerStatus, Season, Sport, Team } from '../../types'
+import type {
+  AcademicYear,
+  AdminTab,
+  Athlete,
+  Player,
+  PlayerStatus,
+  Season,
+  Sport,
+  Team
+} from '../../types'
 import {
   assignPlayerToTeam,
-  bulkCreatePlayers,
   createPlayer,
   deletePlayer,
   exportPlayersForSport,
@@ -31,15 +36,40 @@ import {
   getRolesForSport,
   markLocalMutation,
   searchAthletes,
-  subscribeToAthletes,
   unassignPlayerFromTeam,
   updatePlayer
 } from '../../lib/data'
 import { useToast } from '../../lib/ToastContext'
 import { getAcademicYearLabel } from '../../lib/academicYears'
 import { getErrorMessage } from '../../lib/errors'
-import { Button, Dialog, EmptyState, PageHeader, Pagination } from '../../components/ui'
+import {
+  getCachedQuery,
+  isQueryFresh,
+  setCachedQuery,
+  shouldRevalidateQuery
+} from '../../lib/queryCache'
+import {
+  Button,
+  Dialog,
+  EmptyState,
+  Pagination,
+  SkeletonBlock,
+  SkeletonTableRow
+} from '../../components/ui'
 import { BulkRegisterPanel } from '../../components/admin'
+import {
+  ADMIN_CARD,
+  ADMIN_CARD_HEADER,
+  ADMIN_CARD_TITLE,
+  ADMIN_DIALOG_CLASS,
+  ADMIN_ICON_BTN,
+  ADMIN_ICON_BTN_DANGER,
+  ADMIN_INPUT,
+  ADMIN_LABEL,
+  ADMIN_SELECT,
+  ADMIN_TABLE_SHELL,
+  ADMIN_WELL
+} from '../../components/admin/adminStyles'
 
 interface AdminPlayersProps {
   activeSeason: Season | null
@@ -48,6 +78,8 @@ interface AdminPlayersProps {
   sports: Sport[]
   onRefresh: () => Promise<void>
   onGoToTab?: (tab: AdminTab) => void
+  externalRefreshTrigger?: number
+  onCreateNewAthlete?: () => void
 }
 
 export const AdminPlayers: React.FC<AdminPlayersProps> = ({
@@ -56,21 +88,32 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
   teams,
   sports,
   onRefresh,
-  onGoToTab
+  onGoToTab,
+  externalRefreshTrigger = 0,
+  onCreateNewAthlete
 }) => {
   const { showToast } = useToast()
 
   // Pagination & Filtering state
+  const activeSeasonId = activeSeason?.id || null
+  const initialCache = activeSeasonId
+    ? getCachedQuery<{
+        players: Player[]
+        totalPages: number
+        totalCount: number
+      }>(`admin:players:${activeSeasonId}:1:15:all:all:all:`)
+    : null
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize] = useState(15)
-  const [totalPages, setTotalPages] = useState(1)
-  const [totalCount, setTotalCount] = useState(0)
-  const [pagedPlayers, setPagedPlayers] = useState<Player[]>([])
+  const [totalPages, setTotalPages] = useState(() => initialCache?.data.totalPages || 1)
+  const [totalCount, setTotalCount] = useState(() => initialCache?.data.totalCount || 0)
+  const [pagedPlayers, setPagedPlayers] = useState<Player[]>(
+    () => initialCache?.data.players || []
+  )
   const [seasonPlayersList, setSeasonPlayersList] = useState<Player[]>(players)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(() => !initialCache)
 
-  const activeSeasonId = activeSeason?.id || null
-  const loadedSeasonIdRef = useRef<string | null>(null)
+  const loadedSeasonIdRef = useRef<string | null>(initialCache ? activeSeasonId : null)
   const latestReqIdRef = useRef(0)
   const latestSeasonReqIdRef = useRef(0)
   const isMountedRef = useRef(true)
@@ -122,13 +165,6 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
   const [athleteResults, setAthleteResults] = useState<Athlete[]>([])
   const [isSearchingAthletes, setIsSearchingAthletes] = useState(false)
 
-  // CSV Import state
-  const [isCsvModalOpen, setIsCsvModalOpen] = useState(false)
-  const [csvRows, setCsvRows] = useState<
-    Array<Omit<Player, 'id' | 'player_code' | 'created_at'> & { valid: boolean; error?: string }>
-  >([])
-  const [isImporting, setIsImporting] = useState(false)
-
   useEffect(() => {
     setSeasonPlayersList(players)
   }, [players])
@@ -159,100 +195,6 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
     },
     [seasonPlayersList, editingPlayer]
   )
-
-  const downloadPlayersTemplate = () => {
-    const header = 'athlete_code,sport,playing_role,base_points\n'
-    const example = '0001,Cricket,Batter,500\n'
-    const blob = new Blob([header + example], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `players_template_${activeSeason?.name || 'season'}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !activeSeason) return
-
-    const reader = new FileReader()
-    reader.onload = async (event) => {
-      const content = event.target?.result as string
-      if (!content) return
-
-      const lines = content.split('\n').map((l) => l.trim()).filter(Boolean)
-      if (lines.length <= 1) {
-        showToast('CSV is empty or missing headers', 'error')
-        return
-      }
-
-      const rows: Array<
-        Omit<Player, 'id' | 'player_code' | 'created_at'> & { valid: boolean; error?: string }
-      > = []
-
-      for (let i = 1; i < lines.length; i++) {
-        const parts = lines[i].split(',').map((p) => p.trim())
-        if (parts.length < 3) continue
-
-        const [codeOrName, sportVal, roleVal, pointsVal] = parts
-        let matchedAth: Athlete | undefined
-        try {
-          const matches = await searchAthletes(codeOrName)
-          const parsedCode = parseInt(codeOrName.replace(/^FLD-?/i, ''), 10)
-          matchedAth =
-            matches.find((a) => !isNaN(parsedCode) && a.athlete_code === parsedCode) ||
-            matches.find((a) => a.name.toLowerCase() === codeOrName.toLowerCase())
-        } catch {
-          matchedAth = undefined
-        }
-
-        let rowError: string | undefined
-        if (!matchedAth) rowError = 'Athlete profile not found'
-        else if (!sportVal) rowError = 'Sport is required'
-        else if (isAthleteRegisteredForSport(matchedAth.id, matchedAth.athlete_code, sportVal)) {
-          rowError = 'Already registered for this sport in this season'
-        }
-
-        rows.push({
-          season_id: activeSeason.id,
-          athlete_id: matchedAth?.id,
-          athlete_code: matchedAth?.athlete_code,
-          name: matchedAth?.name || codeOrName,
-          sport: sportVal || 'Cricket',
-          playing_role: roleVal || 'Player',
-          academic_year: (matchedAth?.academic_year || '1st') as AcademicYear,
-          base_points: parseInt(pointsVal, 10) || 100,
-          status: 'available',
-          valid: !rowError,
-          error: rowError
-        })
-      }
-
-      setCsvRows(rows)
-      setIsCsvModalOpen(true)
-    }
-    reader.readAsText(file)
-  }
-
-  const confirmBulkImport = async () => {
-    const validRows = csvRows.filter((r) => r.valid)
-    if (validRows.length === 0) return
-
-    try {
-      setIsImporting(true)
-      markLocalMutation(['players', 'athletes', 'auction'])
-      await bulkCreatePlayers(validRows)
-      showToast(`Imported ${validRows.length} players successfully`, 'success')
-      setIsCsvModalOpen(false)
-      setCsvRows([])
-      await Promise.all([loadPagedPlayers(), onRefresh()])
-    } catch (err: unknown) {
-      showToast(getErrorMessage(err, 'Import failed'), 'error')
-    } finally {
-      setIsImporting(false)
-    }
-  }
 
   const handleSearchAthletes = useCallback(
     async (q: string) => {
@@ -323,66 +265,88 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
   }, [selectedSport, sports])
 
   // Load paged players: show skeleton ONLY on first load or when activeSeasonId changes
-  const loadPagedPlayers = useCallback(async () => {
-    if (!activeSeasonId) {
-      setIsLoading(false)
-      return
-    }
-    const reqId = ++latestReqIdRef.current
-    const isInitialOrSeasonSwitch = loadedSeasonIdRef.current !== activeSeasonId
-    try {
-      if (isInitialOrSeasonSwitch) {
-        setIsLoading(true)
-      }
-      const res = await getPlayersPaged({
-        seasonId: activeSeasonId,
-        page: currentPage,
-        pageSize,
-        sport: selectedSport === 'all' ? undefined : selectedSport,
-        role: selectedRole === 'all' ? undefined : selectedRole,
-        status: selectedStatus === 'all' ? undefined : (selectedStatus as PlayerStatus),
-        search: debouncedSearch || undefined
-      })
-      if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
-      loadedSeasonIdRef.current = activeSeasonId
-      setPagedPlayers(res.players)
-      setTotalPages(res.totalPages)
-      setTotalCount(res.totalCount)
-    } catch (err: unknown) {
-      if (isMountedRef.current && reqId === latestReqIdRef.current) {
-        showToast(getErrorMessage(err, 'Failed to load players'), 'error')
-      }
-    } finally {
-      if (isMountedRef.current && reqId === latestReqIdRef.current) {
+  const loadPagedPlayers = useCallback(
+    async (options?: { force?: boolean }) => {
+      if (!activeSeasonId) {
         setIsLoading(false)
+        return
       }
-    }
-  }, [
-    activeSeasonId,
-    currentPage,
-    pageSize,
-    selectedSport,
-    selectedRole,
-    selectedStatus,
-    debouncedSearch,
-    showToast
-  ])
+      const cacheKey = `admin:players:${activeSeasonId}:${currentPage}:${pageSize}:${selectedSport}:${selectedRole}:${selectedStatus}:${debouncedSearch}`
+      const cached = getCachedQuery<{
+        players: Player[]
+        totalPages: number
+        totalCount: number
+      }>(cacheKey)
+
+      if (cached && !options?.force) {
+        loadedSeasonIdRef.current = activeSeasonId
+        setPagedPlayers(cached.data.players)
+        setTotalPages(cached.data.totalPages)
+        setTotalCount(cached.data.totalCount)
+        setIsLoading(false)
+        if (isQueryFresh(cacheKey) && !shouldRevalidateQuery(cacheKey)) {
+          return
+        }
+      }
+
+      const reqId = ++latestReqIdRef.current
+      const isInitialOrSeasonSwitch =
+        loadedSeasonIdRef.current !== activeSeasonId && !cached
+      try {
+        if (isInitialOrSeasonSwitch) {
+          setIsLoading(true)
+        }
+        const res = await getPlayersPaged({
+          seasonId: activeSeasonId,
+          page: currentPage,
+          pageSize,
+          sport: selectedSport === 'all' ? undefined : selectedSport,
+          role: selectedRole === 'all' ? undefined : selectedRole,
+          status: selectedStatus === 'all' ? undefined : (selectedStatus as PlayerStatus),
+          search: debouncedSearch || undefined
+        })
+        if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
+        loadedSeasonIdRef.current = activeSeasonId
+        setPagedPlayers(res.players)
+        setTotalPages(res.totalPages)
+        setTotalCount(res.totalCount)
+        setCachedQuery(cacheKey, {
+          players: res.players,
+          totalPages: res.totalPages,
+          totalCount: res.totalCount
+        })
+      } catch (err: unknown) {
+        if (isMountedRef.current && reqId === latestReqIdRef.current) {
+          showToast(getErrorMessage(err, 'Failed to load players'), 'error')
+        }
+      } finally {
+        if (isMountedRef.current && reqId === latestReqIdRef.current) {
+          setIsLoading(false)
+        }
+      }
+    },
+    [
+      activeSeasonId,
+      currentPage,
+      pageSize,
+      selectedSport,
+      selectedRole,
+      selectedStatus,
+      debouncedSearch,
+      showToast
+    ]
+  )
 
   useEffect(() => {
-    loadPagedPlayers()
+    void loadPagedPlayers()
   }, [loadPagedPlayers])
 
-  // Debounced (500ms) realtime subscription for external changes; cancelled on unmount
+  // Refresh when parent athletes section signals an athlete update/realtime event
   useEffect(() => {
-    if (!activeSeasonId) return
-    const unsubscribe = subscribeToAthletes(() => {
-      loadPagedPlayers()
-      refreshSeasonPlayers()
-    })
-    return () => {
-      unsubscribe()
-    }
-  }, [activeSeasonId, loadPagedPlayers, refreshSeasonPlayers])
+    if (!activeSeasonId || externalRefreshTrigger === 0) return
+    void loadPagedPlayers({ force: true })
+    void refreshSeasonPlayers()
+  }, [activeSeasonId, externalRefreshTrigger, loadPagedPlayers, refreshSeasonPlayers])
 
   // Available roles for currently selected form sport loaded from shared helper
   const [availableRoles, setAvailableRoles] = useState<string[]>([])
@@ -486,7 +450,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
       }
       markLocalMutation(['players', 'athletes', 'auction'])
       setIsDrawerOpen(false)
-      await Promise.all([loadPagedPlayers(), onRefresh()])
+      await Promise.all([loadPagedPlayers({ force: true }), onRefresh()])
     } catch (err: unknown) {
       showToast(getErrorMessage(err, 'Failed to save player'), 'error')
     } finally {
@@ -502,7 +466,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
       await deletePlayer(deleteConfirmPlayer.id)
       showToast('Player entry removed', 'success')
       setDeleteConfirmPlayer(null)
-      await Promise.all([loadPagedPlayers(), onRefresh()])
+      await Promise.all([loadPagedPlayers({ force: true }), onRefresh()])
     } catch (err: unknown) {
       showToast(getErrorMessage(err, 'Failed to delete player'), 'error')
     }
@@ -521,7 +485,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
       setAssignmentPlayer(null)
       setAssignTeamId('')
       setAssignPrice('')
-      await Promise.all([loadPagedPlayers(), onRefresh()])
+      await Promise.all([loadPagedPlayers({ force: true }), onRefresh()])
     } catch (err: unknown) {
       showToast(getErrorMessage(err, 'Assignment failed'), 'error')
     }
@@ -634,78 +598,76 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
     : false
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        label="Athlete Roster Repository"
-        title="Registered Players"
-        subtitle="Manage per-season sport entries, base points, and franchise squad assignments."
-        actions={
-          <>
-            <label className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-surface-2 border border-border text-text text-xs font-medium hover:bg-surface transition-colors cursor-pointer min-h-[40px]">
-              <UploadSimple size={16} weight="bold" />
-              <span>Import CSV</span>
-              <input
-                type="file"
-                accept=".csv"
-                onChange={handleCsvUpload}
-                className="hidden"
-              />
-            </label>
+    <section className={ADMIN_CARD}>
+      <div className={ADMIN_CARD_HEADER}>
+        <h2 className={ADMIN_CARD_TITLE}>Registered Players</h2>
 
-            <Button
-              variant="secondary"
-              size="md"
-              leftIcon={DownloadSimple}
-              onClick={() => setIsExportModalOpen(true)}
-            >
-              Export CSV
-            </Button>
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            leftIcon={DownloadSimple}
+            onClick={() => setIsExportModalOpen(true)}
+            className="rounded-full"
+          >
+            Export CSV
+          </Button>
 
-            <Button
-              variant="secondary"
-              size="md"
-              leftIcon={Users}
-              onClick={() => setIsBulkDrawerOpen(true)}
-            >
-              Bulk Register
-            </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            leftIcon={Users}
+            onClick={() => setIsBulkDrawerOpen(true)}
+            className="rounded-full"
+          >
+            Bulk Register
+          </Button>
 
-            <Button
-              variant="primary"
-              size="md"
-              leftIcon={Plus}
-              onClick={openCreateDrawer}
-            >
-              Register Athlete
-            </Button>
-          </>
-        }
-      />
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            leftIcon={Plus}
+            onClick={openCreateDrawer}
+            className="rounded-full px-4"
+          >
+            Register Athlete
+          </Button>
+        </div>
+      </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-surface border border-border rounded-2xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 shadow-sm">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="relative flex-1 max-w-md">
           <MagnifyingGlass
             size={16}
-            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted"
+            weight="regular"
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
           />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by name or code (e.g. 0001, 1)..."
-            className="w-full bg-bg border border-border rounded-xl pl-10 pr-4 py-2 text-xs text-text placeholder-muted focus:outline-none focus:border-accent-bright"
+            placeholder="Search by name or code (0001)..."
+            className={`${ADMIN_INPUT} pl-10`}
           />
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 text-xs text-muted">
-            <Funnel size={14} />
-            <span>Sport:</span>
+        {/* Single horizontally scrollable filter row on mobile — never wraps */}
+        <div className="max-w-full overflow-x-auto pb-1 -mb-1">
+          <div className="inline-flex flex-nowrap items-center gap-2.5 w-max">
+            <span className="inline-flex items-center gap-1.5 text-xs text-muted shrink-0">
+              <Funnel size={14} weight="regular" />
+              <span>Filters</span>
+            </span>
+
             <select
+              aria-label="Filter by sport"
               value={selectedSport}
               onChange={(e) => setSelectedSport(e.target.value)}
-              className="bg-bg border border-border rounded-lg px-2.5 py-1.5 text-xs text-text focus:outline-none focus:border-accent-bright"
+              className="min-h-[38px] bg-bg border border-border rounded-full px-3.5 py-1.5 text-xs text-text focus:outline-none focus:border-accent-bright whitespace-nowrap shrink-0"
             >
               <option value="all">All Sports</option>
               {sports.map((s) => (
@@ -714,15 +676,13 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                 </option>
               ))}
             </select>
-          </div>
 
-          {selectedSport !== 'all' && filterSportRoles.length > 0 && (
-            <div className="flex items-center gap-2 text-xs text-muted">
-              <span>Role:</span>
+            {selectedSport !== 'all' && filterSportRoles.length > 0 && (
               <select
+                aria-label="Filter by role"
                 value={selectedRole}
                 onChange={(e) => setSelectedRole(e.target.value)}
-                className="bg-bg border border-border rounded-lg px-2.5 py-1.5 text-xs text-text focus:outline-none focus:border-accent-bright"
+                className="min-h-[38px] bg-bg border border-border rounded-full px-3.5 py-1.5 text-xs text-text focus:outline-none focus:border-accent-bright whitespace-nowrap shrink-0"
               >
                 <option value="all">All Roles</option>
                 {filterSportRoles.map((r) => (
@@ -731,17 +691,15 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                   </option>
                 ))}
               </select>
-            </div>
-          )}
+            )}
 
-          <div className="flex items-center gap-2 text-xs text-muted">
-            <span>Status:</span>
             <select
+              aria-label="Filter by status"
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="bg-bg border border-border rounded-lg px-2.5 py-1.5 text-xs text-text focus:outline-none focus:border-accent-bright"
+              className="min-h-[38px] bg-bg border border-border rounded-full px-3.5 py-1.5 text-xs text-text focus:outline-none focus:border-accent-bright whitespace-nowrap shrink-0"
             >
-              <option value="all">All</option>
+              <option value="all">All Statuses</option>
               <option value="available">Available</option>
               <option value="sold">Sold</option>
             </select>
@@ -750,27 +708,25 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
       </div>
 
       {/* Players Table */}
-      <div className="bg-surface border border-border rounded-2xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+      <div className={ADMIN_TABLE_SHELL}>
+        <div className="overflow-x-auto thin-scrollbar">
+          <table className="w-full min-w-[780px] text-left border-collapse text-sm">
             <thead>
               <tr className="border-b border-border bg-surface-2 text-muted font-mono uppercase tracking-wider text-[11px]">
-                <th className="py-3 px-4 font-normal">ID</th>
-                <th className="py-3 px-4 font-normal">Name</th>
-                <th className="py-3 px-4 font-normal">Sport</th>
-                <th className="py-3 px-4 font-normal">Role</th>
-                <th className="py-3 px-4 font-normal">Year</th>
-                <th className="py-3 px-4 font-normal">Status</th>
-                <th className="py-3 px-4 font-normal">Team</th>
-                <th className="py-3 px-4 font-normal text-right">Actions</th>
+                <th className="py-3.5 px-4 font-normal whitespace-nowrap">ID</th>
+                <th className="py-3.5 px-4 font-normal whitespace-nowrap">Name</th>
+                <th className="py-3.5 px-4 font-normal whitespace-nowrap">Sport</th>
+                <th className="py-3.5 px-4 font-normal whitespace-nowrap">Role</th>
+                <th className="py-3.5 px-4 font-normal whitespace-nowrap">Year</th>
+                <th className="py-3.5 px-4 font-normal whitespace-nowrap">Status</th>
+                <th className="py-3.5 px-4 font-normal whitespace-nowrap">Team</th>
+                <th className="py-3.5 px-4 font-normal text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {isLoading ? (
                 Array.from({ length: 6 }).map((_, i) => (
-                  <tr key={i} className="animate-pulse">
-                    <td colSpan={8} className="py-4 px-4 h-12 bg-surface-2/40" />
-                  </tr>
+                  <SkeletonTableRow key={i} columns={8} />
                 ))
               ) : pagedPlayers.length === 0 ? (
                 <tr>
@@ -790,9 +746,9 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                   return (
                     <tr
                       key={player.id}
-                      className="hover:bg-surface-2/60 transition-colors font-sans"
+                      className="hover:bg-surface-2/50 transition-colors font-sans"
                     >
-                      <td className="py-3.5 px-4 font-mono text-[11px] text-accent-bright font-semibold tabular-nums">
+                      <td className="py-3.5 px-4 font-mono text-xs text-accent-bright font-semibold tabular-nums whitespace-nowrap">
                         <Link
                           to={`/players/${player.athlete_code || formatAthleteCode(player.player_code)}`}
                           target="_blank"
@@ -803,81 +759,90 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                         </Link>
                       </td>
 
-                      <td className="py-3.5 px-4 font-medium text-text">
+                      <td className="py-3.5 px-4 font-medium text-text whitespace-nowrap">
                         {player.name}
                       </td>
 
-                      <td className="py-3.5 px-4 text-text">
-                        {player.sport}
-                      </td>
+                      <td className="py-3.5 px-4 text-text whitespace-nowrap">{player.sport}</td>
 
-                      <td className="py-3.5 px-4 text-muted">
+                      <td className="py-3.5 px-4 text-muted whitespace-nowrap">
                         {player.playing_role}
                       </td>
 
-                      <td className="py-3.5 px-4 font-mono text-muted">
+                      <td className="py-3.5 px-4 font-mono text-xs text-muted whitespace-nowrap">
                         {player.academic_year || '1st'}
                       </td>
 
-                      <td className="py-3.5 px-4 font-mono text-[11px]">
+                      <td className="py-3.5 px-4 whitespace-nowrap">
                         <span
-                          className={
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full border font-mono text-[11px] ${
                             player.status === 'sold'
-                              ? 'text-accent-bright font-semibold'
-                              : 'text-muted'
-                          }
+                              ? 'bg-accent/10 border-accent-bright/30 text-accent-bright font-medium'
+                              : 'bg-surface-2 border-border text-muted'
+                          }`}
                         >
                           {player.status === 'sold' ? 'Sold' : 'Available'}
                         </span>
                       </td>
 
-                      <td className="py-3.5 px-4">
+                      <td className="py-3.5 px-4 whitespace-nowrap">
                         {assignedTeam ? (
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-2">
                             <span
-                              className="w-2 h-2 rounded-full inline-block border border-border"
+                              className="w-2.5 h-2.5 rounded-full inline-block border border-border shrink-0"
                               style={{ backgroundColor: assignedTeam.color || 'var(--accent)' }}
                             />
-                            <span className="text-text font-medium">
-                              {assignedTeam.name}
-                            </span>
+                            <span className="text-text font-medium">{assignedTeam.name}</span>
                           </div>
                         ) : (
                           <span className="text-muted">—</span>
                         )}
                       </td>
 
-                      <td className="py-3.5 px-4 text-right">
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             type="button"
                             onClick={() => {
                               setAssignmentPlayer(player)
                               setAssignTeamId(player.team_id || '')
-                              setAssignPrice(player.purchase_price ? String(player.purchase_price) : '')
+                              setAssignPrice(
+                                player.purchase_price ? String(player.purchase_price) : ''
+                              )
                             }}
-                            title={player.status === 'sold' ? 'Manage squad assignment' : 'Assign to franchise'}
-                            className="p-1.5 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 transition-colors"
+                            aria-label={
+                              player.status === 'sold'
+                                ? `Manage squad assignment for ${player.name}`
+                                : `Assign ${player.name} to franchise`
+                            }
+                            title={
+                              player.status === 'sold'
+                                ? 'Manage squad assignment'
+                                : 'Assign to franchise'
+                            }
+                            className={ADMIN_ICON_BTN}
                           >
-                            <ArrowsLeftRight size={14} />
+                            <ArrowsLeftRight size={15} weight="regular" />
                           </button>
 
                           <button
                             type="button"
                             onClick={() => openEditDrawer(player)}
+                            aria-label={`Edit ${player.name}`}
                             title="Edit sport entry"
-                            className="p-1.5 rounded-lg border border-border text-muted hover:text-text hover:bg-surface-2 transition-colors"
+                            className={ADMIN_ICON_BTN}
                           >
-                            <PencilSimple size={14} />
+                            <PencilSimple size={15} weight="regular" />
                           </button>
 
                           <button
                             type="button"
                             onClick={() => setDeleteConfirmPlayer(player)}
+                            aria-label={`Delete ${player.name}`}
                             title="Delete player entry"
-                            className="p-1.5 rounded-lg border border-border text-muted hover:text-error hover:bg-error/10 transition-colors"
+                            className={ADMIN_ICON_BTN_DANGER}
                           >
-                            <Trash size={14} />
+                            <Trash size={15} weight="regular" />
                           </button>
                         </div>
                       </td>
@@ -890,7 +855,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
         </div>
 
         {/* Server-Side Pagination Bar */}
-        <div className="py-3 px-4 border-t border-border bg-surface-2">
+        <div className="py-3.5 px-4 border-t border-border bg-surface-2/60">
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}
@@ -905,73 +870,78 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
       {/* Register Player Panel (Side Drawer) */}
       {isDrawerOpen && (
         <div className="fixed inset-0 z-50 flex justify-end">
-          <div
-            className="fixed inset-0 bg-scrim"
-            onClick={() => setIsDrawerOpen(false)}
-          />
-          <div className="relative w-full max-w-lg bg-surface border-l border-border h-full overflow-y-auto p-6 sm:p-8 flex flex-col justify-between z-10 shadow-2xl">
+          <div className="fixed inset-0 bg-scrim" onClick={() => setIsDrawerOpen(false)} />
+          <div className="relative w-full max-w-lg frost-strong border-l border-border rounded-l-3xl h-full overflow-y-auto p-6 sm:p-8 flex flex-col justify-between z-10 shadow-2xl">
             <div>
-              <div className="flex items-center justify-between pb-4 border-b border-border mb-6">
-                <div>
-                  <span className="text-xs font-mono uppercase tracking-widest text-accent-bright block mb-1">
-                    {editingPlayer ? 'Update Sport Entry' : 'New Sport Entry'}
-                  </span>
-                  <h2 className="font-syne font-bold text-2xl text-text">
-                    {editingPlayer ? 'Edit Player Entry' : 'Register Player'}
-                  </h2>
-                </div>
+              <div className="flex items-center justify-between pb-5 border-b border-border mb-6">
+                <h2 className="font-syne font-bold text-2xl text-text tracking-tight">
+                  {editingPlayer ? 'Edit Player Entry' : 'Register Player'}
+                </h2>
                 <button
                   type="button"
                   onClick={() => setIsDrawerOpen(false)}
-                  className="p-2 rounded-xl border border-border text-muted hover:text-text hover:bg-surface-2 transition-colors"
+                  aria-label="Close drawer"
+                  className="w-9 h-9 rounded-full border border-border bg-surface-2 flex items-center justify-center text-muted hover:text-text hover:bg-surface transition-colors cursor-pointer"
                 >
-                  <X size={18} weight="bold" />
+                  <X size={18} weight="regular" />
                 </button>
               </div>
 
               <form onSubmit={handleSavePlayer} className="space-y-5">
-                {/* STEP 1: Required Profile Picker */}
+                {/* Required Profile Picker */}
                 {!editingPlayer && (
-                  <div className="p-4 rounded-2xl bg-surface-2 border border-border space-y-3">
+                  <div className={`${ADMIN_WELL} p-4 space-y-3`}>
                     <div className="flex items-center justify-between gap-2">
-                      <label className="text-xs font-mono uppercase tracking-wider text-text font-semibold flex items-center gap-1.5">
-                        <IdentificationBadge size={16} className="text-accent-bright" />
-                        <span>Step 1: Select Athlete Profile *</span>
+                      <label className="text-sm font-medium text-text flex items-center gap-2">
+                        <IdentificationBadge
+                          size={16}
+                          weight="regular"
+                          className="text-accent-bright"
+                        />
+                        <span>Select Athlete *</span>
                       </label>
-                      {onGoToTab && (
+                      {(onCreateNewAthlete || onGoToTab) && (
                         <button
                           type="button"
                           onClick={() => {
                             setIsDrawerOpen(false)
-                            onGoToTab('athletes')
+                            if (onCreateNewAthlete) {
+                              onCreateNewAthlete()
+                            } else {
+                              onGoToTab?.('athletes')
+                            }
                           }}
-                          className="text-xs font-medium text-accent-bright hover:underline"
+                          className="text-xs font-medium text-accent-bright hover:underline cursor-pointer"
                         >
-                          Create a new athlete
+                          Create new athlete
                         </button>
                       )}
                     </div>
 
                     {selectedAthlete ? (
-                      <div className="p-3 rounded-xl bg-surface border border-accent-bright flex items-center justify-between gap-3">
+                      <div className="p-3.5 rounded-2xl bg-surface border border-accent-bright flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
                           {selectedAthlete.photo_thumb_url || selectedAthlete.photo_url ? (
                             <img
                               src={selectedAthlete.photo_thumb_url || selectedAthlete.photo_url}
                               alt={selectedAthlete.name}
+                              width={36}
+                              height={36}
+                              loading="lazy"
+                              decoding="async"
                               referrerPolicy="no-referrer"
-                              className="w-9 h-9 rounded-lg object-cover bg-surface-2 border border-border shrink-0"
+                              className="w-10 h-10 rounded-xl object-cover bg-surface-2 border border-border shrink-0"
                             />
                           ) : (
-                            <div className="w-9 h-9 rounded-lg bg-surface-2 border border-border flex items-center justify-center text-muted shrink-0">
-                              <User size={16} />
+                            <div className="w-10 h-10 rounded-xl bg-surface-2 border border-border flex items-center justify-center text-muted shrink-0">
+                              <User size={16} weight="regular" />
                             </div>
                           )}
                           <div className="min-w-0">
-                            <div className="text-xs font-semibold text-text truncate">
+                            <div className="text-sm font-semibold text-text truncate">
                               {selectedAthlete.name}
                             </div>
-                            <div className="text-[11px] font-mono text-muted">
+                            <div className="text-xs font-mono text-muted">
                               #{formatAthleteCode(selectedAthlete.athlete_code)} &middot;{' '}
                               {getAcademicYearLabel(selectedAthlete.academic_year || '1st')}
                               {selectedAthlete.roll_no ? ` · ${selectedAthlete.roll_no}` : ''}
@@ -981,7 +951,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                         <button
                           type="button"
                           onClick={() => setSelectedAthlete(null)}
-                          className="text-xs font-medium text-muted hover:text-text px-2.5 py-1 rounded-lg border border-border bg-surface-2 shrink-0"
+                          className="h-8 px-3 rounded-full text-xs font-medium text-muted hover:text-text border border-border bg-surface-2 shrink-0 cursor-pointer"
                         >
                           Change
                         </button>
@@ -991,24 +961,26 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                         <div className="relative">
                           <MagnifyingGlass
                             size={15}
-                            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
+                            weight="regular"
+                            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
                           />
                           <input
                             type="text"
                             value={athleteQuery}
                             onChange={(e) => handleSearchAthletes(e.target.value)}
-                            placeholder="Search by name, 4-digit code (e.g. 0001), or roll no..."
-                            className="w-full bg-bg border border-border rounded-xl pl-9 pr-3 py-2 text-xs text-text focus:outline-none focus:border-accent-bright"
+                            placeholder="Search by name, code (0001), or roll no..."
+                            className={`${ADMIN_INPUT} bg-surface pl-10`}
                           />
                         </div>
 
-                        <div className="max-h-48 overflow-y-auto divide-y divide-border border border-border rounded-xl bg-bg">
+                        <div className="max-h-48 overflow-y-auto divide-y divide-border border border-border rounded-2xl bg-surface thin-scrollbar">
                           {isSearchingAthletes ? (
-                            <div className="py-4 px-3 text-center text-xs font-mono text-muted">
-                              Searching profiles...
+                            <div className="p-3 space-y-2">
+                              <SkeletonBlock className="h-9 w-full rounded-xl" />
+                              <SkeletonBlock className="h-9 w-full rounded-xl" />
                             </div>
                           ) : athleteResults.length === 0 ? (
-                            <div className="py-4 px-3 text-center text-xs text-muted">
+                            <div className="py-5 px-3 text-center text-xs text-muted">
                               No matching athletes found.
                             </div>
                           ) : (
@@ -1023,28 +995,28 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                                   key={ath.id}
                                   type="button"
                                   onClick={() => setSelectedAthlete(ath)}
-                                  className="w-full text-left p-2.5 hover:bg-surface-2 transition-colors flex items-center justify-between gap-2 text-xs"
+                                  className="w-full text-left px-3.5 py-2.5 hover:bg-surface-2 transition-colors flex items-center justify-between gap-2 text-xs cursor-pointer"
                                 >
                                   <div className="flex items-center gap-2.5 min-w-0">
-                                    <span className="font-mono font-bold text-[11px] text-accent-bright shrink-0 tabular-nums">
+                                    <span className="font-mono font-semibold text-xs text-accent-bright shrink-0 tabular-nums">
                                       {formatAthleteCode(ath.athlete_code)}
                                     </span>
                                     <div className="min-w-0">
                                       <span className="font-medium text-text block truncate">
                                         {ath.name}
                                       </span>
-                                      <span className="text-[10px] font-mono text-muted">
+                                      <span className="text-[11px] font-mono text-muted">
                                         {getAcademicYearLabel(ath.academic_year || '1st')}
-                                        {ath.roll_no ? ` · Roll: ${ath.roll_no}` : ''}
+                                        {ath.roll_no ? ` · ${ath.roll_no}` : ''}
                                       </span>
                                     </div>
                                   </div>
                                   {alreadyInSport ? (
-                                    <span className="text-[10px] font-mono text-points shrink-0">
-                                      Registered in {sport}
+                                    <span className="px-2 py-0.5 rounded-full bg-points/10 border border-points/25 text-[10px] font-mono text-points shrink-0">
+                                      In {sport}
                                     </span>
                                   ) : (
-                                    <span className="text-[11px] font-medium text-accent-bright shrink-0">
+                                    <span className="text-xs font-medium text-accent-bright shrink-0">
                                       Select
                                     </span>
                                   )}
@@ -1059,67 +1031,59 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                 )}
 
                 {isSelectedDuplicateForSport && (
-                  <div className="p-3 rounded-xl bg-error/10 border border-error/30 text-xs text-error font-medium">
+                  <div className="p-3.5 rounded-2xl bg-error/10 border border-error/30 text-xs text-error font-medium">
                     This athlete is already registered for this sport in this season.
                   </div>
                 )}
 
                 {/* Read-Only, Greyed Profile Fields */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5">
-                      Name (From Athlete Profile)
-                    </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="sm:col-span-2 space-y-1.5">
+                    <label className={ADMIN_LABEL}>Name</label>
                     <input
                       type="text"
                       disabled
                       readOnly
                       value={displayProfileName}
                       placeholder="Select a profile above"
-                      className="w-full bg-surface-2 border border-border rounded-xl px-3.5 py-2 text-xs text-muted cursor-not-allowed"
+                      className={ADMIN_INPUT}
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5">
-                      Player Code
-                    </label>
+                  <div className="space-y-1.5">
+                    <label className={ADMIN_LABEL}>Player Code</label>
                     <input
                       type="text"
                       disabled
                       readOnly
                       value={displayProfileCode}
                       placeholder="—"
-                      className="w-full bg-surface-2 border border-border rounded-xl px-3.5 py-2 text-xs font-mono text-muted cursor-not-allowed"
+                      className={`${ADMIN_INPUT} font-mono`}
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5">
-                      Academic Year
-                    </label>
+                  <div className="space-y-1.5">
+                    <label className={ADMIN_LABEL}>Academic Year</label>
                     <input
                       type="text"
                       disabled
                       readOnly
                       value={displayProfileYear}
                       placeholder="—"
-                      className="w-full bg-surface-2 border border-border rounded-xl px-3.5 py-2 text-xs font-mono text-muted cursor-not-allowed"
+                      className={`${ADMIN_INPUT} font-mono`}
                     />
                   </div>
                 </div>
 
-                {/* Editable Fields: Sport, Role, Starting Points (Disabled until profile is selected) */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5">
-                      Sport
-                    </label>
+                {/* Editable Fields: Sport, Role, Starting Points */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div className="space-y-1.5">
+                    <label className={ADMIN_LABEL}>Sport</label>
                     <select
                       disabled={!isProfileSelected}
                       value={sport}
                       onChange={(e) => handleSportChange(e.target.value)}
-                      className="w-full bg-bg border border-border rounded-xl px-3 py-2 text-xs text-text focus:outline-none focus:border-accent-bright disabled:bg-surface-2 disabled:text-muted disabled:cursor-not-allowed"
+                      className={`${ADMIN_SELECT} w-full`}
                     >
                       {sports.map((s) => (
                         <option key={s.id} value={s.name}>
@@ -1129,15 +1093,13 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5">
-                      Role
-                    </label>
+                  <div className="space-y-1.5">
+                    <label className={ADMIN_LABEL}>Role</label>
                     <select
                       disabled={!isProfileSelected}
                       value={playingRole}
                       onChange={(e) => setPlayingRole(e.target.value)}
-                      className="w-full bg-bg border border-border rounded-xl px-3 py-2 text-xs text-text focus:outline-none focus:border-accent-bright disabled:bg-surface-2 disabled:text-muted disabled:cursor-not-allowed"
+                      className={`${ADMIN_SELECT} w-full`}
                     >
                       {availableRoles.map((role) => (
                         <option key={role} value={role}>
@@ -1148,26 +1110,27 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                   </div>
                 </div>
 
-                {/* Starting Points */}
-                <div>
-                  <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5">
-                    Starting Points (Purse Base)
-                  </label>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className={ADMIN_LABEL}>Starting Points</label>
+                    <span className="text-xs font-mono text-muted">PTS</span>
+                  </div>
                   <input
                     type="number"
                     disabled={!isProfileSelected}
                     value={basePoints}
                     onChange={(e) => setBasePoints(e.target.value)}
-                    className="w-full bg-bg border border-border rounded-xl px-3.5 py-2 text-xs text-text font-mono tabular-nums focus:outline-none focus:border-accent-bright disabled:bg-surface-2 disabled:text-muted disabled:cursor-not-allowed"
+                    className={`${ADMIN_INPUT} font-mono tabular-nums`}
                   />
                 </div>
 
-                <div className="pt-4 border-t border-border flex justify-end gap-3">
+                <div className="pt-4 border-t border-border flex justify-end gap-2.5">
                   <Button
                     type="button"
                     variant="secondary"
                     size="sm"
                     onClick={() => setIsDrawerOpen(false)}
+                    className="rounded-full"
                   >
                     Cancel
                   </Button>
@@ -1177,6 +1140,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                     size="sm"
                     disabled={!isProfileSelected || isSubmitting}
                     isLoading={isSubmitting}
+                    className="rounded-full px-4"
                   >
                     {editingPlayer ? 'Update Entry' : 'Register'}
                   </Button>
@@ -1198,10 +1162,14 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
           await Promise.all([loadPagedPlayers(), onRefresh()])
         }}
         onCreateNewAthlete={
-          onGoToTab
+          onCreateNewAthlete || onGoToTab
             ? () => {
                 setIsBulkDrawerOpen(false)
-                onGoToTab('athletes')
+                if (onCreateNewAthlete) {
+                  onCreateNewAthlete()
+                } else {
+                  onGoToTab?.('athletes')
+                }
               }
             : undefined
         }
@@ -1212,18 +1180,16 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
         title="Export Players CSV"
-        description="Download sanitized athlete records with UTF-8 BOM encoding."
         size="sm"
+        className={ADMIN_DIALOG_CLASS}
       >
         <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5">
-              Filter by Sport
-            </label>
+          <div className="space-y-1.5">
+            <label className={ADMIN_LABEL}>Sport</label>
             <select
               value={exportSport}
               onChange={(e) => setExportSport(e.target.value)}
-              className="w-full bg-bg border border-border rounded-xl px-3 py-2 text-xs text-text focus:outline-none focus:border-accent-bright"
+              className={`${ADMIN_SELECT} w-full`}
             >
               <option value="all">All Sports</option>
               {sports.map((s) => (
@@ -1234,12 +1200,13 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
             </select>
           </div>
 
-          <div className="flex justify-end gap-2.5 pt-2">
+          <div className="flex justify-end gap-2.5 pt-4 border-t border-border">
             <Button
               type="button"
               variant="secondary"
               size="sm"
               onClick={() => setIsExportModalOpen(false)}
+              className="rounded-full"
             >
               Cancel
             </Button>
@@ -1251,6 +1218,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
               disabled={isExporting}
               isLoading={isExporting}
               onClick={handleDownloadCsv}
+              className="rounded-full px-4"
             >
               Download CSV
             </Button>
@@ -1264,14 +1232,17 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
         onClose={() => setAssignmentPlayer(null)}
         title="Squad Assignment"
         size="md"
+        className={ADMIN_DIALOG_CLASS}
       >
         {assignmentPlayer && (
-          <div>
-            <div className="mb-4 p-3 rounded-xl bg-surface-2 border border-border text-xs">
+          <div className="space-y-4">
+            <div className={`${ADMIN_WELL} p-4 text-xs`}>
               <span className="font-mono text-accent-bright block mb-0.5 tabular-nums">
                 {formatAthleteCode(assignmentPlayer.athlete_code || assignmentPlayer.player_code)}
               </span>
-              <div className="font-bold text-text text-sm">{assignmentPlayer.name}</div>
+              <div className="font-syne font-bold text-text text-base">
+                {assignmentPlayer.name}
+              </div>
               <div className="text-muted mt-0.5">
                 {assignmentPlayer.sport} · {assignmentPlayer.playing_role}
               </div>
@@ -1279,11 +1250,11 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
 
             {assignmentPlayer.status === 'sold' ? (
               <div className="space-y-4">
-                <p className="text-xs text-muted">
-                  This athlete is currently drafted. You can unassign them and return them to the available pool.
+                <p className="text-sm text-muted">
+                  Currently drafted. Unassigning returns this player to the available pool.
                 </p>
                 {assignmentPlayer.purchase_price && (
-                  <label className="flex items-center gap-2 text-xs text-text cursor-pointer">
+                  <label className="flex items-center gap-2.5 text-sm text-text cursor-pointer">
                     <input
                       type="checkbox"
                       checked={unassignRefund}
@@ -1291,16 +1262,17 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                       className="rounded border-border bg-bg text-accent-bright accent-accent-bright"
                     />
                     <span>
-                      Refund purchase price ({assignmentPlayer.purchase_price.toLocaleString()} pts) to franchise purse
+                      Refund purchase price ({assignmentPlayer.purchase_price.toLocaleString()} PTS)
                     </span>
                   </label>
                 )}
-                <div className="flex justify-end gap-2.5 pt-2">
+                <div className="flex justify-end gap-2.5 pt-4 border-t border-border">
                   <Button
                     type="button"
                     variant="secondary"
                     size="sm"
                     onClick={() => setAssignmentPlayer(null)}
+                    className="rounded-full"
                   >
                     Cancel
                   </Button>
@@ -1310,6 +1282,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                     size="sm"
                     leftIcon={UserMinus}
                     onClick={handleExecuteUnassign}
+                    className="rounded-full px-4"
                   >
                     Unassign Athlete
                   </Button>
@@ -1317,15 +1290,16 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
               </div>
             ) : (
               <form onSubmit={handleExecuteAssign} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5">
-                    Select Franchise (Same Sport: {assignmentPlayer.sport})
-                  </label>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className={ADMIN_LABEL}>Team</label>
+                    <span className="text-xs font-mono text-muted">{assignmentPlayer.sport}</span>
+                  </div>
                   <select
                     required
                     value={assignTeamId}
                     onChange={(e) => setAssignTeamId(e.target.value)}
-                    className="w-full bg-bg border border-border rounded-xl px-3 py-2 text-xs text-text focus:outline-none focus:border-accent-bright"
+                    className={`${ADMIN_SELECT} w-full`}
                   >
                     <option value="">Select a team...</option>
                     {teams
@@ -1335,31 +1309,33 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                       )
                       .map((t) => (
                         <option key={t.id} value={t.id}>
-                          {t.name} (Balance: {t.current_purse.toLocaleString()} pts)
+                          {t.name} ({t.current_purse.toLocaleString()} PTS)
                         </option>
                       ))}
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-mono uppercase tracking-wider text-muted mb-1.5">
-                    Draft Price (Deducted from Purse)
-                  </label>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className={ADMIN_LABEL}>Draft Price</label>
+                    <span className="text-xs font-mono text-muted">PTS · Optional</span>
+                  </div>
                   <input
                     type="number"
                     value={assignPrice}
                     onChange={(e) => setAssignPrice(e.target.value)}
-                    placeholder="Optional (defaults to base points)"
-                    className="w-full bg-bg border border-border rounded-xl px-3.5 py-2 text-xs font-mono tabular-nums text-text focus:outline-none focus:border-accent-bright"
+                    placeholder="Defaults to base points"
+                    className={`${ADMIN_INPUT} font-mono tabular-nums`}
                   />
                 </div>
 
-                <div className="flex justify-end gap-2.5 pt-2">
+                <div className="flex justify-end gap-2.5 pt-4 border-t border-border">
                   <Button
                     type="button"
                     variant="secondary"
                     size="sm"
                     onClick={() => setAssignmentPlayer(null)}
+                    className="rounded-full"
                   >
                     Cancel
                   </Button>
@@ -1368,6 +1344,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                     variant="primary"
                     size="sm"
                     leftIcon={UserPlus}
+                    className="rounded-full px-4"
                   >
                     Assign to Team
                   </Button>
@@ -1384,21 +1361,25 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
         onClose={() => setDeleteConfirmPlayer(null)}
         title="Remove Entry?"
         size="sm"
+        className={ADMIN_DIALOG_CLASS}
       >
         {deleteConfirmPlayer && (
-          <div>
-            <p className="text-xs text-muted leading-relaxed mb-6">
-              Are you sure you want to remove{' '}
+          <div className="space-y-4">
+            <p className="text-sm text-muted leading-relaxed">
+              Remove{' '}
               <span className="text-text font-semibold">{deleteConfirmPlayer.name}</span> (
-              {formatAthleteCode(deleteConfirmPlayer.athlete_code || deleteConfirmPlayer.player_code)}) from this season&apos;s{' '}
-              {deleteConfirmPlayer.sport} roster?
+              {formatAthleteCode(
+                deleteConfirmPlayer.athlete_code || deleteConfirmPlayer.player_code
+              )}
+              ) from this season&apos;s {deleteConfirmPlayer.sport} roster?
             </p>
-            <div className="flex justify-end gap-2.5">
+            <div className="flex justify-end gap-2.5 pt-4 border-t border-border">
               <Button
                 type="button"
                 variant="secondary"
                 size="sm"
                 onClick={() => setDeleteConfirmPlayer(null)}
+                className="rounded-full"
               >
                 Cancel
               </Button>
@@ -1407,6 +1388,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                 variant="danger"
                 size="sm"
                 onClick={handleDeletePlayer}
+                className="rounded-full px-4"
               >
                 Delete
               </Button>
@@ -1414,86 +1396,6 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
           </div>
         )}
       </Dialog>
-
-      {/* CSV Bulk Import Modal */}
-      <Dialog
-        isOpen={isCsvModalOpen}
-        onClose={() => !isImporting && setIsCsvModalOpen(false)}
-        title="CSV Roster Players Import"
-        description={`Previewing ${csvRows.length} player entries.`}
-        size="lg"
-      >
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-muted">
-              Valid entries: <strong className="text-text">{csvRows.filter((r) => r.valid).length}</strong> / {csvRows.length}
-            </span>
-            <button
-              type="button"
-              onClick={downloadPlayersTemplate}
-              className="text-accent-bright hover:underline flex items-center gap-1"
-            >
-              <DownloadSimple size={14} />
-              <span>Download Sample Template</span>
-            </button>
-          </div>
-
-          <div className="max-h-60 overflow-y-auto border border-border rounded-xl">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-surface-2 text-muted font-mono uppercase text-[10px] sticky top-0">
-                <tr>
-                  <th className="p-2.5 font-normal">Athlete Code</th>
-                  <th className="p-2.5 font-normal">Name</th>
-                  <th className="p-2.5 font-normal">Sport</th>
-                  <th className="p-2.5 font-normal">Role</th>
-                  <th className="p-2.5 font-normal">Validation</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {csvRows.map((r, i) => (
-                  <tr key={i} className={r.valid ? '' : 'bg-error/5'}>
-                    <td className="p-2.5 font-mono tabular-nums">{r.athlete_code ? formatAthleteCode(r.athlete_code) : '—'}</td>
-                    <td className="p-2.5 font-medium">{r.name}</td>
-                    <td className="p-2.5">{r.sport}</td>
-                    <td className="p-2.5">{r.playing_role}</td>
-                    <td className="p-2.5">
-                      {r.valid ? (
-                        <span className="text-accent-bright flex items-center gap-1 text-[11px]">
-                          <CheckCircle size={14} /> Ready
-                        </span>
-                      ) : (
-                        <span className="text-error flex items-center gap-1 text-[11px]">
-                          <WarningCircle size={14} /> {r.error}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setIsCsvModalOpen(false)}
-              disabled={isImporting}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={confirmBulkImport}
-              disabled={isImporting || csvRows.filter((r) => r.valid).length === 0}
-              isLoading={isImporting}
-            >
-              Import {csvRows.filter((r) => r.valid).length} Players
-            </Button>
-          </div>
-        </div>
-      </Dialog>
-    </div>
+    </section>
   )
 }

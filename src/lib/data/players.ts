@@ -19,7 +19,6 @@ import {
   STORAGE_KEYS,
   formatAthleteCode,
   parseAthleteCode,
-  getNextAthleteCode,
   REALTIME_DEBOUNCE_MS,
   markLocalMutation,
   isRealtimeSuppressed
@@ -308,80 +307,6 @@ const demoPlayersService: PlayersServiceWithRefund = {
     setLocal(STORAGE_KEYS.PLAYERS, allPlayers)
     notifyChange('players_change')
     return newPlayer
-  },
-
-  async bulkCreatePlayers(
-    playersData: Array<Omit<Player, 'id' | 'player_code' | 'created_at'>>
-  ): Promise<Player[]> {
-    const allPlayers = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, [])
-    const allAthletes = getLocal<Athlete[]>(STORAGE_KEYS.ATHLETES, [])
-    const createdList: Player[] = []
-
-    for (let i = 0; i < playersData.length; i++) {
-      const pd = playersData[i]
-      let athlete: Athlete | undefined
-
-      if (pd.athlete_id) {
-        athlete = allAthletes.find((a) => a.id === pd.athlete_id)
-      } else if (pd.athlete_code) {
-        athlete = allAthletes.find((a) => a.athlete_code === pd.athlete_code)
-      }
-
-      if (!athlete) {
-        const existing = allAthletes.find(
-          (a) => a.name.trim().toLowerCase() === pd.name.trim().toLowerCase()
-        )
-        if (existing) {
-          athlete = existing
-        } else {
-          const nextCode = getNextAthleteCode(allAthletes)
-          athlete = {
-            id: `ath-${Date.now()}-${nextCode}`,
-            athlete_code: nextCode,
-            name: pd.name.trim(),
-            academic_year: pd.academic_year || '1st',
-            photo_url: pd.photo_url,
-            photo_thumb_url: pd.photo_thumb_url,
-            roll_no: pd.roll_no?.trim(),
-            notes: pd.notes?.trim(),
-            created_at: new Date().toISOString()
-          }
-          allAthletes.push(athlete)
-        }
-      }
-
-      const isDup = allPlayers
-        .concat(createdList)
-        .some(
-          (p) =>
-            p.season_id === pd.season_id &&
-            p.athlete_id === athlete!.id &&
-            p.sport.toLowerCase() === pd.sport.toLowerCase()
-        )
-      if (isDup) continue
-
-      const newPlayer: Player = {
-        ...pd,
-        athlete_id: athlete.id,
-        athlete_code: athlete.athlete_code,
-        name: athlete.name,
-        photo_url: athlete.photo_url,
-        photo_thumb_url: athlete.photo_thumb_url,
-        id: `player-${Date.now()}-${i}`,
-        player_code: formatAthleteCode(athlete.athlete_code),
-        academic_year: pd.academic_year || athlete.academic_year || '1st',
-        created_at: new Date().toISOString()
-      }
-      createdList.push(newPlayer)
-    }
-
-    markLocalMutation(['players', 'athletes', 'auction'])
-    setLocal(STORAGE_KEYS.ATHLETES, allAthletes)
-    allPlayers.push(...createdList)
-    setLocal(STORAGE_KEYS.PLAYERS, allPlayers)
-    notifyChange('athletes_change')
-    notifyChange('players_change')
-    return createdList
   },
 
   async bulkRegisterPlayers(params: BulkRegisterParams): Promise<BulkRegisterResult> {
@@ -717,7 +642,12 @@ const supabasePlayersService: PlayersServiceWithRefund = {
           .from('public_players')
           .select(PUBLIC_PLAYER_SELECT_COLUMNS)
           .eq('season_id', seasonId),
-        supabase.from('players').select('*').eq('season_id', seasonId)
+        supabase
+          .from('players')
+          .select(
+            'id, season_id, athlete_id, sport, playing_role, base_points, academic_year, status, team_id, purchase_price, created_at'
+          )
+          .eq('season_id', seasonId)
       ])
 
       if (pubRes.error) {
@@ -998,35 +928,6 @@ const supabasePlayersService: PlayersServiceWithRefund = {
     return mapJoinedPlayer(data as Record<string, unknown>)
   },
 
-  async bulkCreatePlayers(
-    playersData: Array<Omit<Player, 'id' | 'player_code' | 'created_at'>>
-  ): Promise<Player[]> {
-    if (!supabase) throw new AppError('Supabase not configured')
-
-    const rowsToInsert = playersData
-      .filter((p) => !!p.athlete_id)
-      .map((p) => ({
-        athlete_id: p.athlete_id,
-        season_id: p.season_id,
-        sport: p.sport,
-        playing_role: p.playing_role,
-        base_points: p.base_points,
-        academic_year: p.academic_year
-      }))
-
-    if (rowsToInsert.length === 0) return []
-
-    markLocalMutation(['players', 'athletes', 'auction'])
-    const { data, error } = await supabase
-      .from('players')
-      .insert(rowsToInsert)
-      .select('*, athletes(id, athlete_code, name, photo_url, photo_thumb_url, roll_no, academic_year)')
-
-    if (error) throw new AppError(error.message, { original: error })
-    markLocalMutation(['players', 'athletes', 'auction'])
-    return ((data as Array<Record<string, unknown>>) || []).map((r) => mapJoinedPlayer(r))
-  },
-
   async bulkRegisterPlayers(params: BulkRegisterParams): Promise<BulkRegisterResult> {
     if (!supabase) throw new AppError('Supabase not configured')
     const { seasonId, sport, basePoints, entries } = params
@@ -1195,7 +1096,7 @@ const supabasePlayersService: PlayersServiceWithRefund = {
     markLocalMutation(['players', 'athletes', 'auction'])
     const { data: pState } = await supabase
       .from('projector_state')
-      .select('*')
+      .select('season_id, player_id')
       .eq('player_id', id)
       .maybeSingle()
 
@@ -1248,7 +1149,9 @@ const supabasePlayersService: PlayersServiceWithRefund = {
 
     const { data: updatedTeam, error: tErr } = await supabase
       .from('teams')
-      .select('*')
+      .select(
+        'id, season_id, sport, name, short_code, color, logo_url, owner_display_name, owner_photo_url, owner_user_id, starting_purse, current_purse, created_at'
+      )
       .eq('id', teamId)
       .single()
     if (tErr || !updatedTeam) {
@@ -1295,7 +1198,9 @@ const supabasePlayersService: PlayersServiceWithRefund = {
     if (prevTeamId) {
       const { data: t } = await supabase
         .from('teams')
-        .select('*')
+        .select(
+          'id, season_id, sport, name, short_code, color, logo_url, owner_display_name, owner_photo_url, owner_user_id, starting_purse, current_purse, created_at'
+        )
         .eq('id', prevTeamId)
         .single()
       if (t) updatedTeam = t as Team
@@ -1469,9 +1374,6 @@ export const createPlayer = (
   data: Omit<Player, 'id' | 'player_code' | 'created_at'>,
   options?: { photoFile?: File }
 ) => playersService.createPlayer(data, options)
-export const bulkCreatePlayers = (
-  list: Array<Omit<Player, 'id' | 'player_code' | 'created_at'>>
-) => playersService.bulkCreatePlayers(list)
 export const bulkRegisterPlayers = (params: BulkRegisterParams) =>
   playersService.bulkRegisterPlayers(params)
 export const updatePlayer = (id: string, updates: Partial<Player>) =>
@@ -1487,3 +1389,49 @@ export const subscribeToPlayers = (
   seasonId: string,
   callback: (players: Player[]) => void
 ) => playersService.subscribeToPlayers(seasonId, callback)
+
+export async function getPublicPlayerSportRows(
+  seasonId?: string
+): Promise<Array<{ sport: string; season_id: string }> | null> {
+  try {
+    if (isDemoMode) {
+      const allPlayers = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, [])
+      if (!Array.isArray(allPlayers)) return []
+      return allPlayers
+        .filter((p) => p && (!seasonId || p.season_id === seasonId))
+        .slice(0, 1000)
+        .map((p) => ({
+          sport: String(p.sport || ''),
+          season_id: String(p.season_id || '')
+        }))
+    }
+
+    if (!supabase) return []
+
+    let query = supabase
+      .from('public_players')
+      .select('sport, season_id')
+      .limit(1000)
+
+    if (seasonId) {
+      query = query.eq('season_id', seasonId)
+    }
+
+    const { data, error } = await query
+    if (error || !Array.isArray(data)) {
+      if (error) {
+        console.error('Supabase getPublicPlayerSportRows error:', error.message, error)
+      }
+      return null
+    }
+
+    return (data as Array<{ sport?: string; season_id?: string }>).map((r) => ({
+      sport: String(r.sport || ''),
+      season_id: String(r.season_id || '')
+    }))
+  } catch (err) {
+    console.error('getPublicPlayerSportRows caught error:', err)
+    return null
+  }
+}
+

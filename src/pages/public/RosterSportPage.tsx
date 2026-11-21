@@ -1,33 +1,62 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Funnel } from '@phosphor-icons/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
-import { RosterPlayerCard, RosterScoutModal } from '../../components/roster'
 import {
-  getActiveSeason,
-  getPublicPlayersPaged,
-  getPublicTeams,
-  getRolesForSport,
-  getSports
-} from '../../lib/data'
+  PUBLIC_BACK_LINK,
+  PUBLIC_BTN_PRIMARY,
+  PUBLIC_CARD,
+  PUBLIC_COUNT_PILL,
+  PUBLIC_MAIN,
+  PUBLIC_PAGE_HEADER,
+  PUBLIC_PAGE_SHELL,
+  PUBLIC_PAGE_TITLE,
+  PUBLIC_PILL_BAR,
+  PUBLIC_PILL_BAR_OUTER
+} from '../../components/public/publicStyles'
+import { RosterPlayerCard, RosterScoutModal } from '../../components/roster'
+import { SkeletonCard } from '../../components/ui'
+import { getActiveSeason } from '../../lib/data/seasons'
+import { getPublicPlayersPaged } from '../../lib/data/players'
+import { getPublicTeams, getRolesForSport, getSports } from '../../lib/data/teams'
 import { ACADEMIC_YEAR_VALUES } from '../../lib/academicYears'
 import { hasDataChanged, publicCache } from '../../lib/publicCache'
+import {
+  isQueryFresh,
+  prefetchRoute,
+  setCachedQuery,
+  shouldRevalidateQuery
+} from '../../lib/queryCache'
 import type { PublicPlayer, PublicTeam, Season } from '../../types'
 
 const ACADEMIC_YEAR_FILTER_OPTIONS = ['All', ...ACADEMIC_YEAR_VALUES] as const
+const KNOWN_SPORT_SLUGS = new Set(['cricket', 'futsal', 'volleyball'])
 
 function getRosterQueryKey(sport: string, year: string, role: string): string {
   return `${sport}::${year}::${role}`
 }
 
+function parseYearParam(raw: string | null): string {
+  const trimmed = (raw || '').trim()
+  return (ACADEMIC_YEAR_FILTER_OPTIONS as readonly string[]).includes(trimmed) ? trimmed : 'All'
+}
+
+function parseRoleParam(raw: string | null): string {
+  const trimmed = (raw || '').trim()
+  return trimmed || 'All'
+}
+
 export const RosterSportPage: React.FC = () => {
   const { sport = '' } = useParams<{ sport: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
   const normalizedSport = sport.toLowerCase().trim()
 
+  const initialYear = parseYearParam(searchParams.get('year'))
+  const initialRole = parseRoleParam(searchParams.get('role'))
   const initialSportInfo = publicCache.rosterSportInfo.get(normalizedSport)
-  const initialQueryKey = getRosterQueryKey(normalizedSport, 'All', 'All')
+  const initialQueryKey = getRosterQueryKey(normalizedSport, initialYear, initialRole)
   const initialCachedQuery = publicCache.rosterPagedQueries.get(initialQueryKey)
   const initialSeason = publicCache.activeSeason.value
   const initialTeams = initialSeason
@@ -37,8 +66,8 @@ export const RosterSportPage: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [activeSeason, setActiveSeason] = useState<Season | null>(initialSeason)
   const [teams, setTeams] = useState<PublicTeam[]>(initialTeams)
-  const [selectedYear, setSelectedYear] = useState<string>('All')
-  const [selectedRole, setSelectedRole] = useState<string>('All')
+  const [selectedYear, setSelectedYear] = useState<string>(initialYear)
+  const [selectedRole, setSelectedRole] = useState<string>(initialRole)
 
   // Dynamic sport & roles loaded from the sports table in database
   const [sportName, setSportName] = useState<string>(initialSportInfo?.name || '')
@@ -79,8 +108,10 @@ export const RosterSportPage: React.FC = () => {
     if (prevSportRef.current === normalizedSport) return
     prevSportRef.current = normalizedSport
 
-    setSelectedRole('All')
-    setSelectedYear('All')
+    const nextYear = parseYearParam(searchParams.get('year'))
+    const nextRole = parseRoleParam(searchParams.get('role'))
+    setSelectedRole(nextRole)
+    setSelectedYear(nextYear)
     setExpandedPlayer(null)
 
     const cachedInfo = publicCache.rosterSportInfo.get(normalizedSport)
@@ -94,7 +125,7 @@ export const RosterSportPage: React.FC = () => {
       setIsSportValid(true)
     }
 
-    const defaultKey = getRosterQueryKey(normalizedSport, 'All', 'All')
+    const defaultKey = getRosterQueryKey(normalizedSport, nextYear, nextRole)
     const cachedQuery = publicCache.rosterPagedQueries.get(defaultKey)
     if (cachedQuery) {
       setPlayers(cachedQuery.players)
@@ -111,14 +142,28 @@ export const RosterSportPage: React.FC = () => {
       setIsFilterLoading(false)
       setHasLoadedSportOnce(false)
     }
-  }, [normalizedSport])
+  }, [normalizedSport, searchParams])
 
-  // Load initial season and public teams data
+  // Keep filter state synced if query params change on the same sport route
+  useEffect(() => {
+    const paramYear = parseYearParam(searchParams.get('year'))
+    const paramRole = parseRoleParam(searchParams.get('role'))
+    setSelectedYear((prev) => (prev === paramYear ? prev : paramYear))
+    setSelectedRole((prev) => (prev === paramRole ? prev : paramRole))
+  }, [searchParams])
+
+  // Load initial season and public teams data in parallel
   useEffect(() => {
     let mounted = true
     async function init() {
       try {
-        const season = await getActiveSeason()
+        const knownSeasonId = publicCache.activeSeason.value?.id
+        const [season, preloadedTeams] = await Promise.all([
+          publicCache.activeSeason.loaded
+            ? Promise.resolve(publicCache.activeSeason.value)
+            : getActiveSeason(),
+          knownSeasonId ? getPublicTeams(knownSeasonId) : Promise.resolve(null)
+        ])
         const prevSeason = publicCache.activeSeason.value
         const seasonChanged =
           !publicCache.activeSeason.loaded || hasDataChanged(prevSeason, season)
@@ -128,7 +173,10 @@ export const RosterSportPage: React.FC = () => {
         }
 
         if (season) {
-          const publicTeams = await getPublicTeams(season.id)
+          const publicTeams =
+            knownSeasonId === season.id && preloadedTeams
+              ? preloadedTeams
+              : await getPublicTeams(season.id)
           const prevTeams = publicCache.teamsBySeason.get(season.id)
           const teamsChanged =
             !prevTeams || hasDataChanged(prevTeams, publicTeams)
@@ -145,7 +193,7 @@ export const RosterSportPage: React.FC = () => {
         )
       }
     }
-    init()
+    void init()
     return () => {
       mounted = false
     }
@@ -166,7 +214,10 @@ export const RosterSportPage: React.FC = () => {
         if (!mounted) return
 
         if (found) {
-          const sportRoles = await getRolesForSport(found.id)
+          const sportRoles =
+            found.roles && found.roles.length > 0
+              ? found.roles
+              : await getRolesForSport(found.id)
           if (!mounted) return
           const nextInfo = {
             valid: true,
@@ -206,11 +257,22 @@ export const RosterSportPage: React.FC = () => {
     }
   }, [normalizedSport])
 
+  const updateFilterParams = useCallback(
+    (nextYear: string, nextRole: string) => {
+      const next = new URLSearchParams()
+      if (nextYear !== 'All') next.set('year', nextYear)
+      if (nextRole !== 'All') next.set('role', nextRole)
+      setSearchParams(next, { replace: true })
+    },
+    [setSearchParams]
+  )
+
   const handleSelectYear = (yr: string) => {
     if (yr === selectedYear) return
     const nextKey = getRosterQueryKey(normalizedSport, yr, selectedRole)
     const cached = publicCache.rosterPagedQueries.get(nextKey)
     setSelectedYear(yr)
+    updateFilterParams(yr, selectedRole)
     if (cached) {
       setPlayers(cached.players)
       setTotalCount(cached.totalCount)
@@ -227,6 +289,7 @@ export const RosterSportPage: React.FC = () => {
     const nextKey = getRosterQueryKey(normalizedSport, selectedYear, role)
     const cached = publicCache.rosterPagedQueries.get(nextKey)
     setSelectedRole(role)
+    updateFilterParams(selectedYear, role)
     if (cached) {
       setPlayers(cached.players)
       setTotalCount(cached.totalCount)
@@ -241,10 +304,22 @@ export const RosterSportPage: React.FC = () => {
   // Fetch players on filter change or pagination
   const fetchPlayers = useCallback(
     async (offset: number, append = false) => {
-      if (!isSportValid || !isSportChecked) return
+      const canFetchImmediately =
+        KNOWN_SPORT_SLUGS.has(normalizedSport) || (isSportChecked && isSportValid)
+      if (!canFetchImmediately || (isSportChecked && !isSportValid)) return
 
       const queryKey = getRosterQueryKey(normalizedSport, selectedYear, selectedRole)
+      const cacheKey = `public:rosterSport:${queryKey}`
       const cached = offset === 0 ? publicCache.rosterPagedQueries.get(queryKey) : undefined
+
+      if (!append && cached) {
+        setIsLoading(false)
+        setIsFilterLoading(false)
+        if (isQueryFresh(cacheKey) && !shouldRevalidateQuery(cacheKey)) {
+          return
+        }
+      }
+
       const currentRequestId = ++requestIdRef.current
 
       try {
@@ -285,6 +360,7 @@ export const RosterSportPage: React.FC = () => {
           const prevEntry = publicCache.rosterPagedQueries.get(queryKey)
           const changed = !prevEntry || hasDataChanged(prevEntry, nextEntry)
           publicCache.rosterPagedQueries.set(queryKey, nextEntry)
+          setCachedQuery(cacheKey, nextEntry)
 
           if (changed) {
             setPlayers(result.players)
@@ -310,12 +386,12 @@ export const RosterSportPage: React.FC = () => {
     [isSportValid, isSportChecked, normalizedSport, selectedYear, selectedRole, hasLoadedSportOnce]
   )
 
-  // Reset & refetch when filters change
+  // Reset & refetch when filters change (or immediately on mount for known sports)
   useEffect(() => {
-    if (isSportChecked && isSportValid) {
-      fetchPlayers(0, false)
+    if (KNOWN_SPORT_SLUGS.has(normalizedSport) || (isSportChecked && isSportValid)) {
+      void fetchPlayers(0, false)
     }
-  }, [fetchPlayers, isSportChecked, isSportValid])
+  }, [fetchPlayers, isSportChecked, isSportValid, normalizedSport])
 
   // Endless scroll observer
   useEffect(() => {
@@ -334,9 +410,18 @@ export const RosterSportPage: React.FC = () => {
     return () => observer.disconnect()
   }, [hasMore, isLoading, isFilterLoading, isLoadingMore, players.length, fetchPlayers])
 
+  const teamsById = useMemo(
+    () => new Map(teams.map((t) => [t.id, t])),
+    [teams]
+  )
+
+  const handleSelectPlayer = useCallback((player: PublicPlayer) => {
+    setExpandedPlayer(player)
+  }, [])
+
   if (isSportChecked && !isSportValid) {
     return (
-      <div className="min-h-screen bg-bg text-text flex flex-col justify-between">
+      <div className={PUBLIC_PAGE_SHELL}>
         <HeaderBar onOpenMenu={() => setIsMenuOpen(true)} />
         <NavigationMenu
           isOpen={isMenuOpen}
@@ -344,23 +429,24 @@ export const RosterSportPage: React.FC = () => {
           activeSeason={activeSeason}
         />
 
-        <main className="flex-1 flex flex-col items-center justify-center px-6 pt-36 sm:pt-44 md:pt-48 pb-20 text-center max-w-xl mx-auto">
-          <span className="text-xs font-mono uppercase tracking-widest text-accent-bright block mb-3">
-            ROSTER NOT FOUND
-          </span>
-          <h1 className="font-syne font-extrabold text-4xl text-text tracking-tight mb-4">
-            Sport Discipline Not Found
-          </h1>
-          <p className="text-sm text-muted leading-relaxed mb-8">
-            We could not find an official tournament roster for &ldquo;{sport}&rdquo;. Explore one of our registered athletic sports to view athlete cards.
-          </p>
-          <Link
-            to="/rosters"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-btn-bg text-btn-fg font-medium text-sm hover:opacity-90 transition-all"
-          >
-            <ArrowLeft size={16} weight="bold" />
-            <span>Return to Rosters</span>
-          </Link>
+        <main className={`${PUBLIC_MAIN} flex items-center justify-center`}>
+          <div className={`${PUBLIC_CARD} max-w-md w-full text-center space-y-4`}>
+            <h1 className="font-syne font-extrabold text-2xl sm:text-3xl text-text tracking-tight">
+              Sport Not Found
+            </h1>
+            <p className="text-sm text-muted leading-relaxed">
+              No roster was found for &ldquo;{sport}&rdquo;.
+            </p>
+            <div className="pt-2">
+              <Link
+                to="/rosters"
+                className={`${PUBLIC_BTN_PRIMARY} px-5 py-2.5 text-sm`}
+              >
+                <ArrowLeft size={16} weight="regular" />
+                <span>Return to Rosters</span>
+              </Link>
+            </div>
+          </div>
         </main>
 
         <SiteFooter />
@@ -372,7 +458,7 @@ export const RosterSportPage: React.FC = () => {
   const showPlaceholderBoxes = isLoading && !hasLoadedSportOnce && players.length === 0
 
   return (
-    <div className="min-h-screen bg-bg text-text flex flex-col justify-between selection:bg-accent-bright selection:text-on-accent relative">
+    <div className={PUBLIC_PAGE_SHELL}>
       <HeaderBar onOpenMenu={() => setIsMenuOpen(true)} />
       <NavigationMenu
         isOpen={isMenuOpen}
@@ -380,110 +466,109 @@ export const RosterSportPage: React.FC = () => {
         activeSeason={activeSeason}
       />
 
-      {/* Top padding clears the fixed logo tile completely plus 16px buffer */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-6 md:px-16 lg:px-24 pt-36 sm:pt-44 md:pt-48 pb-20">
-        {/* Navigation Breadcrumb */}
+      <main className={PUBLIC_MAIN}>
+        {/* Back Link */}
         <div className="mb-6">
           <Link
             to="/rosters"
-            className="inline-flex items-center gap-2 text-xs font-medium text-muted hover:text-text transition-colors"
+            onMouseEnter={() => prefetchRoute('/rosters')}
+            onFocus={() => prefetchRoute('/rosters')}
+            onTouchStart={() => prefetchRoute('/rosters')}
+            className={PUBLIC_BACK_LINK}
           >
-            <ArrowLeft size={14} weight="bold" />
+            <ArrowLeft size={14} weight="regular" />
             <span>All sports rosters</span>
           </Link>
         </div>
 
         {/* Page Heading */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-10 pb-6 border-b border-border">
-          <div>
-            <span className="text-xs font-mono uppercase tracking-widest text-accent-bright block mb-2">
-              ATHLETIC ROSTER · {activeSeason?.name || 'ACTIVE SEASON'}
-            </span>
-            <h1 className="font-syne font-extrabold text-4xl sm:text-5xl text-text tracking-tight">
-              {sportName || normalizedSport} Squad
-            </h1>
-          </div>
-          <div className="text-sm font-mono text-muted">
-            Showing <span className="text-text font-semibold">{players.length}</span> of{' '}
-            <span className="text-text font-semibold">{totalCount}</span> athletes
-          </div>
-        </div>
+        <header className={PUBLIC_PAGE_HEADER}>
+          <h1 className={`${PUBLIC_PAGE_TITLE} capitalize`}>
+            {sportName || normalizedSport} Squad
+          </h1>
+          <span className={PUBLIC_COUNT_PILL}>
+            {players.length} / {totalCount} athletes
+          </span>
+        </header>
 
-        {/* Filters Section */}
-        <div className="bg-surface border border-border rounded-2xl p-5 mb-10 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-6">
+        {/* Filters Section: single horizontally scrollable rows on mobile, never wrapping */}
+        <div className={`${PUBLIC_CARD} mb-8 space-y-4`}>
           {/* Academic Year Filter */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <span className="text-xs font-mono uppercase tracking-wider text-muted shrink-0">
-              Academic Year:
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-4 min-w-0">
+            <span className="text-sm font-medium text-text shrink-0 sm:w-14">
+              Year
             </span>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {ACADEMIC_YEAR_FILTER_OPTIONS.map((yr) => (
-                <button
-                  key={yr}
-                  type="button"
-                  onClick={() => handleSelectYear(yr)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    selectedYear === yr
-                      ? 'bg-btn-bg text-btn-fg font-semibold'
-                      : 'bg-surface-2 text-muted hover:text-text'
-                  }`}
-                >
-                  {yr}
-                </button>
-              ))}
+            <div className={`${PUBLIC_PILL_BAR_OUTER} flex-1 min-w-0`}>
+              <div className={PUBLIC_PILL_BAR}>
+                {ACADEMIC_YEAR_FILTER_OPTIONS.map((yr) => (
+                  <button
+                    key={yr}
+                    type="button"
+                    onClick={() => handleSelectYear(yr)}
+                    className={`min-h-[34px] px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                      selectedYear === yr
+                        ? 'bg-btn-bg text-btn-fg'
+                        : 'text-muted hover:text-text'
+                    }`}
+                  >
+                    {yr}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
           {/* Playing Role Filter - Loaded from sports table */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <span className="text-xs font-mono uppercase tracking-wider text-muted shrink-0">
-              Role:
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-4 min-w-0">
+            <span className="text-sm font-medium text-text shrink-0 sm:w-14">
+              Role
             </span>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {roleOptions.map((role) => (
-                <button
-                  key={role}
-                  type="button"
-                  onClick={() => handleSelectRole(role)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                    selectedRole === role
-                      ? 'bg-btn-bg text-btn-fg font-semibold'
-                      : 'bg-surface-2 text-muted hover:text-text'
-                  }`}
-                >
-                  {role}
-                </button>
-              ))}
+            <div className={`${PUBLIC_PILL_BAR_OUTER} flex-1 min-w-0`}>
+              <div className={PUBLIC_PILL_BAR}>
+                {roleOptions.map((role) => (
+                  <button
+                    key={role}
+                    type="button"
+                    onClick={() => handleSelectRole(role)}
+                    className={`min-h-[34px] px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                      selectedRole === role
+                        ? 'bg-btn-bg text-btn-fg'
+                        : 'text-muted hover:text-text'
+                    }`}
+                  >
+                    {role}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
 
         {/* Players Grid */}
         {showPlaceholderBoxes ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div
-                key={i}
-                className="bg-surface border border-border rounded-xl p-5 animate-pulse h-48"
-              />
+              <SkeletonCard key={i} className="rounded-3xl h-48" />
             ))}
           </div>
         ) : players.length === 0 ? (
           <div
-            className={`bg-surface border border-border rounded-2xl p-16 text-center max-w-lg mx-auto transition-opacity duration-150 ${
+            className={`${PUBLIC_CARD} py-14 text-center max-w-lg mx-auto transition-opacity duration-150 ${
               isFilterLoading ? 'opacity-60' : 'opacity-100'
             }`}
           >
-            <Funnel size={36} weight="duotone" className="mx-auto text-muted mb-4" />
-            <h3 className="font-syne font-bold text-xl text-text mb-2">No Athletes Found</h3>
+            <div className="w-12 h-12 rounded-full bg-surface-2 border border-border flex items-center justify-center mx-auto text-muted mb-4">
+              <Funnel size={22} weight="regular" />
+            </div>
+            <h3 className="font-syne font-bold text-xl text-text mb-1.5">No Athletes Found</h3>
             <p className="text-sm text-muted">
-              No registered athletes match the selected filter criteria. Try adjusting your academic year or playing role filter.
+              No athletes match the selected filters.
             </p>
           </div>
         ) : (
           <>
             <div
-              className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 transition-opacity duration-150 ${
+              className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 transition-opacity duration-150 ${
                 isFilterLoading ? 'opacity-60' : 'opacity-100'
               }`}
             >
@@ -491,17 +576,19 @@ export const RosterSportPage: React.FC = () => {
                 <RosterPlayerCard
                   key={player.id}
                   player={player}
-                  team={teams.find((t) => t.id === player.team_id)}
-                  onClick={() => setExpandedPlayer(player)}
+                  team={player.team_id ? teamsById.get(player.team_id) : undefined}
+                  onSelect={handleSelectPlayer}
                 />
               ))}
             </div>
 
             {/* Endless scroll sentinel */}
-            <div ref={sentinelRef} className="py-10 text-center">
+            <div ref={sentinelRef} className="py-10">
               {isLoadingMore && (
-                <div className="text-xs font-mono uppercase tracking-widest text-muted animate-pulse">
-                  Loading more athletes...
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <SkeletonCard key={i} className="rounded-3xl h-44" />
+                  ))}
                 </div>
               )}
             </div>
@@ -512,7 +599,11 @@ export const RosterSportPage: React.FC = () => {
       {/* Expanded Player Floating Modal */}
       <RosterScoutModal
         player={expandedPlayer}
-        team={expandedPlayer ? teams.find((t) => t.id === expandedPlayer.team_id) : null}
+        team={expandedPlayer?.team_id ? teamsById.get(expandedPlayer.team_id) ?? null : null}
+        originSport={normalizedSport}
+        originSportLabel={sportName || normalizedSport}
+        originYear={selectedYear}
+        originRole={selectedRole}
         onClose={handleCloseModal}
       />
 

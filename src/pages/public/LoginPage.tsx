@@ -1,8 +1,17 @@
 import React, { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { motion } from 'motion/react'
 import { ArrowLeft, LockKey, SignIn, User, WarningCircle } from '@phosphor-icons/react'
 import { BrandMark } from '../../components/layout/BrandMark'
+import {
+  PUBLIC_BACK_LINK,
+  PUBLIC_BTN_PRIMARY,
+  PUBLIC_CARD,
+  PUBLIC_ERROR_BANNER,
+  PUBLIC_INPUT,
+  PUBLIC_LABEL,
+  PUBLIC_PAGE_SHELL,
+  PUBLIC_PAGE_TITLE
+} from '../../components/public/publicStyles'
 import { useAuth } from '../../lib/AuthContext'
 import type { UserRole } from '../../types'
 
@@ -61,44 +70,28 @@ export const LoginPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-bg text-text flex flex-col justify-between p-6 md:p-12 relative overflow-hidden">
+    <div className={`${PUBLIC_PAGE_SHELL} p-6 md:p-12`}>
       {/* Top Header */}
-      <div className="flex items-center justify-between max-w-5xl mx-auto w-full">
+      <div className="flex items-center justify-between max-w-5xl mx-auto w-full gap-4">
         <BrandMark />
-        <Link
-          to="/"
-          className="flex items-center gap-2 text-xs md:text-sm font-medium text-muted hover:text-text transition-colors"
-        >
-          <ArrowLeft size={16} />
+        <Link to="/" className={PUBLIC_BACK_LINK}>
+          <ArrowLeft size={14} weight="regular" />
           <span>Back to Home</span>
         </Link>
       </div>
 
       {/* Main Login Card */}
       <div className="max-w-md w-full mx-auto my-auto py-10">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-          className="p-8 md:p-10 rounded-3xl bg-surface border border-border shadow-2xl relative"
-        >
+        <div className={`${PUBLIC_CARD} relative`}>
           {/* Header */}
-          <div className="mb-8">
-            <span className="text-xs font-mono uppercase tracking-widest text-accent-bright block mb-2">
-              Authentication
-            </span>
-            <h1 className="font-syne font-bold text-3xl text-text tracking-tight">
-              Sign in to Fieldr
-            </h1>
-            <p className="text-sm text-muted mt-2">
-              Access the administrative control center or projector display.
-            </p>
+          <div className="pb-5 mb-6 border-b border-border">
+            <h1 className={PUBLIC_PAGE_TITLE}>Sign in to Fieldr</h1>
           </div>
 
           {/* Error Banner */}
           {errorMsg && (
-            <div className="mb-6 p-3 rounded-xl bg-error/10 border border-error/40 flex items-center gap-2.5 text-xs text-text">
-              <WarningCircle size={18} weight="fill" className="text-error shrink-0" />
+            <div className={`mb-6 ${PUBLIC_ERROR_BANNER}`}>
+              <WarningCircle size={18} weight="regular" className="text-error shrink-0" />
               <span>{errorMsg}</span>
             </div>
           )}
@@ -106,45 +99,55 @@ export const LoginPage: React.FC = () => {
           {/* Email / Password Form */}
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div>
-              <label className="block text-xs font-medium text-muted uppercase tracking-wider mb-2">
+              <label htmlFor="login-email" className={PUBLIC_LABEL}>
                 Email address
               </label>
               <div className="relative">
                 <input
+                  id="login-email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@fieldr.app"
                   required
-                  className="w-full px-4 py-3 bg-bg border border-border rounded-xl text-sm text-text placeholder-muted/60 focus:outline-none focus:border-accent-bright focus:ring-1 focus:ring-accent-bright transition-all"
+                  className={`${PUBLIC_INPUT} pr-11`}
                 />
-                <User size={18} className="absolute right-3.5 top-3.5 text-muted" />
+                <User
+                  size={18}
+                  weight="regular"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+                />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-muted uppercase tracking-wider mb-2">
+              <label htmlFor="login-password" className={PUBLIC_LABEL}>
                 Password
               </label>
               <div className="relative">
                 <input
+                  id="login-password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••"
                   required
-                  className="w-full px-4 py-3 bg-bg border border-border rounded-xl text-sm text-text placeholder-muted/60 focus:outline-none focus:border-accent-bright focus:ring-1 focus:ring-accent-bright transition-all"
+                  className={`${PUBLIC_INPUT} pr-11`}
                 />
-                <LockKey size={18} className="absolute right-3.5 top-3.5 text-muted" />
+                <LockKey
+                  size={18}
+                  weight="regular"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+                />
               </div>
             </div>
 
             <button
               type="submit"
               disabled={isSubmitting}
-              className="mt-2 w-full py-3.5 rounded-full bg-btn-bg text-btn-fg font-medium text-sm hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+              className={`${PUBLIC_BTN_PRIMARY} mt-2 w-full py-3 text-sm`}
             >
-              <SignIn size={18} weight="bold" />
+              <SignIn size={18} weight="regular" />
               <span>{isSubmitting ? 'Authenticating...' : 'Sign in'}</span>
             </button>
           </form>
@@ -193,7 +196,7 @@ export const LoginPage: React.FC = () => {
               </p>
             </div>
           )}
-        </motion.div>
+        </div>
       </div>
 
       {/* Footer */}

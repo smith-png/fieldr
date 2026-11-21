@@ -19,6 +19,3 @@ export function getAcademicYearLabel(value: AcademicYear | string): string {
   return match ? match.label : value
 }
 
-export function isValidAcademicYear(value: string): value is AcademicYear {
-  return ACADEMIC_YEAR_VALUES.includes(value as AcademicYear)
-}

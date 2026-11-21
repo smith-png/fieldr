@@ -3,27 +3,81 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react'
+import React, { Suspense, lazy } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { SpeedInsights } from '@vercel/speed-insights/react'
+import { Analytics } from '@vercel/analytics/react'
 import { AuthProvider } from './lib/AuthContext'
 import { ToastProvider } from './lib/ToastContext'
 import { ThemeProvider } from './lib/theme'
-import { RouteGuard } from './components/layout/RouteGuard'
+import { RouteGuard, type PreloadableRouteComponent } from './components/layout/RouteGuard'
 import { ErrorBoundary } from './components/layout/ErrorBoundary'
+import {
+  AdminShellSkeleton,
+  AdminTableSkeleton,
+  PublicPageSkeleton
+} from './components/ui/Skeleton'
+import { AppToaster } from './components/ui/Toast'
+
 import { HomePage } from './pages/public/HomePage'
-import { LoginPage } from './pages/public/LoginPage'
-import { AdminPage } from './pages/admin/AdminPage'
-import { ProjectorPage } from './pages/public/ProjectorPage'
-import { TeamsPage } from './pages/public/TeamsPage'
-import { SeasonPage } from './pages/public/SeasonPage'
-import { SeasonDetailPage } from './pages/public/SeasonDetailPage'
-import { SeasonTeamDetailPage } from './pages/public/SeasonTeamDetailPage'
-import { PlayerProfilePage } from './pages/public/PlayerProfilePage'
-import { RostersPage } from './pages/public/RostersPage'
-import { RosterSportPage } from './pages/public/RosterSportPage'
-import { ContentPage } from './pages/public/ContentPage'
-import { HandbookPage } from './pages/public/HandbookPage'
+const LoginPage = lazy(() =>
+  import('./pages/public/LoginPage').then((m) => ({ default: m.LoginPage }))
+)
+const OwnerLoginPage = lazy(() =>
+  import('./pages/public/OwnerLoginPage').then((m) => ({ default: m.OwnerLoginPage }))
+)
+const AdminPage = lazy(() =>
+  import('./pages/admin/AdminPage').then((m) => ({ default: m.AdminPage }))
+)
+let cachedProjectorPage: React.ComponentType | null = null
+let projectorPagePromise: Promise<React.ComponentType> | null = null
+
+const projectorRouteComponent: PreloadableRouteComponent = {
+  getCached: () => cachedProjectorPage,
+  load: () => {
+    if (cachedProjectorPage) return Promise.resolve(cachedProjectorPage)
+    if (!projectorPagePromise) {
+      projectorPagePromise = import('./pages/public/ProjectorPage')
+        .then((m) => {
+          cachedProjectorPage = m.ProjectorPage
+          return m.ProjectorPage
+        })
+        .catch((err) => {
+          projectorPagePromise = null
+          throw err
+        })
+    }
+    return projectorPagePromise
+  }
+}
+const TeamsPage = lazy(() =>
+  import('./pages/public/TeamsPage').then((m) => ({ default: m.TeamsPage }))
+)
+const SeasonTeamDetailPage = lazy(() =>
+  import('./pages/public/SeasonTeamDetailPage').then((m) => ({
+    default: m.SeasonTeamDetailPage
+  }))
+)
+const PlayerProfilePage = lazy(() =>
+  import('./pages/public/PlayerProfilePage').then((m) => ({
+    default: m.PlayerProfilePage
+  }))
+)
+const RostersPage = lazy(() =>
+  import('./pages/public/RostersPage').then((m) => ({ default: m.RostersPage }))
+)
+const RosterSportPage = lazy(() =>
+  import('./pages/public/RosterSportPage').then((m) => ({ default: m.RosterSportPage }))
+)
+const ContentPage = lazy(() =>
+  import('./pages/public/ContentPage').then((m) => ({ default: m.ContentPage }))
+)
+const HandbookPage = lazy(() =>
+  import('./pages/public/HandbookPage').then((m) => ({ default: m.HandbookPage }))
+)
+const RulesPage = lazy(() =>
+  import('./pages/public/RulesPage').then((m) => ({ default: m.RulesPage }))
+)
 
 export default function App() {
   return (
@@ -54,28 +108,103 @@ export default function App() {
             <ToastProvider>
               <Routes>
                 <Route path="/" element={<HomePage />} />
-                <Route path="/teams" element={<TeamsPage />} />
-                <Route path="/season" element={<SeasonPage />} />
-                <Route path="/season/:id" element={<SeasonDetailPage />} />
-                <Route path="/season/:id/teams/:teamId" element={<SeasonTeamDetailPage />} />
-                <Route path="/players/:code" element={<PlayerProfilePage />} />
-                <Route path="/rosters" element={<RostersPage />} />
-                <Route path="/rosters/:sport" element={<RosterSportPage />} />
+                <Route
+                  path="/teams"
+                  element={
+                    <Suspense fallback={<PublicPageSkeleton variant="cards" />}>
+                      <TeamsPage />
+                    </Suspense>
+                  }
+                />
+                <Route path="/season" element={<Navigate to="/teams" replace />} />
+                <Route path="/season/:id" element={<Navigate to="/teams" replace />} />
+                <Route
+                  path="/season/:id/teams/:teamId"
+                  element={
+                    <Suspense fallback={<PublicPageSkeleton variant="cards" />}>
+                      <SeasonTeamDetailPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/players/:code"
+                  element={
+                    <Suspense fallback={<PublicPageSkeleton variant="profile" />}>
+                      <PlayerProfilePage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/rosters"
+                  element={
+                    <Suspense fallback={<PublicPageSkeleton variant="cards" />}>
+                      <RostersPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/rosters/:sport"
+                  element={
+                    <Suspense fallback={<PublicPageSkeleton variant="cards" />}>
+                      <RosterSportPage />
+                    </Suspense>
+                  }
+                />
                 <Route
                   path="/help"
-                  element={<ContentPage pageKey="help_page" fallbackTitle="Help & Instructions" />}
+                  element={
+                    <Suspense fallback={<PublicPageSkeleton variant="content" />}>
+                      <ContentPage pageKey="help_page" fallbackTitle="Help & Instructions" />
+                    </Suspense>
+                  }
                 />
                 <Route
                   path="/about"
-                  element={<ContentPage pageKey="about_page" fallbackTitle="About Fieldr" />}
+                  element={
+                    <Suspense fallback={<PublicPageSkeleton variant="content" />}>
+                      <ContentPage pageKey="about_page" fallbackTitle="About Fieldr" />
+                    </Suspense>
+                  }
                 />
-                <Route path="/handbook" element={<HandbookPage />} />
-                <Route path="/login" element={<LoginPage />} />
+                <Route
+                  path="/rules"
+                  element={
+                    <Suspense fallback={<PublicPageSkeleton variant="content" />}>
+                      <RulesPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/handbook"
+                  element={
+                    <Suspense fallback={<PublicPageSkeleton variant="content" />}>
+                      <HandbookPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/login"
+                  element={
+                    <Suspense fallback={<PublicPageSkeleton variant="content" />}>
+                      <LoginPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/owner-login"
+                  element={
+                    <Suspense fallback={<PublicPageSkeleton variant="content" />}>
+                      <OwnerLoginPage />
+                    </Suspense>
+                  }
+                />
                 <Route
                   path="/admin"
                   element={
                     <RouteGuard allowedRoles={['admin']}>
-                      <AdminPage />
+                      <Suspense fallback={<AdminShellSkeleton />}>
+                        <AdminPage />
+                      </Suspense>
                     </RouteGuard>
                   }
                 />
@@ -83,23 +212,34 @@ export default function App() {
                   path="/admin/logs"
                   element={
                     <RouteGuard allowedRoles={['admin']}>
-                      <AdminPage />
+                      <Suspense
+                        fallback={
+                          <AdminShellSkeleton>
+                            <AdminTableSkeleton rows={8} columns={5} />
+                          </AdminShellSkeleton>
+                        }
+                      >
+                        <AdminPage />
+                      </Suspense>
                     </RouteGuard>
                   }
                 />
                 <Route
                   path="/projector"
                   element={
-                    <RouteGuard allowedRoles={['admin', 'projector']}>
-                      <ProjectorPage />
-                    </RouteGuard>
+                    <RouteGuard
+                      allowedRoles={['admin', 'projector']}
+                      preloadComponent={projectorRouteComponent}
+                    />
                   }
                 />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
+              <AppToaster />
             </ToastProvider>
           </AuthProvider>
         </BrowserRouter>
+        <Analytics />
       </ThemeProvider>
       <SpeedInsights />
     </ErrorBoundary>

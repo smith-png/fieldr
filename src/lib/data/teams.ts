@@ -418,7 +418,10 @@ const demoTeamsService: TeamsService = {
 const supabaseTeamsService: TeamsService = {
   async getSports(): Promise<Sport[]> {
     if (!supabase) return DEFAULT_SPORTS
-    const { data, error } = await supabase.from('sports').select('id, name, roles')
+    const { data, error } = await supabase
+      .from('sports')
+      .select('id, name, roles')
+      .limit(10)
     if (error) {
       console.error('Supabase getSports error:', error.message, error)
       return DEFAULT_SPORTS
@@ -497,7 +500,7 @@ const supabaseTeamsService: TeamsService = {
       .from('sports')
       .update({ roles: nextRoles })
       .eq('id', found.id)
-      .select()
+      .select('id, name, roles')
       .single()
 
     if (error) throw new AppError(error.message, { original: error })
@@ -564,7 +567,7 @@ const supabaseTeamsService: TeamsService = {
       .from('sports')
       .update({ roles: updatedRoles })
       .eq('id', found.id)
-      .select()
+      .select('id, name, roles')
       .single()
 
     if (sportErr) throw new AppError(sportErr.message, { original: sportErr })
@@ -598,7 +601,7 @@ const supabaseTeamsService: TeamsService = {
       .from('sports')
       .update({ roles: orderedRoles })
       .eq('id', found.id)
-      .select()
+      .select('id, name, roles')
       .single()
 
     if (error) throw new AppError(error.message, { original: error })
@@ -636,7 +639,7 @@ const supabaseTeamsService: TeamsService = {
       .from('sports')
       .update({ roles: nextRoles })
       .eq('id', found.id)
-      .select()
+      .select('id, name, roles')
       .single()
 
     if (error) throw new AppError(error.message, { original: error })
@@ -677,7 +680,9 @@ const supabaseTeamsService: TeamsService = {
           current_purse: teamData.starting_purse
         }
       ])
-      .select()
+      .select(
+        'id, season_id, sport, name, short_code, color, logo_url, owner_display_name, owner_photo_url, owner_user_id, starting_purse, current_purse, created_at'
+      )
       .single()
 
     if (error) throw new AppError(error.message, { original: error })
@@ -706,7 +711,9 @@ const supabaseTeamsService: TeamsService = {
       .from('teams')
       .update(updates)
       .eq('id', id)
-      .select()
+      .select(
+        'id, season_id, sport, name, short_code, color, logo_url, owner_display_name, owner_photo_url, owner_user_id, starting_purse, current_purse, created_at'
+      )
       .single()
 
     if (error) throw new AppError(error.message, { original: error })
@@ -776,7 +783,12 @@ const supabaseTeamsService: TeamsService = {
     }))
 
     markLocalMutation(['teams', 'auction'])
-    const { data, error } = await supabase.from('teams').insert(inserts).select()
+    const { data, error } = await supabase
+      .from('teams')
+      .insert(inserts)
+      .select(
+        'id, season_id, sport, name, short_code, color, logo_url, owner_display_name, owner_photo_url, owner_user_id, starting_purse, current_purse, created_at'
+      )
     if (error) throw new AppError(error.message, { original: error })
 
     const createdTeams = (data as Team[]) || []
@@ -886,3 +898,61 @@ export const subscribeToTeams = (
   seasonId: string,
   callback: (teams: Team[]) => void
 ) => teamsService.subscribeToTeams(seasonId, callback)
+
+export interface OwnerLoginResult {
+  success: boolean
+  login_id?: string | null
+  message?: string
+}
+
+export async function manageOwnerLogin(params: {
+  action: 'status' | 'set' | 'remove'
+  team_id: string
+  login_id?: string
+  password?: string
+}): Promise<OwnerLoginResult> {
+  if (isDemoMode) {
+    if (params.action === 'status') {
+      return { success: true, login_id: null }
+    }
+    throw new AppError('Owner login management is disabled in demo mode.')
+  }
+  if (!supabase) {
+    throw new AppError('Supabase client not initialized')
+  }
+
+  const { data, error } = await supabase.functions.invoke('manage-owner', {
+    body: {
+      action: params.action,
+      team_id: params.team_id,
+      login_id: params.login_id,
+      password: params.password
+    }
+  })
+
+  if (error) {
+    let msg = error.message
+    if (data && typeof data === 'object' && typeof (data as any).error === 'string') {
+      msg = (data as any).error
+    } else if ((error as any).context && typeof (error as any).context.json === 'function') {
+      try {
+        const body = await (error as any).context.json()
+        if (body?.error) msg = body.error
+      } catch {
+        // ignore
+      }
+    }
+    throw new AppError(msg)
+  }
+
+  if (data && typeof data === 'object' && (data as any).error) {
+    throw new AppError((data as any).error)
+  }
+
+  return {
+    success: true,
+    login_id: data?.login_id ?? (data?.user?.login_id || null),
+    message: data?.message
+  }
+}
+
