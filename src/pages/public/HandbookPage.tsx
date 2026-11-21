@@ -9,6 +9,17 @@ import {
   WarningCircle
 } from '@phosphor-icons/react'
 import { BrandMark } from '../../components/layout/BrandMark'
+import {
+  PUBLIC_BACK_LINK,
+  PUBLIC_BTN_PRIMARY,
+  PUBLIC_BTN_SECONDARY,
+  PUBLIC_CARD,
+  PUBLIC_ERROR_BANNER,
+  PUBLIC_INPUT,
+  PUBLIC_LABEL,
+  PUBLIC_PAGE_SHELL,
+  PUBLIC_PAGE_TITLE
+} from '../../components/public/publicStyles'
 import { Button, SkeletonBlock } from '../../components/ui'
 import { supabase } from '../../lib/data/client'
 import { prefetchRoute } from '../../lib/queryCache'
@@ -166,32 +177,25 @@ export const HandbookPage: React.FC = () => {
   const isUnlocked = handbooks !== null && handbooks.length > 0
 
   return (
-    <div className="min-h-screen bg-bg text-text flex flex-col justify-between p-6 md:p-12 relative overflow-hidden">
-      <div className="flex items-center justify-between max-w-5xl mx-auto w-full">
+    <div className={`${PUBLIC_PAGE_SHELL} p-6 md:p-12`}>
+      <div className="flex items-center justify-between max-w-5xl mx-auto w-full gap-4">
         <BrandMark />
         <Link
           to="/"
           onMouseEnter={() => prefetchRoute('/')}
           onFocus={() => prefetchRoute('/')}
           onTouchStart={() => prefetchRoute('/')}
-          className="flex items-center gap-2 text-xs md:text-sm font-medium text-muted hover:text-text transition-colors"
+          className={PUBLIC_BACK_LINK}
         >
-          <ArrowLeft size={16} />
+          <ArrowLeft size={14} weight="regular" />
           <span>Back to Home</span>
         </Link>
       </div>
 
       <div className={`w-full mx-auto my-auto py-10 ${isUnlocked ? 'max-w-2xl' : 'max-w-md'}`}>
-        <div className="p-8 md:p-10 rounded-3xl bg-surface border border-border shadow-2xl relative">
-          <div className="flex items-start justify-between gap-4 mb-6">
-            <div>
-              <span className="text-xs font-mono uppercase tracking-widest text-accent-bright block mb-2">
-                DOCUMENTATION
-              </span>
-              <h1 className="font-syne font-bold text-3xl text-text tracking-tight">
-                Handbook
-              </h1>
-            </div>
+        <div className={`${PUBLIC_CARD} relative`}>
+          <div className="flex items-center justify-between gap-4 pb-5 mb-6 border-b border-border">
+            <h1 className={PUBLIC_PAGE_TITLE}>Handbook</h1>
 
             {isUnlocked && (
               <Button
@@ -200,6 +204,7 @@ export const HandbookPage: React.FC = () => {
                 size="sm"
                 leftIcon={Lock}
                 onClick={handleLock}
+                className="rounded-full"
               >
                 Lock
               </Button>
@@ -207,15 +212,15 @@ export const HandbookPage: React.FC = () => {
           </div>
 
           {isCheckingSession ? (
-            <div className="space-y-4">
-              <SkeletonBlock className="h-12 w-full rounded-xl" />
-              <SkeletonBlock className="h-12 w-full rounded-xl" />
+            <div className="space-y-3">
+              <SkeletonBlock className="h-12 w-full rounded-2xl" />
+              <SkeletonBlock className="h-12 w-full rounded-2xl" />
             </div>
           ) : !isUnlocked ? (
             <form onSubmit={handleSubmit} className="space-y-4">
               {errorMsg && (
-                <div className="p-3 rounded-xl bg-error/10 border border-error/40 flex items-center gap-2.5 text-xs text-text">
-                  <WarningCircle size={18} weight="fill" className="text-error shrink-0" />
+                <div className={PUBLIC_ERROR_BANNER}>
+                  <WarningCircle size={18} weight="regular" className="text-error shrink-0" />
                   <span>{errorMsg}</span>
                 </div>
               )}
@@ -223,7 +228,7 @@ export const HandbookPage: React.FC = () => {
               <div>
                 <label
                   htmlFor="handbook-access-code"
-                  className="block text-xs font-mono uppercase tracking-wider text-muted mb-2"
+                  className={PUBLIC_LABEL}
                 >
                   Access Code
                 </label>
@@ -240,7 +245,7 @@ export const HandbookPage: React.FC = () => {
                   autoCapitalize="characters"
                   spellCheck={false}
                   disabled={isLoading}
-                  className="w-full px-4 py-3 bg-bg border border-border rounded-xl text-sm font-mono text-text placeholder-muted/60 focus:outline-none focus:border-accent-bright focus:ring-1 focus:ring-accent-bright transition-all disabled:opacity-50"
+                  className={`${PUBLIC_INPUT} font-mono`}
                 />
               </div>
 
@@ -251,13 +256,13 @@ export const HandbookPage: React.FC = () => {
                 leftIcon={LockKeyOpen}
                 isLoading={isLoading}
                 disabled={isLoading}
-                className="w-full justify-center"
+                className="w-full justify-center rounded-full"
               >
                 Unlock
               </Button>
             </form>
           ) : (
-            <div className="divide-y divide-border border-t border-border">
+            <div className="space-y-3">
               {handbooks.map((item) => {
                 const publicUrl = getHandbookPublicUrl(item.file_path)
                 const downloadFilename = getSafeDownloadFilename(item.title)
@@ -269,7 +274,7 @@ export const HandbookPage: React.FC = () => {
                 return (
                   <div
                     key={item.id}
-                    className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                    className="rounded-2xl bg-bg border border-border px-4 py-3.5 sm:px-5 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="font-syne font-bold text-base text-text break-words">
@@ -282,22 +287,22 @@ export const HandbookPage: React.FC = () => {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2.5 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
                       <a
                         href={publicUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-surface-2 border border-border text-xs font-medium text-text hover:bg-border/40 transition-colors"
+                        className={`${PUBLIC_BTN_SECONDARY} px-4 py-2 text-xs`}
                       >
-                        <ArrowSquareOut size={14} weight="bold" />
+                        <ArrowSquareOut size={14} weight="regular" />
                         <span>Open</span>
                       </a>
                       <a
                         href={downloadUrl}
                         download={downloadFilename}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-btn-bg text-btn-fg text-xs font-medium hover:opacity-90 transition-opacity"
+                        className={`${PUBLIC_BTN_PRIMARY} px-4 py-2 text-xs`}
                       >
-                        <DownloadSimple size={14} weight="bold" />
+                        <DownloadSimple size={14} weight="regular" />
                         <span>Download</span>
                       </a>
                     </div>

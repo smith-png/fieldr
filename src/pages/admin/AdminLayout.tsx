@@ -140,6 +140,13 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             transform: scaleX(1);
           }
         }
+        .admin-desktop-sidebar {
+          background-color: var(--bg);
+          background-color: color-mix(in srgb, var(--accent-bright) 2.5%, color-mix(in srgb, var(--bg) 88%, transparent));
+          border-right-color: var(--border);
+          border-right-color: color-mix(in srgb, var(--accent-bright) 10%, transparent);
+          box-shadow: none;
+        }
         @media (prefers-reduced-transparency: reduce) {
           .admin-desktop-sidebar {
             -webkit-backdrop-filter: none !important;
@@ -151,7 +158,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
       {/* Desktop Frosted Sidebar (Collapsible 264px / 72px rail, persisted in localStorage) */}
       <aside
-        className={`admin-desktop-sidebar hidden md:flex flex-col shrink-0 self-start sticky top-0 h-screen bg-[color:color-mix(in_srgb,var(--accent-bright)_2.5%,var(--bg))] backdrop-blur-[20px] backdrop-saturate-[1.35] border-r border-[color:color-mix(in_srgb,var(--accent-bright)_12%,transparent)] z-20 overflow-hidden ${
+        className={`admin-desktop-sidebar hidden md:flex flex-col shrink-0 self-start sticky top-0 h-screen backdrop-blur-[20px] backdrop-saturate-[1.35] border-r z-20 overflow-hidden ${
           isCollapsed ? 'w-[72px] px-3 py-4' : 'w-[264px] px-4 py-5'
         }`}
       >

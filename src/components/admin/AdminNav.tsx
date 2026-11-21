@@ -137,8 +137,8 @@ export const AdminNav: React.FC<AdminNavProps> = ({
             collapsed ? 'w-10 mx-auto justify-center px-0' : 'w-full gap-3 px-3.5'
           } ${
             isActive
-              ? 'bg-[color:color-mix(in_srgb,var(--accent-bright)_10%,transparent)] text-text font-medium ring-1 ring-inset ring-[color:color-mix(in_srgb,var(--accent-bright)_16%,transparent)]'
-              : 'text-muted font-normal hover:text-text hover:bg-[color:color-mix(in_srgb,var(--accent-bright)_5%,transparent)]'
+              ? 'bg-accent-bright/8 text-text font-medium ring-1 ring-inset ring-accent-bright/14'
+              : 'text-muted font-normal hover:text-text hover:bg-accent-bright/4'
           }`}
         >
           <IconComponent
@@ -185,7 +185,7 @@ export const AdminNav: React.FC<AdminNavProps> = ({
     : 'Select Active Season'
 
   const desktopHairline =
-    'border-[color:color-mix(in_srgb,var(--accent-bright)_13%,transparent)] dark:border-[color:color-mix(in_srgb,var(--accent-bright)_18%,transparent)]'
+    'border-accent-bright/10 dark:border-accent-bright/12'
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -434,7 +434,7 @@ export const AdminNav: React.FC<AdminNavProps> = ({
                       isDesktopSidebar
                         ? `min-h-[32px] px-2 py-1 rounded-full flex items-center justify-center gap-1.5 text-[11px] font-sans transition-colors duration-150 ${
                             isSelected
-                              ? 'bg-surface text-text font-medium shadow-xs'
+                              ? 'bg-surface text-text font-medium'
                               : 'text-muted hover:text-text'
                           }`
                         : `min-h-[32px] px-2 py-1 rounded-lg flex items-center justify-center gap-1.5 text-[11px] font-mono transition-[transform,opacity] duration-150 ${
@@ -483,7 +483,7 @@ export const AdminNav: React.FC<AdminNavProps> = ({
           aria-label="Launch Projector"
           className={`h-10 rounded-full text-xs font-medium text-text flex items-center justify-center ${
             isDesktopSidebar
-              ? 'bg-[color:color-mix(in_srgb,var(--accent-bright)_10%,transparent)] border border-[color:color-mix(in_srgb,var(--accent-bright)_20%,transparent)] hover:border-accent-bright/45 transition-colors duration-150'
+              ? 'bg-accent-bright/8 border border-accent-bright/16 hover:bg-accent-bright/12 hover:border-accent-bright/30 transition-colors duration-150'
               : 'bg-accent/15 dark:bg-accent/25 border border-accent-bright/30 hover:border-accent-bright/60 transition-[transform,opacity] duration-150'
           } ${collapsed ? 'w-10 mx-auto px-0' : 'w-full gap-2 px-4'}`}
         >

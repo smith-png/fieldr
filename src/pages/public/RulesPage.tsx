@@ -9,6 +9,15 @@ import {
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
+import {
+  PUBLIC_BACK_LINK,
+  PUBLIC_BTN_PRIMARY,
+  PUBLIC_BTN_SECONDARY,
+  PUBLIC_CARD,
+  PUBLIC_MAIN_NARROW,
+  PUBLIC_PAGE_SHELL,
+  PUBLIC_PAGE_TITLE
+} from '../../components/public/publicStyles'
 import { SkeletonBlock } from '../../components/ui'
 import {
   formatRulesDate,
@@ -97,7 +106,7 @@ export const RulesPage: React.FC = () => {
   }, [])
 
   return (
-    <div className="min-h-screen bg-bg text-text flex flex-col justify-between selection:bg-accent-bright selection:text-on-accent relative">
+    <div className={PUBLIC_PAGE_SHELL}>
       <HeaderBar onOpenMenu={() => setIsMenuOpen(true)} />
       <NavigationMenu
         isOpen={isMenuOpen}
@@ -105,48 +114,39 @@ export const RulesPage: React.FC = () => {
         activeSeason={activeSeason}
       />
 
-      <main className="flex-1 max-w-4xl mx-auto w-full px-6 md:px-16 lg:px-24 pt-36 sm:pt-44 md:pt-48 pb-20">
+      <main className={PUBLIC_MAIN_NARROW}>
         <div className="mb-6">
           <Link
             to="/"
             onMouseEnter={() => prefetchRoute('/')}
             onFocus={() => prefetchRoute('/')}
             onTouchStart={() => prefetchRoute('/')}
-            className="inline-flex items-center gap-2 text-xs font-medium text-muted hover:text-text transition-colors"
+            className={PUBLIC_BACK_LINK}
           >
-            <ArrowLeft size={14} weight="bold" />
+            <ArrowLeft size={14} weight="regular" />
             <span>Return Home</span>
           </Link>
         </div>
 
-        <div className="bg-surface border border-border rounded-2xl p-8 sm:p-12 shadow-sm">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs font-mono uppercase tracking-widest text-accent-bright block">
-              OFFICIAL DOCUMENTATION
-            </span>
+        <div className={PUBLIC_CARD}>
+          <div className="pb-5 mb-6 border-b border-border">
+            <h1 className={PUBLIC_PAGE_TITLE}>Auction Rules</h1>
           </div>
 
-          <h1 className="font-syne font-extrabold text-3xl sm:text-5xl text-text tracking-tight mb-3">
-            Auction Rules
-          </h1>
-          <p className="text-xs sm:text-sm text-muted font-sans font-light mb-8 max-w-2xl">
-            Tournament guidelines, squad constitution constraints, and bidding procedures for official drafts.
-          </p>
-
           {isLoading ? (
-            <div className="space-y-4">
-              <SkeletonBlock className="h-16 w-full rounded-xl" />
-              <SkeletonBlock className="h-16 w-full rounded-xl" />
+            <div className="space-y-3">
+              <SkeletonBlock className="h-16 w-full rounded-2xl" />
+              <SkeletonBlock className="h-16 w-full rounded-2xl" />
             </div>
           ) : documents.length === 0 ? (
-            <div className="py-12 px-6 rounded-xl bg-surface-2/40 border border-border text-center flex flex-col items-center justify-center gap-3">
-              <FilePdf size={36} weight="thin" className="text-muted" />
-              <p className="text-base sm:text-lg text-muted font-sans font-light">
+            <div className="py-12 px-6 rounded-2xl bg-bg border border-border text-center flex flex-col items-center justify-center gap-3">
+              <FilePdf size={36} weight="regular" className="text-muted" />
+              <p className="text-base text-muted font-sans">
                 Auction rules will be published soon.
               </p>
             </div>
           ) : (
-            <div className="divide-y divide-border border-t border-border">
+            <div className="space-y-3">
               {documents.map((doc) => {
                 const publicUrl = getRulesPublicUrl(doc.file_path)
                 const downloadFilename = getSafeRulesDownloadFilename(doc.title)
@@ -158,35 +158,35 @@ export const RulesPage: React.FC = () => {
                 return (
                   <div
                     key={doc.id}
-                    className="py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                    className="rounded-2xl bg-bg border border-border px-4 py-3.5 sm:px-5 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="font-syne font-bold text-base sm:text-lg text-text break-words">
+                      <div className="font-syne font-bold text-base text-text break-words">
                         {doc.title}
                       </div>
                       {doc.created_at && (
-                        <div className="text-xs font-mono text-muted mt-1 tabular-nums">
+                        <div className="text-xs font-mono text-muted mt-0.5 tabular-nums">
                           {formatRulesDate(doc.created_at)}
                         </div>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2.5 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
                       <a
                         href={publicUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-surface-2 border border-border text-xs font-medium text-text hover:bg-border/40 transition-colors"
+                        className={`${PUBLIC_BTN_SECONDARY} px-4 py-2 text-xs`}
                       >
-                        <ArrowSquareOut size={14} weight="bold" />
+                        <ArrowSquareOut size={14} weight="regular" />
                         <span>Open</span>
                       </a>
                       <a
                         href={downloadUrl}
                         download={downloadFilename}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-btn-bg text-btn-fg text-xs font-medium hover:opacity-90 transition-opacity"
+                        className={`${PUBLIC_BTN_PRIMARY} px-4 py-2 text-xs`}
                       >
-                        <DownloadSimple size={14} weight="bold" />
+                        <DownloadSimple size={14} weight="regular" />
                         <span>Download</span>
                       </a>
                     </div>

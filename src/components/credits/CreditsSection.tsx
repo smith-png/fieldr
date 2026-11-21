@@ -95,12 +95,12 @@ export const CreditsSection: React.FC = () => {
   return (
     <section
       aria-labelledby="credits-section-heading"
-      className="mt-10 bg-surface border border-border rounded-2xl p-8 sm:p-12 space-y-10"
+      className="mt-8 bg-surface border border-border rounded-3xl p-6 sm:p-8 space-y-8 min-w-0"
     >
-      <div>
+      <div className="pb-5 border-b border-border">
         <h2
           id="credits-section-heading"
-          className="font-syne font-extrabold text-2xl sm:text-4xl text-text tracking-tight"
+          className="font-syne font-bold text-xl text-text tracking-tight"
         >
           Credits
         </h2>
@@ -108,25 +108,25 @@ export const CreditsSection: React.FC = () => {
 
       {/* Main people (kind 'core', up to 5) */}
       {corePeople.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {corePeople.map((person) => (
             <div
               key={person.id}
-              className="bg-bg border border-border rounded-2xl p-5 flex flex-col gap-4"
+              className="bg-bg border border-border rounded-3xl p-5 flex flex-col gap-4 min-w-0"
             >
               <CreditAvatar
                 name={person.name}
                 photoUrl={person.photo_url}
-                className="w-full aspect-[4/4.2] rounded-xl"
+                className="w-full aspect-[4/4.2] rounded-2xl"
                 initialsClassName="text-3xl sm:text-4xl"
               />
 
-              <div className="flex flex-col gap-1 flex-1">
-                <h3 className="font-syne font-bold text-lg sm:text-xl text-text tracking-tight leading-snug">
+              <div className="flex flex-col gap-1 flex-1 min-w-0">
+                <h3 className="font-syne font-bold text-lg text-text tracking-tight leading-snug">
                   {person.name}
                 </h3>
                 {person.role && (
-                  <div className="text-xs font-sans font-normal text-accent-bright">
+                  <div className="text-xs font-sans font-medium text-accent-bright">
                     {person.role}
                   </div>
                 )}
@@ -143,21 +143,21 @@ export const CreditsSection: React.FC = () => {
 
       {/* Contributors (kind 'contributor', unlimited) */}
       {contributors.length > 0 && (
-        <div className="space-y-5 pt-2">
-          <h3 className="font-syne font-bold text-lg sm:text-xl text-text tracking-tight">
+        <div className="space-y-4 pt-2 border-t border-border">
+          <h3 className="font-syne font-bold text-lg text-text tracking-tight pt-4">
             Also thanks to
           </h3>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {contributors.map((person) => (
               <div
                 key={person.id}
-                className="bg-bg border border-border rounded-2xl p-4 flex flex-col items-center text-center gap-3"
+                className="bg-bg border border-border rounded-3xl p-5 flex flex-col items-center text-center gap-3 min-w-0"
               >
                 <CreditAvatar
                   name={person.name}
                   photoUrl={person.photo_url}
-                  className="w-24 h-24 rounded-2xl shrink-0"
+                  className="w-20 h-20 rounded-2xl shrink-0"
                   initialsClassName="text-xl"
                 />
                 <div className="min-w-0 w-full">

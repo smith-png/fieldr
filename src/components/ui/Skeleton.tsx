@@ -222,36 +222,33 @@ export const AdminShellSkeleton: React.FC<{ children?: React.ReactNode }> = ({ c
 export const PublicPageSkeleton: React.FC<{ variant?: 'cards' | 'profile' | 'content' }> = ({
   variant = 'cards'
 }) => (
-  <div aria-hidden="true" className="min-h-screen bg-bg text-text flex flex-col">
-    <header className="w-full px-6 md:px-12 py-5 flex items-center justify-between">
+  <div aria-hidden="true" className="min-h-screen bg-bg text-text flex flex-col overflow-x-clip">
+    <header className="w-full max-w-7xl mx-auto h-16 px-6 md:px-16 lg:px-24 flex items-center justify-between">
       <div className="flex items-center gap-3">
-        <SkeletonBlock className="w-[52px] h-[52px] rounded-[22%]" />
-        <SkeletonBlock className="w-24 h-6 rounded-lg hidden sm:block" />
+        <SkeletonBlock className="w-10 h-10 rounded-2xl" />
+        <SkeletonBlock className="w-20 h-5 rounded-full hidden sm:block" />
       </div>
-      <SkeletonBlock className="w-28 h-8 rounded-full" />
     </header>
 
-    <main className="flex-1 w-full max-w-7xl mx-auto px-6 md:px-16 lg:px-24 pt-12 pb-20 space-y-10">
-      <div className="space-y-3 pb-6 border-b border-border">
-        <SkeletonText width="w-28" className="h-3" />
-        <SkeletonBlock className="w-64 sm:w-80 h-10 rounded-xl" />
-        <SkeletonText width="w-72" className="h-3.5" />
+    <main className="flex-1 w-full max-w-7xl mx-auto px-6 md:px-16 lg:px-24 pt-10 sm:pt-14 pb-20 space-y-8">
+      <div className="pb-5 border-b border-border">
+        <SkeletonBlock className="w-56 sm:w-72 h-10 rounded-2xl" />
       </div>
 
       {variant === 'profile' ? (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <SkeletonCard className="min-h-[280px]" />
-          <SkeletonCard className="lg:col-span-2 min-h-[280px]" />
+        <div className="space-y-6 max-w-5xl">
+          <SkeletonCard className="rounded-3xl min-h-[180px]" />
+          <SkeletonCard className="rounded-3xl min-h-[220px]" />
         </div>
       ) : variant === 'content' ? (
-        <div className="space-y-4 max-w-3xl">
-          <SkeletonBlock className="w-full h-36 rounded-2xl" />
-          <SkeletonBlock className="w-full h-48 rounded-2xl" />
+        <div className="space-y-6 max-w-4xl">
+          <SkeletonBlock className="w-full h-56 rounded-3xl" />
+          <SkeletonBlock className="w-full h-40 rounded-3xl" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {Array.from({ length: 6 }).map((_, idx) => (
-            <SkeletonCard key={idx} className="min-h-[220px]" />
+            <SkeletonCard key={idx} className="rounded-3xl min-h-[210px]" />
           ))}
         </div>
       )}

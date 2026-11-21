@@ -6,6 +6,13 @@ import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
 import { CreditsSection } from '../../components/credits/CreditsSection'
 import { MarkdownContent } from '../../components/common/MarkdownContent'
+import {
+  PUBLIC_BACK_LINK,
+  PUBLIC_CARD,
+  PUBLIC_MAIN_NARROW,
+  PUBLIC_PAGE_SHELL,
+  PUBLIC_PAGE_TITLE
+} from '../../components/public/publicStyles'
 import { SkeletonText } from '../../components/ui'
 import { getActiveSeason } from '../../lib/data/seasons'
 import { getSiteSettings } from '../../lib/data/site'
@@ -122,7 +129,7 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
   }, [pageKey])
 
   return (
-    <div className="min-h-screen bg-bg text-text flex flex-col justify-between selection:bg-accent-bright selection:text-on-accent relative">
+    <div className={PUBLIC_PAGE_SHELL}>
       <HeaderBar onOpenMenu={() => setIsMenuOpen(true)} />
       <NavigationMenu
         isOpen={isMenuOpen}
@@ -130,27 +137,26 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
         activeSeason={activeSeason}
       />
 
-      <main className="flex-1 max-w-4xl mx-auto w-full px-6 md:px-16 lg:px-24 pt-36 sm:pt-44 md:pt-48 pb-20">
+      <main className={PUBLIC_MAIN_NARROW}>
         <div className="mb-6">
           <Link
             to="/"
             onMouseEnter={() => prefetchRoute('/')}
             onFocus={() => prefetchRoute('/')}
             onTouchStart={() => prefetchRoute('/')}
-            className="inline-flex items-center gap-2 text-xs font-medium text-muted hover:text-text transition-colors"
+            className={PUBLIC_BACK_LINK}
           >
-            <ArrowLeft size={14} weight="bold" />
+            <ArrowLeft size={14} weight="regular" />
             <span>Return Home</span>
           </Link>
         </div>
 
-        <div className="bg-surface border border-border rounded-2xl p-8 sm:p-12">
-          <span className="text-xs font-mono uppercase tracking-widest text-accent-bright block mb-2">
-            INFORMATION
-          </span>
-          <h1 className="font-syne font-extrabold text-3xl sm:text-5xl text-text tracking-tight mb-6">
-            {content?.title || fallbackTitle}
-          </h1>
+        <div className={PUBLIC_CARD}>
+          <div className="pb-5 mb-6 border-b border-border">
+            <h1 className={PUBLIC_PAGE_TITLE}>
+              {content?.title || fallbackTitle}
+            </h1>
+          </div>
 
           {isLoading ? (
             <div className="space-y-4">
@@ -162,7 +168,7 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
             <MarkdownContent content={content.body} />
           ) : (
             <div className="py-8">
-              <p className="text-xl text-muted font-syne font-semibold">
+              <p className="text-lg text-muted font-syne font-semibold">
                 Coming soon
               </p>
             </div>

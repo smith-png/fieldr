@@ -56,21 +56,21 @@ export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({ player, team
         ref={modalRef}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="frost-deep border border-border rounded-3xl max-w-md lg:max-w-[960px] w-full max-h-[90vh] lg:max-h-[88vh] overflow-y-auto lg:overflow-hidden shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 motion-reduce:animate-none outline-none flex flex-col lg:flex-row"
+        className="frost-deep border border-border rounded-3xl max-w-md lg:max-w-[920px] w-full max-h-[90vh] lg:max-h-[88vh] overflow-y-auto lg:overflow-hidden shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 motion-reduce:animate-none outline-none flex flex-col lg:flex-row"
       >
         {/* Close Button */}
         <button
           type="button"
           onClick={onClose}
           aria-label="Close modal"
-          className="frost absolute top-6 right-6 lg:top-5 lg:right-5 z-20 w-8 h-8 rounded-full border border-border flex items-center justify-center text-text hover:opacity-80 transition-opacity duration-150 motion-reduce:transition-none"
+          className="frost absolute top-5 right-5 z-20 w-9 h-9 rounded-full border border-border flex items-center justify-center text-text hover:opacity-80 transition-opacity duration-150 motion-reduce:transition-none cursor-pointer"
         >
-          <X size={16} weight="bold" />
+          <X size={16} weight="regular" />
         </button>
 
         {/* Inset Photo Column */}
-        <div className="p-3 lg:w-[45%] lg:shrink-0 flex flex-col">
-          <div className="relative w-full h-72 sm:h-80 lg:h-full lg:min-h-[460px] rounded-2xl bg-surface-2 flex items-center justify-center overflow-hidden border border-border/60">
+        <div className="p-4 lg:w-[45%] lg:shrink-0 flex flex-col">
+          <div className="relative w-full h-72 sm:h-80 lg:h-full lg:min-h-[440px] rounded-2xl bg-surface-2 flex items-center justify-center overflow-hidden border border-border">
             {primaryPhotoSrc ? (
               <>
                 {backdropPhotoSrc && (
@@ -92,34 +92,31 @@ export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({ player, team
                   loading="lazy"
                   decoding="async"
                   referrerPolicy="no-referrer"
-                  className="relative z-10 w-full h-full object-cover lg:object-contain"
+                  className="relative z-10 w-full h-full object-cover lg:object-contain rounded-2xl"
                 />
               </>
             ) : (
               <div className="flex flex-col items-center justify-center text-muted">
-                <User size={64} weight="thin" />
-                <span className="text-xs font-mono uppercase tracking-wider mt-2">
-                  Official Photo Pending
+                <User size={56} weight="regular" />
+                <span className="text-xs text-muted mt-2">
+                  Photo pending
                 </span>
               </div>
             )}
 
-            <div className="frost absolute top-3 left-3 z-20 border border-border rounded-full px-2.5 py-1 text-xs font-mono text-text font-bold tabular-nums">
+            <div className="frost absolute top-3 left-3 z-20 border border-border rounded-full px-3 py-1 text-xs font-mono text-text font-semibold tabular-nums">
               #{formattedCode}
             </div>
           </div>
         </div>
 
         {/* Details Column */}
-        <div className="flex-1 flex flex-col min-h-0 lg:overflow-y-auto thin-scrollbar px-5 pt-2 pb-5 sm:px-6 sm:pt-3 sm:pb-6 lg:p-8 lg:pl-6">
+        <div className="flex-1 flex flex-col min-h-0 lg:overflow-y-auto thin-scrollbar px-6 pt-2 pb-6 lg:p-8 lg:pl-4">
           <div className="mb-5 lg:pr-10">
-            <span className="text-xs font-mono uppercase tracking-widest text-accent-bright block mb-1.5">
-              {player.sport}
-            </span>
-            <h2 className="font-syne font-extrabold text-text tracking-tight text-balance leading-[1.08] text-[clamp(1.625rem,4.5vw,2.5rem)]">
+            <h2 className="font-syne font-extrabold text-text tracking-tight text-balance leading-[1.08] text-[clamp(1.625rem,4.5vw,2.25rem)]">
               {displayName}
             </h2>
-            <div className="font-syne font-bold text-lg lg:text-xl text-text mt-1.5">
+            <div className="font-syne font-bold text-lg lg:text-xl text-text mt-2">
               {player.playing_role}
             </div>
             {player.base_points !== undefined && player.base_points !== null && (
@@ -129,20 +126,20 @@ export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({ player, team
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-4 py-4 border-y border-border text-xs">
-            <div>
-              <span className="text-muted block mb-0.5">Academic Standing</span>
-              <span className="text-text font-medium">{player.academic_year} Year Student</span>
+          <div className="grid grid-cols-2 gap-3 py-4 border-y border-border text-xs">
+            <div className="rounded-2xl bg-bg/70 border border-border px-3.5 py-3">
+              <span className="text-muted block mb-0.5">Academic Year</span>
+              <span className="text-text font-medium">{player.academic_year} Year</span>
             </div>
-            <div>
-              <span className="text-muted block mb-0.5">Primary Discipline</span>
+            <div className="rounded-2xl bg-bg/70 border border-border px-3.5 py-3">
+              <span className="text-muted block mb-0.5">Sport</span>
               <span className="text-text font-medium">{player.sport}</span>
             </div>
           </div>
 
           <div className="mt-6 lg:mt-auto pt-4 flex flex-col gap-3.5">
             {team || player.status === 'sold' ? (
-              <span className="frost self-start inline-flex items-center gap-2 border border-border rounded-full px-3 py-1.5 font-mono uppercase text-[11px] font-bold tracking-wider text-text">
+              <span className="frost self-start inline-flex items-center gap-2 border border-border rounded-full px-3.5 py-1.5 text-xs font-medium text-text">
                 <span
                   aria-hidden="true"
                   className="w-2 h-2 rounded-full shrink-0"
@@ -151,10 +148,10 @@ export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({ player, team
                 <span>{team ? team.name : 'Drafted'}</span>
               </span>
             ) : (
-              <span className="frost self-start inline-flex items-center gap-2 border border-border rounded-full px-3 py-1.5 font-mono uppercase text-[11px] font-bold tracking-wider text-text">
+              <span className="frost self-start inline-flex items-center gap-2 border border-border rounded-full px-3.5 py-1.5 text-xs font-medium text-text">
                 <span
                   aria-hidden="true"
-                  className="w-2 h-2 rounded-full shrink-0 bg-accent"
+                  className="w-2 h-2 rounded-full shrink-0 bg-accent-bright"
                 />
                 <span>Ready for Draft</span>
               </span>
@@ -162,14 +159,14 @@ export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({ player, team
 
             <Link
               to={`/players/${player.athlete_code || formattedCode}`}
-              className="group w-full h-12 rounded-full bg-accent text-on-accent hover:opacity-95 active:scale-[0.99] transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 flex items-center justify-between pl-6 pr-2 font-sans font-semibold text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+              className="group w-full h-12 rounded-full bg-btn-bg text-btn-fg hover:opacity-90 active:scale-[0.99] transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 flex items-center justify-between pl-6 pr-2 font-sans font-medium text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
             >
               <span>View full profile</span>
               <span
                 aria-hidden="true"
-                className="w-8 h-8 rounded-full bg-on-accent/15 flex items-center justify-center shrink-0 transition-transform duration-150 group-hover:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"
+                className="w-8 h-8 rounded-full bg-btn-fg/15 flex items-center justify-center shrink-0 transition-transform duration-150 group-hover:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"
               >
-                <ArrowRight size={16} weight="bold" />
+                <ArrowRight size={16} weight="regular" />
               </span>
             </Link>
           </div>
