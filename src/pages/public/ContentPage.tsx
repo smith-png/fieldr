@@ -4,6 +4,7 @@ import { ArrowLeft } from '@phosphor-icons/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
+import FooterMark from '../../components/layout/FooterMark'
 import { CreditsSection } from '../../components/credits/CreditsSection'
 import { MarkdownContent } from '../../components/common/MarkdownContent'
 import {
@@ -138,6 +139,12 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
       />
 
       <main className={PUBLIC_MAIN_NARROW}>
+        {pageKey === 'about_page' && (
+          <div className="flex justify-center mb-4 md:mb-6" aria-hidden="true">
+            <FooterMark size={112} />
+          </div>
+        )}
+
         <div className="mb-6">
           <Link
             to="/"
