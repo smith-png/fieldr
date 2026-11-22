@@ -22,12 +22,16 @@ import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
 import {
   PUBLIC_BACK_LINK,
+  PUBLIC_BTN_PRIMARY,
+  PUBLIC_BTN_SECONDARY,
   PUBLIC_CARD,
   PUBLIC_COUNT_PILL,
   PUBLIC_MAIN_MEDIUM,
   PUBLIC_PAGE_SHELL,
   PUBLIC_PAGE_TITLE,
-  PUBLIC_SECTION_TITLE
+  PUBLIC_PILL_BAR,
+  PUBLIC_SECTION_TITLE,
+  PUBLIC_WELL
 } from '../../components/public/publicStyles'
 import {
   EmptyState,
@@ -1121,7 +1125,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
               <div
                 aria-busy="true"
                 aria-label="Loading Owner Panel"
-                className="bg-surface border border-border rounded-3xl p-5 sm:p-8 shadow-sm relative overflow-hidden font-dm-sans"
+                className={`${PUBLIC_CARD} relative overflow-hidden`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-border">
                   <div className="space-y-2">
@@ -1159,7 +1163,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                     {Array.from({ length: 3 }).map((_, idx) => (
                       <div
                         key={idx}
-                        className="rounded-2xl bg-surface-2 border border-border px-3.5 py-3 sm:px-4 flex items-center justify-between gap-3"
+                        className={`${PUBLIC_WELL} px-3.5 py-3 sm:px-4 flex items-center justify-between gap-3`}
                       >
                         <div className="flex items-center gap-2.5 min-w-0 flex-1">
                           <SkeletonBlock className="h-5 w-12 rounded-full shrink-0" />
@@ -1446,13 +1450,13 @@ export const SeasonTeamDetailPage: React.FC = () => {
               )
 
               return (
-                <div className="bg-surface border border-border rounded-3xl p-4 sm:p-6 shadow-sm relative overflow-hidden font-dm-sans">
+                <div className={`${PUBLIC_CARD} relative overflow-hidden`}>
                   {showAnnouncementBanner && latestAnnouncement && (
                     <div
                       role="status"
-                      className="frost border border-accent-bright/35 rounded-2xl px-3.5 py-3 mb-4 flex items-start justify-between gap-3"
+                      className="frost border border-accent-bright/35 rounded-2xl p-4 mb-6 flex items-start justify-between gap-3"
                     >
-                      <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
                         <span className="w-8 h-8 rounded-full bg-accent/15 border border-accent-bright/30 flex items-center justify-center shrink-0 mt-0.5">
                           <Megaphone
                             size={15}
@@ -1462,7 +1466,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                         </span>
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent-bright font-semibold">
+                            <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-accent-bright font-semibold">
                               Announcement
                             </span>
                             {latestAnnouncement.created_at && (
@@ -1471,7 +1475,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                               </span>
                             )}
                           </div>
-                          <p className="text-sm text-text mt-0.5 break-words leading-snug">
+                          <p className="text-sm text-text mt-1 break-words leading-snug">
                             {latestAnnouncement.message}
                           </p>
                         </div>
@@ -1481,15 +1485,15 @@ export const SeasonTeamDetailPage: React.FC = () => {
                         type="button"
                         onClick={() => handleDismissAnnouncement(latestAnnouncement.id)}
                         aria-label="Dismiss announcement"
-                        className="w-7 h-7 rounded-full bg-surface-2 border border-border inline-flex items-center justify-center text-muted hover:text-text hover:border-accent-bright/40 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                        className="w-8 h-8 rounded-full bg-surface-2 border border-border inline-flex items-center justify-center text-muted hover:text-text hover:border-accent-bright/40 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
                       >
                         <X size={14} weight="bold" />
                       </button>
                     </div>
                   )}
 
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-4 border-b border-border">
-                    <div>
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5 border-b border-border">
+                    <div className="min-w-0">
                       <span className="block text-[11px] font-mono uppercase tracking-[0.16em] text-accent-bright font-semibold mb-1">
                         CONFIDENTIAL FRANCHISE PORTAL
                       </span>
@@ -1504,23 +1508,25 @@ export const SeasonTeamDetailPage: React.FC = () => {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 self-start shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => void handleShareOwnerSquad(boughtPlayers, ownerSharePayload)}
-                        disabled={isSharingOwner}
-                        className="hidden sm:inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-accent text-on-accent hover:opacity-90 active:scale-[0.98] text-sm font-semibold transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
-                      >
-                        {isSharingOwner ? (
-                          <CircleNotch
-                            size={16}
-                            weight="regular"
-                            className="animate-spin motion-reduce:animate-none"
-                          />
-                        ) : (
-                          <ShareNetwork size={16} weight="regular" />
-                        )}
-                        <span>Share squad</span>
-                      </button>
+                      <div className="hidden sm:block shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => void handleShareOwnerSquad(boughtPlayers, ownerSharePayload)}
+                          disabled={isSharingOwner}
+                          className={`${PUBLIC_BTN_PRIMARY} px-5 py-2.5 text-sm whitespace-nowrap`}
+                        >
+                          {isSharingOwner ? (
+                            <CircleNotch
+                              size={16}
+                              weight="regular"
+                              className="animate-spin motion-reduce:animate-none"
+                            />
+                          ) : (
+                            <ShareNetwork size={16} weight="regular" />
+                          )}
+                          <span>Share squad</span>
+                        </button>
+                      </div>
 
                       <button
                         type="button"
@@ -1531,7 +1537,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                           void fetchLatestAnnouncement({ notifyIfNew: false })
                         }}
                         disabled={isLoadingOverview}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-surface-2 hover:opacity-85 active:scale-[0.98] border border-border text-xs font-medium text-text transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 disabled:opacity-50 cursor-pointer"
+                        className={`${PUBLIC_BTN_SECONDARY} px-3.5 py-2 text-xs disabled:opacity-50`}
                       >
                         {isLoadingOverview ? (
                           <CircleNotch
@@ -1546,7 +1552,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => logout()}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-surface-2 hover:opacity-85 active:scale-[0.98] border border-border text-xs font-medium text-muted hover:text-text transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 cursor-pointer"
+                        className={`${PUBLIC_BTN_SECONDARY} px-3.5 py-2 text-xs text-muted hover:text-text`}
                       >
                         <SignOut size={14} />
                         <span>Sign out</span>
@@ -1555,7 +1561,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                   </div>
 
                   {/* Purse Block */}
-                  <div className="py-4 border-b border-border space-y-4">
+                  <div className="py-6 border-b border-border space-y-4">
                     <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <span className="block font-mono text-[11px] uppercase tracking-[0.14em] text-muted mb-1">
@@ -1570,7 +1576,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                           aria-valuemin={0}
                           aria-valuemax={100}
                           aria-valuenow={Math.round(spentRatio * 100)}
-                          className="mt-3 h-1.5 w-full max-w-md rounded-full bg-surface-2 overflow-hidden"
+                          className="mt-3.5 h-1.5 w-full max-w-md rounded-full bg-surface-2 overflow-hidden"
                         >
                           <div
                             className="h-full w-full rounded-full bg-accent-bright origin-left transition-transform duration-300 motion-reduce:transition-none"
@@ -1579,12 +1585,12 @@ export const SeasonTeamDetailPage: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap items-start gap-x-7 gap-y-3 md:shrink-0 md:pb-0.5">
+                      <div className="flex flex-wrap items-start gap-x-8 gap-y-3 md:shrink-0 md:pb-0.5">
                         <div>
                           <span className="block font-mono text-[11px] uppercase tracking-[0.14em] text-muted mb-0.5">
                             PURSE SPENT
                           </span>
-                          <span className="font-mono text-lg sm:text-xl font-bold text-text tabular-nums">
+                          <span className="font-mono text-lg sm:text-xl font-bold text-points tabular-nums">
                             {formatPoints(purseSpent)}
                           </span>
                         </div>
@@ -1601,35 +1607,37 @@ export const SeasonTeamDetailPage: React.FC = () => {
                     </div>
 
                     {/* Mobile primary Share squad button directly under purse stats */}
-                    <button
-                      type="button"
-                      onClick={() => void handleShareOwnerSquad(boughtPlayers, ownerSharePayload)}
-                      disabled={isSharingOwner}
-                      className="sm:hidden w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full bg-accent text-on-accent hover:opacity-90 active:scale-[0.98] text-sm font-semibold transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 disabled:opacity-50 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
-                    >
-                      {isSharingOwner ? (
-                        <CircleNotch
-                          size={16}
-                          weight="regular"
-                          className="animate-spin motion-reduce:animate-none"
-                        />
-                      ) : (
-                        <ShareNetwork size={16} weight="regular" />
-                      )}
-                      <span>Share squad</span>
-                    </button>
+                    <div className="sm:hidden">
+                      <button
+                        type="button"
+                        onClick={() => void handleShareOwnerSquad(boughtPlayers, ownerSharePayload)}
+                        disabled={isSharingOwner}
+                        className={`w-full ${PUBLIC_BTN_PRIMARY} px-5 py-3 text-sm`}
+                      >
+                        {isSharingOwner ? (
+                          <CircleNotch
+                            size={16}
+                            weight="regular"
+                            className="animate-spin motion-reduce:animate-none"
+                          />
+                        ) : (
+                          <ShareNetwork size={16} weight="regular" />
+                        )}
+                        <span>Share squad</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Max Bid & Role Coverage side by side on wide screens */}
                   <div
-                    className={`py-4 border-b border-border grid grid-cols-1 gap-3 ${
+                    className={`py-6 border-b border-border grid grid-cols-1 gap-4 ${
                       roleCoverageCounts.length > 0
                         ? 'lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]'
                         : ''
                     }`}
                   >
                     {/* 1. Max Bid Card */}
-                    <div className="frost border border-border rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between gap-2.5">
+                    <div className="frost border border-border rounded-2xl p-4 sm:p-5 flex flex-col justify-between gap-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
                           MAX BID
@@ -1668,15 +1676,15 @@ export const SeasonTeamDetailPage: React.FC = () => {
                         )}
                       </div>
 
-                      <div className="grid grid-cols-3 gap-3">
-                        <div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+                        <div className="min-w-0">
                           <span className="block text-[11px] text-muted">Purse left</span>
                           <div className="font-mono text-lg sm:text-xl font-bold text-text tabular-nums mt-0.5">
                             {formatPoints(safeRemaining)}
                           </div>
                         </div>
 
-                        <div>
+                        <div className="min-w-0">
                           <span className="block text-[11px] text-muted">Remaining slots</span>
                           <div className="font-mono text-lg sm:text-xl font-bold text-text tabular-nums mt-0.5">
                             {remainingSlots}
@@ -1686,7 +1694,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                           </div>
                         </div>
 
-                        <div>
+                        <div className="col-span-2 sm:col-span-1 min-w-0">
                           <span className="block text-[11px] text-muted">Max bid</span>
                           {remainingSlots === 0 ? (
                             <div className="font-syne font-bold text-lg sm:text-xl text-text tracking-tight mt-0.5">
@@ -1700,11 +1708,11 @@ export const SeasonTeamDetailPage: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="pt-2 border-t border-border space-y-1 text-xs text-muted">
+                      <div className="pt-2.5 border-t border-border space-y-1 text-xs text-muted">
                         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
                           <span className="font-mono text-[11px] tabular-nums">
                             Lowest base available:{' '}
-                            <span className="text-text font-semibold">
+                            <span className="text-points font-semibold">
                               {lowestAvailableBaseFromLoaded !== null
                                 ? formatPoints(lowestAvailableBaseFromLoaded)
                                 : '—'}
@@ -1728,7 +1736,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
 
                     {/* 2. Role Coverage */}
                     {roleCoverageCounts.length > 0 && (
-                      <div className="frost border border-border rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between gap-2.5">
+                      <div className="frost border border-border rounded-2xl p-4 sm:p-5 flex flex-col justify-between gap-3">
                         <span className="block font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
                           ROLE COVERAGE
                         </span>
@@ -1736,10 +1744,10 @@ export const SeasonTeamDetailPage: React.FC = () => {
                           {roleCoverageCounts.map(({ role, count }) => (
                             <div
                               key={role}
-                              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-surface-2 border border-border"
+                              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-surface-2 border border-border"
                             >
                               <span className="text-xs text-muted">{role}</span>
-                              <span className="font-mono text-sm font-bold text-text tabular-nums">
+                              <span className="font-mono text-xs font-bold text-text tabular-nums">
                                 {count}
                               </span>
                             </div>
@@ -1750,19 +1758,18 @@ export const SeasonTeamDetailPage: React.FC = () => {
                   </div>
 
                   {/* Merged Players Bought & Purchases Timeline */}
-                  <div className="pt-4">
-                    <div className="flex items-center justify-between gap-3 mb-2.5">
-                      <h3 className="font-syne font-bold text-base text-text">
-                        Players Bought ({mergedPurchases.length})
-                      </h3>
+                  <div className="pt-6">
+                    <div className="flex items-center justify-between gap-3 pb-3 border-b border-border mb-4">
+                      <h3 className={PUBLIC_SECTION_TITLE}>Players Bought</h3>
+                      <span className={PUBLIC_COUNT_PILL}>{mergedPurchases.length}</span>
                     </div>
 
                     {mergedPurchases.length === 0 ? (
-                      <p className="px-4 py-4 rounded-2xl bg-surface-2 border border-border text-xs text-muted text-center">
+                      <p className={`${PUBLIC_WELL} px-4 py-6 text-xs text-muted text-center`}>
                         No players acquired yet.
                       </p>
                     ) : (
-                      <ul className="space-y-2">
+                      <ul className="space-y-2.5">
                         {mergedPurchases.map((entry) => {
                           const showPhoto =
                             Boolean(entry.photo_url) &&
@@ -1770,15 +1777,15 @@ export const SeasonTeamDetailPage: React.FC = () => {
                           return (
                             <li
                               key={entry.key}
-                              className="rounded-2xl bg-surface-2 border border-border px-3 py-2.5 sm:px-3.5 flex items-center justify-between gap-3"
+                              className={`${PUBLIC_WELL} px-3.5 py-3 sm:px-4 flex items-center justify-between gap-3`}
                             >
-                              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
                                 {showPhoto && (
                                   <img
                                     src={entry.photo_url as string}
                                     alt={entry.name}
-                                    width={36}
-                                    height={36}
+                                    width={40}
+                                    height={40}
                                     loading="lazy"
                                     decoding="async"
                                     referrerPolicy="no-referrer"
@@ -1791,15 +1798,15 @@ export const SeasonTeamDetailPage: React.FC = () => {
                                         )
                                       }
                                     }}
-                                    className="w-9 h-9 rounded-xl object-cover border border-border shrink-0"
+                                    className="w-10 h-10 rounded-xl object-cover bg-surface-2 border border-border shrink-0"
                                   />
                                 )}
                                 <div className="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2">
                                   <div className="flex items-center gap-2 min-w-0">
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface border border-border font-mono text-[11px] font-bold text-accent-bright tabular-nums shrink-0">
-                                      {entry.athlete_code}
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-2 border border-border font-mono text-[11px] font-semibold text-accent-bright tabular-nums shrink-0">
+                                      #{entry.athlete_code}
                                     </span>
-                                    <span className="font-medium text-sm text-text truncate">
+                                    <span className="font-syne font-bold text-sm text-text truncate">
                                       {entry.name}
                                     </span>
                                   </div>
@@ -1817,7 +1824,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                               </div>
 
                               <div className="flex flex-col items-end shrink-0 text-right">
-                                <span className="font-mono text-xs sm:text-sm font-semibold text-text tabular-nums">
+                                <span className="font-mono text-xs sm:text-sm font-semibold text-points tabular-nums">
                                   {formatPoints(entry.price)}
                                 </span>
                                 <span className="font-mono text-[11px] text-muted tabular-nums">
@@ -1832,13 +1839,12 @@ export const SeasonTeamDetailPage: React.FC = () => {
                   </div>
 
                   {/* Private Owner Shortlist */}
-                  <div className="pt-4 mt-4 border-t border-border">
-                    <div className="flex flex-wrap items-center justify-between gap-2.5 mb-3">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <h3 className="font-syne font-bold text-base text-text">
-                          Shortlist ({enrichedShortlist.length})
-                        </h3>
-                        <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted px-2 py-0.5 rounded-full bg-surface-2 border border-border">
+                  <div className="pt-6 mt-6 border-t border-border">
+                    <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-border mb-4">
+                      <div className="flex flex-wrap items-center gap-2 min-w-0">
+                        <h3 className={PUBLIC_SECTION_TITLE}>Shortlist</h3>
+                        <span className={PUBLIC_COUNT_PILL}>{enrichedShortlist.length}</span>
+                        <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted px-2.5 py-0.5 rounded-full bg-surface-2 border border-border">
                           Private
                         </span>
                         {isLoadingShortlist && (
@@ -1853,7 +1859,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setIsShortlistPickerOpen((prev) => !prev)}
-                        className="frost inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border text-xs font-medium text-text hover:border-accent-bright/50 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                        className={`${PUBLIC_BTN_SECONDARY} px-3.5 py-1.5 text-xs shrink-0`}
                       >
                         {isShortlistPickerOpen ? (
                           <>
@@ -1870,31 +1876,31 @@ export const SeasonTeamDetailPage: React.FC = () => {
                     </div>
 
                     {isShortlistPickerOpen && (
-                      <div className="frost border border-border rounded-2xl p-3 sm:p-3.5 mb-3 space-y-2.5">
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <div className="frost border border-border rounded-2xl p-3.5 sm:p-4 mb-4 space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
                           <div className="relative flex-1 min-w-0">
                             <MagnifyingGlass
                               size={14}
                               weight="regular"
-                              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+                              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
                             />
                             <input
                               type="text"
                               value={shortlistSearch}
                               onChange={(e) => setShortlistSearch(e.target.value)}
                               placeholder="Search available players by name, ID, or role..."
-                              className="w-full h-9 pl-8 pr-3 rounded-xl bg-bg border border-border text-xs text-text placeholder:text-muted focus:outline-none focus:border-accent-bright"
+                              className="w-full min-h-[38px] pl-9 pr-3.5 rounded-2xl bg-bg border border-border text-xs text-text placeholder:text-muted focus:outline-none focus:border-accent-bright"
                             />
                           </div>
 
                           {hasOtherSports && (
-                            <div className="inline-flex items-center gap-1 p-0.5 rounded-full bg-surface-2 border border-border self-start shrink-0">
+                            <div className={`${PUBLIC_PILL_BAR} self-start shrink-0`}>
                               <button
                                 type="button"
                                 onClick={() => setShortlistScope('team_sport')}
-                                className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors cursor-pointer ${
+                                className={`px-3 py-1 rounded-full text-[11px] font-medium transition-colors cursor-pointer ${
                                   shortlistScope === 'team_sport'
-                                    ? 'bg-accent text-on-accent'
+                                    ? 'bg-btn-bg text-btn-fg'
                                     : 'text-muted hover:text-text'
                                 }`}
                               >
@@ -1903,9 +1909,9 @@ export const SeasonTeamDetailPage: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => setShortlistScope('all')}
-                                className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors cursor-pointer ${
+                                className={`px-3 py-1 rounded-full text-[11px] font-medium transition-colors cursor-pointer ${
                                   shortlistScope === 'all'
-                                    ? 'bg-accent text-on-accent'
+                                    ? 'bg-btn-bg text-btn-fg'
                                     : 'text-muted hover:text-text'
                                 }`}
                               >
@@ -1920,21 +1926,21 @@ export const SeasonTeamDetailPage: React.FC = () => {
                             No available players match this filter.
                           </p>
                         ) : (
-                          <ul className="max-h-56 overflow-y-auto thin-scrollbar space-y-1.5 pr-0.5">
+                          <ul className="max-h-56 overflow-y-auto thin-scrollbar space-y-2 pr-0.5">
                             {availableSeasonPlayers.map(
                               ({ player, athleteCode, basePoints, isStarred }) => {
                                 const isBusy = shortlistBusyKey === player.id
                                 return (
                                   <li
                                     key={player.id}
-                                    className="rounded-xl bg-surface-2 border border-border px-3 py-2 flex items-center justify-between gap-2.5"
+                                    className={`${PUBLIC_WELL} px-3.5 py-2.5 flex items-center justify-between gap-2.5`}
                                   >
                                     <div className="min-w-0 flex-1">
                                       <div className="flex items-center gap-2 min-w-0">
-                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-surface border border-border font-mono text-[10px] font-bold text-accent-bright tabular-nums shrink-0">
-                                          {athleteCode}
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-2 border border-border font-mono text-[10px] font-semibold text-accent-bright tabular-nums shrink-0">
+                                          #{athleteCode}
                                         </span>
-                                        <span className="text-xs sm:text-sm font-medium text-text truncate">
+                                        <span className="font-syne font-bold text-xs sm:text-sm text-text truncate">
                                           {player.name}
                                         </span>
                                       </div>
@@ -1944,7 +1950,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                                           <span>· {player.sport}</span>
                                         )}
                                         {basePoints !== null && (
-                                          <span className="font-mono tabular-nums">
+                                          <span className="font-mono tabular-nums text-points font-semibold">
                                             · Base {formatPoints(basePoints)}
                                           </span>
                                         )}
@@ -1960,10 +1966,10 @@ export const SeasonTeamDetailPage: React.FC = () => {
                                           ? `Remove ${player.name} from shortlist`
                                           : `Add ${player.name} to shortlist`
                                       }
-                                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-xs font-medium transition-colors cursor-pointer disabled:opacity-45 shrink-0 ${
+                                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full border text-xs font-medium transition-colors cursor-pointer disabled:opacity-45 shrink-0 ${
                                         isStarred
                                           ? 'bg-accent/15 border-accent-bright/40 text-accent-bright'
-                                          : 'bg-surface border-border text-muted hover:text-text hover:border-accent-bright/40'
+                                          : 'bg-surface-2 border-border text-muted hover:text-text hover:border-accent-bright/40'
                                       }`}
                                     >
                                       {isBusy ? (
@@ -1990,11 +1996,11 @@ export const SeasonTeamDetailPage: React.FC = () => {
                     )}
 
                     {enrichedShortlist.length === 0 ? (
-                      <p className="px-4 py-4 rounded-2xl bg-surface-2 border border-border text-xs text-muted text-center">
+                      <p className={`${PUBLIC_WELL} px-4 py-6 text-xs text-muted text-center`}>
                         No players shortlisted yet. Star available players to track targets and private notes.
                       </p>
                     ) : (
-                      <ul className="space-y-2">
+                      <ul className="space-y-2.5">
                         {enrichedShortlist.map((item) => {
                           const isEditingNote = editingNoteRowId === item.row.id
                           const isRowBusy =
@@ -2012,18 +2018,18 @@ export const SeasonTeamDetailPage: React.FC = () => {
                           return (
                             <li
                               key={item.row.id}
-                              className={`rounded-2xl bg-surface-2 border border-border px-3 py-2.5 sm:px-3.5 space-y-2 transition-opacity ${
+                              className={`${PUBLIC_WELL} px-3.5 py-3 sm:px-4 space-y-2 transition-opacity ${
                                 item.isSold ? 'opacity-55' : ''
                               }`}
                             >
                               <div className="flex items-start justify-between gap-2.5">
-                                <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                                <div className="flex items-start gap-3 min-w-0 flex-1">
                                   {showPhoto && (
                                     <img
                                       src={item.photoUrl as string}
                                       alt={item.name}
-                                      width={36}
-                                      height={36}
+                                      width={40}
+                                      height={40}
                                       loading="lazy"
                                       decoding="async"
                                       referrerPolicy="no-referrer"
@@ -2036,7 +2042,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                                           )
                                         }
                                       }}
-                                      className={`w-9 h-9 rounded-xl object-cover border border-border shrink-0 mt-0.5 ${
+                                      className={`w-10 h-10 rounded-xl object-cover bg-surface-2 border border-border shrink-0 mt-0.5 ${
                                         item.isSold ? 'grayscale' : ''
                                       }`}
                                     />
@@ -2045,23 +2051,33 @@ export const SeasonTeamDetailPage: React.FC = () => {
                                   <div className="min-w-0 flex-1">
                                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                                       {item.athleteCode && (
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface border border-border font-mono text-[11px] font-bold text-accent-bright tabular-nums shrink-0">
-                                          {item.athleteCode}
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-2 border border-border font-mono text-[11px] font-semibold text-accent-bright tabular-nums shrink-0">
+                                          #{item.athleteCode}
                                         </span>
                                       )}
-                                      <span className="font-medium text-sm text-text truncate">
+                                      <span className="font-syne font-bold text-sm text-text truncate">
                                         {item.name}
                                       </span>
                                       <span
-                                        className={`inline-flex items-center px-2 py-0.5 rounded-full border font-mono text-[10px] uppercase tracking-wider shrink-0 ${
+                                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border font-mono text-[10px] uppercase tracking-wider shrink-0 ${
                                           item.isSold
-                                            ? 'bg-surface border-border text-muted'
+                                            ? 'bg-surface-2 border-border text-muted'
                                             : item.status === 'available'
                                             ? 'bg-accent/10 border-accent-bright/30 text-accent-bright font-medium'
-                                            : 'bg-surface border-border text-muted'
+                                            : 'bg-surface-2 border-border text-muted'
                                         }`}
                                       >
-                                        {statusLabel}
+                                        {!item.isSold && (
+                                          <span
+                                            aria-hidden="true"
+                                            className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                              item.status === 'available'
+                                                ? 'bg-accent-bright'
+                                                : 'bg-muted'
+                                            }`}
+                                          />
+                                        )}
+                                        <span>{statusLabel}</span>
                                       </span>
                                     </div>
 
@@ -2069,7 +2085,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                                       <span>{item.playingRole}</span>
                                       <span className="font-mono text-[11px] tabular-nums">
                                         Base{' '}
-                                        <span className="text-text font-medium">
+                                        <span className="text-points font-semibold">
                                           {item.basePoints !== null
                                             ? formatPoints(item.basePoints)
                                             : '—'}
@@ -2099,7 +2115,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                                           ? `Edit note for ${item.name}`
                                           : `Add note for ${item.name}`
                                       }
-                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface border border-border text-[11px] font-medium text-muted hover:text-text hover:border-accent-bright/40 transition-colors cursor-pointer disabled:opacity-45"
+                                      className={`${PUBLIC_BTN_SECONDARY} px-2.5 py-1 text-[11px] text-muted hover:text-text disabled:opacity-45`}
                                     >
                                       <PencilSimple size={12} weight="regular" />
                                       <span className="hidden sm:inline">
@@ -2113,7 +2129,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                                     onClick={() => void handleToggleShortlist(item.row.player_id)}
                                     disabled={Boolean(shortlistBusyKey)}
                                     aria-label={`Remove ${item.name} from shortlist`}
-                                    className="w-7 h-7 rounded-full bg-surface border border-border inline-flex items-center justify-center text-accent-bright hover:border-accent-bright/50 transition-colors cursor-pointer disabled:opacity-45 shrink-0"
+                                    className="w-7 h-7 rounded-full bg-surface-2 border border-border inline-flex items-center justify-center text-accent-bright hover:border-accent-bright/50 transition-colors cursor-pointer disabled:opacity-45 shrink-0"
                                   >
                                     {isRowBusy ? (
                                       <CircleNotch
@@ -2134,7 +2150,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                                     e.preventDefault()
                                     void handleSaveShortlistNote(item.row.id)
                                   }}
-                                  className="pt-2 border-t border-border space-y-2"
+                                  className="pt-2.5 border-t border-border space-y-2"
                                 >
                                   <input
                                     type="text"
@@ -2142,7 +2158,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                                     value={editingNoteValue}
                                     onChange={(e) => setEditingNoteValue(e.target.value)}
                                     placeholder="Optional private note (max 140 characters)..."
-                                    className="w-full h-9 px-3 rounded-xl bg-bg border border-border text-xs text-text placeholder:text-muted focus:outline-none focus:border-accent-bright"
+                                    className="w-full min-h-[38px] px-3.5 rounded-2xl bg-surface border border-border text-xs text-text placeholder:text-muted focus:outline-none focus:border-accent-bright"
                                   />
                                   <div className="flex items-center justify-between gap-2">
                                     <span className="font-mono text-[11px] text-muted tabular-nums">
@@ -2156,14 +2172,14 @@ export const SeasonTeamDetailPage: React.FC = () => {
                                           setEditingNoteValue('')
                                         }}
                                         disabled={isRowBusy}
-                                        className="px-3 py-1 rounded-full bg-surface border border-border text-xs font-medium text-muted hover:text-text transition-colors cursor-pointer"
+                                        className={`${PUBLIC_BTN_SECONDARY} px-3 py-1 text-xs text-muted hover:text-text`}
                                       >
                                         Cancel
                                       </button>
                                       <button
                                         type="submit"
                                         disabled={isRowBusy}
-                                        className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-accent text-on-accent text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
+                                        className={`${PUBLIC_BTN_SECONDARY} px-3.5 py-1 text-xs border-accent-bright/40 text-accent-bright hover:border-accent-bright disabled:opacity-50`}
                                       >
                                         {isRowBusy ? (
                                           <CircleNotch
@@ -2203,7 +2219,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                       type="button"
                       onClick={() => void handleSharePublicSquad()}
                       disabled={isSharingPublic}
-                      className="frost inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-border text-xs font-medium text-text hover:border-accent-bright/50 active:scale-[0.98] transition-[border-color,opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                      className={`${PUBLIC_BTN_PRIMARY} h-9 px-4 text-xs whitespace-nowrap shrink-0`}
                     >
                       {isSharingPublic ? (
                         <CircleNotch

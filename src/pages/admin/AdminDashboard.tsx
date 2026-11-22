@@ -399,7 +399,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </span>
             <Button
               type="submit"
-              variant="primary"
+              variant="secondary"
               size="sm"
               leftIcon={PaperPlaneTilt}
               isLoading={isSendingAnnouncement}
@@ -463,7 +463,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         type="button"
                         onClick={() => void handleHideAnnouncement(item.id)}
                         disabled={Boolean(hidingAnnouncementId)}
-                        className="frost self-start sm:self-center inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border text-xs font-medium text-muted hover:text-text hover:border-accent-bright/50 transition-colors disabled:opacity-45 cursor-pointer shrink-0"
+                        className="self-start sm:self-center inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-2 border border-border text-xs font-medium text-muted hover:text-text hover:border-accent-bright/50 transition-colors disabled:opacity-45 cursor-pointer shrink-0"
                       >
                         {isHiding ? (
                           <CircleNotch

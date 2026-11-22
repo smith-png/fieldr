@@ -281,9 +281,9 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
         </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
         {/* Create Season Card */}
-        <section className={ADMIN_CARD}>
+        <section className={`${ADMIN_CARD} xl:col-span-5`}>
           <div className={ADMIN_CARD_HEADER}>
             <h2 className={ADMIN_CARD_TITLE}>Create Season</h2>
           </div>
@@ -362,7 +362,7 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
         </section>
 
         {/* Seasons List Card */}
-        <section className={ADMIN_CARD}>
+        <section className={`${ADMIN_CARD} xl:col-span-7`}>
           <div className={ADMIN_CARD_HEADER}>
             <h2 className={ADMIN_CARD_TITLE}>All Seasons</h2>
             <span className={ADMIN_COUNT_PILL}>{seasons.length}</span>
@@ -371,118 +371,134 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
           <div className="space-y-3">
             {seasons.map((season) => {
               const isActive = season.is_active || season.id === activeSeason?.id
+              const isRehearsal = Boolean(
+                (season as Season & { is_rehearsal?: boolean }).is_rehearsal
+              )
               const isOnlySeason = seasons.length <= 1
               const isBackingUpThis = backingUpSeasonId === season.id
 
               return (
                 <div
                   key={season.id}
-                  className={`p-4 sm:p-5 rounded-2xl border transition-colors flex flex-col gap-3 ${
+                  className={`p-4 sm:p-5 rounded-2xl border transition-colors flex flex-col gap-3 min-w-0 ${
                     isActive
                       ? 'bg-bg border-accent-bright'
                       : 'bg-bg border-border hover:border-accent-bright/60'
                   }`}
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-start gap-3.5 flex-1 min-w-0">
-                      <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${
-                          isActive
-                            ? 'bg-accent text-on-accent border-accent'
-                            : 'bg-surface-2 text-muted border-border'
-                        }`}
+                  {/* Top Row: Fixed 40px calendar icon + full-width text column */}
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div
+                      className={`w-10 h-10 rounded-full flex items-center justify-center flex-none border ${
+                        isActive
+                          ? 'bg-accent text-on-accent border-accent'
+                          : 'bg-surface-2 text-muted border-border'
+                      }`}
+                    >
+                      <Calendar size={18} weight="regular" />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <h3
+                        title={season.name}
+                        className="font-syne font-bold text-base leading-snug text-text line-clamp-2 break-words"
                       >
-                        <Calendar size={18} weight="regular" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-syne font-bold text-base text-text truncate">
-                            {season.name}
-                          </span>
+                        {season.name}
+                      </h3>
+
+                      {(isActive || isRehearsal) && (
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                           {isActive && (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-surface border border-accent-bright text-accent-bright text-[11px] font-medium">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-accent/10 border border-accent-bright/30 text-accent-bright text-[11px] font-medium">
                               Active
                             </span>
                           )}
-                        </div>
-                        {season.description && (
-                          <p className="text-xs text-muted mt-1 line-clamp-1">
-                            {season.description}
-                          </p>
-                        )}
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted font-mono mt-1.5">
-                          {season.start_date && (
-                            <>
-                              <span>
-                                {season.start_date}{' '}
-                                {season.end_date ? `to ${season.end_date}` : ''}
-                              </span>
-                              <span>·</span>
-                            </>
+                          {isRehearsal && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-surface-2 border border-border text-muted text-[11px] font-medium">
+                              Rehearsal
+                            </span>
                           )}
-                          <span>Created {new Date(season.created_at).toLocaleDateString()}</span>
                         </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center flex-wrap">
-                      {!isActive && (
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => handleSetActive(season.id, season.name)}
-                          className="rounded-full"
-                        >
-                          Set as Active
-                        </Button>
                       )}
 
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        leftIcon={DownloadSimple}
-                        onClick={() => handleBackupSeason(season)}
-                        disabled={Boolean(backingUpSeasonId) || isRestoring}
-                        isLoading={isBackingUpThis}
-                        className="rounded-full"
-                      >
-                        Backup
-                      </Button>
+                      <div className="mt-2 space-y-0.5 text-xs text-muted font-mono">
+                        {season.start_date && (
+                          <div className="flex flex-wrap items-baseline gap-x-1">
+                            <span className="whitespace-nowrap">{season.start_date}</span>
+                            {season.end_date && (
+                              <span className="whitespace-nowrap">to {season.end_date}</span>
+                            )}
+                          </div>
+                        )}
+                        <div>Created {new Date(season.created_at).toLocaleDateString()}</div>
+                      </div>
 
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        leftIcon={PencilSimple}
-                        onClick={() => openRenameDialog(season)}
-                        className="rounded-full"
-                      >
-                        Rename
-                      </Button>
-
-                      <button
-                        type="button"
-                        onClick={() => openDeleteDialog(season)}
-                        disabled={isActive || isOnlySeason}
-                        aria-label={`Delete ${season.name}`}
-                        title={
-                          isActive
-                            ? 'Make another season active first'
-                            : isOnlySeason
-                            ? 'Cannot delete the only remaining season'
-                            : 'Delete season'
-                        }
-                        className={ADMIN_ICON_BTN_DANGER}
-                      >
-                        <Trash size={15} weight="regular" />
-                      </button>
+                      {season.description && (
+                        <p className="text-xs text-muted mt-2 leading-relaxed break-words">
+                          {season.description}
+                        </p>
+                      )}
                     </div>
                   </div>
 
+                  {/* Bottom Row: Hairline divider + wrapped action buttons */}
+                  <div className="pt-3 border-t border-border flex flex-wrap items-center justify-start gap-2">
+                    {!isActive && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleSetActive(season.id, season.name)}
+                        className="rounded-full"
+                      >
+                        Set as Active
+                      </Button>
+                    )}
+
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      leftIcon={DownloadSimple}
+                      onClick={() => handleBackupSeason(season)}
+                      disabled={Boolean(backingUpSeasonId) || isRestoring}
+                      isLoading={isBackingUpThis}
+                      className="rounded-full"
+                    >
+                      Backup
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      leftIcon={PencilSimple}
+                      onClick={() => openRenameDialog(season)}
+                      className="rounded-full"
+                    >
+                      Rename
+                    </Button>
+
+                    <button
+                      type="button"
+                      onClick={() => openDeleteDialog(season)}
+                      disabled={isActive || isOnlySeason}
+                      aria-label={`Delete ${season.name}`}
+                      title={
+                        isActive
+                          ? 'Make another season active first'
+                          : isOnlySeason
+                          ? 'Cannot delete the only remaining season'
+                          : 'Delete season'
+                      }
+                      className={ADMIN_ICON_BTN_DANGER}
+                    >
+                      <Trash size={15} weight="regular" />
+                    </button>
+                  </div>
+
                   {isBackingUpThis && backupProgress && (
-                    <div className="pt-2 border-t border-border space-y-1.5">
+                    <div className="pt-3 border-t border-border space-y-1.5">
                       <div className="flex items-center justify-between gap-2 text-xs font-mono text-muted">
                         <span className="truncate">{backupProgress.label}</span>
                         <span className="tabular-nums shrink-0">
@@ -491,7 +507,7 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
                       </div>
                       <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
                         <div
-                          className="h-full bg-accent-bright transition-all duration-200"
+                          className="h-full bg-accent-bright transition-[width] duration-200 motion-reduce:transition-none"
                           style={{
                             width: `${Math.round(
                               (backupProgress.step / backupProgress.totalSteps) * 100
@@ -686,7 +702,7 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
           className={ADMIN_DIALOG_CLASS}
         >
           <div className="space-y-4">
-            <div className="p-4 rounded-2xl bg-surface-2/70 border border-border space-y-1.5 text-xs">
+            <div className={`${ADMIN_WELL} p-4 space-y-1.5 text-xs`}>
               <p className="text-sm font-medium text-text leading-snug">
                 {pendingRestore.previewSummary}
               </p>

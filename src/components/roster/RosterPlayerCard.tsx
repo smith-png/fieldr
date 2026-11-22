@@ -48,6 +48,8 @@ const RosterPlayerCardInner: React.FC<RosterPlayerCardProps> = ({
   const formattedCode = formatAthleteCode(player.athlete_code || player.player_code)
   const handleClick = onSelect ? () => onSelect(player) : onClick
   const teamColor = getValidTeamColor(team?.color)
+  const hasTeam = Boolean(team)
+  const unteamedStatus = !hasTeam ? player.status : undefined
 
   return (
     <div
@@ -62,6 +64,8 @@ const RosterPlayerCardInner: React.FC<RosterPlayerCardProps> = ({
       } ${
         teamColor
           ? 'border-[color:color-mix(in_srgb,var(--team-color)_65%,transparent)] hover:border-[color:var(--team-color)]'
+          : hasTeam
+          ? 'border-[color:color-mix(in_srgb,var(--accent-bright)_65%,transparent)] hover:border-accent-bright'
           : 'border-border hover:border-accent-bright'
       }`}
     >
@@ -88,11 +92,18 @@ const RosterPlayerCardInner: React.FC<RosterPlayerCardProps> = ({
             <span className="font-mono text-[11px] tracking-wider text-accent-bright block uppercase font-semibold tabular-nums">
               #{formattedCode}
             </span>
-            {team && (
+            {unteamedStatus === 'available' && (
               <span
-                className="w-2.5 h-2.5 rounded-full shrink-0"
-                style={{ backgroundColor: teamColor || 'var(--accent)' }}
-                title={team.name}
+                aria-hidden="true"
+                className="w-2 h-2 rounded-full shrink-0 bg-accent-bright"
+                title="Available"
+              />
+            )}
+            {unteamedStatus === 'unsold' && (
+              <span
+                aria-hidden="true"
+                className="w-2 h-2 rounded-full shrink-0 bg-muted"
+                title="Unsold"
               />
             )}
           </div>
