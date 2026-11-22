@@ -67,6 +67,10 @@ export function prefetchRoute(path: string): void {
     runOncePrefetch('route:/teams', () => import('../pages/public/TeamsPage'))
     return
   }
+  if (cleanPath === '/results') {
+    runOncePrefetch('route:/results', () => import('../pages/public/ResultsPage'))
+    return
+  }
   if (cleanPath.startsWith('/season/') && cleanPath.includes('/teams/')) {
     runOncePrefetch('route:/season/team', () => import('../pages/public/SeasonTeamDetailPage'))
     return

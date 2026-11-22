@@ -78,6 +78,9 @@ const HandbookPage = lazy(() =>
 const RulesPage = lazy(() =>
   import('./pages/public/RulesPage').then((m) => ({ default: m.RulesPage }))
 )
+const ResultsPage = lazy(() =>
+  import('./pages/public/ResultsPage').then((m) => ({ default: m.ResultsPage }))
+)
 
 export default function App() {
   return (
@@ -113,6 +116,14 @@ export default function App() {
                   element={
                     <Suspense fallback={<PublicPageSkeleton variant="cards" />}>
                       <TeamsPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/results"
+                  element={
+                    <Suspense fallback={<PublicPageSkeleton variant="cards" />}>
+                      <ResultsPage />
                     </Suspense>
                   }
                 />

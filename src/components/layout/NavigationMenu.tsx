@@ -202,6 +202,7 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
   const links = [
     { title: 'Home', path: '/', visible: true },
     { title: 'Teams', path: '/teams', visible: true },
+    { title: 'Results', path: '/results', visible: true },
     { title: 'Auction Rules', path: '/rules', visible: true },
     { title: 'Dashboard', path: '/admin', visible: !!user },
     {

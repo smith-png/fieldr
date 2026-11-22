@@ -1,5 +1,13 @@
 import React, { useRef, useState } from 'react'
-import { Calendar, PencilSimple, Plus, Trash, WarningCircle } from '@phosphor-icons/react'
+import {
+  Calendar,
+  DownloadSimple,
+  PencilSimple,
+  Plus,
+  Trash,
+  UploadSimple,
+  WarningCircle
+} from '@phosphor-icons/react'
 import type { Season, SeasonDeletionCounts } from '../../types'
 import {
   createSeason,
@@ -8,6 +16,14 @@ import {
   renameSeason,
   setActiveSeason
 } from '../../lib/data'
+import {
+  exportSeasonBackup,
+  formatBackupCountsSummary,
+  parseAndValidateBackupFile,
+  restoreSeasonFromBackup,
+  type BackupProgress,
+  type ValidatedSeasonBackup
+} from '../../lib/seasonBackup'
 import { useToast } from '../../lib/ToastContext'
 import { Button, Dialog } from '../../components/ui'
 import {
@@ -58,6 +74,16 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
   const [confirmationName, setConfirmationName] = useState('')
   const [isDeleting, setIsDeleting] = useState(false)
   const previewReqIdRef = useRef(0)
+
+  // Backup state
+  const [backingUpSeasonId, setBackingUpSeasonId] = useState<string | null>(null)
+  const [backupProgress, setBackupProgress] = useState<BackupProgress | null>(null)
+
+  // Restore state
+  const restoreFileInputRef = useRef<HTMLInputElement | null>(null)
+  const [pendingRestore, setPendingRestore] = useState<ValidatedSeasonBackup | null>(null)
+  const [isParsingBackup, setIsParsingBackup] = useState(false)
+  const [isRestoring, setIsRestoring] = useState(false)
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -175,10 +201,84 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
     }
   }
 
+  const handleBackupSeason = async (season: Season) => {
+    if (backingUpSeasonId || isRestoring) return
+    try {
+      setBackingUpSeasonId(season.id)
+      setBackupProgress({ step: 1, totalSteps: 9, label: 'Starting backup...' })
+      const result = await exportSeasonBackup(season, (progress) => {
+        setBackupProgress(progress)
+      })
+      success(`Backup downloaded: ${formatBackupCountsSummary(result.counts)}`)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to back up season'
+      error(msg)
+    } finally {
+      setBackingUpSeasonId(null)
+      setBackupProgress(null)
+    }
+  }
+
+  const handleRestoreFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+
+    try {
+      setIsParsingBackup(true)
+      const validated = await parseAndValidateBackupFile(file)
+      setPendingRestore(validated)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Invalid backup file'
+      error(msg)
+    } finally {
+      setIsParsingBackup(false)
+    }
+  }
+
+  const confirmRestore = async () => {
+    if (!pendingRestore || isRestoring) return
+    try {
+      setIsRestoring(true)
+      const result = await restoreSeasonFromBackup(pendingRestore.backup)
+      success(
+        `Restored "${result.season_name}" (${result.counts.teams} teams, ${result.counts.players} players, ${result.counts.athletes_created} new / ${result.counts.athletes_matched} matched athletes)`
+      )
+      setPendingRestore(null)
+      await onRefresh()
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to restore season backup'
+      error(msg)
+    } finally {
+      setIsRestoring(false)
+    }
+  }
+
   return (
     <div className={ADMIN_PAGE_WRAPPER}>
       <header className={ADMIN_PAGE_HEADER}>
         <h1 className={ADMIN_PAGE_TITLE}>Tournament Seasons</h1>
+        <div className="flex items-center gap-2 shrink-0">
+          <input
+            ref={restoreFileInputRef}
+            type="file"
+            accept=".json,application/json"
+            onChange={handleRestoreFileChange}
+            className="hidden"
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            leftIcon={UploadSimple}
+            onClick={() => restoreFileInputRef.current?.click()}
+            disabled={isParsingBackup || isRestoring || Boolean(backingUpSeasonId)}
+            isLoading={isParsingBackup}
+            className="rounded-full"
+          >
+            Restore from backup
+          </Button>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -272,98 +372,135 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
             {seasons.map((season) => {
               const isActive = season.is_active || season.id === activeSeason?.id
               const isOnlySeason = seasons.length <= 1
+              const isBackingUpThis = backingUpSeasonId === season.id
 
               return (
                 <div
                   key={season.id}
-                  className={`p-4 sm:p-5 rounded-2xl border transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                  className={`p-4 sm:p-5 rounded-2xl border transition-colors flex flex-col gap-3 ${
                     isActive
                       ? 'bg-bg border-accent-bright'
                       : 'bg-bg border-border hover:border-accent-bright/60'
                   }`}
                 >
-                  <div className="flex items-start gap-3.5 flex-1 min-w-0">
-                    <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${
-                        isActive
-                          ? 'bg-accent text-on-accent border-accent'
-                          : 'bg-surface-2 text-muted border-border'
-                      }`}
-                    >
-                      <Calendar size={18} weight="regular" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-syne font-bold text-base text-text truncate">
-                          {season.name}
-                        </span>
-                        {isActive && (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-surface border border-accent-bright text-accent-bright text-[11px] font-medium">
-                            Active
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                      <div
+                        className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${
+                          isActive
+                            ? 'bg-accent text-on-accent border-accent'
+                            : 'bg-surface-2 text-muted border-border'
+                        }`}
+                      >
+                        <Calendar size={18} weight="regular" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-syne font-bold text-base text-text truncate">
+                            {season.name}
                           </span>
-                        )}
-                      </div>
-                      {season.description && (
-                        <p className="text-xs text-muted mt-1 line-clamp-1">
-                          {season.description}
-                        </p>
-                      )}
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted font-mono mt-1.5">
-                        {season.start_date && (
-                          <>
-                            <span>
-                              {season.start_date}{' '}
-                              {season.end_date ? `to ${season.end_date}` : ''}
+                          {isActive && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-surface border border-accent-bright text-accent-bright text-[11px] font-medium">
+                              Active
                             </span>
-                            <span>·</span>
-                          </>
+                          )}
+                        </div>
+                        {season.description && (
+                          <p className="text-xs text-muted mt-1 line-clamp-1">
+                            {season.description}
+                          </p>
                         )}
-                        <span>Created {new Date(season.created_at).toLocaleDateString()}</span>
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted font-mono mt-1.5">
+                          {season.start_date && (
+                            <>
+                              <span>
+                                {season.start_date}{' '}
+                                {season.end_date ? `to ${season.end_date}` : ''}
+                              </span>
+                              <span>·</span>
+                            </>
+                          )}
+                          <span>Created {new Date(season.created_at).toLocaleDateString()}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center flex-wrap">
-                    {!isActive && (
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center flex-wrap">
+                      {!isActive && (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleSetActive(season.id, season.name)}
+                          className="rounded-full"
+                        >
+                          Set as Active
+                        </Button>
+                      )}
+
                       <Button
                         type="button"
                         variant="secondary"
                         size="sm"
-                        onClick={() => handleSetActive(season.id, season.name)}
+                        leftIcon={DownloadSimple}
+                        onClick={() => handleBackupSeason(season)}
+                        disabled={Boolean(backingUpSeasonId) || isRestoring}
+                        isLoading={isBackingUpThis}
                         className="rounded-full"
                       >
-                        Set as Active
+                        Backup
                       </Button>
-                    )}
 
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      leftIcon={PencilSimple}
-                      onClick={() => openRenameDialog(season)}
-                      className="rounded-full"
-                    >
-                      Rename
-                    </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        leftIcon={PencilSimple}
+                        onClick={() => openRenameDialog(season)}
+                        className="rounded-full"
+                      >
+                        Rename
+                      </Button>
 
-                    <button
-                      type="button"
-                      onClick={() => openDeleteDialog(season)}
-                      disabled={isActive || isOnlySeason}
-                      aria-label={`Delete ${season.name}`}
-                      title={
-                        isActive
-                          ? 'Make another season active first'
-                          : isOnlySeason
-                          ? 'Cannot delete the only remaining season'
-                          : 'Delete season'
-                      }
-                      className={ADMIN_ICON_BTN_DANGER}
-                    >
-                      <Trash size={15} weight="regular" />
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => openDeleteDialog(season)}
+                        disabled={isActive || isOnlySeason}
+                        aria-label={`Delete ${season.name}`}
+                        title={
+                          isActive
+                            ? 'Make another season active first'
+                            : isOnlySeason
+                            ? 'Cannot delete the only remaining season'
+                            : 'Delete season'
+                        }
+                        className={ADMIN_ICON_BTN_DANGER}
+                      >
+                        <Trash size={15} weight="regular" />
+                      </button>
+                    </div>
                   </div>
+
+                  {isBackingUpThis && backupProgress && (
+                    <div className="pt-2 border-t border-border space-y-1.5">
+                      <div className="flex items-center justify-between gap-2 text-xs font-mono text-muted">
+                        <span className="truncate">{backupProgress.label}</span>
+                        <span className="tabular-nums shrink-0">
+                          {backupProgress.step}/{backupProgress.totalSteps}
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
+                        <div
+                          className="h-full bg-accent-bright transition-all duration-200"
+                          style={{
+                            width: `${Math.round(
+                              (backupProgress.step / backupProgress.totalSteps) * 100
+                            )}%`
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -533,6 +670,113 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
                 className="rounded-full px-4"
               >
                 Delete Season
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
+
+      {/* Restore Backup Confirmation Dialog */}
+      {pendingRestore && (
+        <Dialog
+          isOpen={true}
+          onClose={() => !isRestoring && setPendingRestore(null)}
+          title="Restore Season from Backup"
+          size="md"
+          className={ADMIN_DIALOG_CLASS}
+        >
+          <div className="space-y-4">
+            <div className="p-4 rounded-2xl bg-surface-2/70 border border-border space-y-1.5 text-xs">
+              <p className="text-sm font-medium text-text leading-snug">
+                {pendingRestore.previewSummary}
+              </p>
+              <p className="text-muted">
+                Creates a new inactive season in a single transaction. Existing seasons are never modified, athletes are matched by code (creating only missing ones), and owner logins are not restored.
+              </p>
+              <p className="text-[11px] font-mono text-muted">
+                Schema v{pendingRestore.backup.schema_version} · Exported{' '}
+                {new Date(pendingRestore.backup.exported_at).toLocaleString()}
+              </p>
+            </div>
+
+            <div className={`${ADMIN_WELL} p-4 space-y-2.5`}>
+              <span className="text-xs font-medium text-muted block">
+                Records in backup
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <div className="p-2.5 rounded-xl bg-surface border border-border">
+                  <span className="text-muted block text-[11px]">Teams</span>
+                  <span className="font-mono font-bold text-sm text-text tabular-nums">
+                    {pendingRestore.backup.counts.teams}
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-surface border border-border">
+                  <span className="text-muted block text-[11px]">Players</span>
+                  <span className="font-mono font-bold text-sm text-text tabular-nums">
+                    {pendingRestore.backup.counts.players}
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-surface border border-border">
+                  <span className="text-muted block text-[11px]">Athletes</span>
+                  <span className="font-mono font-bold text-sm text-text tabular-nums">
+                    {pendingRestore.backup.counts.athletes}
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-surface border border-border">
+                  <span className="text-muted block text-[11px]">Purse Tx</span>
+                  <span className="font-mono font-bold text-sm text-text tabular-nums">
+                    {pendingRestore.backup.counts.purse_transactions}
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-surface border border-border">
+                  <span className="text-muted block text-[11px]">Queue</span>
+                  <span className="font-mono font-bold text-sm text-text tabular-nums">
+                    {pendingRestore.backup.counts.auction_queue}
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-surface border border-border">
+                  <span className="text-muted block text-[11px]">Bids</span>
+                  <span className="font-mono font-bold text-sm text-text tabular-nums">
+                    {pendingRestore.backup.counts.auction_bids}
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-surface border border-border">
+                  <span className="text-muted block text-[11px]">Sales</span>
+                  <span className="font-mono font-bold text-sm text-text tabular-nums">
+                    {pendingRestore.backup.counts.auction_sales}
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-surface border border-border">
+                  <span className="text-muted block text-[11px]">Settings</span>
+                  <span className="font-mono font-bold text-sm text-text tabular-nums">
+                    {pendingRestore.backup.counts.auction_settings}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setPendingRestore(null)}
+                disabled={isRestoring}
+                className="rounded-full"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                leftIcon={UploadSimple}
+                onClick={confirmRestore}
+                disabled={isRestoring}
+                isLoading={isRestoring}
+                className="rounded-full px-4"
+              >
+                Restore Season
               </Button>
             </div>
           </div>

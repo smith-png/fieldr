@@ -38,6 +38,13 @@ export const SiteFooter: React.FC = () => {
           </Link>
           <span className="text-border">·</span>
           <Link
+            to="/results"
+            className="hover:text-text transition-colors"
+          >
+            Results
+          </Link>
+          <span className="text-border">·</span>
+          <Link
             to="/rules"
             className="hover:text-text transition-colors"
           >
