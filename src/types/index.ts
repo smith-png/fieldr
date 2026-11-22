@@ -263,3 +263,65 @@ export interface RulesDocument {
   file_path: string
   created_at: string
 }
+
+export type RegistrationStatus = 'pending' | 'approved' | 'rejected'
+
+export interface RegistrationSportEntry {
+  sport: string
+  playing_role: string
+}
+
+export interface PublicRegistrationSport {
+  id: string
+  name: string
+  roles: string[]
+}
+
+export interface PublicRegistrationConfig {
+  is_open: boolean
+  reason: 'open' | 'closed' | 'before_open' | 'after_close' | 'no_season'
+  season_id: string | null
+  season_name: string | null
+  opens_at: string | null
+  closes_at: string | null
+  accepted_sports: PublicRegistrationSport[]
+  instructions_md: string
+  confirmation_message: string
+}
+
+export interface AdminRegistrationSettings {
+  is_open: boolean
+  opens_at: string | null
+  closes_at: string | null
+  registration_code: string
+  accepted_sports: string[]
+  default_base_points: number
+  instructions_md: string
+  confirmation_message: string
+  updated_at?: string | null
+}
+
+export interface AthleteRegistration {
+  id: string
+  season_id: string
+  season_name: string | null
+  full_name: string
+  roll_no: string
+  academic_year: AcademicYear
+  sport_entries: RegistrationSportEntry[]
+  consent_given: boolean
+  pending_photo_path: string | null
+  pending_thumb_path: string | null
+  photo_uploaded: boolean
+  status: RegistrationStatus
+  rejection_reason: string | null
+  approved_athlete_id: string | null
+  reviewed_at: string | null
+  created_at: string
+  existing_athlete_id: string | null
+  existing_athlete_code: number | null
+  existing_athlete_name: string | null
+  existing_athlete_photo_thumb_url: string | null
+  existing_athlete_photo_url: string | null
+}
+

@@ -6,6 +6,10 @@ import { useBodyScrollLock } from '../../hooks/useBodyScrollLock'
 import { useAuth } from '../../lib/AuthContext'
 import { triggerPwaInstall, usePwaInstall } from '../../lib/pwaInstall'
 import { prefetchRoute } from '../../lib/queryCache'
+import {
+  getCachedPublicRegistrationConfig,
+  getPublicRegistrationConfig
+} from '../../lib/data/registrations'
 import { type ThemePreference, useTheme } from '../../lib/theme'
 import { Dialog } from '../ui/Dialog'
 import type { Season } from '../../types'
@@ -43,6 +47,23 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
   const [isDragging, setIsDragging] = useState<boolean>(false)
   const { canPromptInstall, isInstalled, isIOSSafari } = usePwaInstall()
   const [isIOSInstallOpen, setIsIOSInstallOpen] = useState<boolean>(false)
+  const [isRegistrationOpen, setIsRegistrationOpen] = useState<boolean>(
+    () => getCachedPublicRegistrationConfig()?.is_open ?? false
+  )
+
+  useEffect(() => {
+    let mounted = true
+    getPublicRegistrationConfig()
+      .then((cfg) => {
+        if (mounted) setIsRegistrationOpen(cfg.is_open)
+      })
+      .catch(() => {
+        if (mounted) setIsRegistrationOpen(false)
+      })
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -203,6 +224,7 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
     { title: 'Home', path: '/', visible: true },
     { title: 'Teams', path: '/teams', visible: true },
     { title: 'Results', path: '/results', visible: true },
+    { title: 'Register', path: '/register', visible: isRegistrationOpen },
     { title: 'Auction Rules', path: '/rules', visible: true },
     { title: 'Dashboard', path: '/admin', visible: !!user },
     {

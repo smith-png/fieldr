@@ -50,6 +50,7 @@ import { normalizeConfettiFallSpeed } from '../../components/projector/Projector
 import { SecuredSequence } from '../../components/projector/SecuredSequence'
 import { CreditsSetupCard } from '../../components/admin/CreditsSetupCard'
 import { HandbookSetupCard } from '../../components/admin/HandbookSetupCard'
+import { RegistrationSetupCard } from '../../components/admin/RegistrationSetupCard'
 import { RulesSetupCard } from '../../components/admin/RulesSetupCard'
 import { MarkdownContent } from '../../components/common/MarkdownContent'
 import type {
@@ -62,10 +63,11 @@ import type {
   Team
 } from '../../types'
 
-type SetupTab = 'display' | 'content' | 'documents' | 'sports'
+type SetupTab = 'display' | 'registration' | 'content' | 'documents' | 'sports'
 
 const SETUP_TABS: readonly { value: SetupTab; label: string }[] = [
   { value: 'display', label: 'Display' },
+  { value: 'registration', label: 'Registration' },
   { value: 'content', label: 'Content' },
   { value: 'documents', label: 'Documents' },
   { value: 'sports', label: 'Sports' }
@@ -1877,7 +1879,14 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
         </div>
       )}
 
-      {/* Tab 2: Content (Public Pages Editor, Credits) */}
+      {/* Tab 2: Registration (Athlete Self-Registration) */}
+      {activeTab === 'registration' && (
+        <div className="space-y-6">
+          <RegistrationSetupCard activeSeason={effectiveSeason} sports={sportsList} />
+        </div>
+      )}
+
+      {/* Tab 3: Content (Public Pages Editor, Credits) */}
       {activeTab === 'content' && (
         <div className="space-y-6">
           {/* Section 1: Public Pages Editor */}

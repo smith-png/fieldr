@@ -19,11 +19,13 @@ import {
   getAthleteById,
   getAthleteEntries,
   getAthletesPaged,
+  getPendingRegistrationsCount,
   markLocalMutation,
   subscribeToAthletes,
   updateAthlete,
   uploadPlayerPhotos
 } from '../../lib/data'
+import { useAuth } from '../../lib/AuthContext'
 import { ACADEMIC_YEARS, getAcademicYearLabel } from '../../lib/academicYears'
 import { validateImageFile } from '../../lib/imageCompression'
 import { useToast } from '../../lib/ToastContext'
@@ -42,6 +44,7 @@ import {
   SkeletonTableRow
 } from '../../components/ui'
 import { BulkRegisterPanel } from '../../components/admin'
+import { AdminRegistrationsTab } from '../../components/admin/AdminRegistrationsTab'
 import {
   ADMIN_CARD,
   ADMIN_CARD_HEADER,
@@ -55,6 +58,8 @@ import {
   ADMIN_PAGE_HEADER,
   ADMIN_PAGE_TITLE,
   ADMIN_PAGE_WRAPPER,
+  ADMIN_PILL_BAR,
+  ADMIN_PILL_BAR_OUTER,
   ADMIN_SELECT,
   ADMIN_TABLE_SHELL,
   ADMIN_TEXTAREA,
@@ -77,6 +82,12 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
   createRequestTrigger = 0
 }) => {
   const { showToast } = useToast()
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
+
+  // Section tabs: Directory vs Self-Registrations (admin-only)
+  const [activeTab, setActiveTab] = useState<'directory' | 'registrations'>('directory')
+  const [pendingRegistrationsCount, setPendingRegistrationsCount] = useState<number>(0)
 
   // Pagination & Search state
   const [currentPage, setCurrentPage] = useState(1)
@@ -131,6 +142,20 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
       isMountedRef.current = false
     }
   }, [])
+
+  // Load pending self-registration count once on page open (no realtime)
+  useEffect(() => {
+    if (!isAdmin) return
+    let active = true
+    getPendingRegistrationsCount()
+      .then((count) => {
+        if (active) setPendingRegistrationsCount(count)
+      })
+      .catch(() => {})
+    return () => {
+      active = false
+    }
+  }, [isAdmin])
 
   // Debounce search input by 300ms; only reset page when search text actually changes
   useEffect(() => {
@@ -575,7 +600,57 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
         /* ATHLETES LIST VIEW */
         <>
           <header className={ADMIN_PAGE_HEADER}>
-            <h1 className={ADMIN_PAGE_TITLE}>Athletes</h1>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 min-w-0">
+              <h1 className={ADMIN_PAGE_TITLE}>Athletes</h1>
+
+              {isAdmin && (
+                <div className={ADMIN_PILL_BAR_OUTER}>
+                  <div
+                    role="tablist"
+                    aria-label="Athletes views"
+                    className={ADMIN_PILL_BAR}
+                  >
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={activeTab === 'directory'}
+                      onClick={() => setActiveTab('directory')}
+                      className={`min-h-[34px] px-4 py-1 rounded-full text-xs whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                        activeTab === 'directory'
+                          ? 'bg-btn-bg text-btn-fg font-medium'
+                          : 'text-muted hover:text-text'
+                      }`}
+                    >
+                      Directory
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={activeTab === 'registrations'}
+                      onClick={() => setActiveTab('registrations')}
+                      className={`min-h-[34px] px-4 py-1 rounded-full text-xs whitespace-nowrap shrink-0 inline-flex items-center gap-2 transition-colors cursor-pointer ${
+                        activeTab === 'registrations'
+                          ? 'bg-btn-bg text-btn-fg font-medium'
+                          : 'text-muted hover:text-text'
+                      }`}
+                    >
+                      <span>Registrations</span>
+                      {pendingRegistrationsCount > 0 && (
+                        <span
+                          className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full font-mono text-[11px] tabular-nums ${
+                            activeTab === 'registrations'
+                              ? 'bg-bg/20 text-btn-fg'
+                              : 'bg-accent-bright text-on-accent font-semibold'
+                          }`}
+                        >
+                          {pendingRegistrationsCount}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <Button
               type="button"
@@ -589,8 +664,18 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
             </Button>
           </header>
 
-          {/* Search & Directory Card */}
-          <section className={ADMIN_CARD}>
+          {isAdmin && activeTab === 'registrations' ? (
+            <AdminRegistrationsTab
+              sports={sports}
+              onPendingCountChange={setPendingRegistrationsCount}
+              onApprovedOrChanged={async () => {
+                onRealtimeUpdateRef.current?.()
+                await Promise.all([loadAthletes({ force: true }), onRefresh()])
+              }}
+            />
+          ) : (
+            /* Search & Directory Card */
+            <section className={ADMIN_CARD}>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-border">
               <div className="relative flex-1 max-w-md">
                 <MagnifyingGlass
@@ -730,6 +815,7 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
               </div>
             </div>
           </section>
+          )}
         </>
       )}
 

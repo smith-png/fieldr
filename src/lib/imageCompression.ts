@@ -123,3 +123,150 @@ export async function blobToDataUrl(blob: Blob): Promise<string> {
     reader.readAsDataURL(blob)
   })
 }
+
+export interface ProcessedRegistrationPhoto {
+  photoBlob: Blob
+  thumbBlob: Blob
+  width: number
+  height: number
+  sizeBytes: number
+  thumbSizeBytes: number
+}
+
+const REG_TARGET_WIDTH = 1000
+const REG_TARGET_HEIGHT = 1250
+const REG_MAX_BYTES = 400 * 1024 // 400 KB
+const REG_MAX_INPUT_BYTES = 20 * 1024 * 1024 // 20 MB browser decode guard
+const REG_QUALITY_STEPS = [0.9, 0.84, 0.78, 0.72, 0.65, 0.58, 0.5, 0.42, 0.35]
+
+function canvasToJpegBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          resolve(blob)
+        } else {
+          reject(new Error('Failed to encode photo as JPEG.'))
+        }
+      },
+      'image/jpeg',
+      quality
+    )
+  })
+}
+
+function loadImageFromFile(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+      resolve(img)
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error('This file is not a valid image. Please upload a JPG, PNG, or WebP photo.'))
+    }
+    img.src = objectUrl
+  })
+}
+
+export async function processRegistrationPhoto(file: File): Promise<ProcessedRegistrationPhoto> {
+  if (!file || !file.type || !file.type.startsWith('image/')) {
+    throw new Error('Only image files are accepted. Please select a JPG, PNG, or WebP photo.')
+  }
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    throw new Error('Unsupported image format. Please upload a JPG, PNG, or WebP photo.')
+  }
+  if (file.size > REG_MAX_INPUT_BYTES) {
+    throw new Error('Selected file is too large to process. Please choose a smaller image.')
+  }
+
+  const img = await loadImageFromFile(file)
+  const srcWidth = img.naturalWidth || img.width
+  const srcHeight = img.naturalHeight || img.height
+
+  if (srcWidth <= 0 || srcHeight <= 0) {
+    throw new Error('Could not read image dimensions. Please try another photo.')
+  }
+  if (srcWidth > srcHeight) {
+    throw new Error(
+      'Landscape photos are not accepted. Please upload a vertical (portrait) photo where height is greater than or equal to width.'
+    )
+  }
+  if (srcWidth < 200 || srcHeight < 250) {
+    throw new Error('Photo resolution is too low. Please upload a clearer portrait photo.')
+  }
+
+  // Centre-crop to 4:5 aspect ratio
+  const targetRatio = REG_TARGET_WIDTH / REG_TARGET_HEIGHT // 0.8
+  const srcRatio = srcWidth / srcHeight
+
+  let cropWidth = srcWidth
+  let cropHeight = srcHeight
+  let sx = 0
+  let sy = 0
+
+  if (srcRatio > targetRatio) {
+    cropWidth = Math.round(srcHeight * targetRatio)
+    sx = Math.round((srcWidth - cropWidth) / 2)
+  } else if (srcRatio < targetRatio) {
+    cropHeight = Math.round(srcWidth / targetRatio)
+    sy = Math.round((srcHeight - cropHeight) / 2)
+  }
+
+  const canvas = document.createElement('canvas')
+  canvas.width = REG_TARGET_WIDTH
+  canvas.height = REG_TARGET_HEIGHT
+
+  const ctx = canvas.getContext('2d')
+  if (!ctx) {
+    throw new Error('Your browser could not process this image.')
+  }
+
+  // Fill neutral dark backdrop for transparent PNGs before JPEG encoding
+  ctx.fillStyle = '#0F141A'
+  ctx.fillRect(0, 0, REG_TARGET_WIDTH, REG_TARGET_HEIGHT)
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(
+    img,
+    sx,
+    sy,
+    cropWidth,
+    cropHeight,
+    0,
+    0,
+    REG_TARGET_WIDTH,
+    REG_TARGET_HEIGHT
+  )
+
+  let fittedBlob: Blob | null = null
+  for (const quality of REG_QUALITY_STEPS) {
+    const candidate = await canvasToJpegBlob(canvas, quality)
+    if (candidate.size <= REG_MAX_BYTES) {
+      fittedBlob = candidate
+      break
+    }
+  }
+
+  if (!fittedBlob) {
+    throw new Error('Could not compress photo under 400 KB. Please choose a simpler or clearer photo.')
+  }
+
+  // Reuse the exact same 400px thumbnail pipeline as manual admin uploads
+  const croppedFile = new File([fittedBlob], 'registration-photo.jpg', {
+    type: 'image/jpeg'
+  })
+  const thumbBlob = await createThumbnailBlob(croppedFile, 400, 0.82)
+
+  return {
+    photoBlob: fittedBlob,
+    thumbBlob,
+    width: REG_TARGET_WIDTH,
+    height: REG_TARGET_HEIGHT,
+    sizeBytes: fittedBlob.size,
+    thumbSizeBytes: thumbBlob.size
+  }
+}
+
