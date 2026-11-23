@@ -241,7 +241,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => onGoToTab('teams')}
-                  className="h-7 px-3 rounded-full bg-surface-2 border border-border text-xs font-medium text-accent-bright hover:border-accent-bright transition-colors cursor-pointer"
+                  className="relative hit-44 h-7 px-3 rounded-full bg-surface-2 border border-border text-xs font-medium text-accent-bright hover:border-accent-bright transition-colors cursor-pointer"
                 >
                   View
                 </button>

@@ -143,7 +143,7 @@ export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({
         {/* Details Column */}
         <div className="flex-1 flex flex-col min-h-0 lg:overflow-y-auto thin-scrollbar px-6 pt-2 pb-6 lg:p-8 lg:pl-4">
           <div className="mb-5 lg:pr-10">
-            <h2 className="font-syne font-extrabold text-text tracking-tight text-balance leading-[1.08] text-[clamp(1.625rem,4.5vw,2.25rem)]">
+            <h2 className="font-syne font-extrabold text-text tracking-tight text-balance break-words leading-[1.08] text-[clamp(1.625rem,4.5vw,2.25rem)]">
               {displayName}
             </h2>
             <div className="font-syne font-bold text-lg lg:text-xl text-text mt-2">

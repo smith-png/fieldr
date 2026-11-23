@@ -25,7 +25,7 @@ export const MarkdownContent: React.FC<MarkdownContentProps> = ({
               href={href}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-accent-bright underline decoration-accent-bright/50 underline-offset-4 hover:decoration-accent-bright transition-colors font-normal"
+              className="text-accent-bright underline decoration-accent-bright/50 underline-offset-4 hover:decoration-accent-bright transition-colors font-normal break-words"
               {...props}
             >
               {children}
@@ -82,7 +82,7 @@ export const MarkdownContent: React.FC<MarkdownContentProps> = ({
           ),
           // Body paragraphs with DM Sans 300
           p: ({ children, ...props }) => (
-            <p className="font-sans font-light mb-4 last:mb-0 leading-relaxed text-text/85" {...props}>
+            <p className="font-sans font-light mb-4 last:mb-0 leading-relaxed text-text/85 break-words" {...props}>
               {children}
             </p>
           ),
@@ -98,7 +98,7 @@ export const MarkdownContent: React.FC<MarkdownContentProps> = ({
             </ol>
           ),
           li: ({ children, ...props }) => (
-            <li className="leading-relaxed" {...props}>
+            <li className="leading-relaxed break-words" {...props}>
               {children}
             </li>
           ),

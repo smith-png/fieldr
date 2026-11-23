@@ -187,7 +187,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               type="button"
               onClick={() => setIsMobileDrawerOpen(true)}
               aria-label="Open navigation drawer"
-              className="p-2 rounded-xl bg-surface-2 border border-border text-text hover:border-accent-bright transition-colors"
+              className="relative hit-44 p-2 rounded-xl bg-surface-2 border border-border text-text hover:border-accent-bright transition-colors"
             >
               <List size={20} weight="bold" />
             </button>

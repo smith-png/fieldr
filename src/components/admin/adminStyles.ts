@@ -34,10 +34,10 @@ export const ADMIN_LABEL = 'text-sm font-medium text-text'
 export const ADMIN_DIALOG_CLASS = 'rounded-3xl p-6 sm:p-7'
 
 export const ADMIN_ICON_BTN =
-  'w-8 h-8 rounded-full border border-border bg-bg flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 transition-colors disabled:opacity-35 disabled:pointer-events-none cursor-pointer shrink-0'
+  'relative hit-44 w-8 h-8 rounded-full border border-border bg-bg flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 transition-colors disabled:opacity-35 disabled:pointer-events-none cursor-pointer shrink-0'
 
 export const ADMIN_ICON_BTN_DANGER =
-  'w-8 h-8 rounded-full border border-border bg-bg flex items-center justify-center text-muted hover:text-error hover:border-error/40 hover:bg-error/10 transition-colors disabled:opacity-35 disabled:pointer-events-none cursor-pointer shrink-0'
+  'relative hit-44 w-8 h-8 rounded-full border border-border bg-bg flex items-center justify-center text-muted hover:text-error hover:border-error/40 hover:bg-error/10 transition-colors disabled:opacity-35 disabled:pointer-events-none cursor-pointer shrink-0'
 
 export const ADMIN_PILL_BAR_OUTER = 'max-w-full overflow-x-auto pb-1 -mb-1'
 

@@ -259,7 +259,7 @@ export const AdminNav: React.FC<AdminNavProps> = ({
                   onClick={onCloseMobile}
                   title="Close menu"
                   aria-label="Close drawer"
-                  className="w-8 h-8 rounded-xl border border-border/60 text-muted hover:text-text hover:bg-surface-2/60 transition-[transform,opacity] duration-150 flex items-center justify-center"
+                  className="relative hit-44 w-8 h-8 rounded-xl border border-border/60 text-muted hover:text-text hover:bg-surface-2/60 transition-[transform,opacity] duration-150 flex items-center justify-center"
                 >
                   <X size={16} weight="bold" />
                 </button>

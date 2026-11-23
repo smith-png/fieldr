@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ShareNetwork } from '@phosphor-icons/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
@@ -128,9 +128,53 @@ const UpdatedAgoPill: React.FC<{ lastCheckedAt: number }> = ({ lastCheckedAt }) 
   )
 }
 
+// One shared 1s clock for every "sold X ago" label, instead of one timer per row.
+// Each label subscribes to its own text, so a row only re-renders when its text changes.
+const soldTickListeners = new Set<() => void>()
+let soldTickTimer: ReturnType<typeof setInterval> | null = null
+
+function notifySoldTick(): void {
+  soldTickListeners.forEach((listener) => listener())
+}
+
+function handleSoldTickVisibility(): void {
+  if (document.visibilityState === 'hidden') {
+    if (soldTickTimer !== null) {
+      clearInterval(soldTickTimer)
+      soldTickTimer = null
+    }
+  } else if (soldTickTimer === null && soldTickListeners.size > 0) {
+    soldTickTimer = setInterval(notifySoldTick, 1000)
+    notifySoldTick()
+  }
+}
+
+function subscribeSoldTick(listener: () => void): () => void {
+  soldTickListeners.add(listener)
+  if (soldTickListeners.size === 1) {
+    document.addEventListener('visibilitychange', handleSoldTickVisibility)
+    if (document.visibilityState !== 'hidden') {
+      soldTickTimer = setInterval(notifySoldTick, 1000)
+    }
+  }
+  return () => {
+    soldTickListeners.delete(listener)
+    if (soldTickListeners.size === 0) {
+      document.removeEventListener('visibilitychange', handleSoldTickVisibility)
+      if (soldTickTimer !== null) {
+        clearInterval(soldTickTimer)
+        soldTickTimer = null
+      }
+    }
+  }
+}
+
 const SoldTimeAgo: React.FC<{ soldAt: string | null }> = ({ soldAt }) => {
-  const nowMs = useVisibleNowMs(Boolean(soldAt))
-  const label = formatTimeAgo(soldAt, nowMs)
+  const label = useSyncExternalStore(
+    subscribeSoldTick,
+    () => (soldAt ? formatTimeAgo(soldAt, Date.now()) : ''),
+    () => ''
+  )
   if (!label) return null
   return (
     <div className="font-mono text-[11px] tabular-nums text-muted min-h-[16px]">

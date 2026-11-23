@@ -881,7 +881,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                   type="button"
                   onClick={() => setIsDrawerOpen(false)}
                   aria-label="Close drawer"
-                  className="w-9 h-9 rounded-full border border-border bg-surface-2 flex items-center justify-center text-muted hover:text-text hover:bg-surface transition-colors cursor-pointer"
+                  className="relative hit-44 w-9 h-9 rounded-full border border-border bg-surface-2 flex items-center justify-center text-muted hover:text-text hover:bg-surface transition-colors cursor-pointer"
                 >
                   <X size={18} weight="regular" />
                 </button>
@@ -951,7 +951,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                         <button
                           type="button"
                           onClick={() => setSelectedAthlete(null)}
-                          className="h-8 px-3 rounded-full text-xs font-medium text-muted hover:text-text border border-border bg-surface-2 shrink-0 cursor-pointer"
+                          className="relative hit-44 h-8 px-3 rounded-full text-xs font-medium text-muted hover:text-text border border-border bg-surface-2 shrink-0 cursor-pointer"
                         >
                           Change
                         </button>

@@ -14,7 +14,7 @@ export const PUBLIC_PAGE_HEADER =
   'flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-5 border-b border-border mb-8'
 
 export const PUBLIC_PAGE_TITLE =
-  'font-syne font-extrabold text-3xl sm:text-4xl tracking-tight text-text'
+  'font-syne font-extrabold text-3xl sm:text-4xl tracking-tight text-text break-words'
 
 export const PUBLIC_SECTION_TITLE =
   'font-syne font-bold text-xl text-text tracking-tight'

@@ -833,7 +833,7 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
                   type="button"
                   onClick={() => setIsFormOpen(false)}
                   aria-label="Close drawer"
-                  className="w-9 h-9 rounded-full border border-border bg-surface-2 flex items-center justify-center text-muted hover:text-text hover:bg-surface transition-colors cursor-pointer"
+                  className="relative hit-44 w-9 h-9 rounded-full border border-border bg-surface-2 flex items-center justify-center text-muted hover:text-text hover:bg-surface transition-colors cursor-pointer"
                 >
                   <X size={18} weight="regular" />
                 </button>

@@ -1244,7 +1244,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
                             onClick={() => handleMove(index, 'up')}
                             title="Move up"
                             aria-label="Move item up"
-                            className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                            className="relative hit-44 w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
                           >
                             <ArrowUp size={15} weight="regular" />
                           </button>
@@ -1254,7 +1254,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
                             onClick={() => handleMove(index, 'down')}
                             title="Move down"
                             aria-label="Move item down"
-                            className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
+                            className="relative hit-44 w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
                           >
                             <ArrowDown size={15} weight="regular" />
                           </button>
@@ -1280,7 +1280,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
                             }}
                             title="Edit text"
                             aria-label="Edit item"
-                            className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 transition-colors cursor-pointer"
+                            className="relative hit-44 w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 transition-colors cursor-pointer"
                           >
                             <PencilSimple size={15} weight="regular" />
                           </button>
@@ -1290,7 +1290,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
                             onClick={() => handleDeleteCarouselItem(item)}
                             title="Delete item"
                             aria-label="Delete item"
-                            className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-error hover:bg-error/10 transition-colors cursor-pointer"
+                            className="relative hit-44 w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-error hover:bg-error/10 transition-colors cursor-pointer"
                           >
                             <Trash size={15} weight="regular" />
                           </button>
@@ -2358,7 +2358,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
                             onClick={() => setRenamingRole(null)}
                             title="Cancel rename"
                             aria-label="Cancel rename"
-                            className="w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 transition-colors cursor-pointer"
+                            className="relative hit-44 w-8 h-8 rounded-full border border-border flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 transition-colors cursor-pointer"
                           >
                             <X size={14} weight="regular" />
                           </button>

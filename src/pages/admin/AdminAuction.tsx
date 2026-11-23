@@ -88,6 +88,10 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
   const [players, setPlayers] = useState<Player[]>(initialPlayers)
   const [teams, setTeams] = useState<Team[]>(initialTeams)
   const [projectorState, setProjectorState] = useState<ProjectorState>(initialProjectorState)
+  const projectorStateRef = useRef<ProjectorState>(projectorState)
+  useEffect(() => {
+    projectorStateRef.current = projectorState
+  }, [projectorState])
   const [auctionSettings, setAuctionSettings] = useState<AuctionSettings>(() =>
     getDefaultAuctionSettings(activeSeason?.id || '')
   )
@@ -197,6 +201,35 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
       }
     }
   }, [activeSeason?.id])
+
+  // Light refresh after a bid or a cleared bid: only the stage state and the bid list
+  // change, so skip the full players/teams/transactions reload. Falls back to the
+  // full refresh if the stage moved to another player or the quick fetch fails.
+  const stageReqIdRef = useRef(0)
+  const refreshStageAfterBid = useCallback(async () => {
+    if (!activeSeason?.id) return
+    const reqId = ++stageReqIdRef.current
+    const knownPlayerId = projectorStateRef.current.player_id || null
+    try {
+      const [freshState, bids] = await Promise.all([
+        getProjectorState(activeSeason.id),
+        knownPlayerId ? getAuctionBidsForPlayer(knownPlayerId) : Promise.resolve([] as AuctionBid[])
+      ])
+      if (!isMountedRef.current || reqId !== stageReqIdRef.current) return
+      if ((freshState.player_id || null) !== knownPlayerId) {
+        await fetchLiveAuctionState()
+        return
+      }
+      const current = projectorStateRef.current
+      if (current.updated_at && freshState.updated_at && freshState.updated_at < current.updated_at) {
+        return
+      }
+      setProjectorState(freshState)
+      setPlayerBids(bids)
+    } catch {
+      await fetchLiveAuctionState()
+    }
+  }, [activeSeason?.id, fetchLiveAuctionState])
 
   // Initial load and 500ms-debounced realtime subscription (cleaned up on unmount)
   useEffect(() => {
@@ -442,7 +475,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
     try {
       setIsPending(true)
       await auctionPlaceBid(team.id, parsedBidAmount)
-      await Promise.all([fetchLiveAuctionState(), onRefresh()])
+      await refreshStageAfterBid()
       success(`Bid placed: ${team.short_code} at ${parsedBidAmount.toLocaleString()} PTS`)
     } catch (err: unknown) {
       error(err instanceof Error ? err.message : 'Failed to place bid')
@@ -456,7 +489,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
     try {
       setIsPending(true)
       await auctionClearBid(activeSeason.id)
-      await Promise.all([fetchLiveAuctionState(), onRefresh()])
+      await refreshStageAfterBid()
       success('Current bid cleared')
     } catch (err: unknown) {
       error(err instanceof Error ? err.message : 'Failed to clear bid')

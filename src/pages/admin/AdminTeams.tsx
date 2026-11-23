@@ -962,7 +962,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
             <button
               type="button"
               onClick={downloadTeamsTemplate}
-              className="h-7 px-3 rounded-full bg-surface-2 border border-border text-accent-bright hover:border-accent-bright inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+              className="relative hit-44 h-7 px-3 rounded-full bg-surface-2 border border-border text-accent-bright hover:border-accent-bright inline-flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <DownloadSimple size={14} weight="regular" />
               <span>Sample Template</span>
@@ -1104,7 +1104,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                   onClick={() => setShowPassword((prev) => !prev)}
                   tabIndex={-1}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 transition-colors cursor-pointer"
+                  className="hit-44 absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full flex items-center justify-center text-muted hover:text-text hover:bg-surface-2 transition-colors cursor-pointer"
                 >
                   {showPassword ? (
                     <EyeSlash size={16} weight="regular" />
