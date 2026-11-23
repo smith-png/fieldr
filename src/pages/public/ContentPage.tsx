@@ -1,11 +1,11 @@
 import { logError } from '../../lib/logger'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft } from '@phosphor-icons/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
-import FooterMark from '../../components/layout/FooterMark'
+import FooterMark, { type FlameColor } from '../../components/layout/FooterMark'
 import { CreditsSection } from '../../components/credits/CreditsSection'
 import { MarkdownContent } from '../../components/common/MarkdownContent'
 import {
@@ -17,7 +17,11 @@ import {
 } from '../../components/public/publicStyles'
 import { SkeletonText } from '../../components/ui'
 import { getActiveSeason } from '../../lib/data/seasons'
-import { getSiteSettings } from '../../lib/data/site'
+import {
+  getPrimaryIconSnapshot,
+  getSiteSettings,
+  subscribePrimaryIcon
+} from '../../lib/data/site'
 import { hasDataChanged, publicCache } from '../../lib/publicCache'
 import {
   isQueryFresh,
@@ -52,8 +56,27 @@ function getCachedPageContent(pageKey: 'help_page' | 'about_page'): {
   return { hasCache: false, value: null }
 }
 
+const FLAME_SWATCHES: { value: FlameColor; label: string; color: string }[] = [
+  { value: 'green', label: 'Green', color: '#3fa97f' },
+  { value: 'red', label: 'Red', color: '#e5484d' },
+  { value: 'orange', label: 'Orange', color: '#f59e0b' },
+  { value: 'blue', label: 'Blue', color: '#3b82f6' }
+]
+
 export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle }) => {
   const initialCached = getCachedPageContent(pageKey)
+
+  const primaryIcon = useSyncExternalStore(
+    subscribePrimaryIcon,
+    getPrimaryIconSnapshot,
+    getPrimaryIconSnapshot
+  )
+  const [flameColor, setFlameColor] = useState<FlameColor>('green')
+  const prefersReducedMotion =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const showFlameSwatches = primaryIcon === 'flames' && !prefersReducedMotion
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [activeSeason, setActiveSeason] = useState<Season | null>(
@@ -140,8 +163,40 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
 
       <main className={PUBLIC_MAIN_NARROW}>
         {pageKey === 'about_page' && (
-          <div className="flex justify-center mb-4 md:mb-6" aria-hidden="true">
-            <FooterMark size={112} />
+          <div className="flex flex-col items-center mb-4 md:mb-6">
+            <div aria-hidden="true">
+              <FooterMark size={112} flameColor={flameColor} />
+            </div>
+            {showFlameSwatches && (
+              <div
+                className="flex items-center justify-center mt-2"
+                role="group"
+                aria-label="Flame colour"
+              >
+                {FLAME_SWATCHES.map((sw) => (
+                  <button
+                    key={sw.value}
+                    type="button"
+                    onClick={() => setFlameColor(sw.value)}
+                    aria-label={`${sw.label} flame`}
+                    aria-pressed={flameColor === sw.value}
+                    className="flex items-center justify-center w-11 h-11 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                  >
+                    <span
+                      className="block w-7 h-7 rounded-full transition-transform"
+                      style={{
+                        background: sw.color,
+                        boxShadow:
+                          flameColor === sw.value
+                            ? '0 0 0 2px var(--color-bg, #0b0f0d), 0 0 0 4px ' + sw.color
+                            : 'inset 0 0 0 1px rgba(255,255,255,.18)',
+                        transform: flameColor === sw.value ? 'scale(1.05)' : 'scale(1)',
+                      }}
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
