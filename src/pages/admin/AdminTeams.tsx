@@ -26,6 +26,7 @@ import {
   uploadAsset
 } from '../../lib/data'
 import { getErrorMessage } from '../../lib/errors'
+import { getValidTeamColor } from '../../lib/utils'
 import { useToast } from '../../lib/ToastContext'
 import { Button, Dialog, EmptyState } from '../../components/ui'
 import {
@@ -47,31 +48,6 @@ import {
 } from '../../components/admin/adminStyles'
 
 const SPORT_ORDER = ['Cricket', 'Futsal', 'Volleyball']
-
-const DISALLOWED_CSS_COLORS = new Set([
-  'transparent',
-  'currentcolor',
-  'inherit',
-  'initial',
-  'unset',
-  'revert',
-  'revert-layer'
-])
-
-function getValidTeamColor(color?: string | null): string | null {
-  const clean = color?.trim()
-  if (!clean) return null
-  if (DISALLOWED_CSS_COLORS.has(clean.toLowerCase())) return null
-  if (/[;{}<>]/.test(clean)) return null
-
-  if (typeof CSS !== 'undefined' && typeof CSS.supports === 'function') {
-    return CSS.supports('color', clean) ? clean : null
-  }
-
-  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(clean)
-    ? clean
-    : null
-}
 
 interface AdminTeamsProps {
   activeSeason: Season | null
@@ -697,6 +673,10 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                             <img
                               src={team.owner_photo_url}
                               alt={team.owner_display_name || 'Owner'}
+                              width={32}
+                              height={32}
+                              loading="lazy"
+                              decoding="async"
                               referrerPolicy="no-referrer"
                               className="w-8 h-8 rounded-full object-cover border border-border shrink-0"
                             />
@@ -841,6 +821,10 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                     <img
                       src={ownerPhotoUrl}
                       alt="Owner photo preview"
+                      width={44}
+                      height={44}
+                      loading="lazy"
+                      decoding="async"
                       referrerPolicy="no-referrer"
                       className="w-full h-full object-cover"
                     />
@@ -892,6 +876,10 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                   <img
                     src={logoUrl}
                     alt="Logo preview"
+                    width={56}
+                    height={56}
+                    loading="lazy"
+                    decoding="async"
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover"
                   />

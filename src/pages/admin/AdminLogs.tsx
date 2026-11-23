@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowsClockwise,
   ClockCounterClockwise,
@@ -131,8 +131,19 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
   const [teamFilter, setTeamFilter] = useState<string>('all')
   const [playerSearch, setPlayerSearch] = useState<string>('')
 
+  const isMountedRef = useRef(true)
+  const latestReqIdRef = useRef(0)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
   const loadInitialLogs = useCallback(
     async (options?: { force?: boolean }) => {
+      const reqId = ++latestReqIdRef.current
       if (!activeSeason?.id) {
         setEntries([])
         setHasMore(false)
@@ -156,15 +167,19 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
           setIsLoading(true)
         }
         const rows = await getAdminActivityLog(activeSeason.id, LOG_PAGE_SIZE, 0)
+        if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
         setEntries(rows)
         setHasMore(rows.length === LOG_PAGE_SIZE)
         setCachedQuery(key, rows)
       } catch (err: unknown) {
+        if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
         const msg =
           err instanceof Error ? err.message : 'Failed to load activity log'
         error(msg)
       } finally {
-        setIsLoading(false)
+        if (isMountedRef.current && reqId === latestReqIdRef.current) {
+          setIsLoading(false)
+        }
       }
     },
     [activeSeason?.id, error]
@@ -177,6 +192,7 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
 
   const handleLoadMore = async () => {
     if (!activeSeason?.id || isLoadingMore || isLoading) return
+    const reqId = latestReqIdRef.current
 
     try {
       setIsLoadingMore(true)
@@ -186,6 +202,7 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
         LOG_PAGE_SIZE,
         nextOffset
       )
+      if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
       setEntries((prev) => {
         const merged = [...prev, ...nextBatch]
         merged.sort(
@@ -196,11 +213,14 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
       })
       setHasMore(nextBatch.length === LOG_PAGE_SIZE)
     } catch (err: unknown) {
+      if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
       const msg =
         err instanceof Error ? err.message : 'Failed to load more activity entries'
       error(msg)
     } finally {
-      setIsLoadingMore(false)
+      if (isMountedRef.current && reqId === latestReqIdRef.current) {
+        setIsLoadingMore(false)
+      }
     }
   }
 

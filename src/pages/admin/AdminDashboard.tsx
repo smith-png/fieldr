@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import { logError } from '../../lib/logger'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ArrowRight,
   ArrowsLeftRight,
@@ -76,7 +77,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isSendingAnnouncement, setIsSendingAnnouncement] = useState(false)
   const [hidingAnnouncementId, setHidingAnnouncementId] = useState<string | null>(null)
 
+  const isMountedRef = useRef(true)
+  const latestReqIdRef = useRef(0)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
   const loadAnnouncements = useCallback(async () => {
+    const reqId = ++latestReqIdRef.current
     if (!supabase || !activeSeason?.id) {
       setRecentAnnouncements([])
       return
@@ -90,16 +102,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         .order('created_at', { ascending: false })
         .limit(5)
 
+      if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
+
       if (error) {
-        console.error('Failed to load owner announcements:', error.message)
+        logError('Failed to load owner announcements:', error.message)
         return
       }
 
       setRecentAnnouncements((data as OwnerAnnouncementRow[]) || [])
     } catch (err) {
-      console.error('Failed to load owner announcements:', err)
+      if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
+      logError('Failed to load owner announcements:', err)
     } finally {
-      setIsLoadingAnnouncements(false)
+      if (isMountedRef.current && reqId === latestReqIdRef.current) {
+        setIsLoadingAnnouncements(false)
+      }
     }
   }, [activeSeason?.id])
 
@@ -135,7 +152,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       toast.success('Announcement sent to owners.')
       await loadAnnouncements()
     } catch (err) {
-      console.error('Failed to send announcement:', err)
+      logError('Failed to send announcement:', err)
       toast.error('Could not send announcement.')
     } finally {
       setIsSendingAnnouncement(false)
@@ -165,7 +182,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       )
       toast.success('Announcement hidden.')
     } catch (err) {
-      console.error('Failed to hide announcement:', err)
+      logError('Failed to hide announcement:', err)
       toast.error('Could not hide announcement.')
     } finally {
       setHidingAnnouncementId(null)

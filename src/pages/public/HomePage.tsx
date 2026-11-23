@@ -268,7 +268,15 @@ export const HomePage: React.FC = () => {
     let mounted = true
 
     async function loadData() {
-      // Start all independent home page requests at the exact same time in parallel
+      // Start all independent home page requests in parallel while always scoping player rows to the active season
+      const seasonPromise = getActiveSeason()
+      const knownSeasonId = initialSeason?.id ?? null
+      const playerRowsPromise = knownSeasonId
+        ? getPublicPlayerSportRows(knownSeasonId)
+        : seasonPromise.then((season) =>
+            season?.id ? getPublicPlayerSportRows(season.id) : []
+          )
+
       const [
         seasonResult,
         playerRowsResult,
@@ -276,8 +284,8 @@ export const HomePage: React.FC = () => {
         carouselResult,
         tickerSpeedResult
       ] = await Promise.allSettled([
-        getActiveSeason(),
-        getPublicPlayerSportRows(),
+        seasonPromise,
+        playerRowsPromise,
         getSports(),
         getCarouselItems(true),
         getTickerSpeedSetting()
@@ -304,11 +312,19 @@ export const HomePage: React.FC = () => {
       // 2. Resolve player counts per sport (fallback to cached counts or 0 if failed)
       let resolvedCounts: Record<SportSlug, number> = initialCounts
       if (resolvedSeason && resolvedSeason.id) {
-        if (
-          playerRowsResult.status === 'fulfilled' &&
-          Array.isArray(playerRowsResult.value)
-        ) {
-          const seasonRows = playerRowsResult.value.filter(
+        let fetchedPlayerRows =
+          playerRowsResult.status === 'fulfilled' && Array.isArray(playerRowsResult.value)
+            ? playerRowsResult.value
+            : null
+
+        // If the active season changed since the cached seasonId, fetch rows for the new active season
+        if (knownSeasonId && resolvedSeason.id !== knownSeasonId) {
+          fetchedPlayerRows = await getPublicPlayerSportRows(resolvedSeason.id)
+          if (!mounted) return
+        }
+
+        if (Array.isArray(fetchedPlayerRows)) {
+          const seasonRows = fetchedPlayerRows.filter(
             (r) => r && (!r.season_id || r.season_id === resolvedSeason!.id)
           )
           const nextCounts: Record<SportSlug, number> = {
@@ -512,7 +528,6 @@ export const HomePage: React.FC = () => {
           <LazyNavigationMenu
             isOpen={isMenuOpen}
             onClose={handleCloseMenu}
-            activeSeason={activeSeason}
           />
         )}
       </Suspense>

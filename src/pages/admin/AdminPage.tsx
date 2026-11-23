@@ -8,12 +8,14 @@ import {
 } from '../../components/ui'
 import {
   REALTIME_DEBOUNCE_MS,
+  STORAGE_KEYS,
   getPlayers,
   getProjectorState,
   getPurseTransactions,
   getSeasons,
   getSports,
   getTeams,
+  isDemoMode,
   isRealtimeSuppressed,
   markLocalMutation,
   setActiveSeason as apiSetActiveSeason,
@@ -239,7 +241,15 @@ export const AdminPage: React.FC = () => {
     }
 
     let storageTimer: ReturnType<typeof setTimeout> | null = null
-    const handleStorageChange = () => {
+    const demoStorageKeys = new Set<string>(Object.values(STORAGE_KEYS))
+    const handleStorageChange = (e: StorageEvent) => {
+      if (
+        e.key !== null &&
+        e.key !== 'fieldr_seasons_updated_at' &&
+        !(isDemoMode && demoStorageKeys.has(e.key))
+      ) {
+        return
+      }
       if (
         isRealtimeSuppressed('players') ||
         isRealtimeSuppressed('athletes') ||

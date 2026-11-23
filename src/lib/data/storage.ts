@@ -1,3 +1,4 @@
+import { logError } from '../logger'
 import { AppError } from '../errors'
 import {
   blobToDataUrl,
@@ -153,7 +154,7 @@ const supabaseStorageService: StorageService = {
     try {
       await supabase.storage.from('fieldr-assets').remove([path])
     } catch (err) {
-      console.error('Failed to delete asset from storage:', err)
+      logError('Failed to delete asset from storage:', err)
     }
   }
 }

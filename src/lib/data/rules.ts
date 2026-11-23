@@ -1,5 +1,7 @@
+import { logError } from '../logger'
 import type { RulesDocument } from '../../types'
 import { AppError } from '../errors'
+import { formatDocumentDate } from '../utils'
 import { isDemoMode, supabase } from './client'
 
 const RULES_BUCKET = 'rules'
@@ -12,14 +14,7 @@ function ensureWritable(): void {
 }
 
 export function formatRulesDate(iso?: string | null): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  })
+  return formatDocumentDate(iso)
 }
 
 export function getSafeRulesDownloadFilename(title: string): string {
@@ -104,7 +99,7 @@ export async function deleteRulesDocument(document: RulesDocument): Promise<void
     try {
       await supabase.storage.from(RULES_BUCKET).remove([document.file_path])
     } catch (err) {
-      console.error('Failed to remove rules file from storage bucket:', err)
+      logError('Failed to remove rules file from storage bucket:', err)
     }
   }
 

@@ -1,3 +1,4 @@
+import { logError } from '../logger'
 import type {
   Athlete,
   Player,
@@ -651,7 +652,7 @@ const supabasePlayersService: PlayersServiceWithRefund = {
       ])
 
       if (pubRes.error) {
-        console.error('Supabase getPlayers (public_players) error:', pubRes.error.message, pubRes.error)
+        logError('Supabase getPlayers (public_players) error:', pubRes.error.message, pubRes.error)
       }
 
       const pubList = (pubRes.data as PublicPlayer[]) || []
@@ -671,7 +672,7 @@ const supabasePlayersService: PlayersServiceWithRefund = {
 
       return result.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
     } catch (err) {
-      console.error('getPlayers caught error:', err)
+      logError('getPlayers caught error:', err)
       return []
     }
   },
@@ -693,11 +694,11 @@ const supabasePlayersService: PlayersServiceWithRefund = {
       ])
 
       if (pubRes.error) {
-        console.error('Supabase getPublicPlayersBySeason error:', pubRes.error.message, pubRes.error)
+        logError('Supabase getPublicPlayersBySeason error:', pubRes.error.message, pubRes.error)
         return []
       }
       if (squadsRes.error) {
-        console.error('Supabase getPublicPlayersBySeason (public_squads) error:', squadsRes.error.message, squadsRes.error)
+        logError('Supabase getPublicPlayersBySeason (public_squads) error:', squadsRes.error.message, squadsRes.error)
       }
 
       const squadMap = new Map<string, PublicSquadRow>()
@@ -730,7 +731,7 @@ const supabasePlayersService: PlayersServiceWithRefund = {
         })
         .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
     } catch (err) {
-      console.error('getPublicPlayersBySeason caught error:', err)
+      logError('getPublicPlayersBySeason caught error:', err)
       return []
     }
   },
@@ -829,7 +830,7 @@ const supabasePlayersService: PlayersServiceWithRefund = {
 
     const { data, count, error } = await query
     if (error) {
-      console.error('Supabase getPublicPlayersPaged error:', error.message, error)
+      logError('Supabase getPublicPlayersPaged error:', error.message, error)
       throw new AppError(error.message, { original: error })
     }
 
@@ -845,7 +846,7 @@ const supabasePlayersService: PlayersServiceWithRefund = {
         .in('player_id', playerIds)
 
       if (squadError) {
-        console.error('Supabase getPublicPlayersPaged (public_squads) error:', squadError.message, squadError)
+        logError('Supabase getPublicPlayersPaged (public_squads) error:', squadError.message, squadError)
       } else {
         for (const sq of (squadRows as PublicSquadRow[]) || []) {
           if (sq.player_id) {
@@ -1420,7 +1421,7 @@ export async function getPublicPlayerSportRows(
     const { data, error } = await query
     if (error || !Array.isArray(data)) {
       if (error) {
-        console.error('Supabase getPublicPlayerSportRows error:', error.message, error)
+        logError('Supabase getPublicPlayerSportRows error:', error.message, error)
       }
       return null
     }
@@ -1430,7 +1431,7 @@ export async function getPublicPlayerSportRows(
       season_id: String(r.season_id || '')
     }))
   } catch (err) {
-    console.error('getPublicPlayerSportRows caught error:', err)
+    logError('getPublicPlayerSportRows caught error:', err)
     return null
   }
 }

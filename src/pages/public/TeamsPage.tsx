@@ -1,3 +1,4 @@
+import { logError } from '../../lib/logger'
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CaretRight, Shield, Users } from '@phosphor-icons/react'
@@ -25,6 +26,7 @@ import {
   setCachedQuery,
   shouldRevalidateQuery
 } from '../../lib/queryCache'
+import { getValidTeamColor } from '../../lib/utils'
 import type { PublicPlayer, PublicTeam, Season } from '../../types'
 
 function getCachedTeamsPageState(): {
@@ -56,31 +58,6 @@ function getCachedTeamsPageState(): {
     teams: cachedTeams || [],
     players: cachedPlayers || []
   }
-}
-
-const DISALLOWED_CSS_COLORS = new Set([
-  'transparent',
-  'currentcolor',
-  'inherit',
-  'initial',
-  'unset',
-  'revert',
-  'revert-layer'
-])
-
-function getValidTeamColor(color?: string | null): string | null {
-  const clean = color?.trim()
-  if (!clean) return null
-  if (DISALLOWED_CSS_COLORS.has(clean.toLowerCase())) return null
-  if (/[;{}<>]/.test(clean)) return null
-
-  if (typeof CSS !== 'undefined' && typeof CSS.supports === 'function') {
-    return CSS.supports('color', clean) ? clean : null
-  }
-
-  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(clean)
-    ? clean
-    : null
 }
 
 const SPORT_ORDER = ['Cricket', 'Futsal', 'Volleyball']
@@ -155,7 +132,7 @@ export const TeamsPage: React.FC = () => {
           setPlayers([])
         }
       } catch (err) {
-        console.error(
+        logError(
           'Failed to load teams page data:',
           err instanceof Error ? err.message : err,
           err
@@ -195,7 +172,6 @@ export const TeamsPage: React.FC = () => {
       <NavigationMenu
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
-        activeSeason={activeSeason}
       />
 
       <main className={PUBLIC_MAIN}>

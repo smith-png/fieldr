@@ -1,7 +1,7 @@
 import React from 'react'
 import type { PublicPlayer, PublicTeam } from '../../types'
 import { formatAthleteCode } from '../../lib/data/client'
-import { getInitials } from '../../lib/utils'
+import { getInitials, getValidTeamColor } from '../../lib/utils'
 
 export interface RosterPlayerCardProps {
   player: PublicPlayer
@@ -12,31 +12,6 @@ export interface RosterPlayerCardProps {
 }
 
 const EMPTY_SPORTS: string[] = []
-
-const DISALLOWED_CSS_COLORS = new Set([
-  'transparent',
-  'currentcolor',
-  'inherit',
-  'initial',
-  'unset',
-  'revert',
-  'revert-layer'
-])
-
-function getValidTeamColor(color?: string | null): string | null {
-  const clean = color?.trim()
-  if (!clean) return null
-  if (DISALLOWED_CSS_COLORS.has(clean.toLowerCase())) return null
-  if (/[;{}<>]/.test(clean)) return null
-
-  if (typeof CSS !== 'undefined' && typeof CSS.supports === 'function') {
-    return CSS.supports('color', clean) ? clean : null
-  }
-
-  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(clean)
-    ? clean
-    : null
-}
 
 const RosterPlayerCardInner: React.FC<RosterPlayerCardProps> = ({
   player,

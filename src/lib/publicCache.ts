@@ -31,19 +31,6 @@ export interface RosterSportInfoCacheEntry {
   roles: string[]
 }
 
-export interface SeasonCardCacheItem {
-  season: Season
-  teamCount: number
-  playerCount: number
-}
-
-export interface SeasonDetailCacheEntry {
-  season: Season | null
-  sports: Sport[]
-  teams: PublicTeam[]
-  players: PublicPlayer[]
-}
-
 export interface SeasonTeamDetailCacheEntry {
   season: Season | null
   team: PublicTeam | null
@@ -84,11 +71,6 @@ export const publicCache = {
     loaded: false,
     value: [] as CreditPerson[]
   },
-  seasonCards: {
-    loaded: false,
-    value: [] as SeasonCardCacheItem[]
-  },
-  seasonDetails: new Map<string, SeasonDetailCacheEntry>(),
   seasonTeamDetails: new Map<string, SeasonTeamDetailCacheEntry>(),
   playerProfiles: new Map<string, PlayerProfileCacheEntry>(),
   rulesDocuments: {

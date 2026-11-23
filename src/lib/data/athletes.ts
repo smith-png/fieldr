@@ -1,3 +1,4 @@
+import { logError } from '../logger'
 import type { Athlete, AthleteCareerEntry, Player, PublicPlayer, Season, Team } from '../../types'
 import { AppError } from '../errors'
 import { PUBLIC_PLAYER_SELECT_COLUMNS, PUBLIC_SQUAD_SELECT_COLUMNS } from '../constants'
@@ -401,7 +402,7 @@ const supabaseAthletesService: AthletesService = {
       .limit(1)
 
     if (error) {
-      console.error('Supabase getAthleteByCode error:', error.message, error)
+      logError('Supabase getAthleteByCode error:', error.message, error)
       return null
     }
 
@@ -457,11 +458,11 @@ const supabaseAthletesService: AthletesService = {
     ])
 
     if (playersRes.error) {
-      console.error('Supabase getAthleteCareer (public_players) error:', playersRes.error.message, playersRes.error)
+      logError('Supabase getAthleteCareer (public_players) error:', playersRes.error.message, playersRes.error)
       return []
     }
     if (seasonsRes.error) {
-      console.error('Supabase getAthleteCareer (seasons) error:', seasonsRes.error.message, seasonsRes.error)
+      logError('Supabase getAthleteCareer (seasons) error:', seasonsRes.error.message, seasonsRes.error)
     }
     if (!playersRes.data) return []
 
@@ -486,7 +487,7 @@ const supabaseAthletesService: AthletesService = {
         .in('player_id', playerIds)
 
       if (squadsErr) {
-        console.error('Supabase getAthleteCareer (public_squads) error:', squadsErr.message, squadsErr)
+        logError('Supabase getAthleteCareer (public_squads) error:', squadsErr.message, squadsErr)
       } else {
         for (const sq of (squadRows as PublicSquadCareerRow[]) || []) {
           if (sq.player_id) {

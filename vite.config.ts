@@ -1,14 +1,37 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import {fileURLToPath} from 'url';
 import {defineConfig} from 'vite';
+
+const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(rootDir, '.'),
+      },
+    },
+    build: {
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            groups: [
+              {
+                name: 'vendor-react',
+                test: /[\\/]node_modules[\\/](react|react-dom|react-router-dom|react-router|scheduler)[\\/]/,
+                priority: 20,
+              },
+              {
+                name: 'vendor-supabase',
+                test: /[\\/]node_modules[\\/]@supabase[\\/]/,
+                priority: 15,
+              },
+            ],
+          },
+        },
       },
     },
     server: {

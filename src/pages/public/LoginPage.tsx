@@ -40,6 +40,8 @@ export const LoginPage: React.FC = () => {
       const user = await login(email, password)
       if (user.role === 'admin') {
         navigate('/admin')
+      } else if (user.role === 'owner') {
+        navigate('/teams')
       } else {
         navigate('/projector')
       }
@@ -58,6 +60,8 @@ export const LoginPage: React.FC = () => {
       const user = await quickDemoLogin(role)
       if (user.role === 'admin') {
         navigate('/admin')
+      } else if (user.role === 'owner') {
+        navigate('/teams')
       } else {
         navigate('/projector')
       }

@@ -1,3 +1,4 @@
+import { logError } from '../../lib/logger'
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowCounterClockwise,
@@ -55,6 +56,7 @@ import {
   subscribeToAuctionRealtime
 } from '../../lib/data'
 import { useToast } from '../../lib/ToastContext'
+import { getValidTeamColor } from '../../lib/utils'
 import { Button, Dialog, EmptyState } from '../../components/ui'
 
 interface AdminAuctionProps {
@@ -67,31 +69,6 @@ interface AdminAuctionProps {
 }
 
 type QueueTab = 'queue' | 'sold'
-
-const DISALLOWED_CSS_COLORS = new Set([
-  'transparent',
-  'currentcolor',
-  'inherit',
-  'initial',
-  'unset',
-  'revert',
-  'revert-layer'
-])
-
-function getValidTeamColor(color?: string | null): string | null {
-  const clean = color?.trim()
-  if (!clean) return null
-  if (DISALLOWED_CSS_COLORS.has(clean.toLowerCase())) return null
-  if (/[;{}<>]/.test(clean)) return null
-
-  if (typeof CSS !== 'undefined' && typeof CSS.supports === 'function') {
-    return CSS.supports('color', clean) ? clean : null
-  }
-
-  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(clean)
-    ? clean
-    : null
-}
 
 function formatBalancedName(name: string): string {
   return name.replace(/\s+(\d+)$/, '\u00A0$1')
@@ -192,7 +169,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
           getAuctionSettings(activeSeason.id),
           getRecentAuctionSales(activeSeason.id, 10),
           getAuctionQueue(activeSeason.id).catch((err) => {
-            console.error('Failed to fetch auction queue:', err)
+            logError('Failed to fetch auction queue:', err)
             return [] as AuctionQueueEntry[]
           })
         ])
@@ -212,7 +189,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
       setPlayerBids(bids)
     } catch (err) {
       if (isMountedRef.current && reqId === latestFetchReqIdRef.current) {
-        console.error(
+        logError(
           'Failed to refresh live auction state:',
           err instanceof Error ? err.message : err,
           err
@@ -976,6 +953,9 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
                       <img
                         src={stagePlayer.photo_url || stagePlayer.photo_thumb_url}
                         alt={stagePlayer.name}
+                        width={160}
+                        height={200}
+                        decoding="async"
                         referrerPolicy="no-referrer"
                         className="w-full h-full object-contain"
                       />
@@ -1497,6 +1477,10 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
                         <img
                           src={player.photo_thumb_url || player.photo_url}
                           alt={player.name}
+                          width={44}
+                          height={44}
+                          loading="lazy"
+                          decoding="async"
                           referrerPolicy="no-referrer"
                           className="w-11 h-11 rounded-xl object-cover bg-surface border border-border shrink-0"
                         />

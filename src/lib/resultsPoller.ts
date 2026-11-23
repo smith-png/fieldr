@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { isDemoMode, getLocal, STORAGE_KEYS, supabase } from './data/client'
+import { toFiniteNumber, toNullableFiniteNumber } from './utils'
 import type { Player, Season, Team } from '../types'
 
 export type PublicResultStatus = 'sold' | 'unsold' | 'available'
@@ -110,21 +111,6 @@ function normalizeStatus(raw: unknown): PublicResultStatus {
   if (s === 'sold') return 'sold'
   if (s === 'unsold') return 'unsold'
   return 'available'
-}
-
-function toFiniteNumber(value: unknown, fallback = 0): number {
-  if (typeof value === 'number' && Number.isFinite(value)) return value
-  if (typeof value === 'string' && value.trim() !== '') {
-    const n = Number(value)
-    if (Number.isFinite(n)) return n
-  }
-  return fallback
-}
-
-function toNullableFiniteNumber(value: unknown): number | null {
-  if (value === null || value === undefined || value === '') return null
-  const n = Number(value)
-  return Number.isFinite(n) ? n : null
 }
 
 function normalizeResultRow(raw: Record<string, unknown>): PublicResultRow {

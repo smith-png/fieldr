@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Check,
   Copy,
@@ -18,7 +18,9 @@ import {
 import { useToast } from '../../lib/ToastContext'
 import { getErrorMessage } from '../../lib/errors'
 import { Button, SkeletonBlock } from '../ui'
-import { MarkdownContent } from '../common/MarkdownContent'
+const MarkdownContent = lazy(() =>
+  import('../common/MarkdownContent').then((m) => ({ default: m.MarkdownContent }))
+)
 import {
   ADMIN_CARD,
   ADMIN_CARD_HEADER,
@@ -576,7 +578,9 @@ export const RegistrationSetupCard: React.FC<RegistrationSetupCardProps> = ({
           {isPreviewingInstructions ? (
             <div className={`${ADMIN_WELL} p-4 min-h-[120px]`}>
               {instructionsMd.trim() ? (
-                <MarkdownContent content={instructionsMd} />
+                <Suspense fallback={<SkeletonBlock className="h-16 w-full rounded-xl" />}>
+                  <MarkdownContent content={instructionsMd} />
+                </Suspense>
               ) : (
                 <p className="text-xs text-muted italic">No instructions entered.</p>
               )}

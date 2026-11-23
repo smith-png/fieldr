@@ -60,9 +60,19 @@ export const CreditsSetupCard: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState<boolean>(false)
 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const isMountedRef = useRef(true)
+  const latestReqIdRef = useRef(0)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   const loadCredits = useCallback(
     async (options?: { silent?: boolean }) => {
+      const reqId = ++latestReqIdRef.current
       const silent = Boolean(options?.silent) || hasLoadedOnceRef.current
       try {
         if (!silent) {
@@ -70,16 +80,18 @@ export const CreditsSetupCard: React.FC = () => {
         }
         setLoadError(null)
         const rows = await getCreditsPeople()
+        if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
         setPeople(rows)
         hasLoadedOnceRef.current = true
       } catch (err) {
+        if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
         const msg = getErrorMessage(err, 'Failed to load credits')
         if (!silent) {
           setLoadError(msg)
         }
         showToast(msg, 'error')
       } finally {
-        if (!silent) {
+        if (!silent && isMountedRef.current && reqId === latestReqIdRef.current) {
           setIsLoading(false)
         }
       }

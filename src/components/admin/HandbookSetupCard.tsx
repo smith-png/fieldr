@@ -13,10 +13,10 @@ import { useAuth } from '../../lib/AuthContext'
 import { useToast } from '../../lib/ToastContext'
 import { getErrorMessage } from '../../lib/errors'
 import { isDemoMode, supabase } from '../../lib/data'
+import { MAX_PDF_BYTES, formatDocumentDate, validatePdfFile } from '../../lib/utils'
 import { Button, Dialog, EmptyState, ErrorState } from '../ui'
 
 const HANDBOOK_BUCKET = 'handbooks'
-const MAX_PDF_BYTES = 20 * 1024 * 1024 // 20 MB
 
 interface HandbookRow {
   id: string
@@ -53,16 +53,7 @@ function generateRandomPdfFilename(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.pdf`
 }
 
-function formatHandbookDate(iso?: string | null): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  })
-}
+const formatHandbookDate = formatDocumentDate
 
 function getHandbookPublicUrl(filePath: string): string {
   if (!supabase || !filePath) return '#'
@@ -93,9 +84,19 @@ export const HandbookSetupCard: React.FC = () => {
 
   const [handbookToDelete, setHandbookToDelete] = useState<HandbookRow | null>(null)
   const [isDeleting, setIsDeleting] = useState<boolean>(false)
+  const isMountedRef = useRef(true)
+  const latestReqIdRef = useRef(0)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   const loadHandbookAdminData = useCallback(
     async (options?: { silent?: boolean }) => {
+      const reqId = ++latestReqIdRef.current
       const silent = Boolean(options?.silent)
       if (!supabase || isDemoMode) {
         setIsLoading(false)
@@ -120,6 +121,8 @@ export const HandbookSetupCard: React.FC = () => {
             .order('created_at', { ascending: false })
         ])
 
+        if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
+
         if (settingsRes.error) {
           throw settingsRes.error
         }
@@ -138,13 +141,14 @@ export const HandbookSetupCard: React.FC = () => {
 
         setHandbooks(Array.isArray(listRes.data) ? (listRes.data as HandbookRow[]) : [])
       } catch (err) {
+        if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
         const msg = getErrorMessage(err, 'Failed to load handbook settings')
         if (!silent) {
           setLoadError(msg)
         }
         showToast(msg, 'error')
       } finally {
-        if (!silent) {
+        if (!silent && isMountedRef.current && reqId === latestReqIdRef.current) {
           setIsLoading(false)
         }
       }
@@ -224,16 +228,9 @@ export const HandbookSetupCard: React.FC = () => {
       return
     }
 
-    const isPdf =
-      file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-    if (!isPdf) {
-      showToast('Only PDF files are allowed.', 'error')
-      clearSelectedFile()
-      return
-    }
-
-    if (file.size > MAX_PDF_BYTES) {
-      showToast('PDF file must be 20 MB or smaller.', 'error')
+    const validationError = validatePdfFile(file)
+    if (validationError) {
+      showToast(validationError, 'error')
       clearSelectedFile()
       return
     }

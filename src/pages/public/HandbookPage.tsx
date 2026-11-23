@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -23,6 +23,7 @@ import {
 import { Button, SkeletonBlock } from '../../components/ui'
 import { supabase } from '../../lib/data/client'
 import { prefetchRoute } from '../../lib/queryCache'
+import { formatDocumentDate } from '../../lib/utils'
 
 const HANDBOOK_SESSION_KEY = 'fieldr_handbook_access_code'
 const HANDBOOK_BUCKET = 'handbooks'
@@ -34,16 +35,7 @@ interface HandbookItem {
   created_at: string
 }
 
-function formatHandbookDate(iso?: string | null): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  })
-}
+const formatHandbookDate = formatDocumentDate
 
 function getSafeDownloadFilename(title: string): string {
   const cleaned = title
@@ -73,8 +65,19 @@ export const HandbookPage: React.FC = () => {
     }
   })
 
+  const isMountedRef = useRef(true)
+  const latestReqIdRef = useRef(0)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
   const unlockWithCode = useCallback(
     async (rawCode: string, fromSession = false) => {
+      const reqId = ++latestReqIdRef.current
       const trimmed = rawCode.trim()
       if (!trimmed || !supabase) {
         if (fromSession) {
@@ -101,6 +104,8 @@ export const HandbookPage: React.FC = () => {
           p_code: trimmed
         })
 
+        if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
+
         if (error || !Array.isArray(data) || data.length === 0) {
           try {
             sessionStorage.removeItem(HANDBOOK_SESSION_KEY)
@@ -126,6 +131,7 @@ export const HandbookPage: React.FC = () => {
         setHandbooks(rows)
         setErrorMsg('')
       } catch {
+        if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
         try {
           sessionStorage.removeItem(HANDBOOK_SESSION_KEY)
         } catch {
@@ -136,8 +142,10 @@ export const HandbookPage: React.FC = () => {
           setErrorMsg('Invalid code.')
         }
       } finally {
-        setIsLoading(false)
-        setIsCheckingSession(false)
+        if (isMountedRef.current && reqId === latestReqIdRef.current) {
+          setIsLoading(false)
+          setIsCheckingSession(false)
+        }
       }
     },
     []

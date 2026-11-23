@@ -1,3 +1,4 @@
+import { logError } from '../../lib/logger'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
@@ -46,6 +47,7 @@ import { getActiveSeason, getSeason } from '../../lib/data/seasons'
 import { getPublicPlayersBySeason } from '../../lib/data/players'
 import { getPublicTeams, getRolesForSport, getSports } from '../../lib/data/teams'
 import { getAuctionSettings } from '../../lib/data/auction'
+import { getValidTeamColor } from '../../lib/utils'
 import {
   hasDataChanged,
   publicCache,
@@ -100,31 +102,6 @@ function formatShortTime(isoString?: string | null): string {
   })
 }
 
-const DISALLOWED_CSS_COLORS = new Set([
-  'transparent',
-  'currentcolor',
-  'inherit',
-  'initial',
-  'unset',
-  'revert',
-  'revert-layer'
-])
-
-function getValidTeamColor(color?: string | null): string | null {
-  const clean = color?.trim()
-  if (!clean) return null
-  if (DISALLOWED_CSS_COLORS.has(clean.toLowerCase())) return null
-  if (/[;{}<>]/.test(clean)) return null
-
-  if (typeof CSS !== 'undefined' && typeof CSS.supports === 'function') {
-    return CSS.supports('color', clean) ? clean : null
-  }
-
-  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(clean)
-    ? clean
-    : null
-}
-
 function getCachedTeamDetail(
   seasonId?: string,
   teamId?: string
@@ -139,11 +116,9 @@ function getCachedTeamDetail(
   const foundTeam = cachedTeams?.find((t) => t.id === teamId)
   if (foundTeam && cachedPlayers) {
     const knownSeason =
-      publicCache.seasonDetails.get(seasonId)?.season ||
-      publicCache.seasonCards.value.find((c) => c.season.id === seasonId)?.season ||
-      (publicCache.activeSeason.value?.id === seasonId
+      publicCache.activeSeason.value?.id === seasonId
         ? publicCache.activeSeason.value
-        : null)
+        : null
     const cachedSportRoles =
       publicCache.rosterSportInfo.get(foundTeam.sport.toLowerCase())?.roles || []
     return {
@@ -286,12 +261,12 @@ export const SeasonTeamDetailPage: React.FC = () => {
         .order('created_at', { ascending: false })
 
       if (error) {
-        console.error('Failed to load owner shortlist:', error.message)
+        logError('Failed to load owner shortlist:', error.message)
         return
       }
       setShortlistRows((data as OwnerShortlistRow[]) || [])
     } catch (err) {
-      console.error('Failed to load owner shortlist:', err)
+      logError('Failed to load owner shortlist:', err)
     } finally {
       setIsLoadingShortlist(false)
     }
@@ -349,7 +324,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
         ])
       }
     } catch (err) {
-      console.error('Failed to update shortlist:', err)
+      logError('Failed to update shortlist:', err)
       toast.error('Could not update shortlist.')
     } finally {
       setShortlistBusyKey(null)
@@ -385,7 +360,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
       setEditingNoteRowId(null)
       setEditingNoteValue('')
     } catch (err) {
-      console.error('Failed to save shortlist note:', err)
+      logError('Failed to save shortlist note:', err)
       toast.error('Could not save shortlist note.')
     } finally {
       setShortlistBusyKey(null)
@@ -408,7 +383,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
 
         if (reqId !== announcementReqIdRef.current) return
         if (error) {
-          console.error('Failed to load owner announcements:', error.message)
+          logError('Failed to load owner announcements:', error.message)
           return
         }
 
@@ -432,7 +407,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
         }
         hasLoadedAnnouncementRef.current = true
       } catch (err) {
-        console.error('Failed to load owner announcements:', err)
+        logError('Failed to load owner announcements:', err)
       }
     },
     [id, user, toast]
@@ -526,7 +501,19 @@ export const SeasonTeamDetailPage: React.FC = () => {
     }
   }, [isOwnerPanelActive, id, user?.id, fetchLatestAnnouncement])
 
+  const isMountedRef = useRef(true)
+  const overviewReqIdRef = useRef(0)
+  const detailReqIdRef = useRef(0)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
   const fetchOwnerOverview = async () => {
+    const reqId = ++overviewReqIdRef.current
     if (!user || user.role !== 'owner' || !teamId || !supabase) {
       setOwnerOverview(null)
       setOverviewUpdatedAt(null)
@@ -542,10 +529,11 @@ export const SeasonTeamDetailPage: React.FC = () => {
         supabase.rpc('owner_team_overview'),
         id ? getAuctionSettings(id).catch(() => null) : Promise.resolve(null)
       ])
+      if (!isMountedRef.current || reqId !== overviewReqIdRef.current) return
 
       const { data, error } = overviewRes
       if (error) {
-        console.error('owner_team_overview error:', error)
+        logError('owner_team_overview error:', error)
         setOwnerOverview(null)
         setOverviewUpdatedAt(null)
         return
@@ -581,6 +569,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
           .from('players')
           .select('id, base_points, status')
           .eq('season_id', id)
+        if (!isMountedRef.current || reqId !== overviewReqIdRef.current) return
 
         if (!seasonPlayerErr && Array.isArray(seasonPlayerRows)) {
           const metaMap: Record<string, OwnerPlayerMeta> = {}
@@ -624,6 +613,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
             .from('public_players')
             .select('id, base_points')
             .eq('season_id', id)
+          if (!isMountedRef.current || reqId !== overviewReqIdRef.current) return
 
           if (!pubBaseErr && Array.isArray(pubBaseRows)) {
             const baseMap: Record<string, number> = {}
@@ -654,11 +644,14 @@ export const SeasonTeamDetailPage: React.FC = () => {
         setOwnerPlayerMetaById({})
       }
     } catch (err) {
-      console.error('Failed to load owner overview:', err)
+      if (!isMountedRef.current || reqId !== overviewReqIdRef.current) return
+      logError('Failed to load owner overview:', err)
       setOwnerOverview(null)
       setOverviewUpdatedAt(null)
     } finally {
-      setIsLoadingOverview(false)
+      if (isMountedRef.current && reqId === overviewReqIdRef.current) {
+        setIsLoadingOverview(false)
+      }
     }
   }
 
@@ -684,6 +677,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
 
   const loadData = async (options?: { force?: boolean }) => {
     if (!id || !teamId) return
+    const reqId = ++detailReqIdRef.current
     const key = getTeamCacheKey(id, teamId)
     const queryKey = `public:teamDetail:${key}`
     const cached = getCachedTeamDetail(id, teamId)
@@ -713,6 +707,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
         getPublicPlayersBySeason(id),
         getSports()
       ])
+      if (!isMountedRef.current || reqId !== detailReqIdRef.current) return
 
       const prevActive = publicCache.activeSeason.value
       const activeChanged =
@@ -754,6 +749,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
         matchedSport && matchedSport.roles.length > 0
           ? matchedSport.roles
           : await getRolesForSport(foundTeam.sport)
+      if (!isMountedRef.current || reqId !== detailReqIdRef.current) return
 
       const nextEntry: SeasonTeamDetailCacheEntry = {
         season: s,
@@ -775,7 +771,8 @@ export const SeasonTeamDetailPage: React.FC = () => {
         setSportRoles(roles)
       }
     } catch (err) {
-      console.error(
+      if (!isMountedRef.current || reqId !== detailReqIdRef.current) return
+      logError(
         'Failed to load season team detail data:',
         err instanceof Error ? err.message : err,
         err
@@ -784,7 +781,9 @@ export const SeasonTeamDetailPage: React.FC = () => {
         setHasError(true)
       }
     } finally {
-      setIsLoading(false)
+      if (isMountedRef.current && reqId === detailReqIdRef.current) {
+        setIsLoading(false)
+      }
     }
   }
 
@@ -862,7 +861,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
         toast.success('Squad image downloaded.')
       }
     } catch (err) {
-      console.error('Failed to generate squad share image:', err)
+      logError('Failed to generate squad share image:', err)
       toast.error('Could not generate squad image.')
     } finally {
       setIsSharingPublic(false)
@@ -907,7 +906,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
         toast.success('Squad image downloaded.')
       }
     } catch (err) {
-      console.error('Failed to generate owner squad share image:', err)
+      logError('Failed to generate owner squad share image:', err)
       toast.error('Could not generate squad image.')
     } finally {
       setIsSharingOwner(false)
@@ -939,7 +938,6 @@ export const SeasonTeamDetailPage: React.FC = () => {
       <NavigationMenu
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
-        activeSeason={activeSeason}
       />
 
       <main className={PUBLIC_MAIN_MEDIUM}>

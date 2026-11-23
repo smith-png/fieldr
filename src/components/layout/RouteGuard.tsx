@@ -33,6 +33,7 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({
 
   useEffect(() => {
     if (!preloadComponent || LoadedComponent) return
+    if (isLoading || !user || !allowedRoles.includes(user.role)) return
     let cancelled = false
     preloadComponent
       .load()
@@ -49,7 +50,7 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({
     return () => {
       cancelled = true
     }
-  }, [preloadComponent, LoadedComponent])
+  }, [preloadComponent, LoadedComponent, isLoading, user, allowedRoles])
 
   if (loadError) {
     throw loadError

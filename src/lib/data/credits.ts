@@ -1,3 +1,4 @@
+import { logError } from '../logger'
 import type { CreditKind, CreditPerson } from '../../types'
 import { AppError } from '../errors'
 import { resizeAndCompressImage } from '../imageCompression'
@@ -68,7 +69,7 @@ export async function deleteCreditPhotoFromBucket(photoUrl?: string | null): Pro
   try {
     await supabase.storage.from(CREDITS_BUCKET).remove([path])
   } catch (err) {
-    console.error('Failed to delete old credit photo from bucket:', err)
+    logError('Failed to delete old credit photo from bucket:', err)
   }
 }
 

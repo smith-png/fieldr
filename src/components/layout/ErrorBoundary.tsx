@@ -1,3 +1,4 @@
+import { logError } from '../../lib/logger'
 import { Component, ErrorInfo, ReactNode } from 'react'
 
 interface ErrorBoundaryProps {
@@ -23,7 +24,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    console.error(
+    logError(
       `[ErrorBoundary${this.props.name ? `:${this.props.name}` : ''}] Caught error:`,
       error,
       errorInfo

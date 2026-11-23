@@ -1,3 +1,4 @@
+import { logError } from '../../lib/logger'
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft } from '@phosphor-icons/react'
@@ -113,7 +114,7 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
           setContent(nextPageVal)
         }
       } catch (err) {
-        console.error(
+        logError(
           `Failed to load content page (${pageKey}):`,
           err instanceof Error ? err.message : err,
           err
@@ -135,7 +136,6 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
       <NavigationMenu
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
-        activeSeason={activeSeason}
       />
 
       <main className={PUBLIC_MAIN_NARROW}>

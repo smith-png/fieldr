@@ -26,8 +26,7 @@ import {
   type PublicResultStatus
 } from '../../lib/resultsPoller'
 import { useToast } from '../../lib/ToastContext'
-import { formatPoints, getInitials } from '../../lib/utils'
-import type { Season } from '../../types'
+import { formatPoints, getInitials, getValidTeamColor } from '../../lib/utils'
 
 const FEED_PAGE_SIZE = 20
 const SPORT_ORDER = ['Cricket', 'Futsal', 'Volleyball']
@@ -40,29 +39,6 @@ const STATUS_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
   { value: 'available', label: 'Remaining' },
   { value: 'all', label: 'All' }
 ]
-
-const DISALLOWED_CSS_COLORS = new Set([
-  'transparent',
-  'currentcolor',
-  'inherit',
-  'initial',
-  'unset',
-  'revert',
-  'revert-layer'
-])
-
-function getValidTeamColor(color?: string | null): string | null {
-  const clean = color?.trim()
-  if (!clean) return null
-  if (DISALLOWED_CSS_COLORS.has(clean.toLowerCase())) return null
-  if (/[;{}<>]/.test(clean)) return null
-  if (typeof CSS !== 'undefined' && typeof CSS.supports === 'function') {
-    return CSS.supports('color', clean) ? clean : null
-  }
-  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(clean)
-    ? clean
-    : null
-}
 
 function parseStatusParam(raw: string | null): StatusFilter {
   const value = (raw || '').trim().toLowerCase()
@@ -93,6 +69,74 @@ function formatTimeAgo(iso: string | null, nowMs: number): string {
   if (diffHours < 24) return `${diffHours}h ago`
   const diffDays = Math.floor(diffHours / 24)
   return `${diffDays}d ago`
+}
+
+function useVisibleNowMs(enabled: boolean): number {
+  const [nowMs, setNowMs] = useState<number>(() => Date.now())
+
+  useEffect(() => {
+    if (!enabled) return
+    let intervalId: ReturnType<typeof setInterval> | null = null
+
+    const startTick = () => {
+      if (intervalId !== null) return
+      setNowMs(Date.now())
+      intervalId = setInterval(() => {
+        setNowMs(Date.now())
+      }, 1000)
+    }
+
+    const stopTick = () => {
+      if (intervalId !== null) {
+        clearInterval(intervalId)
+        intervalId = null
+      }
+    }
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        stopTick()
+      } else {
+        startTick()
+      }
+    }
+
+    if (typeof document === 'undefined' || document.visibilityState !== 'hidden') {
+      startTick()
+    }
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibility)
+    }
+
+    return () => {
+      stopTick()
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisibility)
+      }
+    }
+  }, [enabled])
+
+  return nowMs
+}
+
+const UpdatedAgoPill: React.FC<{ lastCheckedAt: number }> = ({ lastCheckedAt }) => {
+  const nowMs = useVisibleNowMs(true)
+  return (
+    <span className={PUBLIC_COUNT_PILL}>
+      Updated {formatElapsedClock(nowMs - lastCheckedAt)} ago
+    </span>
+  )
+}
+
+const SoldTimeAgo: React.FC<{ soldAt: string | null }> = ({ soldAt }) => {
+  const nowMs = useVisibleNowMs(Boolean(soldAt))
+  const label = formatTimeAgo(soldAt, nowMs)
+  if (!label) return null
+  return (
+    <div className="font-mono text-[11px] tabular-nums text-muted min-h-[16px]">
+      {label}
+    </div>
+  )
 }
 
 function sortSportsList(sports: string[]): string[] {
@@ -231,53 +275,10 @@ export const ResultsPage: React.FC = () => {
   const { success, error: showError } = useToast()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [visibleCount, setVisibleCount] = useState(FEED_PAGE_SIZE)
-  const [nowMs, setNowMs] = useState<number>(() => Date.now())
   const [isSharingResults, setIsSharingResults] = useState(false)
   const sentinelRef = useRef<HTMLDivElement | null>(null)
 
   const results = usePublicResults()
-
-  // Live 1-second ticker for "Updated 0:12 ago" and relative sale times (paused while hidden)
-  useEffect(() => {
-    let intervalId: ReturnType<typeof setInterval> | null = null
-
-    const startTick = () => {
-      if (intervalId !== null) return
-      setNowMs(Date.now())
-      intervalId = setInterval(() => {
-        setNowMs(Date.now())
-      }, 1000)
-    }
-
-    const stopTick = () => {
-      if (intervalId !== null) {
-        clearInterval(intervalId)
-        intervalId = null
-      }
-    }
-
-    const onVisibility = () => {
-      if (document.visibilityState === 'hidden') {
-        stopTick()
-      } else {
-        startTick()
-      }
-    }
-
-    if (typeof document === 'undefined' || document.visibilityState !== 'hidden') {
-      startTick()
-    }
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', onVisibility)
-    }
-
-    return () => {
-      stopTick()
-      if (typeof document !== 'undefined') {
-        document.removeEventListener('visibilitychange', onVisibility)
-      }
-    }
-  }, [])
 
   // URL-synced filters
   const rawSportParam = (searchParams.get('sport') || '').trim()
@@ -500,15 +501,6 @@ export const ResultsPage: React.FC = () => {
     summary.sold === 0 &&
     summary.unsold === 0
 
-  const navSeason: Season | null = results.seasonId
-    ? {
-        id: results.seasonId,
-        name: results.seasonName || '',
-        is_active: true,
-        created_at: ''
-      }
-    : null
-
   const feedTitle =
     selectedStatus === 'sold'
       ? 'Sold so far'
@@ -517,11 +509,6 @@ export const ResultsPage: React.FC = () => {
       : selectedStatus === 'available'
       ? 'Remaining'
       : 'All players'
-
-  const updatedLabel =
-    results.lastCheckedAt !== null
-      ? `Updated ${formatElapsedClock(nowMs - results.lastCheckedAt)} ago`
-      : null
 
   // Auction stats computed purely in browser from already-loaded results.rows
   const auctionStats = useMemo(() => {
@@ -691,7 +678,6 @@ export const ResultsPage: React.FC = () => {
       <NavigationMenu
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
-        activeSeason={navSeason}
       />
 
       <main className={PUBLIC_MAIN}>
@@ -715,8 +701,8 @@ export const ResultsPage: React.FC = () => {
                 {results.seasonName && (
                   <span className={PUBLIC_COUNT_PILL}>{results.seasonName}</span>
                 )}
-                {updatedLabel && (
-                  <span className={PUBLIC_COUNT_PILL}>{updatedLabel}</span>
+                {results.lastCheckedAt !== null && (
+                  <UpdatedAgoPill lastCheckedAt={results.lastCheckedAt} />
                 )}
               </>
             )}
@@ -975,7 +961,6 @@ export const ResultsPage: React.FC = () => {
                     const profilePath = `/players/${code}`
                     const validTeamColor = getValidTeamColor(row.team_color)
                     const isSold = row.status === 'sold'
-                    const timeAgo = isSold ? formatTimeAgo(row.sold_at, nowMs) : ''
 
                     return (
                       <Link
@@ -1099,11 +1084,7 @@ export const ResultsPage: React.FC = () => {
                             </div>
                           )}
 
-                          {timeAgo && (
-                            <div className="font-mono text-[11px] tabular-nums text-muted min-h-[16px]">
-                              {timeAgo}
-                            </div>
-                          )}
+                          {isSold && <SoldTimeAgo soldAt={row.sold_at} />}
                         </div>
                       </Link>
                     )

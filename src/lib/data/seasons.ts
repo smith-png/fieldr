@@ -1,3 +1,4 @@
+import { logError } from '../logger'
 import type { CarouselItem, Player, ProjectorState, PurseTransaction, Season, SeasonDeletionCounts, Team } from '../../types'
 import { AppError } from '../errors'
 import { publicCache } from '../publicCache'
@@ -12,10 +13,8 @@ import {
 } from './client'
 import type { SeasonsService } from './types'
 
-function invalidateSeasonCaches(): void {
+export function invalidateSeasonCaches(): void {
   publicCache.activeSeason = { loaded: false, value: null }
-  publicCache.seasonCards = { loaded: false, value: [] }
-  publicCache.seasonDetails.clear()
   publicCache.seasonTeamDetails.clear()
   if (typeof window !== 'undefined') {
     try {
@@ -217,12 +216,12 @@ const supabaseSeasonsService: SeasonsService = {
         .order('created_at', { ascending: false })
 
       if (error) {
-        console.error('getSeasons error from Supabase:', error)
+        logError('getSeasons error from Supabase:', error)
         return []
       }
       return Array.isArray(data) ? (data as Season[]) : []
     } catch (err) {
-      console.error('getSeasons caught error:', err)
+      logError('getSeasons caught error:', err)
       return []
     }
   },
@@ -237,12 +236,12 @@ const supabaseSeasonsService: SeasonsService = {
         .maybeSingle()
 
       if (error) {
-        console.error('getSeason error from Supabase:', error)
+        logError('getSeason error from Supabase:', error)
         return null
       }
       return data as Season | null
     } catch (err) {
-      console.error('getSeason caught error:', err)
+      logError('getSeason caught error:', err)
       return null
     }
   },
@@ -258,12 +257,12 @@ const supabaseSeasonsService: SeasonsService = {
         .maybeSingle()
 
       if (error) {
-        console.error('getActiveSeason error from Supabase:', error)
+        logError('getActiveSeason error from Supabase:', error)
         return null
       }
       return data as Season | null
     } catch (err) {
-      console.error('getActiveSeason caught error:', err)
+      logError('getActiveSeason caught error:', err)
       return null
     }
   },

@@ -19,9 +19,8 @@ import {
   uploadRulesPdf
 } from '../../lib/data/rules'
 import { Button, Dialog, EmptyState, ErrorState } from '../ui'
+import { validatePdfFile } from '../../lib/utils'
 import type { RulesDocument } from '../../types'
-
-const MAX_PDF_BYTES = 20 * 1024 * 1024 // 20 MB
 
 export const RulesSetupCard: React.FC = () => {
   const { user } = useAuth()
@@ -42,9 +41,19 @@ export const RulesSetupCard: React.FC = () => {
 
   const [documentToDelete, setDocumentToDelete] = useState<RulesDocument | null>(null)
   const [isDeleting, setIsDeleting] = useState<boolean>(false)
+  const isMountedRef = useRef(true)
+  const latestReqIdRef = useRef(0)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   const loadDocuments = useCallback(
     async (options?: { silent?: boolean }) => {
+      const reqId = ++latestReqIdRef.current
       const silent = Boolean(options?.silent)
       if (!supabase || isDemoMode) {
         setIsLoading(false)
@@ -57,15 +66,17 @@ export const RulesSetupCard: React.FC = () => {
         }
         setLoadError(null)
         const list = await getRulesDocuments()
+        if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
         setDocuments(list)
       } catch (err) {
+        if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
         const msg = getErrorMessage(err, 'Failed to load auction rules documents')
         if (!silent) {
           setLoadError(msg)
         }
         showToast(msg, 'error')
       } finally {
-        if (!silent) {
+        if (!silent && isMountedRef.current && reqId === latestReqIdRef.current) {
           setIsLoading(false)
         }
       }
@@ -91,16 +102,9 @@ export const RulesSetupCard: React.FC = () => {
       return
     }
 
-    const isPdf =
-      file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-    if (!isPdf) {
-      showToast('Only PDF files are allowed.', 'error')
-      clearSelectedFile()
-      return
-    }
-
-    if (file.size > MAX_PDF_BYTES) {
-      showToast('PDF file must be 20 MB or smaller.', 'error')
+    const validationError = validatePdfFile(file)
+    if (validationError) {
+      showToast(validationError, 'error')
       clearSelectedFile()
       return
     }

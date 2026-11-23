@@ -540,6 +540,10 @@ export const BulkRegisterPanel: React.FC<BulkRegisterPanelProps> = ({
                               <img
                                 src={athlete.photo_thumb_url || athlete.photo_url}
                                 alt={athlete.name}
+                                width={32}
+                                height={32}
+                                loading="lazy"
+                                decoding="async"
                                 referrerPolicy="no-referrer"
                                 className="w-8 h-8 rounded-xl object-cover bg-surface-2 border border-border shrink-0"
                               />

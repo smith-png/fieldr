@@ -231,6 +231,9 @@ export const SecuredSequence: React.FC<SecuredSequenceProps> = ({
                   <img
                     src={photoUrl}
                     alt={playerName}
+                    width={288}
+                    height={352}
+                    decoding="async"
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover"
                   />
@@ -326,6 +329,9 @@ export const SecuredSequence: React.FC<SecuredSequenceProps> = ({
                     <img
                       src={teamLogoUrl}
                       alt={teamName}
+                      width={80}
+                      height={80}
+                      decoding="async"
                       referrerPolicy="no-referrer"
                       className="w-full h-full object-cover"
                     />

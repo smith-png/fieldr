@@ -1,4 +1,18 @@
 import { formatPoints, getInitials } from './utils'
+import {
+  SHARE_FONT_MONO as FONT_MONO,
+  SHARE_FONT_SANS as FONT_SANS,
+  SHARE_FONT_SYNE as FONT_SYNE,
+  canvasToPngBlob,
+  drawFieldrTile,
+  drawTrackedText,
+  loadImageAnonymous,
+  resolveShareColor,
+  roundedRectPath,
+  shareOrDownloadPng,
+  truncateText,
+  waitForShareFonts
+} from './shareCanvasUtils'
 
 export interface ShareResultsTopBuy {
   name: string
@@ -50,34 +64,8 @@ const COLORS = {
   accentBright: '#047554'
 } as const
 
-const FONT_SYNE = '"Syne", -apple-system, BlinkMacSystemFont, sans-serif'
-const FONT_SANS = '"DM Sans", -apple-system, BlinkMacSystemFont, sans-serif'
-const FONT_MONO = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace'
-
-const IMAGE_TIMEOUT_MS = 8000
-
-const DISALLOWED_CSS_COLORS = new Set([
-  'transparent',
-  'currentcolor',
-  'inherit',
-  'initial',
-  'unset',
-  'revert',
-  'revert-layer'
-])
-
 function resolveColor(color?: string | null, fallback: string = COLORS.accentBright): string {
-  const clean = color?.trim()
-  if (!clean) return fallback
-  if (DISALLOWED_CSS_COLORS.has(clean.toLowerCase())) return fallback
-  if (/[;{}<>]/.test(clean)) return fallback
-
-  if (typeof CSS !== 'undefined' && typeof CSS.supports === 'function') {
-    return CSS.supports('color', clean) ? clean : fallback
-  }
-  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(clean)
-    ? clean
-    : fallback
+  return resolveShareColor(color, fallback)
 }
 
 function buildFilename(seasonName?: string | null): string {
@@ -91,198 +79,13 @@ function buildFilename(seasonName?: string | null): string {
 }
 
 async function waitForFonts(): Promise<void> {
-  if (typeof document === 'undefined' || !('fonts' in document)) return
-  try {
-    await Promise.allSettled([
-      document.fonts.load('800 54px "Syne"'),
-      document.fonts.load('700 22px "Syne"'),
-      document.fonts.load('400 18px "DM Sans"'),
-      document.fonts.load('500 16px "DM Sans"'),
-      document.fonts.load('600 16px "DM Sans"')
-    ])
-    await document.fonts.ready
-  } catch {
-    // Continue with currently loaded fonts if Font Loading API rejects
-  }
-}
-
-function loadImageAnonymous(url?: string | null): Promise<HTMLImageElement | null> {
-  const clean = url?.trim()
-  if (!clean) return Promise.resolve(null)
-
-  return new Promise((resolve) => {
-    let settled = false
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    img.referrerPolicy = 'no-referrer'
-
-    const finish = (result: HTMLImageElement | null) => {
-      if (settled) return
-      settled = true
-      window.clearTimeout(timer)
-      img.onload = null
-      img.onerror = null
-      resolve(result)
-    }
-
-    const timer = window.setTimeout(() => finish(null), IMAGE_TIMEOUT_MS)
-
-    img.onload = () => {
-      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-        if (typeof img.decode === 'function') {
-          img
-            .decode()
-            .then(() => finish(img))
-            .catch(() => finish(img))
-        } else {
-          finish(img)
-        }
-      } else {
-        finish(null)
-      }
-    }
-
-    img.onerror = () => finish(null)
-    img.src = clean
-  })
-}
-
-function roundedRectPath(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number
-): void {
-  const radius = Math.max(0, Math.min(r, w / 2, h / 2))
-  ctx.beginPath()
-  ctx.moveTo(x + radius, y)
-  ctx.lineTo(x + w - radius, y)
-  ctx.quadraticCurveTo(x + w, y, x + w, y + radius)
-  ctx.lineTo(x + w, y + h - radius)
-  ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h)
-  ctx.lineTo(x + radius, y + h)
-  ctx.quadraticCurveTo(x, y + h, x, y + h - radius)
-  ctx.lineTo(x, y + radius)
-  ctx.quadraticCurveTo(x, y, x + radius, y)
-  ctx.closePath()
-}
-
-function drawTrackedText(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  x: number,
-  y: number,
-  tracking: number,
-  maxWidth?: number
-): void {
-  if (!text) return
-  if (tracking === 0) {
-    ctx.fillText(text, x, y, maxWidth)
-    return
-  }
-
-  let cursorX = x
-  const limitX = maxWidth !== undefined ? x + maxWidth : Infinity
-
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]
-    const chWidth = ctx.measureText(ch).width
-    if (cursorX + chWidth > limitX) break
-    ctx.fillText(ch, cursorX, y)
-    cursorX += chWidth + tracking
-  }
-}
-
-function truncateText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
-  const clean = text.trim()
-  if (!clean) return ''
-  if (ctx.measureText(clean).width <= maxWidth) return clean
-
-  const ellipsis = '...'
-  const ellipsisW = ctx.measureText(ellipsis).width
-  if (ellipsisW >= maxWidth) return ''
-
-  let low = 0
-  let high = clean.length
-  while (low < high) {
-    const mid = Math.ceil((low + high) / 2)
-    if (ctx.measureText(clean.slice(0, mid)).width + ellipsisW <= maxWidth) {
-      low = mid
-    } else {
-      high = mid - 1
-    }
-  }
-  return clean.slice(0, Math.max(0, low)).trimEnd() + ellipsis
-}
-
-function drawFieldrTile(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  size: number
-): void {
-  const r = Math.round(size * 0.22)
-
-  ctx.save()
-  roundedRectPath(ctx, x, y, size, size, r)
-  ctx.clip()
-
-  ctx.fillStyle = '#06241A'
-  ctx.fillRect(x, y, size, size)
-
-  const blob1 = ctx.createRadialGradient(
-    x + size * 0.26,
-    y + size * 0.34,
-    0,
-    x + size * 0.26,
-    y + size * 0.34,
-    size * 0.62
-  )
-  blob1.addColorStop(0, 'rgba(4, 117, 84, 0.95)')
-  blob1.addColorStop(1, 'rgba(4, 117, 84, 0)')
-  ctx.fillStyle = blob1
-  ctx.fillRect(x, y, size, size)
-
-  const blob2 = ctx.createRadialGradient(
-    x + size * 0.78,
-    y + size * 0.78,
-    0,
-    x + size * 0.78,
-    y + size * 0.78,
-    size * 0.6
-  )
-  blob2.addColorStop(0, 'rgba(57, 95, 61, 0.9)')
-  blob2.addColorStop(1, 'rgba(57, 95, 61, 0)')
-  ctx.fillStyle = blob2
-  ctx.fillRect(x, y, size, size)
-
-  const blob3 = ctx.createRadialGradient(
-    x + size * 0.45,
-    y + size * 0.2,
-    0,
-    x + size * 0.45,
-    y + size * 0.2,
-    size * 0.5
-  )
-  blob3.addColorStop(0, 'rgba(10, 154, 108, 0.55)')
-  blob3.addColorStop(1, 'rgba(10, 154, 108, 0)')
-  ctx.fillStyle = blob3
-  ctx.fillRect(x, y, size, size)
-
-  roundedRectPath(ctx, x + 0.5, y + 0.5, size - 1, size - 1, r)
-  ctx.strokeStyle = 'rgba(4, 24, 17, 0.75)'
-  ctx.lineWidth = Math.max(1.5, size * 0.05)
-  ctx.stroke()
-
-  ctx.fillStyle = '#FFFFFF'
-  ctx.font = `800 ${Math.round(size * 0.6)}px ${FONT_SYNE}`
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText('F', x + size / 2, y + size * 0.52)
-
-  ctx.restore()
+  await waitForShareFonts([
+    '800 54px "Syne"',
+    '700 22px "Syne"',
+    '400 18px "DM Sans"',
+    '500 16px "DM Sans"',
+    '600 16px "DM Sans"'
+  ])
 }
 
 function drawAvatarOrInitials(
@@ -686,32 +489,6 @@ async function renderResultsCanvas(
   return canvas
 }
 
-function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) {
-        resolve(blob)
-      } else {
-        reject(new Error('Failed to export results image.'))
-      }
-    }, 'image/png')
-  })
-}
-
-function triggerDownload(blob: Blob, filename: string): void {
-  const objectUrl = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = objectUrl
-  link.download = filename
-  link.rel = 'noopener'
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  window.setTimeout(() => {
-    URL.revokeObjectURL(objectUrl)
-  }, 10_000)
-}
-
 export async function shareResultsImage(
   options: ShareResultsOptions
 ): Promise<ShareResultsOutcome> {
@@ -720,42 +497,11 @@ export async function shareResultsImage(
   }
 
   const canvas = await renderResultsCanvas(options)
-  const blob = await canvasToPngBlob(canvas)
+  const blob = await canvasToPngBlob(canvas, 'Failed to export results image.')
   const filename = buildFilename(options.seasonName)
+  const title = options.seasonName
+    ? `${options.seasonName} Auction Results`
+    : 'Fieldr Auction Results'
 
-  const canShareFiles =
-    typeof navigator !== 'undefined' &&
-    typeof navigator.share === 'function' &&
-    typeof navigator.canShare === 'function' &&
-    typeof File !== 'undefined'
-
-  if (canShareFiles) {
-    const file = new File([blob], filename, { type: 'image/png' })
-    let supported = false
-    try {
-      supported = navigator.canShare({ files: [file] })
-    } catch {
-      supported = false
-    }
-
-    if (supported) {
-      try {
-        await navigator.share({
-          files: [file],
-          title: options.seasonName
-            ? `${options.seasonName} Auction Results`
-            : 'Fieldr Auction Results'
-        })
-        return { outcome: 'shared', filename }
-      } catch (err) {
-        if (err instanceof DOMException && err.name === 'AbortError') {
-          return { outcome: 'cancelled', filename }
-        }
-        // Fall through to PNG download if Web Share fails
-      }
-    }
-  }
-
-  triggerDownload(blob, filename)
-  return { outcome: 'downloaded', filename }
+  return shareOrDownloadPng(blob, filename, title)
 }

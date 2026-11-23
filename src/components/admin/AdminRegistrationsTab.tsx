@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowsClockwise,
   Check,
@@ -28,7 +28,7 @@ import {
 import { ACADEMIC_YEARS, getAcademicYearLabel } from '../../lib/academicYears'
 import { useToast } from '../../lib/ToastContext'
 import { getErrorMessage } from '../../lib/errors'
-import { Button, Dialog, EmptyState, SkeletonBlock } from '../ui'
+import { Button, Dialog, EmptyState, Pagination, SkeletonBlock } from '../ui'
 import {
   ADMIN_CARD,
   ADMIN_CARD_HEADER,
@@ -56,6 +56,14 @@ interface EditRowDraft {
   playing_role: string
 }
 
+const PAGE_SIZE = 10
+const ROLL_NUMBER_REGEX = /^\d{1,5}$/
+const ROLL_NUMBER_ERROR = 'Enter your roll number using digits only (for example 23131)'
+
+function sanitizeRollNo(value: string): string {
+  return value.replace(/\D/g, '').slice(0, 5)
+}
+
 function formatDateTimeShort(iso?: string | null): string {
   if (!iso) return '—'
   const d = new Date(iso)
@@ -76,6 +84,7 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
   const { showToast } = useToast()
 
   const [subView, setSubView] = useState<'pending' | 'history'>('pending')
+  const [currentPage, setCurrentPage] = useState(1)
   const [registrations, setRegistrations] = useState<AthleteRegistration[]>([])
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(true)
@@ -84,6 +93,7 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
   // Selection for bulk approve
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [isBulkApproveDialogOpen, setIsBulkApproveDialogOpen] = useState(false)
   const [isBulkApproving, setIsBulkApproving] = useState(false)
 
   // Photo lightbox preview
@@ -93,6 +103,7 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
   const [editTarget, setEditTarget] = useState<AthleteRegistration | null>(null)
   const [editFullName, setEditFullName] = useState('')
   const [editRollNo, setEditRollNo] = useState('')
+  const [editRollError, setEditRollError] = useState<string | null>(null)
   const [editAcademicYear, setEditAcademicYear] = useState<AcademicYear>('1st')
   const [editSportRows, setEditSportRows] = useState<EditRowDraft[]>([])
   const [editReplacePhoto, setEditReplacePhoto] = useState(false)
@@ -106,9 +117,19 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
   // Purge confirmation dialog state
   const [isPurgeDialogOpen, setIsPurgeDialogOpen] = useState(false)
   const [isPurging, setIsPurging] = useState(false)
+  const isMountedRef = useRef(true)
+  const latestReqIdRef = useRef(0)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   const loadRegistrations = useCallback(
-    async (options?: { manual?: boolean }) => {
+    async (options?: { manual?: boolean; resetPage?: boolean }) => {
+      const reqId = ++latestReqIdRef.current
       try {
         if (options?.manual) {
           setIsRefreshing(true)
@@ -116,7 +137,11 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
           setIsLoading(true)
         }
         const rows = await listAdminRegistrations()
+        if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
         setRegistrations(rows)
+        if (options?.resetPage) {
+          setCurrentPage(1)
+        }
 
         const pendingRows = rows.filter((r) => r.status === 'pending')
         onPendingCountChange(pendingRows.length)
@@ -129,6 +154,7 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
         }
         if (pathsToSign.length > 0) {
           const urls = await getPendingPhotoSignedUrls(pathsToSign)
+          if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
           setSignedUrls(urls)
         } else {
           setSignedUrls({})
@@ -146,10 +172,13 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
           return next
         })
       } catch (err: unknown) {
+        if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
         showToast(getErrorMessage(err, 'Failed to load registrations'), 'error')
       } finally {
-        setIsLoading(false)
-        setIsRefreshing(false)
+        if (isMountedRef.current && reqId === latestReqIdRef.current) {
+          setIsLoading(false)
+          setIsRefreshing(false)
+        }
       }
     },
     [onPendingCountChange, showToast]
@@ -173,6 +202,39 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
     () => pendingList.filter((r) => r.photo_uploaded),
     [pendingList]
   )
+
+  const selectedApprovableCount = useMemo(
+    () => approvablePending.filter((r) => selectedIds.has(r.id)).length,
+    [approvablePending, selectedIds]
+  )
+
+  const pendingTotalPages = Math.max(1, Math.ceil(pendingList.length / PAGE_SIZE))
+  const historyTotalPages = Math.max(1, Math.ceil(historyList.length / PAGE_SIZE))
+  const activeTotalPages = subView === 'pending' ? pendingTotalPages : historyTotalPages
+  const effectivePage = Math.min(currentPage, activeTotalPages)
+
+  useEffect(() => {
+    if (currentPage > activeTotalPages) {
+      setCurrentPage(activeTotalPages)
+    }
+  }, [currentPage, activeTotalPages])
+
+  const pagedPendingList = useMemo(() => {
+    const start = (effectivePage - 1) * PAGE_SIZE
+    return pendingList.slice(start, start + PAGE_SIZE)
+  }, [pendingList, effectivePage])
+
+  const pagedHistoryList = useMemo(() => {
+    const start = (effectivePage - 1) * PAGE_SIZE
+    return historyList.slice(start, start + PAGE_SIZE)
+  }, [historyList, effectivePage])
+
+  const handleSwitchSubView = (nextView: 'pending' | 'history') => {
+    if (nextView !== subView) {
+      setSubView(nextView)
+      setCurrentPage(1)
+    }
+  }
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -230,7 +292,8 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
   const openEditApproveDialog = (reg: AthleteRegistration) => {
     setEditTarget(reg)
     setEditFullName(reg.full_name)
-    setEditRollNo(reg.roll_no)
+    setEditRollNo(sanitizeRollNo(reg.roll_no))
+    setEditRollError(null)
     setEditAcademicYear(reg.academic_year)
     setEditSportRows(
       reg.sport_entries.map((entry, idx) => ({
@@ -282,11 +345,17 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
     if (!editTarget || isSavingEditApprove) return
 
     const trimmedName = editFullName.trim()
-    const trimmedRoll = editRollNo.trim()
-    if (!trimmedName || !trimmedRoll) {
-      showToast('Name and roll number are required.', 'error')
+    const trimmedRoll = sanitizeRollNo(editRollNo)
+    if (!trimmedName) {
+      showToast('Name is required.', 'error')
       return
     }
+    if (!ROLL_NUMBER_REGEX.test(trimmedRoll)) {
+      setEditRollError(ROLL_NUMBER_ERROR)
+      showToast(ROLL_NUMBER_ERROR, 'error')
+      return
+    }
+    setEditRollError(null)
 
     const validEntries: RegistrationSportEntry[] = []
     const seen = new Set<string>()
@@ -357,7 +426,10 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
   const handleBulkApprove = async () => {
     if (selectedIds.size === 0 || isBulkApproving) return
     const targets = approvablePending.filter((r) => selectedIds.has(r.id))
-    if (targets.length === 0) return
+    if (targets.length === 0) {
+      setIsBulkApproveDialogOpen(false)
+      return
+    }
 
     setIsBulkApproving(true)
     let approved = 0
@@ -376,6 +448,7 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
       }
     }
     setIsBulkApproving(false)
+    setIsBulkApproveDialogOpen(false)
     setSelectedIds(new Set())
 
     if (failed > 0) {
@@ -424,7 +497,7 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
                 type="button"
                 role="tab"
                 aria-selected={subView === 'pending'}
-                onClick={() => setSubView('pending')}
+                onClick={() => handleSwitchSubView('pending')}
                 className={`min-h-[30px] px-3.5 py-1 rounded-full text-xs whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
                   subView === 'pending'
                     ? 'bg-btn-bg text-btn-fg font-medium'
@@ -437,7 +510,7 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
                 type="button"
                 role="tab"
                 aria-selected={subView === 'history'}
-                onClick={() => setSubView('history')}
+                onClick={() => handleSwitchSubView('history')}
                 className={`min-h-[30px] px-3.5 py-1 rounded-full text-xs whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
                   subView === 'history'
                     ? 'bg-btn-bg text-btn-fg font-medium'
@@ -458,7 +531,7 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
             leftIcon={ArrowsClockwise}
             isLoading={isRefreshing}
             disabled={isRefreshing || isBulkApproving}
-            onClick={() => void loadRegistrations({ manual: true })}
+            onClick={() => void loadRegistrations({ manual: true, resetPage: true })}
             className="rounded-full"
           >
             Refresh
@@ -499,7 +572,7 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
               Clear
             </button>
             <span className="font-mono text-muted tabular-nums">
-              {selectedIds.size} selected
+              {selectedApprovableCount} selected
             </span>
           </div>
 
@@ -508,12 +581,12 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
             variant="primary"
             size="sm"
             leftIcon={CheckCircle}
-            disabled={selectedIds.size === 0 || isBulkApproving || Boolean(busyId)}
+            disabled={selectedApprovableCount === 0 || isBulkApproving || Boolean(busyId)}
             isLoading={isBulkApproving}
-            onClick={() => void handleBulkApprove()}
+            onClick={() => setIsBulkApproveDialogOpen(true)}
             className="rounded-full px-4"
           >
-            Bulk approve selected ({selectedIds.size})
+            Bulk approve selected ({selectedApprovableCount})
           </Button>
         </div>
       )}
@@ -537,7 +610,7 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
           />
         ) : (
           <div className="space-y-3">
-            {pendingList.map((reg) => {
+            {pagedPendingList.map((reg) => {
               const thumbUrl =
                 (reg.pending_thumb_path && signedUrls[reg.pending_thumb_path]) ||
                 (reg.pending_photo_path && signedUrls[reg.pending_photo_path]) ||
@@ -575,6 +648,10 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
                         <img
                           src={thumbUrl}
                           alt={reg.full_name}
+                          width={64}
+                          height={80}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover"
                         />
                       </button>
@@ -679,6 +756,18 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
                 </div>
               )
             })}
+            {pendingTotalPages > 1 && (
+              <div className="py-3.5 px-4 rounded-2xl border border-border bg-surface-2/60">
+                <Pagination
+                  currentPage={effectivePage}
+                  totalPages={pendingTotalPages}
+                  totalCount={pendingList.length}
+                  pageSize={PAGE_SIZE}
+                  onPageChange={setCurrentPage}
+                  isLoading={isRefreshing || isBulkApproving}
+                />
+              </div>
+            )}
           </div>
         )
       ) : historyList.length === 0 ? (
@@ -688,7 +777,7 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
         />
       ) : (
         <div className="space-y-2.5">
-          {historyList.map((reg) => (
+          {pagedHistoryList.map((reg) => (
             <div
               key={reg.id}
               className={`${ADMIN_WELL} px-4 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3`}
@@ -737,6 +826,18 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
               </div>
             </div>
           ))}
+          {historyTotalPages > 1 && (
+            <div className="py-3.5 px-4 rounded-2xl border border-border bg-surface-2/60">
+              <Pagination
+                currentPage={effectivePage}
+                totalPages={historyTotalPages}
+                totalCount={historyList.length}
+                pageSize={PAGE_SIZE}
+                onPageChange={setCurrentPage}
+                isLoading={isRefreshing}
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -754,6 +855,9 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
               <img
                 src={previewPhoto.url}
                 alt={previewPhoto.name}
+                width={320}
+                height={400}
+                decoding="async"
                 className="w-full h-full object-cover"
               />
             </div>
@@ -783,7 +887,7 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
         className={ADMIN_DIALOG_CLASS}
       >
         {editTarget && (
-          <form onSubmit={handleConfirmEditApprove} className="space-y-4">
+          <form onSubmit={handleConfirmEditApprove} className="space-y-4" noValidate>
             <div className="space-y-1.5">
               <label htmlFor="edit-reg-name" className={ADMIN_LABEL}>
                 Full Name *
@@ -807,12 +911,52 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
                 <input
                   id="edit-reg-roll"
                   type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   required
-                  maxLength={40}
+                  maxLength={5}
+                  autoComplete="off"
+                  placeholder="e.g. 23131"
                   value={editRollNo}
-                  onChange={(e) => setEditRollNo(e.target.value)}
-                  className={`${ADMIN_INPUT} font-mono`}
+                  onChange={(e) => {
+                    const raw = e.target.value
+                    const cleaned = sanitizeRollNo(raw)
+                    setEditRollNo(cleaned)
+                    if (ROLL_NUMBER_REGEX.test(cleaned)) {
+                      setEditRollError(null)
+                    } else if (raw !== cleaned || editRollError) {
+                      setEditRollError(ROLL_NUMBER_ERROR)
+                    }
+                  }}
+                  onPaste={(e) => {
+                    e.preventDefault()
+                    const pasted = e.clipboardData.getData('text')
+                    const start = e.currentTarget.selectionStart ?? editRollNo.length
+                    const end = e.currentTarget.selectionEnd ?? editRollNo.length
+                    const raw = editRollNo.slice(0, start) + pasted + editRollNo.slice(end)
+                    const cleaned = sanitizeRollNo(raw)
+                    setEditRollNo(cleaned)
+                    if (ROLL_NUMBER_REGEX.test(cleaned)) {
+                      setEditRollError(null)
+                    } else {
+                      setEditRollError(ROLL_NUMBER_ERROR)
+                    }
+                  }}
+                  onBlur={() => {
+                    if (!ROLL_NUMBER_REGEX.test(editRollNo)) {
+                      setEditRollError(ROLL_NUMBER_ERROR)
+                    }
+                  }}
+                  aria-invalid={Boolean(editRollError)}
+                  className={`${ADMIN_INPUT} font-mono${
+                    editRollError ? ' border-error focus:border-error' : ''
+                  }`}
                 />
+                {editRollError && (
+                  <p role="alert" className="text-xs text-error">
+                    {editRollError}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -1012,6 +1156,45 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
             </Button>
           </div>
         </form>
+      </Dialog>
+
+      {/* Bulk Approve Confirmation Dialog */}
+      <Dialog
+        isOpen={isBulkApproveDialogOpen}
+        onClose={() => {
+          if (!isBulkApproving) setIsBulkApproveDialogOpen(false)
+        }}
+        title="Bulk Approve Registrations"
+        description={`Approve ${selectedApprovableCount} selected ${
+          selectedApprovableCount === 1 ? 'registration' : 'registrations'
+        }? Each approved entry will be added to the athlete directory and registered for its selected sports.`}
+        size="sm"
+        className={ADMIN_DIALOG_CLASS}
+      >
+        <div className="pt-4 border-t border-border flex justify-end gap-2.5">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={isBulkApproving}
+            onClick={() => setIsBulkApproveDialogOpen(false)}
+            className="rounded-full"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            leftIcon={CheckCircle}
+            disabled={selectedApprovableCount === 0 || isBulkApproving}
+            isLoading={isBulkApproving}
+            onClick={() => void handleBulkApprove()}
+            className="rounded-full px-4"
+          >
+            Approve {selectedApprovableCount}
+          </Button>
+        </div>
       </Dialog>
 
       {/* Purge Confirmation Dialog */}

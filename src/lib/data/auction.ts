@@ -1,3 +1,4 @@
+import { logError } from '../logger'
 import type {
   AuctionBid,
   AuctionSale,
@@ -615,7 +616,7 @@ const supabaseAuctionService: AuctionService = {
       .maybeSingle()
 
     if (error) {
-      console.error('Supabase getAuctionSettings error:', error.message, error)
+      logError('Supabase getAuctionSettings error:', error.message, error)
       return normalizeAuctionSettings(seasonId, null)
     }
 
@@ -658,7 +659,7 @@ const supabaseAuctionService: AuctionService = {
       .single()
 
     if (error) {
-      console.error('Supabase saveAuctionSettings error:', error.message, error)
+      logError('Supabase saveAuctionSettings error:', error.message, error)
       throw new AppError(error.message, { original: error })
     }
 
@@ -742,7 +743,7 @@ const supabaseAuctionService: AuctionService = {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Supabase getAuctionBidsForPlayer error:', error.message, error)
+      logError('Supabase getAuctionBidsForPlayer error:', error.message, error)
       throw new AppError(error.message, { original: error })
     }
 
@@ -771,7 +772,7 @@ const supabaseAuctionService: AuctionService = {
       (error.message && error.message.includes('season_id'))
 
     if (!isColumnError) {
-      console.error('Supabase getRecentAuctionSales error:', error.message, error)
+      logError('Supabase getRecentAuctionSales error:', error.message, error)
       throw new AppError(error.message, { original: error })
     }
 
@@ -783,7 +784,7 @@ const supabaseAuctionService: AuctionService = {
       .limit(limit)
 
     if (fallbackError) {
-      console.error('Supabase getRecentAuctionSales error:', fallbackError.message, fallbackError)
+      logError('Supabase getRecentAuctionSales error:', fallbackError.message, fallbackError)
       throw new AppError(fallbackError.message, { original: fallbackError })
     }
 
@@ -797,7 +798,7 @@ const supabaseAuctionService: AuctionService = {
       p_player_id: playerId
     })
     if (error) {
-      console.error('Supabase auction_bring_to_stage error:', error.message, error)
+      logError('Supabase auction_bring_to_stage error:', error.message, error)
       throw new AppError(error.message, { original: error })
     }
     markLocalMutation(['auction'])
@@ -811,7 +812,7 @@ const supabaseAuctionService: AuctionService = {
       p_amount: amount
     })
     if (error) {
-      console.error('Supabase auction_place_bid error:', error.message, error)
+      logError('Supabase auction_place_bid error:', error.message, error)
       throw new AppError(error.message, { original: error })
     }
     markLocalMutation(['auction'])
@@ -824,7 +825,7 @@ const supabaseAuctionService: AuctionService = {
       p_season_id: seasonId
     })
     if (error) {
-      console.error('Supabase auction_clear_bid error:', error.message, error)
+      logError('Supabase auction_clear_bid error:', error.message, error)
       throw new AppError(error.message, { original: error })
     }
     markLocalMutation(['auction'])
@@ -837,7 +838,7 @@ const supabaseAuctionService: AuctionService = {
       p_season_id: seasonId
     })
     if (error) {
-      console.error('Supabase auction_secure error:', error.message, error)
+      logError('Supabase auction_secure error:', error.message, error)
       throw new AppError(error.message, { original: error })
     }
     markLocalMutation(['auction', 'players', 'teams'])
@@ -850,7 +851,7 @@ const supabaseAuctionService: AuctionService = {
       p_season_id: seasonId
     })
     if (error) {
-      console.error('Supabase auction_mark_unsold error:', error.message, error)
+      logError('Supabase auction_mark_unsold error:', error.message, error)
       throw new AppError(error.message, { original: error })
     }
     markLocalMutation(['auction', 'players'])
@@ -863,7 +864,7 @@ const supabaseAuctionService: AuctionService = {
       p_season_id: seasonId
     })
     if (error) {
-      console.error('Supabase auction_undo_last_sale error:', error.message, error)
+      logError('Supabase auction_undo_last_sale error:', error.message, error)
       throw new AppError(error.message, { original: error })
     }
     markLocalMutation(['auction', 'players', 'teams'])
@@ -889,7 +890,7 @@ const supabaseAuctionService: AuctionService = {
       .single()
 
     if (error) {
-      console.error('Supabase auctionBackToIdle error:', error.message, error)
+      logError('Supabase auctionBackToIdle error:', error.message, error)
       throw new AppError(error.message, { original: error })
     }
 
@@ -1137,7 +1138,7 @@ export async function getAuctionQueue(
   }
 
   if (error) {
-    console.error('Supabase getAuctionQueue error:', error.message, error)
+    logError('Supabase getAuctionQueue error:', error.message, error)
     throw new AppError(error.message, { original: error })
   }
 

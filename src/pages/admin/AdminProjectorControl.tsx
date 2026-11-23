@@ -1147,6 +1147,10 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
                             <img
                               src={matchedPlayer.photo_thumb_url || matchedPlayer.photo_url}
                               alt={matchedPlayer.name}
+                              width={40}
+                              height={40}
+                              loading="lazy"
+                              decoding="async"
                               referrerPolicy="no-referrer"
                               className="w-full h-full object-cover"
                             />

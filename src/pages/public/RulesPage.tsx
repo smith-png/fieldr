@@ -1,3 +1,4 @@
+import { logError } from '../../lib/logger'
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
@@ -90,7 +91,7 @@ export const RulesPage: React.FC = () => {
           setDocuments(docs)
         }
       } catch (err) {
-        console.error('Failed to load rules documents:', err)
+        logError('Failed to load rules documents:', err)
       } finally {
         if (mounted) {
           setIsLoading(false)
@@ -111,7 +112,6 @@ export const RulesPage: React.FC = () => {
       <NavigationMenu
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
-        activeSeason={activeSeason}
       />
 
       <main className={PUBLIC_MAIN_NARROW}>

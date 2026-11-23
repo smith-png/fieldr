@@ -1,5 +1,5 @@
-export const QUERY_FRESH_TTL_MS = 60_000
-export const QUERY_REVALIDATE_AFTER_MS = 30_000
+const QUERY_FRESH_TTL_MS = 60_000
+const QUERY_REVALIDATE_AFTER_MS = 30_000
 
 interface CacheEntry<T = unknown> {
   data: T
@@ -34,18 +34,6 @@ export function shouldRevalidateQuery(
   const entry = memoryQueryCache.get(key)
   if (!entry) return true
   return Date.now() - entry.updatedAt >= revalidateAfterMs
-}
-
-export function invalidateQuery(keyOrPrefix?: string): void {
-  if (!keyOrPrefix) {
-    memoryQueryCache.clear()
-    return
-  }
-  for (const key of Array.from(memoryQueryCache.keys())) {
-    if (key === keyOrPrefix || key.startsWith(keyOrPrefix)) {
-      memoryQueryCache.delete(key)
-    }
-  }
 }
 
 const prefetchedModules = new Set<string>()
@@ -170,7 +158,6 @@ export function scheduleLikelyAdminPrefetch(): () => void {
     prefetchAdminTab('auction')
     prefetchAdminTab('logs')
     prefetchAdminTab('projector')
-    prefetchAdminTab('setup')
   }, 1000)
 
   return () => clearTimeout(timer)

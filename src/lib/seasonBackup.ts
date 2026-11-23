@@ -1,7 +1,8 @@
 import type { Season } from '../types'
 import { AppError } from './errors'
-import { publicCache } from './publicCache'
 import { markLocalMutation, supabase } from './data/client'
+import { invalidateSeasonCaches } from './data/seasons'
+import { isRecord, toFiniteNumber, toNullableFiniteNumber } from './utils'
 
 export const SEASON_BACKUP_SCHEMA_VERSION = 1 as const
 const PAGE_SIZE = 500
@@ -166,28 +167,9 @@ export interface RestoreSeasonBackupResult {
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function toNullableString(value: unknown): string | null {
   if (value === null || value === undefined) return null
   return String(value)
-}
-
-function toFiniteNumber(value: unknown, fallback = 0): number {
-  if (typeof value === 'number' && Number.isFinite(value)) return value
-  if (typeof value === 'string' && value.trim() !== '') {
-    const parsed = Number(value)
-    if (Number.isFinite(parsed)) return parsed
-  }
-  return fallback
-}
-
-function toNullableFiniteNumber(value: unknown): number | null {
-  if (value === null || value === undefined || value === '') return null
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
 }
 
 function isNonNegativeInt(value: unknown): value is number {
@@ -218,21 +200,6 @@ function isMissingSeasonIdColumnError(err: { code?: string; message?: string } |
     err.code === 'PGRST204' ||
     Boolean(err.message && err.message.includes('season_id'))
   )
-}
-
-function invalidateSeasonCaches(): void {
-  publicCache.activeSeason = { loaded: false, value: null }
-  publicCache.seasonCards = { loaded: false, value: [] }
-  publicCache.seasonDetails.clear()
-  publicCache.seasonTeamDetails.clear()
-  if (typeof window !== 'undefined') {
-    try {
-      localStorage.setItem('fieldr_seasons_updated_at', String(Date.now()))
-      localStorage.removeItem('fieldr_public_home_v1')
-    } catch {
-      // ignore storage errors
-    }
-  }
 }
 
 async function fetchPagedRows<T>(

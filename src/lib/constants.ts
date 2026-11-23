@@ -1,16 +1,10 @@
-export const PLAYER_STATUS = {
+const PLAYER_STATUS = {
   AVAILABLE: 'available',
   SOLD: 'sold',
   UNSOLD: 'unsold'
 } as const
 
 export type PlayerStatus = (typeof PLAYER_STATUS)[keyof typeof PLAYER_STATUS]
-
-const PLAYER_STATUS_VALUES: readonly PlayerStatus[] = [
-  PLAYER_STATUS.AVAILABLE,
-  PLAYER_STATUS.SOLD,
-  PLAYER_STATUS.UNSOLD
-]
 
 export const PROJECTOR_MODES = {
   IDLE: 'idle',
@@ -26,18 +20,6 @@ export const PROJECTOR_MODES = {
 
 export type ProjectorMode = (typeof PROJECTOR_MODES)[keyof typeof PROJECTOR_MODES]
 
-const PROJECTOR_MODE_VALUES: readonly ProjectorMode[] = [
-  PROJECTOR_MODES.IDLE,
-  PROJECTOR_MODES.TEAMS,
-  PROJECTOR_MODES.PLAYER,
-  PROJECTOR_MODES.ROSTER,
-  PROJECTOR_MODES.PLAYER_AUTO,
-  PROJECTOR_MODES.ROSTER_AUTO,
-  PROJECTOR_MODES.AUCTION,
-  PROJECTOR_MODES.SOLD,
-  PROJECTOR_MODES.UNSOLD
-]
-
 export const PROJECTOR_AUTO_FILTERS = {
   ALL: 'all',
   AVAILABLE: 'available',
@@ -47,13 +29,6 @@ export const PROJECTOR_AUTO_FILTERS = {
 
 export type ProjectorAutoFilter =
   (typeof PROJECTOR_AUTO_FILTERS)[keyof typeof PROJECTOR_AUTO_FILTERS]
-
-const PROJECTOR_AUTO_FILTER_VALUES: readonly ProjectorAutoFilter[] = [
-  PROJECTOR_AUTO_FILTERS.ALL,
-  PROJECTOR_AUTO_FILTERS.AVAILABLE,
-  PROJECTOR_AUTO_FILTERS.SOLD,
-  PROJECTOR_AUTO_FILTERS.UNSOLD
-]
 
 export const PROJECTOR_AUTO_INTERVAL = {
   MIN: 3,

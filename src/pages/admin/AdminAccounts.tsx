@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowsClockwise, SignOut, Trash } from '@phosphor-icons/react'
 import { supabase } from '../../lib/data/client'
 import {
@@ -194,10 +194,21 @@ export const AdminAccounts: React.FC = () => {
   const [isSignOutOthersOpen, setIsSignOutOthersOpen] = useState<boolean>(false)
   const [isSigningOutOthers, setIsSigningOutOthers] = useState<boolean>(false)
 
+  const isMountedRef = useRef(true)
+  const latestReqIdRef = useRef(0)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
   const resolveCurrentSessionId = useCallback(async () => {
     if (!supabase) return
     try {
       const { data } = await supabase.auth.getSession()
+      if (!isMountedRef.current) return
       setCurrentSessionId(decodeJwtSessionId(data.session?.access_token))
     } catch {
       // Leave currentSessionId unchanged on transient read failure
@@ -206,6 +217,7 @@ export const AdminAccounts: React.FC = () => {
 
   const loadData = useCallback(
     async (options?: { force?: boolean }) => {
+      const reqId = ++latestReqIdRef.current
       const existingCache = getCachedQuery<AccountsCachePayload>(ACCOUNTS_CACHE_KEY)
       if (existingCache && !options?.force) {
         setAccounts(existingCache.data.accounts)
@@ -235,6 +247,8 @@ export const AdminAccounts: React.FC = () => {
           supabase.rpc('admin_list_admin_sessions'),
           supabase.auth.getSession()
         ])
+
+        if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
 
         setCurrentSessionId(decodeJwtSessionId(sessionRes.data.session?.access_token))
 
@@ -266,11 +280,14 @@ export const AdminAccounts: React.FC = () => {
           })
         }
       } catch (err: unknown) {
+        if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
         const msg = err instanceof Error ? err.message : 'Failed to load accounts'
         showError(msg)
       } finally {
-        setIsLoading(false)
-        setIsRefreshing(false)
+        if (isMountedRef.current && reqId === latestReqIdRef.current) {
+          setIsLoading(false)
+          setIsRefreshing(false)
+        }
       }
     },
     [showError]

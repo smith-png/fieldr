@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react'
+import { logError } from '../../lib/logger'
+import React, { useEffect, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Calendar, Trophy, User } from '@phosphor-icons/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
@@ -82,9 +83,19 @@ export const PlayerProfilePage: React.FC = () => {
   )
   const [isLoading, setIsLoading] = useState<boolean>(!initialCached)
   const [hasError, setHasError] = useState<boolean>(false)
+  const isMountedRef = useRef(true)
+  const latestReqIdRef = useRef(0)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
 
   const loadData = async (options?: { force?: boolean }) => {
     if (!code) return
+    const reqId = ++latestReqIdRef.current
     const key = getProfileCacheKey(code)
     const queryKey = `public:playerProfile:${key}`
     const cached = publicCache.playerProfiles.get(key)
@@ -108,6 +119,7 @@ export const PlayerProfilePage: React.FC = () => {
           : getActiveSeason(),
         getAthleteByCode(code)
       ])
+      if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
       const prevActive = publicCache.activeSeason.value
       const activeChanged =
         !publicCache.activeSeason.loaded || hasDataChanged(prevActive, active)
@@ -126,6 +138,7 @@ export const PlayerProfilePage: React.FC = () => {
       }
 
       const history = await getAthleteCareer(profile.id)
+      if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
       const nextEntry: PlayerProfileCacheEntry = {
         athlete: profile,
         career: history
@@ -140,7 +153,8 @@ export const PlayerProfilePage: React.FC = () => {
         setCareer(history)
       }
     } catch (err) {
-      console.error(
+      if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
+      logError(
         'Failed to load athlete profile data:',
         err instanceof Error ? err.message : err,
         err
@@ -149,7 +163,9 @@ export const PlayerProfilePage: React.FC = () => {
         setHasError(true)
       }
     } finally {
-      setIsLoading(false)
+      if (isMountedRef.current && reqId === latestReqIdRef.current) {
+        setIsLoading(false)
+      }
     }
   }
 
@@ -163,7 +179,6 @@ export const PlayerProfilePage: React.FC = () => {
       <NavigationMenu
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
-        activeSeason={activeSeason}
       />
 
       <main className={PUBLIC_MAIN_MEDIUM}>

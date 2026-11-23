@@ -11,6 +11,7 @@ import type {
   Sport
 } from '../../types'
 import { AppError } from '../errors'
+import { isRecord } from '../utils'
 import { blobToDataUrl, createThumbnailBlob } from '../imageCompression'
 import {
   DEFAULT_SPORTS,
@@ -46,20 +47,21 @@ const CLOSED_FALLBACK_CONFIG: PublicRegistrationConfig = {
 }
 
 // In-memory cache for public registration open/closed state (no polling, no realtime)
+const PUBLIC_CONFIG_TTL_MS = 60_000
 let cachedPublicConfig: PublicRegistrationConfig | null = null
+let cachedPublicConfigAt = 0
 let pendingPublicConfigPromise: Promise<PublicRegistrationConfig> | null = null
 
 export function getCachedPublicRegistrationConfig(): PublicRegistrationConfig | null {
+  if (!cachedPublicConfig) return null
+  if (Date.now() - cachedPublicConfigAt >= PUBLIC_CONFIG_TTL_MS) return null
   return cachedPublicConfig
 }
 
 export function invalidatePublicRegistrationConfigCache(): void {
   cachedPublicConfig = null
+  cachedPublicConfigAt = 0
   pendingPublicConfigPromise = null
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function normalizeRoll(roll: string): string {
@@ -227,7 +229,11 @@ function computeDemoPublicConfig(): PublicRegistrationConfig {
 export async function getPublicRegistrationConfig(
   force = false
 ): Promise<PublicRegistrationConfig> {
-  if (!force && cachedPublicConfig) {
+  if (
+    !force &&
+    cachedPublicConfig &&
+    Date.now() - cachedPublicConfigAt < PUBLIC_CONFIG_TTL_MS
+  ) {
     return cachedPublicConfig
   }
   if (!force && pendingPublicConfigPromise) {
@@ -238,19 +244,19 @@ export async function getPublicRegistrationConfig(
     if (isDemoMode || !supabase) {
       const cfg = computeDemoPublicConfig()
       cachedPublicConfig = cfg
+      cachedPublicConfigAt = Date.now()
       return cfg
     }
 
     const { data, error } = await supabase.rpc('get_public_registration_config')
     if (error) {
-      // Fail closed cleanly if SQL hasn't been installed yet or on transient error
-      const fallback = { ...CLOSED_FALLBACK_CONFIG }
-      cachedPublicConfig = fallback
-      return fallback
+      // Fail closed cleanly on SQL not installed or transient error without caching the failure
+      return { ...CLOSED_FALLBACK_CONFIG }
     }
 
     const parsed = parsePublicConfig(data)
     cachedPublicConfig = parsed
+    cachedPublicConfigAt = Date.now()
     return parsed
   })()
 
@@ -390,29 +396,45 @@ export async function submitPublicRegistration(
   const photoPath = `${registrationId}/photo.jpg`
   const thumbPath = `${registrationId}/thumb.jpg`
 
-  // Step 2: Upload compressed 4:5 JPEG + 400px thumbnail to private registration-pending bucket
+  // Step 2: Upload compressed 4:5 JPEG + 400px thumbnail in parallel to private registration-pending bucket
   onStepChange?.('uploading')
 
-  const { error: photoErr } = await supabase.storage
-    .from(REGISTRATION_PENDING_BUCKET)
-    .upload(photoPath, photoBlob, {
+  const [photoRes, thumbRes] = await Promise.all([
+    supabase.storage.from(REGISTRATION_PENDING_BUCKET).upload(photoPath, photoBlob, {
+      contentType: 'image/jpeg',
+      upsert: false
+    }),
+    supabase.storage.from(REGISTRATION_PENDING_BUCKET).upload(thumbPath, thumbBlob, {
       contentType: 'image/jpeg',
       upsert: false
     })
+  ])
 
-  if (photoErr) {
-    throw new AppError(`Photo upload failed: ${photoErr.message}`, { original: photoErr })
+  const uploadedPaths: string[] = []
+  if (!photoRes.error) uploadedPaths.push(photoPath)
+  if (!thumbRes.error) uploadedPaths.push(thumbPath)
+
+  const cleanupUploaded = async () => {
+    if (uploadedPaths.length === 0 || !supabase) return
+    try {
+      await supabase.storage.from(REGISTRATION_PENDING_BUCKET).remove(uploadedPaths)
+    } catch {
+      // Best-effort cleanup; ignore storage removal errors
+    }
   }
 
-  const { error: thumbErr } = await supabase.storage
-    .from(REGISTRATION_PENDING_BUCKET)
-    .upload(thumbPath, thumbBlob, {
-      contentType: 'image/jpeg',
-      upsert: false
+  if (photoRes.error) {
+    await cleanupUploaded()
+    throw new AppError(`Photo upload failed: ${photoRes.error.message}`, {
+      original: photoRes.error
     })
+  }
 
-  if (thumbErr) {
-    throw new AppError(`Thumbnail upload failed: ${thumbErr.message}`, { original: thumbErr })
+  if (thumbRes.error) {
+    await cleanupUploaded()
+    throw new AppError(`Thumbnail upload failed: ${thumbRes.error.message}`, {
+      original: thumbRes.error
+    })
   }
 
   // Step 3: Attach uploaded photo paths to the pending registration
@@ -425,6 +447,7 @@ export async function submitPublicRegistration(
   })
 
   if (attachErr) {
+    await cleanupUploaded()
     throw new AppError(attachErr.message || 'Failed to finalize registration photo.', {
       original: attachErr
     })

@@ -1,3 +1,4 @@
+import { logError } from '../logger'
 import type { CarouselItem, Season, SiteSettings, Sport } from '../../types'
 import type { SportSlug } from '../sports'
 import { AppError } from '../errors'
@@ -175,7 +176,7 @@ const supabaseSiteService: SiteService = {
 
       const { data, error } = await query
       if (error || !data || !Array.isArray(data) || data.length === 0) {
-        if (error) console.error('getCarouselItems error from Supabase:', error)
+        if (error) logError('getCarouselItems error from Supabase:', error)
         return activeOnly ? DEFAULT_CAROUSEL.filter((i) => i.active) : DEFAULT_CAROUSEL
       }
 
@@ -185,7 +186,7 @@ const supabaseSiteService: SiteService = {
       }
       return result
     } catch (err) {
-      console.error('getCarouselItems caught unexpected error:', err)
+      logError('getCarouselItems caught unexpected error:', err)
       return activeOnly ? DEFAULT_CAROUSEL.filter((i) => i.active) : DEFAULT_CAROUSEL
     }
   },
@@ -312,7 +313,7 @@ const supabaseSiteService: SiteService = {
       .select('key, value, updated_at')
       .limit(50)
     if (error) {
-      console.error('Supabase getSiteSettings error:', error.message, error)
+      logError('Supabase getSiteSettings error:', error.message, error)
       return DEFAULT_SETTINGS
     }
     if (!data) return DEFAULT_SETTINGS
@@ -523,7 +524,7 @@ export function writeCachedPublicTicker(items: string[], tickerSpeed?: unknown):
   }
 }
 
-export function writeCachedTickerSpeed(tickerSpeed: unknown): void {
+function writeCachedTickerSpeed(tickerSpeed: unknown): void {
   try {
     if (typeof window === 'undefined' || !window.localStorage) return
     const existing = readCachedPublicTicker()

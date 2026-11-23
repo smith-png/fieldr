@@ -910,6 +910,10 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
                       <img
                         src={photoThumbUrl || photoUrl}
                         alt="Preview"
+                        width={56}
+                        height={56}
+                        loading="lazy"
+                        decoding="async"
                         referrerPolicy="no-referrer"
                         className="w-14 h-14 rounded-2xl object-cover bg-surface-2 border border-border shrink-0"
                       />

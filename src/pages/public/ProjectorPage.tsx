@@ -1,3 +1,4 @@
+import { logError } from '../../lib/logger'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import {
@@ -1148,7 +1149,7 @@ export const ProjectorPage: React.FC = () => {
         setPlayers(latestPlayers)
         handleIncomingProjectorStateRef.current(latestPState, latestSettings)
       } catch (err) {
-        console.error('Projector refetchSeasonData error:', err)
+        logError('Projector refetchSeasonData error:', err)
       }
     },
     [subscribeSeasonChannels]
@@ -1202,7 +1203,7 @@ export const ProjectorPage: React.FC = () => {
           subscribeSeasonChannels(active.id)
         }
       } catch (err) {
-        console.error('Projector init error:', err)
+        logError('Projector init error:', err)
       }
     }
 

@@ -1,3 +1,4 @@
+import { logError } from '../../lib/logger'
 import React, { useEffect, useState } from 'react'
 import { getCreditsPeople } from '../../lib/data/credits'
 import { hasDataChanged, publicCache } from '../../lib/publicCache'
@@ -73,7 +74,7 @@ export const CreditsSection: React.FC = () => {
         }
       })
       .catch((err) => {
-        console.error('Failed to load credits:', err)
+        logError('Failed to load credits:', err)
         if (mounted && !publicCache.creditsPeople.loaded) {
           setPeople([])
           setLoaded(true)

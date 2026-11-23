@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { logError } from '../../lib/logger'
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowCounterClockwise,
   ArrowDown,
@@ -47,12 +48,37 @@ import {
   SkeletonBlock
 } from '../../components/ui'
 import { normalizeConfettiFallSpeed } from '../../components/projector/ProjectorConfetti'
-import { SecuredSequence } from '../../components/projector/SecuredSequence'
-import { CreditsSetupCard } from '../../components/admin/CreditsSetupCard'
-import { HandbookSetupCard } from '../../components/admin/HandbookSetupCard'
-import { RegistrationSetupCard } from '../../components/admin/RegistrationSetupCard'
-import { RulesSetupCard } from '../../components/admin/RulesSetupCard'
-import { MarkdownContent } from '../../components/common/MarkdownContent'
+
+const SecuredSequence = lazy(() =>
+  import('../../components/projector/SecuredSequence').then((m) => ({
+    default: m.SecuredSequence
+  }))
+)
+const CreditsSetupCard = lazy(() =>
+  import('../../components/admin/CreditsSetupCard').then((m) => ({
+    default: m.CreditsSetupCard
+  }))
+)
+const HandbookSetupCard = lazy(() =>
+  import('../../components/admin/HandbookSetupCard').then((m) => ({
+    default: m.HandbookSetupCard
+  }))
+)
+const RegistrationSetupCard = lazy(() =>
+  import('../../components/admin/RegistrationSetupCard').then((m) => ({
+    default: m.RegistrationSetupCard
+  }))
+)
+const RulesSetupCard = lazy(() =>
+  import('../../components/admin/RulesSetupCard').then((m) => ({
+    default: m.RulesSetupCard
+  }))
+)
+const MarkdownContent = lazy(() =>
+  import('../../components/common/MarkdownContent').then((m) => ({
+    default: m.MarkdownContent
+  }))
+)
 import type {
   AuctionSettings,
   CarouselItem,
@@ -285,7 +311,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
       const items = await getCarouselItems(false)
       setCarouselItems(items)
     } catch (err) {
-      console.error('Failed to load carousel items:', err)
+      logError('Failed to load carousel items:', err)
       const msg = getErrorMessage(err, 'Failed to load carousel items')
       setCarouselError(msg)
       showToast(`Failed to load carousel items: ${msg}`, 'error')
@@ -314,7 +340,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
         setPageBody(initialPage.body || '')
       }
     } catch (err) {
-      console.error('Failed to load site settings:', err)
+      logError('Failed to load site settings:', err)
       showToast(`Failed to load site settings: ${getErrorMessage(err)}`, 'error')
     }
   }
@@ -410,7 +436,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
       setItemText('')
       await loadCarousel()
     } catch (err) {
-      console.error('Failed to save carousel item:', err)
+      logError('Failed to save carousel item:', err)
       showToast(`Failed to save carousel item: ${getErrorMessage(err)}`, 'error')
     } finally {
       setIsSavingCarousel(false)
@@ -437,7 +463,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
       showToast(item.active ? 'Ticker item disabled' : 'Ticker item activated', 'success')
       await loadCarousel()
     } catch (err) {
-      console.error('Failed to update carousel item:', err)
+      logError('Failed to update carousel item:', err)
       setCarouselItems(prevItems)
       showToast(`Failed to update carousel item: ${getErrorMessage(err)}`, 'error')
     }
@@ -461,7 +487,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
       showToast('Item deleted', 'success')
       await loadCarousel()
     } catch (err) {
-      console.error('Failed to delete carousel item:', err)
+      logError('Failed to delete carousel item:', err)
       setCarouselItems(prevItems)
       showToast(`Failed to delete carousel item: ${getErrorMessage(err)}`, 'error')
     }
@@ -491,7 +517,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
       )
       await loadCarousel()
     } catch (err) {
-      console.error('Failed to reorder carousel items:', err)
+      logError('Failed to reorder carousel items:', err)
       setCarouselItems(prevItems)
       showToast(`Failed to reorder carousel items: ${getErrorMessage(err)}`, 'error')
     }
@@ -1882,7 +1908,9 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
       {/* Tab 2: Registration (Athlete Self-Registration) */}
       {activeTab === 'registration' && (
         <div className="space-y-6">
-          <RegistrationSetupCard activeSeason={effectiveSeason} sports={sportsList} />
+          <Suspense fallback={<SkeletonBlock className="h-72 w-full rounded-3xl" />}>
+            <RegistrationSetupCard activeSeason={effectiveSeason} sports={sportsList} />
+          </Suspense>
         </div>
       )}
 
@@ -1962,7 +1990,9 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
                       {pageTitle || 'Untitled Page'}
                     </h3>
                     {pageBody.trim() ? (
-                      <MarkdownContent content={pageBody} />
+                      <Suspense fallback={<SkeletonBlock className="h-32 w-full rounded-xl" />}>
+                        <MarkdownContent content={pageBody} />
+                      </Suspense>
                     ) : (
                       <p className="text-xs text-muted italic">No content to preview.</p>
                     )}
@@ -2006,15 +2036,19 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
           </section>
 
           {/* Section 2: Credits */}
-          <CreditsSetupCard />
+          <Suspense fallback={<SkeletonBlock className="h-64 w-full rounded-3xl" />}>
+            <CreditsSetupCard />
+          </Suspense>
         </div>
       )}
 
       {/* Tab 3: Documents (Handbook, Auction Rules) */}
       {activeTab === 'documents' && (
         <div className="space-y-6">
-          <HandbookSetupCard />
-          <RulesSetupCard />
+          <Suspense fallback={<SkeletonBlock className="h-64 w-full rounded-3xl" />}>
+            <HandbookSetupCard />
+            <RulesSetupCard />
+          </Suspense>
         </div>
       )}
 
@@ -2267,22 +2301,24 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
 
           {/* Shared SecuredSequence Component */}
           <div className="flex-1 flex items-center justify-center w-full max-w-7xl mx-auto my-auto py-6">
-            <SecuredSequence
-              key={previewReplayKey}
-              playerName="Aarav Kulkarni"
-              playerCode="0104"
-              sport={previewSampleTeam?.sport || 'Cricket'}
-              playingRole="All-Rounder"
-              academicYearLabel="Final Year"
-              photoUrl={SAMPLE_PLAYER_PHOTO_DATA_URI}
-              teamName={previewSampleTeam?.name || 'Emerald Falcons'}
-              teamShortCode={previewSampleTeam?.short_code || 'EF'}
-              teamColor={previewSampleTeam?.color || '#10B981'}
-              teamLogoUrl={previewSampleTeam?.logo_url}
-              price={450}
-              securedDurationSeconds={previewDurationSec}
-              priceCountupSeconds={previewCountupSec}
-            />
+            <Suspense fallback={null}>
+              <SecuredSequence
+                key={previewReplayKey}
+                playerName="Aarav Kulkarni"
+                playerCode="0104"
+                sport={previewSampleTeam?.sport || 'Cricket'}
+                playingRole="All-Rounder"
+                academicYearLabel="Final Year"
+                photoUrl={SAMPLE_PLAYER_PHOTO_DATA_URI}
+                teamName={previewSampleTeam?.name || 'Emerald Falcons'}
+                teamShortCode={previewSampleTeam?.short_code || 'EF'}
+                teamColor={previewSampleTeam?.color || '#10B981'}
+                teamLogoUrl={previewSampleTeam?.logo_url}
+                price={450}
+                securedDurationSeconds={previewDurationSec}
+                priceCountupSeconds={previewCountupSec}
+              />
+            </Suspense>
           </div>
         </div>
       )}

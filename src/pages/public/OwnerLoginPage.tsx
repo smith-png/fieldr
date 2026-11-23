@@ -82,7 +82,7 @@ export const OwnerLoginPage: React.FC = () => {
   }
 
   return (
-    <div className={`${PUBLIC_PAGE_SHELL} p-6 md:p-12 font-dm-sans`}>
+    <div className={`${PUBLIC_PAGE_SHELL} p-6 md:p-12`}>
       {/* Top Header */}
       <div className="flex items-center justify-between max-w-5xl mx-auto w-full gap-4">
         <BrandMark />

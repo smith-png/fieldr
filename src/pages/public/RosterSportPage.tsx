@@ -1,3 +1,4 @@
+import { logError } from '../../lib/logger'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Funnel } from '@phosphor-icons/react'
@@ -186,7 +187,7 @@ export const RosterSportPage: React.FC = () => {
           }
         }
       } catch (err) {
-        console.error(
+        logError(
           'Failed to load active season or public teams on roster sport page:',
           err instanceof Error ? err.message : err,
           err
@@ -240,7 +241,7 @@ export const RosterSportPage: React.FC = () => {
           setIsSportChecked(true)
         }
       } catch (err) {
-        console.error(
+        logError(
           'Failed to load sport roles on roster sport page:',
           err instanceof Error ? err.message : err,
           err
@@ -370,7 +371,7 @@ export const RosterSportPage: React.FC = () => {
           setHasLoadedSportOnce(true)
         }
       } catch (err) {
-        console.error(
+        logError(
           'Failed to load public players on roster sport page:',
           err instanceof Error ? err.message : err,
           err
@@ -426,7 +427,6 @@ export const RosterSportPage: React.FC = () => {
         <NavigationMenu
           isOpen={isMenuOpen}
           onClose={() => setIsMenuOpen(false)}
-          activeSeason={activeSeason}
         />
 
         <main className={`${PUBLIC_MAIN} flex items-center justify-center`}>
@@ -463,7 +463,6 @@ export const RosterSportPage: React.FC = () => {
       <NavigationMenu
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
-        activeSeason={activeSeason}
       />
 
       <main className={PUBLIC_MAIN}>

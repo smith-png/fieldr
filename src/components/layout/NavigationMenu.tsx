@@ -12,12 +12,10 @@ import {
 } from '../../lib/data/registrations'
 import { type ThemePreference, useTheme } from '../../lib/theme'
 import { Dialog } from '../ui/Dialog'
-import type { Season } from '../../types'
 
 interface NavigationMenuProps {
   isOpen: boolean
   onClose: () => void
-  activeSeason: Season | null
 }
 
 export const NavigationMenu: React.FC<NavigationMenuProps> = ({

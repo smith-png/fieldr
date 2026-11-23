@@ -1,3 +1,4 @@
+import { logError } from '../../lib/logger'
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowUpRight } from '@phosphor-icons/react'
@@ -117,7 +118,7 @@ export const RostersPage: React.FC = () => {
           }
         }
       } catch (err) {
-        console.error(
+        logError(
           'Failed to load rosters page data:',
           err instanceof Error ? err.message : err,
           err
@@ -136,7 +137,6 @@ export const RostersPage: React.FC = () => {
       <NavigationMenu
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
-        activeSeason={activeSeason}
       />
 
       <main className={PUBLIC_MAIN}>

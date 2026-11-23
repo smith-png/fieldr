@@ -1,3 +1,4 @@
+import { logError } from '../logger'
 import type {
   ActivityLogEntry,
   AuctionBid,
@@ -133,7 +134,7 @@ const supabaseLogsService: LogsService = {
     })
 
     if (error) {
-      console.error('Supabase admin_activity_log error:', error.message, error)
+      logError('Supabase admin_activity_log error:', error.message, error)
       throw new AppError(error.message, { original: error })
     }
 

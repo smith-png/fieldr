@@ -25,7 +25,7 @@ export const SkeletonText: React.FC<SkeletonBaseProps & { width?: string }> = ({
   />
 )
 
-export const SkeletonStatTile: React.FC<SkeletonBaseProps> = ({ className = '', style }) => (
+const SkeletonStatTile: React.FC<SkeletonBaseProps> = ({ className = '', style }) => (
   <div
     aria-hidden="true"
     style={style}

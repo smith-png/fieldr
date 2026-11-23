@@ -116,45 +116,6 @@ button, input, select, textarea {
   transition: none !important;
 }
 
-@keyframes blobRotate {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes blobDriftA {
-  0%, 100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(8px, -10px) scale(1.15);
-  }
-}
-
-@keyframes blobDriftB {
-  0%, 100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(-10px, 8px) scale(1.1);
-  }
-}
-
-.animate-blob-rotate {
-  animation: blobRotate 14s linear infinite;
-}
-
-.animate-blob-drift-a {
-  animation: blobDriftA 6s ease-in-out infinite;
-}
-
-.animate-blob-drift-b {
-  animation: blobDriftB 7s ease-in-out infinite alternate;
-}
-
 @keyframes heroLineReveal {
   0% {
     transform: translate3d(0, 105%, 0);
@@ -225,9 +186,6 @@ button, input, select, textarea {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-blob-rotate,
-  .animate-blob-drift-a,
-  .animate-blob-drift-b,
   .animate-hero-line {
     animation: none !important;
   }

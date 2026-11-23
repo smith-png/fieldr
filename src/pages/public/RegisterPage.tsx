@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -14,7 +14,11 @@ import {
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
-import { MarkdownContent } from '../../components/common/MarkdownContent'
+const MarkdownContent = lazy(() =>
+  import('../../components/common/MarkdownContent').then((m) => ({
+    default: m.MarkdownContent
+  }))
+)
 import {
   PUBLIC_BACK_LINK,
   PUBLIC_BTN_PRIMARY,
@@ -77,6 +81,13 @@ function formatKb(bytes: number): string {
   return `${Math.max(1, Math.round(bytes / 1024))} KB`
 }
 
+const ROLL_NUMBER_REGEX = /^\d{1,5}$/
+const ROLL_NUMBER_ERROR = 'Enter your roll number using digits only (for example 23131)'
+
+function sanitizeRollNo(value: string): string {
+  return value.replace(/\D/g, '').slice(0, 5)
+}
+
 export const RegisterPage: React.FC = () => {
   const initialConfig = getCachedPublicRegistrationConfig()
 
@@ -94,6 +105,7 @@ export const RegisterPage: React.FC = () => {
   // Form fields (no phone or email)
   const [fullName, setFullName] = useState<string>('')
   const [rollNo, setRollNo] = useState<string>('')
+  const [rollNoError, setRollNoError] = useState<string | null>(null)
   const [academicYear, setAcademicYear] = useState<AcademicYear>('1st')
   const [sportRows, setSportRows] = useState<SportRowDraft[]>([])
   const [consent, setConsent] = useState<boolean>(false)
@@ -292,10 +304,11 @@ export const RegisterPage: React.FC = () => {
       setFormError('Please enter your full name (2 to 100 characters).')
       return
     }
-    if (trimmedRoll.length < 2 || trimmedRoll.length > 40) {
-      setFormError('Please enter a valid roll number (2 to 40 characters).')
+    if (!ROLL_NUMBER_REGEX.test(trimmedRoll)) {
+      setRollNoError(ROLL_NUMBER_ERROR)
       return
     }
+    setRollNoError(null)
 
     const validEntries: RegistrationSportEntry[] = []
     const seenSports = new Set<string>()
@@ -388,7 +401,6 @@ export const RegisterPage: React.FC = () => {
       <NavigationMenu
         isOpen={isMenuOpen}
         onClose={() => setIsMenuOpen(false)}
-        activeSeason={activeSeason}
       />
 
       <main className={PUBLIC_MAIN_NARROW}>
@@ -499,7 +511,9 @@ export const RegisterPage: React.FC = () => {
             {/* Instructions & Photo Guidance Block */}
             <section className={`${PUBLIC_CARD} space-y-4`}>
               {config.instructions_md.trim() && (
-                <MarkdownContent content={config.instructions_md} />
+                <Suspense fallback={<SkeletonText width="w-full" className="h-4" />}>
+                  <MarkdownContent content={config.instructions_md} />
+                </Suspense>
               )}
 
               <div className={`${PUBLIC_WELL} p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3`}>
@@ -576,17 +590,58 @@ export const RegisterPage: React.FC = () => {
                     <input
                       id="reg-roll-no"
                       type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       required
-                      maxLength={40}
+                      maxLength={5}
                       autoComplete="off"
                       value={rollNo}
-                      onChange={(e) => setRollNo(e.target.value)}
-                      placeholder="e.g. 23CS104"
+                      onChange={(e) => {
+                        const raw = e.target.value
+                        const cleaned = sanitizeRollNo(raw)
+                        setRollNo(cleaned)
+                        if (ROLL_NUMBER_REGEX.test(cleaned)) {
+                          setRollNoError(null)
+                        } else if (raw !== cleaned || rollNoError) {
+                          setRollNoError(ROLL_NUMBER_ERROR)
+                        }
+                      }}
+                      onPaste={(e) => {
+                        e.preventDefault()
+                        const pasted = e.clipboardData.getData('text')
+                        const start = e.currentTarget.selectionStart ?? rollNo.length
+                        const end = e.currentTarget.selectionEnd ?? rollNo.length
+                        const raw = rollNo.slice(0, start) + pasted + rollNo.slice(end)
+                        const cleaned = sanitizeRollNo(raw)
+                        setRollNo(cleaned)
+                        if (ROLL_NUMBER_REGEX.test(cleaned)) {
+                          setRollNoError(null)
+                        } else {
+                          setRollNoError(ROLL_NUMBER_ERROR)
+                        }
+                      }}
+                      onBlur={() => {
+                        if (!ROLL_NUMBER_REGEX.test(rollNo)) {
+                          setRollNoError(ROLL_NUMBER_ERROR)
+                        }
+                      }}
+                      aria-invalid={Boolean(rollNoError)}
+                      aria-describedby={
+                        rollNoError ? 'reg-roll-no-error reg-roll-no-help' : 'reg-roll-no-help'
+                      }
+                      placeholder="e.g. 23131"
                       disabled={isBusy}
-                      className={`${PUBLIC_INPUT} font-mono`}
+                      className={`${PUBLIC_INPUT} font-mono${
+                        rollNoError ? ' border-error focus:border-error' : ''
+                      }`}
                     />
-                    <p className="mt-1.5 text-xs text-muted">
-                      Used only for verification. Never shown publicly.
+                    {rollNoError && (
+                      <p id="reg-roll-no-error" role="alert" className="mt-1.5 text-xs text-error">
+                        {rollNoError}
+                      </p>
+                    )}
+                    <p id="reg-roll-no-help" className="mt-1.5 text-xs text-muted">
+                      Digits only, up to 5 digits. Used only for verification. Never shown publicly.
                     </p>
                   </div>
 
@@ -739,6 +794,9 @@ export const RegisterPage: React.FC = () => {
                       <img
                         src={photoPreviewUrl}
                         alt="Cropped portrait preview"
+                        width={144}
+                        height={180}
+                        decoding="async"
                         className="w-full h-full object-cover"
                       />
                     ) : (

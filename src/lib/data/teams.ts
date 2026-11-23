@@ -1,3 +1,4 @@
+import { logError } from '../logger'
 import type { Player, ProjectorState, PublicTeam, PurseTransaction, Sport, Team } from '../../types'
 import { AppError } from '../errors'
 import {
@@ -423,7 +424,7 @@ const supabaseTeamsService: TeamsService = {
       .select('id, name, roles')
       .limit(10)
     if (error) {
-      console.error('Supabase getSports error:', error.message, error)
+      logError('Supabase getSports error:', error.message, error)
       return DEFAULT_SPORTS
     }
     if (!data || data.length === 0) return DEFAULT_SPORTS
@@ -766,7 +767,7 @@ const supabaseTeamsService: TeamsService = {
       .order('name', { ascending: true })
 
     if (error) {
-      console.error('Supabase getPublicTeams error:', error.message, error)
+      logError('Supabase getPublicTeams error:', error.message, error)
       return []
     }
     return (data as PublicTeam[]) || []
