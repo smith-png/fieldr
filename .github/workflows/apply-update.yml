@@ -1,0 +1,91 @@
+name: Apply update.zip
+
+# Upload a file named update.zip to the root of the repo (branch main).
+# This workflow unzips it, copies everything inside files/ over the repo,
+# deletes the paths listed in DELETE.txt, removes update.zip and commits.
+# The commit triggers the normal Vercel deploy.
+
+on:
+  push:
+    branches: [main]
+    paths: ['update.zip']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-update
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Apply update
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ ! -f update.zip ]; then
+            echo "No update.zip in the repo, nothing to do."
+            exit 0
+          fi
+
+          rm -rf _update
+          mkdir _update
+          unzip -q update.zip -d _update
+
+          if [ ! -d _update/files ] && [ ! -f _update/DELETE.txt ]; then
+            echo "update.zip must contain a files/ folder and/or DELETE.txt" >&2
+            exit 1
+          fi
+
+          # Deletions
+          if [ -f _update/DELETE.txt ]; then
+            while IFS= read -r line || [ -n "$line" ]; do
+              line="$(printf '%s' "$line" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+              case "$line" in
+                ''|'#'*) continue ;;
+                /*|*..*|.git|.git/*|.github|.github/*)
+                  echo "Refusing unsafe path: $line" >&2
+                  exit 1
+                  ;;
+              esac
+              if [ -e "$line" ]; then
+                git rm -rf --quiet -- "$line"
+                echo "Deleted: $line"
+              else
+                echo "Not found, skipped: $line"
+              fi
+            done < _update/DELETE.txt
+          fi
+
+          # Additions and replacements
+          if [ -d _update/files ]; then
+            if find _update/files \( -path '*/.git/*' -o -path '*/.github/*' -o -name '..' \) | grep -q .; then
+              echo "files/ must not contain .git or .github" >&2
+              exit 1
+            fi
+            cp -a _update/files/. ./
+          fi
+
+          rm -rf _update
+          git rm -f --quiet update.zip
+
+      - name: Commit and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Apply update.zip"
+          git push
+          
