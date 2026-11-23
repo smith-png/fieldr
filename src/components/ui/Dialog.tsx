@@ -76,7 +76,7 @@ export const Dialog: React.FC<DialogProps> = ({
     >
       <div
         ref={dialogRef}
-        className={`${frosted ? 'frost-strong' : 'bg-surface'} border border-border rounded-2xl p-6 shadow-2xl w-full ${maxWidthMap[effectiveWidth]} max-h-[90vh] overflow-y-auto my-auto ${className}`}
+        className={`${frosted ? 'frost-strong' : 'bg-surface'} border border-border rounded-2xl p-6 shadow-2xl w-full ${maxWidthMap[effectiveWidth]} max-h-[90dvh] overflow-y-auto my-auto ${className}`}
       >
         {(title || showCloseButton) && (
           <div className="flex items-start justify-between gap-4 mb-5">

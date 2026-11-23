@@ -84,7 +84,7 @@ export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({
         ref={modalRef}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="frost-deep border border-border rounded-3xl max-w-md lg:max-w-[920px] w-full max-h-[90vh] lg:max-h-[88vh] overflow-y-auto lg:overflow-hidden shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 motion-reduce:animate-none outline-none flex flex-col lg:flex-row"
+        className="frost-deep border border-border rounded-3xl max-w-md lg:max-w-[920px] w-full max-h-[90dvh] lg:max-h-[88dvh] overflow-y-auto lg:overflow-hidden shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 motion-reduce:animate-none outline-none flex flex-col lg:flex-row"
       >
         {/* Close Button */}
         <button

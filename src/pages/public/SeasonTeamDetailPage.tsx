@@ -1113,7 +1113,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                   loading="lazy"
                   decoding="async"
                   referrerPolicy="no-referrer"
-                  className="max-w-full max-h-[90vh] w-auto h-auto object-contain rounded-3xl border border-border"
+                  className="max-w-full max-h-[90dvh] w-auto h-auto object-contain rounded-3xl border border-border"
                 />
               </div>
             )}
