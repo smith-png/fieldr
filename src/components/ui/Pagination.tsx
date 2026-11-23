@@ -62,7 +62,7 @@ export const Pagination: React.FC<PaginationProps> = ({
             disabled={!canPrev}
             onClick={() => onPageChange(currentPage - 1)}
             aria-label="Previous page"
-            className="p-1.5 rounded-lg border border-border text-text disabled:opacity-30 disabled:pointer-events-none hover:bg-surface-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+            className="relative hit-44 p-1.5 rounded-lg border border-border text-text disabled:opacity-30 disabled:pointer-events-none hover:bg-surface-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
           >
             <CaretLeft size={14} weight="bold" />
           </button>
@@ -71,7 +71,7 @@ export const Pagination: React.FC<PaginationProps> = ({
             disabled={!canNext}
             onClick={() => onPageChange(currentPage + 1)}
             aria-label="Next page"
-            className="p-1.5 rounded-lg border border-border text-text disabled:opacity-30 disabled:pointer-events-none hover:bg-surface-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+            className="relative hit-44 p-1.5 rounded-lg border border-border text-text disabled:opacity-30 disabled:pointer-events-none hover:bg-surface-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
           >
             <CaretRight size={14} weight="bold" />
           </button>

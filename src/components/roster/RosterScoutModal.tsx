@@ -91,7 +91,7 @@ export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({
           type="button"
           onClick={onClose}
           aria-label="Close modal"
-          className="frost absolute top-5 right-5 z-20 w-9 h-9 rounded-full border border-border flex items-center justify-center text-text hover:opacity-80 transition-opacity duration-150 motion-reduce:transition-none cursor-pointer"
+          className="hit-44 frost absolute top-5 right-5 z-20 w-9 h-9 rounded-full border border-border flex items-center justify-center text-text hover:opacity-80 transition-opacity duration-150 motion-reduce:transition-none cursor-pointer"
         >
           <X size={16} weight="regular" />
         </button>

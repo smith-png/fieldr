@@ -1483,7 +1483,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                         type="button"
                         onClick={() => handleDismissAnnouncement(latestAnnouncement.id)}
                         aria-label="Dismiss announcement"
-                        className="w-8 h-8 rounded-full bg-surface-2 border border-border inline-flex items-center justify-center text-muted hover:text-text hover:border-accent-bright/40 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                        className="relative hit-44 w-8 h-8 rounded-full bg-surface-2 border border-border inline-flex items-center justify-center text-muted hover:text-text hover:border-accent-bright/40 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
                       >
                         <X size={14} weight="bold" />
                       </button>
@@ -1665,7 +1665,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                                 onClick={() =>
                                   updateTargetSquadSize(effectiveTargetSquadSize + 1)
                                 }
-                                className="w-6 h-6 rounded-full inline-flex items-center justify-center text-text hover:bg-surface cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                                className="relative hit-44 w-6 h-6 rounded-full inline-flex items-center justify-center text-text hover:bg-surface cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
                               >
                                 <Plus size={12} weight="bold" />
                               </button>
@@ -1857,7 +1857,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setIsShortlistPickerOpen((prev) => !prev)}
-                        className={`${PUBLIC_BTN_SECONDARY} px-3.5 py-1.5 text-xs shrink-0`}
+                        className={`relative hit-44 ${PUBLIC_BTN_SECONDARY} px-3.5 py-1.5 text-xs shrink-0`}
                       >
                         {isShortlistPickerOpen ? (
                           <>
@@ -1896,7 +1896,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => setShortlistScope('team_sport')}
-                                className={`px-3 py-1 rounded-full text-[11px] font-medium transition-colors cursor-pointer ${
+                                className={`relative hit-44 px-3 py-1 rounded-full text-[11px] font-medium transition-colors cursor-pointer ${
                                   shortlistScope === 'team_sport'
                                     ? 'bg-btn-bg text-btn-fg'
                                     : 'text-muted hover:text-text'
@@ -1907,7 +1907,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => setShortlistScope('all')}
-                                className={`px-3 py-1 rounded-full text-[11px] font-medium transition-colors cursor-pointer ${
+                                className={`relative hit-44 px-3 py-1 rounded-full text-[11px] font-medium transition-colors cursor-pointer ${
                                   shortlistScope === 'all'
                                     ? 'bg-btn-bg text-btn-fg'
                                     : 'text-muted hover:text-text'
@@ -2127,7 +2127,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                                     onClick={() => void handleToggleShortlist(item.row.player_id)}
                                     disabled={Boolean(shortlistBusyKey)}
                                     aria-label={`Remove ${item.name} from shortlist`}
-                                    className="w-7 h-7 rounded-full bg-surface-2 border border-border inline-flex items-center justify-center text-accent-bright hover:border-accent-bright/50 transition-colors cursor-pointer disabled:opacity-45 shrink-0"
+                                    className="relative hit-44 w-7 h-7 rounded-full bg-surface-2 border border-border inline-flex items-center justify-center text-accent-bright hover:border-accent-bright/50 transition-colors cursor-pointer disabled:opacity-45 shrink-0"
                                   >
                                     {isRowBusy ? (
                                       <CircleNotch
@@ -2177,7 +2177,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                                       <button
                                         type="submit"
                                         disabled={isRowBusy}
-                                        className={`${PUBLIC_BTN_SECONDARY} px-3.5 py-1 text-xs border-accent-bright/40 text-accent-bright hover:border-accent-bright disabled:opacity-50`}
+                                        className={`relative hit-44 ${PUBLIC_BTN_SECONDARY} px-3.5 py-1 text-xs border-accent-bright/40 text-accent-bright hover:border-accent-bright disabled:opacity-50`}
                                       >
                                         {isRowBusy ? (
                                           <CircleNotch
@@ -2217,7 +2217,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                       type="button"
                       onClick={() => void handleSharePublicSquad()}
                       disabled={isSharingPublic}
-                      className={`${PUBLIC_BTN_PRIMARY} h-9 px-4 text-xs whitespace-nowrap shrink-0`}
+                      className={`relative hit-44 ${PUBLIC_BTN_PRIMARY} h-9 px-4 text-xs whitespace-nowrap shrink-0`}
                     >
                       {isSharingPublic ? (
                         <CircleNotch

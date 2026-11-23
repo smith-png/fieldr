@@ -282,7 +282,7 @@ export const TeamsPage: React.FC = () => {
                                 </div>
                               )}
                               <div className="min-w-0">
-                                <h3 className="font-syne font-bold text-lg sm:text-xl text-text group-hover:text-accent-bright transition-colors tracking-tight leading-tight line-clamp-2 break-words">
+                                <h3 className="font-syne font-bold text-lg sm:text-xl text-text group-hover:text-accent-bright transition-colors tracking-tight leading-tight line-clamp-2 break-words text-balance">
                                   {team.name}
                                 </h3>
                                 <span className="text-xs text-muted block truncate mt-0.5">

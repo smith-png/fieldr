@@ -193,7 +193,7 @@ const ResultsLoadingSkeleton: React.FC = () => (
       {[0, 1, 2].map((i) => (
         <div
           key={i}
-          className="min-h-[96px] rounded-3xl bg-surface border border-border p-4 sm:p-6 flex flex-col justify-between"
+          className="min-h-[96px] rounded-3xl bg-surface border border-border p-3 min-[400px]:p-4 sm:p-6 flex flex-col justify-between"
         >
           <SkeletonText width="w-16" className="h-3" />
           <SkeletonBlock className="w-14 h-7 rounded-lg" />
@@ -722,24 +722,24 @@ export const ResultsPage: React.FC = () => {
             {summary.total > 0 && (
               <section aria-label="Auction summary" className="space-y-4">
                 <div className="grid grid-cols-3 gap-3 sm:gap-4">
-                  <div className="min-h-[96px] rounded-3xl bg-surface border border-border p-4 sm:p-6 flex flex-col justify-between">
-                    <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+                  <div className="min-h-[96px] rounded-3xl bg-surface border border-border p-3 min-[400px]:p-4 sm:p-6 flex flex-col justify-between">
+                    <span className="font-mono text-[11px] uppercase tracking-[0.04em] min-[400px]:tracking-[0.14em] text-muted">
                       Sold
                     </span>
                     <span className="font-mono font-bold text-2xl sm:text-3xl tabular-nums text-text">
                       0
                     </span>
                   </div>
-                  <div className="min-h-[96px] rounded-3xl bg-surface border border-border p-4 sm:p-6 flex flex-col justify-between">
-                    <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+                  <div className="min-h-[96px] rounded-3xl bg-surface border border-border p-3 min-[400px]:p-4 sm:p-6 flex flex-col justify-between">
+                    <span className="font-mono text-[11px] uppercase tracking-[0.04em] min-[400px]:tracking-[0.14em] text-muted">
                       Unsold
                     </span>
                     <span className="font-mono font-bold text-2xl sm:text-3xl tabular-nums text-text">
                       0
                     </span>
                   </div>
-                  <div className="min-h-[96px] rounded-3xl bg-surface border border-border p-4 sm:p-6 flex flex-col justify-between">
-                    <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+                  <div className="min-h-[96px] rounded-3xl bg-surface border border-border p-3 min-[400px]:p-4 sm:p-6 flex flex-col justify-between">
+                    <span className="font-mono text-[11px] uppercase tracking-[0.04em] min-[400px]:tracking-[0.14em] text-muted">
                       Remaining
                     </span>
                     <span className="font-mono font-bold text-2xl sm:text-3xl tabular-nums text-text">
@@ -761,24 +761,24 @@ export const ResultsPage: React.FC = () => {
             {/* Summary Counts & Sport Progress Bars */}
             <section aria-label="Auction progress summary" className="space-y-5">
               <div className="grid grid-cols-3 gap-3 sm:gap-4">
-                <div className="min-h-[96px] rounded-3xl bg-surface border border-border p-4 sm:p-6 flex flex-col justify-between">
-                  <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+                <div className="min-h-[96px] rounded-3xl bg-surface border border-border p-3 min-[400px]:p-4 sm:p-6 flex flex-col justify-between">
+                  <span className="font-mono text-[11px] uppercase tracking-[0.04em] min-[400px]:tracking-[0.14em] text-muted">
                     Sold
                   </span>
                   <span className="font-mono font-bold text-2xl sm:text-3xl tabular-nums text-accent-bright">
                     {summary.sold}
                   </span>
                 </div>
-                <div className="min-h-[96px] rounded-3xl bg-surface border border-border p-4 sm:p-6 flex flex-col justify-between">
-                  <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+                <div className="min-h-[96px] rounded-3xl bg-surface border border-border p-3 min-[400px]:p-4 sm:p-6 flex flex-col justify-between">
+                  <span className="font-mono text-[11px] uppercase tracking-[0.04em] min-[400px]:tracking-[0.14em] text-muted">
                     Unsold
                   </span>
                   <span className="font-mono font-bold text-2xl sm:text-3xl tabular-nums text-text">
                     {summary.unsold}
                   </span>
                 </div>
-                <div className="min-h-[96px] rounded-3xl bg-surface border border-border p-4 sm:p-6 flex flex-col justify-between">
-                  <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+                <div className="min-h-[96px] rounded-3xl bg-surface border border-border p-3 min-[400px]:p-4 sm:p-6 flex flex-col justify-between">
+                  <span className="font-mono text-[11px] uppercase tracking-[0.04em] min-[400px]:tracking-[0.14em] text-muted">
                     Remaining
                   </span>
                   <span className="font-mono font-bold text-2xl sm:text-3xl tabular-nums text-text">
@@ -922,7 +922,7 @@ export const ResultsPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={clearFilters}
-                    className={`${PUBLIC_BTN_SECONDARY} h-8 px-3.5 text-xs`}
+                    className={`relative hit-44 ${PUBLIC_BTN_SECONDARY} h-8 px-3.5 text-xs`}
                   >
                     Reset filters
                   </button>
@@ -948,7 +948,7 @@ export const ResultsPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={clearFilters}
-                      className={`${PUBLIC_BTN_SECONDARY} h-9 px-4 text-xs`}
+                      className={`relative hit-44 ${PUBLIC_BTN_SECONDARY} h-9 px-4 text-xs`}
                     >
                       Reset filters
                     </button>

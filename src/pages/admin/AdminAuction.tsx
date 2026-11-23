@@ -1442,7 +1442,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
             onScroll={(e) => {
               queueScrollTopRef.current = e.currentTarget.scrollTop
             }}
-            className="p-3 space-y-2.5 max-h-[55vh] md:max-h-[calc(100vh-19rem)] overflow-y-auto overscroll-contain thin-scrollbar"
+            className="p-3 space-y-2.5 max-h-[55dvh] md:max-h-[calc(100dvh-19rem)] overflow-y-auto overscroll-contain thin-scrollbar"
           >
             {displayedQueuePlayers.length === 0 ? (
               <p className="py-10 px-4 text-center text-sm text-muted">

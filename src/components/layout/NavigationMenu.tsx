@@ -342,7 +342,7 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
                   type="button"
                   onClick={handleClose}
                   aria-label="Close menu"
-                  className="inline-flex items-center justify-center h-8 px-3.5 rounded-full bg-surface/70 hover:bg-surface-2 border border-border/80 font-sans text-[11px] font-medium uppercase tracking-[0.18em] text-text transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                  className="relative hit-44 inline-flex items-center justify-center h-8 px-3.5 rounded-full bg-surface/70 hover:bg-surface-2 border border-border/80 font-sans text-[11px] font-medium uppercase tracking-[0.18em] text-text transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
                 >
                   Close
                 </button>

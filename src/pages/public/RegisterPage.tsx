@@ -829,7 +829,7 @@ export const RegisterPage: React.FC = () => {
                         <button
                           type="button"
                           onClick={clearSelectedPhoto}
-                          className="text-xs text-muted hover:text-text transition-colors cursor-pointer px-2 py-1"
+                          className="relative hit-44 text-xs text-muted hover:text-text transition-colors cursor-pointer px-2 py-1"
                         >
                           Remove
                         </button>
