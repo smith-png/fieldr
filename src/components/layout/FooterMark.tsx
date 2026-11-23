@@ -1,4 +1,12 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import {
   getPrimaryIconSnapshot,
   subscribePrimaryIcon
@@ -18,7 +26,8 @@ function getAlternateIcons(
   ];
 }
 
-const css = `.fmk{position:relative;width:var(--s);height:var(--s);border-radius:22%;overflow:hidden;background:#06241a;flex:none;display:inline-block;isolation:isolate;user-select:none;-webkit-tap-highlight-color:transparent;--b0:rgba(150,245,205,.05);--b1:rgba(200,255,230,.5);--g0:#fff;--g1:#b9f5d6;--f0:rgba(225,255,240,.95);--f1:rgba(120,235,185,.35)}
+const css = `.fmk-egg{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.fmk{position:relative;width:var(--s);height:var(--s);border-radius:22%;overflow:hidden;background:#06241a;flex:none;display:inline-block;isolation:isolate;user-select:none;-webkit-tap-highlight-color:transparent;--b0:rgba(150,245,205,.05);--b1:rgba(200,255,230,.5);--g0:#fff;--g1:#b9f5d6;--f0:rgba(225,255,240,.95);--f1:rgba(120,235,185,.35)}
 .fmk-bl{position:absolute;inset:-40%;animation:fmk-sp 14s linear infinite}
 .fmk-r{animation-duration:22s;animation-direction:reverse}
 .fmk-bl i{position:absolute;border-radius:50%;filter:blur(calc(var(--s)*.07))}
@@ -111,6 +120,9 @@ type EggPhase = '' | 'lit' | 'unlit';
 
 const noopSubscribe = () => () => {};
 
+const HOLD_MS = 800;
+const HOLD_MOVE_TOLERANCE_PX = 10;
+
 function getFlameAssetUrl(isLight: boolean, reducedMotion: boolean): string {
   if (reducedMotion) {
     return isLight
@@ -125,9 +137,11 @@ function getFlameAssetUrl(isLight: boolean, reducedMotion: boolean): string {
 export default function FooterMark({
   size = 44,
   previewVariant,
+  eggEnabled = true,
 }: {
   size?: number;
   previewVariant?: PrimaryIconVariant;
+  eggEnabled?: boolean;
 }) {
   const { resolvedTheme } = useTheme();
   const storedPrimary = useSyncExternalStore(
@@ -137,6 +151,7 @@ export default function FooterMark({
   );
   const primary: PrimaryIconVariant = previewVariant ?? storedPrimary;
   const isPreview = Boolean(previewVariant);
+  const interactive = eggEnabled && !isPreview;
 
   const [activeTheme, setActiveTheme] = useState<'light' | 'dark'>(() => {
     if (typeof document !== 'undefined') {
@@ -158,8 +173,9 @@ export default function FooterMark({
 
   const rootRef = useRef<HTMLSpanElement | null>(null);
   const activationCountRef = useRef(0);
-  const tapsRef = useRef(0);
-  const tapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdStartRef = useRef<{ x: number; y: number } | null>(null);
+  const holdFiredRef = useRef(false);
   const lockedRef = useRef(false);
   const lockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const preloadedRef = useRef<Set<string>>(new Set());
@@ -212,15 +228,16 @@ export default function FooterMark({
 
   // Reset easter egg state cleanly if the configured primary icon changes
   useEffect(() => {
-    if (tapTimerRef.current) {
-      clearTimeout(tapTimerRef.current);
-      tapTimerRef.current = null;
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
     }
+    holdStartRef.current = null;
+    holdFiredRef.current = false;
     if (lockTimerRef.current) {
       clearTimeout(lockTimerRef.current);
       lockTimerRef.current = null;
     }
-    tapsRef.current = 0;
     lockedRef.current = false;
     activationCountRef.current = 0;
     setPhase('');
@@ -230,7 +247,7 @@ export default function FooterMark({
 
   useEffect(() => {
     return () => {
-      if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
+      if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
       if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
     };
   }, []);
@@ -245,71 +262,105 @@ export default function FooterMark({
     img.src = url;
   };
 
-  const onTap = () => {
-    if (isPreview || lockedRef.current) return;
-
-    if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
-    tapsRef.current += 1;
+  const activate = () => {
+    if (!interactive || lockedRef.current) return;
 
     const alternates = getAlternateIcons(primary);
     const nextAlt = alternates[activationCountRef.current % alternates.length];
 
-    if (phase !== 'lit' && tapsRef.current === 3 && nextAlt === 'flames') {
+    const turningOn = phase !== 'lit';
+    const el = rootRef.current;
+
+    if (turningOn) {
+      lockedRef.current = true;
+      if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
+      lockTimerRef.current = setTimeout(() => {
+        lockedRef.current = false;
+        lockTimerRef.current = null;
+      }, 2000);
+
+      if (el) {
+        el.classList.remove('lit', 'unlit');
+        void el.offsetWidth;
+      }
+
+      setFromVariant(primary);
+      setToVariant(nextAlt);
+      setPhase('lit');
+    } else {
+      const currentAlt = toVariant ?? nextAlt;
+      lockedRef.current = true;
+      if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
+      lockTimerRef.current = setTimeout(() => {
+        lockedRef.current = false;
+        lockTimerRef.current = null;
+        activationCountRef.current += 1;
+        setPhase('');
+        setFromVariant(null);
+        setToVariant(null);
+      }, 1600);
+
+      if (el) {
+        el.classList.remove('lit', 'unlit');
+        void el.offsetWidth;
+      }
+
+      setFromVariant(currentAlt);
+      setToVariant(primary);
+      setPhase('unlit');
+    }
+  };
+
+  const cancelHold = () => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    holdStartRef.current = null;
+  };
+
+  const onPointerDown = (e: ReactPointerEvent<HTMLSpanElement>) => {
+    if (!interactive || lockedRef.current) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+    cancelHold();
+    holdFiredRef.current = false;
+    holdStartRef.current = { x: e.clientX, y: e.clientY };
+
+    const alternates = getAlternateIcons(primary);
+    const nextAlt = alternates[activationCountRef.current % alternates.length];
+    if (phase !== 'lit' && nextAlt === 'flames') {
       preloadFlame(light);
     }
 
-    if (tapsRef.current >= 5) {
-      tapsRef.current = 0;
-      tapTimerRef.current = null;
+    holdTimerRef.current = setTimeout(() => {
+      holdTimerRef.current = null;
+      holdStartRef.current = null;
+      holdFiredRef.current = true;
+      activate();
+    }, HOLD_MS);
+  };
 
-      const turningOn = phase !== 'lit';
-      const el = rootRef.current;
-
-      if (turningOn) {
-        lockedRef.current = true;
-        if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
-        lockTimerRef.current = setTimeout(() => {
-          lockedRef.current = false;
-          lockTimerRef.current = null;
-        }, 2000);
-
-        if (el) {
-          el.classList.remove('lit', 'unlit');
-          void el.offsetWidth;
-        }
-
-        setFromVariant(primary);
-        setToVariant(nextAlt);
-        setPhase('lit');
-      } else {
-        const currentAlt = toVariant ?? nextAlt;
-        lockedRef.current = true;
-        if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
-        lockTimerRef.current = setTimeout(() => {
-          lockedRef.current = false;
-          lockTimerRef.current = null;
-          activationCountRef.current += 1;
-          setPhase('');
-          setFromVariant(null);
-          setToVariant(null);
-        }, 1600);
-
-        if (el) {
-          el.classList.remove('lit', 'unlit');
-          void el.offsetWidth;
-        }
-
-        setFromVariant(currentAlt);
-        setToVariant(primary);
-        setPhase('unlit');
-      }
-      return;
+  const onPointerMove = (e: ReactPointerEvent<HTMLSpanElement>) => {
+    const start = holdStartRef.current;
+    if (!start || !holdTimerRef.current) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    if (dx * dx + dy * dy > HOLD_MOVE_TOLERANCE_PX * HOLD_MOVE_TOLERANCE_PX) {
+      cancelHold();
     }
+  };
 
-    tapTimerRef.current = setTimeout(() => {
-      tapsRef.current = 0;
-      tapTimerRef.current = null;
-    }, 1500);
+  const onClickCapture = (e: ReactMouseEvent<HTMLSpanElement>) => {
+    if (holdFiredRef.current) {
+      holdFiredRef.current = false;
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  };
+
+  const onContextMenu = (e: ReactMouseEvent<HTMLSpanElement>) => {
+    e.preventDefault();
   };
 
   const isTransitioning = phase !== '' && fromVariant !== null && toVariant !== null;
@@ -334,10 +385,20 @@ export default function FooterMark({
   return (
     <span
       ref={rootRef}
-      className={`fmk th-${light ? 'l' : 'd'} ${stateClass}`}
+      className={`fmk th-${light ? 'l' : 'd'} ${stateClass}${interactive ? ' fmk-egg' : ''}`}
       style={{ '--s': size + 'px' } as CSSProperties}
       aria-hidden="true"
-      onClick={isPreview ? undefined : onTap}
+      {...(interactive
+        ? {
+            onPointerDown,
+            onPointerMove,
+            onPointerUp: cancelHold,
+            onPointerCancel: cancelHold,
+            onPointerLeave: cancelHold,
+            onClickCapture,
+            onContextMenu,
+          }
+        : {})}
     >
       <style>{css}</style>
       {showClassic && (
