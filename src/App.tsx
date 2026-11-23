@@ -8,6 +8,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { SpeedInsights } from '@vercel/speed-insights/react'
 import { Analytics } from '@vercel/analytics/react'
 import { AuthProvider } from './lib/AuthContext'
+import { isSupabaseConfigured } from './lib/data/client'
 import { ToastProvider } from './lib/ToastContext'
 import { ThemeProvider } from './lib/theme'
 import { RouteGuard, type PreloadableRouteComponent } from './components/layout/RouteGuard'
@@ -86,6 +87,24 @@ const RegisterPage = lazy(() =>
 )
 
 export default function App() {
+  if (!isSupabaseConfigured) {
+    return (
+      <ThemeProvider>
+        <div className="min-h-screen bg-bg text-text flex items-center justify-center p-6">
+          <div className="max-w-md w-full bg-surface border border-border rounded-2xl p-8 text-center space-y-4 shadow-xl">
+            <span className="w-2.5 h-2.5 rounded-full bg-error inline-block" />
+            <h1 className="font-syne font-bold text-xl text-text">
+              Fieldr is not configured: missing Supabase settings
+            </h1>
+            <p className="text-xs text-muted">
+              Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to connect Fieldr to Supabase.
+            </p>
+          </div>
+        </div>
+      </ThemeProvider>
+    )
+  }
+
   return (
     <ErrorBoundary
       name="GlobalApp"

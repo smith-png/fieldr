@@ -1,12 +1,11 @@
 import { logError } from '../logger'
 import { AppError } from '../errors'
 import {
-  blobToDataUrl,
   createThumbnailBlob,
   resizeAndCompressImage,
   validateImageFile
 } from '../imageCompression'
-import { isDemoMode, supabase } from './client'
+import { supabase } from './client'
 import type { StorageService } from './types'
 
 function generateUniqueStorageFileName(folder: string): string {
@@ -22,35 +21,6 @@ export function extractFieldrAssetPath(url?: string | null): string | null {
   const parts = url.split('/fieldr-assets/')
   const raw = parts[1]?.split('?')[0]
   return raw ? decodeURIComponent(raw) : null
-}
-
-const demoStorageService: StorageService = {
-  async uploadPlayerPhotos(
-    _seasonId: string,
-    _playerCode: string,
-    file: File
-  ): Promise<{ photoUrl: string; thumbUrl: string }> {
-    validateImageFile(file)
-    const thumbBlob = await createThumbnailBlob(file, 400, 0.82)
-    const originalDataUrl = await blobToDataUrl(file)
-    const thumbDataUrl = await blobToDataUrl(thumbBlob)
-    return {
-      photoUrl: originalDataUrl,
-      thumbUrl: thumbDataUrl
-    }
-  },
-
-  async deletePlayerPhotoAssets(_photoUrl?: string, _thumbUrl?: string): Promise<void> {
-    // In demo mode, base64 strings are stored directly on the player record
-  },
-
-  async uploadAsset(_file: File, _folder = 'assets', _maxLongSide = 400): Promise<string> {
-    throw new AppError('Uploads are disabled in demo mode.')
-  },
-
-  async deleteStorageAsset(_assetUrl?: string | null): Promise<void> {
-    // No-op in demo mode
-  }
 }
 
 const supabaseStorageService: StorageService = {
@@ -159,9 +129,7 @@ const supabaseStorageService: StorageService = {
   }
 }
 
-export const storageService: StorageService = isDemoMode
-  ? demoStorageService
-  : supabaseStorageService
+export const storageService: StorageService = supabaseStorageService
 
 // Backward-compatible uploadPlayerPhotos signature: accepts file or (seasonId, playerCode, file)
 export async function uploadPlayerPhotos(

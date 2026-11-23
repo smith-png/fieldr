@@ -20,7 +20,6 @@ import {
   createTeam,
   deleteStorageAsset,
   deleteTeam,
-  isDemoMode,
   manageOwnerLogin,
   updateTeam,
   uploadAsset
@@ -291,10 +290,6 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
   }
 
   const confirmBulkImport = async () => {
-    if (isDemoMode) {
-      error('Modifications are disabled in demo mode.')
-      return
-    }
     const validRows = csvRows.filter((r) => r.valid)
     if (validRows.length === 0) return
 
@@ -357,11 +352,6 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
     e.target.value = ''
     if (!file) return
 
-    if (isDemoMode) {
-      error('Uploads are disabled in demo mode.')
-      return
-    }
-
     const previousLogo = logoUrl
     const initialLogo = editingTeam?.logo_url || ''
 
@@ -385,11 +375,6 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
-
-    if (isDemoMode) {
-      error('Uploads are disabled in demo mode.')
-      return
-    }
 
     const previousOwnerPhoto = ownerPhotoUrl
     const initialOwnerPhoto = editingTeam?.owner_photo_url || ''
@@ -415,10 +400,6 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
   }
 
   const handleRemoveOwnerPhoto = async () => {
-    if (isDemoMode) {
-      error('Modifications are disabled in demo mode.')
-      return
-    }
     const currentPhoto = ownerPhotoUrl
     const initialOwnerPhoto = editingTeam?.owner_photo_url || ''
     if (currentPhoto && currentPhoto !== initialOwnerPhoto) {
@@ -429,10 +410,6 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
 
   const handleSaveTeam = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (isDemoMode) {
-      error('Modifications are disabled in demo mode.')
-      return
-    }
     if (!activeSeason) {
       error('No active season found')
       return
@@ -498,10 +475,6 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
 
   const handleDeleteTeam = async () => {
     if (!deleteConfirmTeam) return
-    if (isDemoMode) {
-      error('Modifications are disabled in demo mode.')
-      return
-    }
 
     try {
       setIsSubmitting(true)

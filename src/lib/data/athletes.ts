@@ -1,279 +1,17 @@
 import { logError } from '../logger'
-import type { Athlete, AthleteCareerEntry, Player, PublicPlayer, Season, Team } from '../../types'
+import type { Athlete, AthleteCareerEntry, Player, PublicPlayer, Season } from '../../types'
 import { AppError } from '../errors'
 import { PUBLIC_PLAYER_SELECT_COLUMNS, PUBLIC_SQUAD_SELECT_COLUMNS } from '../constants'
 import {
-  isDemoMode,
   supabase,
-  getLocal,
-  setLocal,
-  notifyChange,
-  demoBroadcastChannel,
-  STORAGE_KEYS,
   formatAthleteCode,
   parseAthleteCode,
-  getNextAthleteCode,
   REALTIME_DEBOUNCE_MS,
   markLocalMutation,
   isRealtimeSuppressed
 } from './client'
 import { deletePlayerPhotoAssets } from './storage'
 import type { AthletesPagedParams, AthletesPagedResult, AthletesService } from './types'
-
-const demoAthletesService: AthletesService = {
-  async getAllAthletes(): Promise<Athlete[]> {
-    const allAthletes = getLocal<Athlete[]>(STORAGE_KEYS.ATHLETES, []).map((a) => ({
-      ...a,
-      academic_year: a.academic_year || '1st'
-    }))
-    return allAthletes.sort((a, b) => a.athlete_code - b.athlete_code)
-  },
-
-  async getAthletesPaged(params: AthletesPagedParams): Promise<AthletesPagedResult> {
-    const { page, pageSize, search } = params
-    const offset = (page - 1) * pageSize
-
-    const allAthletes = getLocal<Athlete[]>(STORAGE_KEYS.ATHLETES, [])
-    const allPlayers = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, [])
-
-    const countByAthleteId: Record<string, number> = {}
-    for (const p of allPlayers) {
-      if (p.athlete_id) {
-        countByAthleteId[p.athlete_id] = (countByAthleteId[p.athlete_id] || 0) + 1
-      }
-    }
-
-    let filtered = allAthletes.map((a) => ({
-      ...a,
-      academic_year: a.academic_year || '1st',
-      entries_count: countByAthleteId[a.id] || 0
-    }))
-
-    if (search && search.trim()) {
-      const q = search.trim().toLowerCase()
-      const parsedCode = parseAthleteCode(q)
-      filtered = filtered.filter((a) => {
-        if (parsedCode !== null && a.athlete_code === parsedCode) return true
-        if (formatAthleteCode(a.athlete_code).toLowerCase().includes(q)) return true
-        if (a.name.toLowerCase().includes(q)) return true
-        if (a.roll_no && a.roll_no.toLowerCase().includes(q)) return true
-        return false
-      })
-    }
-
-    filtered.sort((a, b) => a.athlete_code - b.athlete_code)
-
-    const totalCount = filtered.length
-    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
-    const paged = filtered.slice(offset, offset + pageSize)
-
-    return {
-      athletes: paged,
-      totalCount,
-      totalPages
-    }
-  },
-
-  async searchAthletes(query: string): Promise<Athlete[]> {
-    try {
-      const allAthletes = getLocal<Athlete[]>(STORAGE_KEYS.ATHLETES, []).map((a) => ({
-        ...a,
-        academic_year: a.academic_year || '1st'
-      }))
-      const q = (query || '').trim().toLowerCase()
-      if (!q) return allAthletes.slice(0, 20)
-
-      const parsedCode = parseAthleteCode(q)
-
-      return allAthletes
-        .filter((a) => {
-          if (parsedCode !== null && a.athlete_code === parsedCode) return true
-          if (formatAthleteCode(a.athlete_code).toLowerCase().includes(q)) return true
-          if (a.name.toLowerCase().includes(q)) return true
-          if (a.roll_no && a.roll_no.toLowerCase().includes(q)) return true
-          return false
-        })
-        .slice(0, 20)
-    } catch {
-      return []
-    }
-  },
-
-  async getAthleteByCode(code: number | string): Promise<Athlete | null> {
-    try {
-      const parsed = parseAthleteCode(code)
-      if (parsed === null) return null
-      const allAthletes = getLocal<Athlete[]>(STORAGE_KEYS.ATHLETES, [])
-      const found = allAthletes.find((a) => a.athlete_code === parsed)
-      return found ? { ...found, academic_year: found.academic_year || '1st' } : null
-    } catch {
-      return null
-    }
-  },
-
-  async getAthleteById(id: string): Promise<Athlete | null> {
-    try {
-      const allAthletes = getLocal<Athlete[]>(STORAGE_KEYS.ATHLETES, [])
-      const allPlayers = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, [])
-      const found = allAthletes.find((a) => a.id === id)
-      if (!found) return null
-      const entriesCount = allPlayers.filter((p) => p.athlete_id === id).length
-      return {
-        ...found,
-        academic_year: found.academic_year || '1st',
-        entries_count: entriesCount
-      }
-    } catch {
-      return null
-    }
-  },
-
-  async getAthleteCareer(athleteId: string): Promise<AthleteCareerEntry[]> {
-    return demoAthletesService.getAthleteEntries(athleteId)
-  },
-
-  async getAthleteEntries(athleteId: string): Promise<AthleteCareerEntry[]> {
-    try {
-      const allPlayers = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, [])
-      const allSeasons = getLocal<Season[]>(STORAGE_KEYS.SEASONS, [])
-      const allTeams = getLocal<Team[]>(STORAGE_KEYS.TEAMS, [])
-
-      const entries = allPlayers.filter((p) => p.athlete_id === athleteId)
-
-      const career: AthleteCareerEntry[] = entries.map((p) => {
-        const season = allSeasons.find((s) => s.id === p.season_id)
-        const team = p.team_id ? allTeams.find((t) => t.id === p.team_id) : null
-
-        return {
-          player_id: p.id,
-          season_id: p.season_id,
-          season_name: season?.name || 'Unknown Season',
-          is_season_active: !!season?.is_active,
-          sport: p.sport,
-          playing_role: p.playing_role,
-          academic_year: p.academic_year,
-          status: p.status,
-          team_id: p.team_id,
-          team_name: team?.name || null,
-          team_short_code: team?.short_code || null,
-          team_color: team?.color || null,
-          base_points: p.base_points,
-          purchase_price: p.purchase_price
-        }
-      })
-
-      return career.sort((a, b) => {
-        if (a.is_season_active && !b.is_season_active) return -1
-        if (!a.is_season_active && b.is_season_active) return 1
-        return a.season_name.localeCompare(b.season_name)
-      })
-    } catch {
-      return []
-    }
-  },
-
-  async createAthlete(
-    data: Omit<Athlete, 'id' | 'athlete_code' | 'created_at'>
-  ): Promise<Athlete> {
-    const trimmedName = data.name.trim()
-    if (!trimmedName) throw new AppError('Athlete name is required')
-    if (!data.academic_year) throw new AppError('Academic year is required')
-
-    const athletes = getLocal<Athlete[]>(STORAGE_KEYS.ATHLETES, [])
-    const nextCode = getNextAthleteCode(athletes)
-
-    const newAthlete: Athlete = {
-      id: `ath-${Date.now()}-${nextCode}`,
-      athlete_code: nextCode,
-      name: trimmedName,
-      academic_year: data.academic_year,
-      photo_url: data.photo_url || undefined,
-      photo_thumb_url: data.photo_thumb_url || undefined,
-      roll_no: data.roll_no?.trim() || undefined,
-      notes: data.notes?.trim() || undefined,
-      created_at: new Date().toISOString(),
-      entries_count: 0
-    }
-
-    markLocalMutation(['athletes', 'players'])
-    athletes.push(newAthlete)
-    setLocal(STORAGE_KEYS.ATHLETES, athletes)
-    notifyChange('athletes_change')
-    return newAthlete
-  },
-
-  async updateAthlete(id: string, updates: Partial<Athlete>): Promise<Athlete> {
-    const athletes = getLocal<Athlete[]>(STORAGE_KEYS.ATHLETES, [])
-    const index = athletes.findIndex((a) => a.id === id)
-    if (index === -1) throw new AppError('Athlete not found')
-
-    // athlete_code is strictly immutable
-    const { athlete_code: _forbidden, entries_count: _ignored, ...safeUpdates } = updates
-
-    const updated: Athlete = {
-      ...athletes[index],
-      ...safeUpdates,
-      name: safeUpdates.name !== undefined ? safeUpdates.name.trim() : athletes[index].name,
-      academic_year: safeUpdates.academic_year || athletes[index].academic_year || '1st'
-    }
-
-    markLocalMutation(['athletes', 'players'])
-    athletes[index] = updated
-    setLocal(STORAGE_KEYS.ATHLETES, athletes)
-
-    // Sync updated name, roll_no, and photos to player entries; sync academic_year to ACTIVE season only
-    const seasons = getLocal<Season[]>(STORAGE_KEYS.SEASONS, [])
-    const activeSeason = seasons.find((s) => s.is_active)
-    const players = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, [])
-    let playersChanged = false
-
-    const updatedPlayers = players.map((p) => {
-      if (p.athlete_id === id) {
-        playersChanged = true
-        const isCurrentActiveSeason = activeSeason && p.season_id === activeSeason.id
-        return {
-          ...p,
-          name: updated.name,
-          roll_no: updated.roll_no,
-          photo_url: updated.photo_url,
-          photo_thumb_url: updated.photo_thumb_url,
-          academic_year:
-            safeUpdates.academic_year !== undefined && isCurrentActiveSeason
-              ? safeUpdates.academic_year
-              : p.academic_year
-        }
-      }
-      return p
-    })
-
-    if (playersChanged) {
-      setLocal(STORAGE_KEYS.PLAYERS, updatedPlayers)
-      notifyChange('players_change')
-    }
-
-    notifyChange('athletes_change')
-    return updated
-  },
-
-  async deleteAthlete(id: string): Promise<void> {
-    const allPlayers = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, [])
-    const hasEntries = allPlayers.some((p) => p.athlete_id === id)
-    if (hasEntries) {
-      throw new AppError('This athlete has sport entries and cannot be deleted.')
-    }
-
-    const athletes = getLocal<Athlete[]>(STORAGE_KEYS.ATHLETES, [])
-    const target = athletes.find((a) => a.id === id)
-    if (!target) throw new AppError('Athlete not found')
-
-    markLocalMutation(['athletes', 'players'])
-    await deletePlayerPhotoAssets(target.photo_url, target.photo_thumb_url)
-
-    const remaining = athletes.filter((a) => a.id !== id)
-    setLocal(STORAGE_KEYS.ATHLETES, remaining)
-    notifyChange('athletes_change')
-  }
-}
 
 const ATHLETE_COLS =
   'id, athlete_code, name, academic_year, photo_url, photo_thumb_url, roll_no, notes, created_at'
@@ -721,9 +459,7 @@ const supabaseAthletesService: AthletesService = {
   }
 }
 
-export const athletesService: AthletesService = isDemoMode
-  ? demoAthletesService
-  : supabaseAthletesService
+export const athletesService: AthletesService = supabaseAthletesService
 
 export function subscribeToAthletes(onUpdate: () => void): () => void {
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -737,28 +473,6 @@ export function subscribeToAthletes(onUpdate: () => void): () => void {
       if (!active || isRealtimeSuppressed('athletes')) return
       onUpdate()
     }, REALTIME_DEBOUNCE_MS)
-  }
-
-  if (isDemoMode) {
-    const handleBroadcast = (e: MessageEvent) => {
-      if (e.data?.event === 'athletes_change' || e.data?.event === 'players_change') {
-        scheduleUpdate()
-      }
-    }
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEYS.ATHLETES || e.key === STORAGE_KEYS.PLAYERS) {
-        scheduleUpdate()
-      }
-    }
-    if (demoBroadcastChannel) demoBroadcastChannel.addEventListener('message', handleBroadcast)
-    window.addEventListener('storage', handleStorage)
-
-    return () => {
-      active = false
-      if (debounceTimer) clearTimeout(debounceTimer)
-      if (demoBroadcastChannel) demoBroadcastChannel.removeEventListener('message', handleBroadcast)
-      window.removeEventListener('storage', handleStorage)
-    }
   }
 
   if (!supabase) return () => {}

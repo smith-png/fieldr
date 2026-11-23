@@ -1,38 +1,22 @@
 import type {
   AcademicYear,
   AdminRegistrationSettings,
-  Athlete,
   AthleteRegistration,
-  Player,
   PublicRegistrationConfig,
   PublicRegistrationSport,
-  RegistrationSportEntry,
-  Season,
-  Sport
+  RegistrationSportEntry
 } from '../../types'
 import { AppError } from '../errors'
 import { isRecord } from '../utils'
-import { blobToDataUrl, createThumbnailBlob } from '../imageCompression'
-import {
-  DEFAULT_SPORTS,
-  STORAGE_KEYS,
-  getLocal,
-  getNextAthleteCode,
-  isDemoMode,
-  markLocalMutation,
-  notifyChange,
-  setLocal,
-  supabase
-} from './client'
+import { createThumbnailBlob } from '../imageCompression'
+import { markLocalMutation, supabase } from './client'
+import { invalidateRegistrationStatus } from '../registrationStatusStore'
 
 export const REGISTRATION_PENDING_BUCKET = 'registration-pending'
 
 export const DEFAULT_CONFIRMATION_MESSAGE = 'Submitted. An admin will review your entry.'
 export const DEFAULT_INSTRUCTIONS_MD =
   'Complete your details below, select every sport you are entering, and upload a recent portrait photo. Have the registration code from the organizers ready.'
-
-const DEMO_REG_SETTINGS_KEY = 'fieldr_registration_settings'
-const DEMO_REGISTRATIONS_KEY = 'fieldr_registrations'
 
 const CLOSED_FALLBACK_CONFIG: PublicRegistrationConfig = {
   is_open: false,
@@ -62,10 +46,7 @@ export function invalidatePublicRegistrationConfigCache(): void {
   cachedPublicConfig = null
   cachedPublicConfigAt = 0
   pendingPublicConfigPromise = null
-}
-
-function normalizeRoll(roll: string): string {
-  return roll.trim().toLowerCase().replace(/\s+/g, '')
+  invalidateRegistrationStatus()
 }
 
 function parsePublicConfig(raw: unknown): PublicRegistrationConfig {
@@ -173,57 +154,30 @@ function parseRegistrationRow(raw: Record<string, unknown>): AthleteRegistration
   }
 }
 
-function getDemoSettings(): AdminRegistrationSettings {
-  return getLocal<AdminRegistrationSettings>(DEMO_REG_SETTINGS_KEY, {
-    is_open: false,
-    opens_at: null,
-    closes_at: null,
-    registration_code: '',
-    accepted_sports: DEFAULT_SPORTS.map((s) => s.id),
-    default_base_points: 100,
-    instructions_md: DEFAULT_INSTRUCTIONS_MD,
-    confirmation_message: DEFAULT_CONFIRMATION_MESSAGE,
-    updated_at: null
-  })
-}
-
-function computeDemoPublicConfig(): PublicRegistrationConfig {
-  const settings = getDemoSettings()
-  const seasons = getLocal<Array<Season & { is_rehearsal?: boolean }>>(STORAGE_KEYS.SEASONS, [])
-  const targetSeason =
-    seasons.find((s) => s.is_active && !s.is_rehearsal) || null
-  const sports = getLocal<Sport[]>(STORAGE_KEYS.SPORTS, DEFAULT_SPORTS)
-  const acceptedSet = new Set(settings.accepted_sports.map((s) => s.toLowerCase()))
-  const accepted_sports = sports
-    .filter((s) => acceptedSet.has(s.id.toLowerCase()) || acceptedSet.has(s.name.toLowerCase()))
-    .map((s) => ({ id: s.id, name: s.name, roles: s.roles }))
-
-  const now = Date.now()
-  const opensMs = settings.opens_at ? Date.parse(settings.opens_at) : null
-  const closesMs = settings.closes_at ? Date.parse(settings.closes_at) : null
-
-  let reason: PublicRegistrationConfig['reason'] = 'open'
-  if (!targetSeason) {
-    reason = 'no_season'
-  } else if (!settings.is_open || !settings.registration_code.trim() || accepted_sports.length === 0) {
-    reason = 'closed'
-  } else if (opensMs !== null && !Number.isNaN(opensMs) && now < opensMs) {
-    reason = 'before_open'
-  } else if (closesMs !== null && !Number.isNaN(closesMs) && now > closesMs) {
-    reason = 'after_close'
+export async function fetchPublicRegistrationConfigStrict(): Promise<PublicRegistrationConfig> {
+  if (!supabase) {
+    throw new AppError('Supabase not configured')
   }
 
-  return {
-    is_open: reason === 'open',
-    reason,
-    season_id: targetSeason?.id || null,
-    season_name: targetSeason?.name || null,
-    opens_at: settings.opens_at,
-    closes_at: settings.closes_at,
-    accepted_sports,
-    instructions_md: settings.instructions_md || DEFAULT_INSTRUCTIONS_MD,
-    confirmation_message: settings.confirmation_message || DEFAULT_CONFIRMATION_MESSAGE
+  const { data, error } = await supabase.rpc('get_public_registration_config')
+  if (error) {
+    const code = typeof error.code === 'string' ? error.code : ''
+    // Explicit RPC-not-found means registration is unavailable on this backend
+    if (code === 'PGRST202' || code === '42883') {
+      const closed = { ...CLOSED_FALLBACK_CONFIG }
+      cachedPublicConfig = closed
+      cachedPublicConfigAt = Date.now()
+      return closed
+    }
+    throw new AppError(error.message || 'Failed to load registration configuration.', {
+      original: error
+    })
   }
+
+  const parsed = parsePublicConfig(data)
+  cachedPublicConfig = parsed
+  cachedPublicConfigAt = Date.now()
+  return parsed
 }
 
 export async function getPublicRegistrationConfig(
@@ -241,23 +195,12 @@ export async function getPublicRegistrationConfig(
   }
 
   const runner = (async (): Promise<PublicRegistrationConfig> => {
-    if (isDemoMode || !supabase) {
-      const cfg = computeDemoPublicConfig()
-      cachedPublicConfig = cfg
-      cachedPublicConfigAt = Date.now()
-      return cfg
-    }
-
-    const { data, error } = await supabase.rpc('get_public_registration_config')
-    if (error) {
-      // Fail closed cleanly on SQL not installed or transient error without caching the failure
+    try {
+      return await fetchPublicRegistrationConfigStrict()
+    } catch {
+      // Fail closed cleanly on transient error without caching the failure
       return { ...CLOSED_FALLBACK_CONFIG }
     }
-
-    const parsed = parsePublicConfig(data)
-    cachedPublicConfig = parsed
-    cachedPublicConfigAt = Date.now()
-    return parsed
   })()
 
   pendingPublicConfigPromise = runner
@@ -313,57 +256,8 @@ export async function submitPublicRegistration(
 
   onStepChange?.('submitting')
 
-  if (isDemoMode || !supabase) {
-    const settings = getDemoSettings()
-    const pubCfg = computeDemoPublicConfig()
-    if (!pubCfg.is_open || !pubCfg.season_id) {
-      throw new AppError('Registration is closed.')
-    }
-    if (registrationCode.trim() !== settings.registration_code.trim()) {
-      throw new AppError('Invalid registration code.')
-    }
-    const existing = getLocal<AthleteRegistration[]>(DEMO_REGISTRATIONS_KEY, [])
-    const norm = normalizeRoll(rollNo)
-    const dup = existing.find(
-      (r) =>
-        r.season_id === pubCfg.season_id &&
-        normalizeRoll(r.roll_no) === norm &&
-        r.status !== 'rejected' &&
-        (r.photo_uploaded || Date.now() - Date.parse(r.created_at) < 3600_000)
-    )
-    if (dup) {
-      throw new AppError('A registration for this roll number already exists this season.')
-    }
-    onStepChange?.('uploading')
-    const photoDataUrl = await blobToDataUrl(photoBlob)
-    const thumbDataUrl = await blobToDataUrl(thumbBlob)
-    onStepChange?.('finalizing')
-    const id = `reg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    const nextRow: AthleteRegistration = {
-      id,
-      season_id: pubCfg.season_id,
-      season_name: pubCfg.season_name,
-      full_name: fullName.trim(),
-      roll_no: rollNo.trim(),
-      academic_year: academicYear,
-      sport_entries: sportEntries,
-      consent_given: true,
-      pending_photo_path: photoDataUrl,
-      pending_thumb_path: thumbDataUrl,
-      photo_uploaded: true,
-      status: 'pending',
-      rejection_reason: null,
-      approved_athlete_id: null,
-      reviewed_at: null,
-      created_at: new Date().toISOString(),
-      existing_athlete_id: null,
-      existing_athlete_code: null,
-      existing_athlete_name: null,
-      existing_athlete_photo_thumb_url: null,
-      existing_athlete_photo_url: null
-    }
-    setLocal(DEMO_REGISTRATIONS_KEY, [nextRow, ...existing])
-    return { registrationId: id }
+  if (!supabase) {
+    throw new AppError('Supabase not configured')
   }
 
   // Step 1: Server-validated insert via SECURITY DEFINER RPC (checks window, code, rate limit, duplicates)
@@ -457,8 +351,8 @@ export async function submitPublicRegistration(
 }
 
 export async function getAdminRegistrationSettings(): Promise<AdminRegistrationSettings> {
-  if (isDemoMode || !supabase) {
-    return getDemoSettings()
+  if (!supabase) {
+    throw new AppError('Supabase not configured')
   }
 
   const { data, error } = await supabase
@@ -525,10 +419,8 @@ export async function saveAdminRegistrationSettings(
     updated_at: new Date().toISOString()
   }
 
-  if (isDemoMode || !supabase) {
-    setLocal(DEMO_REG_SETTINGS_KEY, payload)
-    invalidatePublicRegistrationConfigCache()
-    return payload
+  if (!supabase) {
+    throw new AppError('Supabase not configured')
   }
 
   const { data, error } = await supabase
@@ -565,12 +457,8 @@ export async function saveAdminRegistrationSettings(
 }
 
 export async function getPendingRegistrationsCount(): Promise<number> {
-  if (isDemoMode || !supabase) {
-    const rows = getLocal<AthleteRegistration[]>(DEMO_REGISTRATIONS_KEY, [])
-    const cutoff = Date.now() - 3600_000
-    return rows.filter(
-      (r) => r.status === 'pending' && (r.photo_uploaded || Date.parse(r.created_at) > cutoff)
-    ).length
+  if (!supabase) {
+    return 0
   }
 
   const { data, error } = await supabase.rpc('get_pending_registrations_count')
@@ -581,30 +469,8 @@ export async function getPendingRegistrationsCount(): Promise<number> {
 }
 
 export async function listAdminRegistrations(): Promise<AthleteRegistration[]> {
-  if (isDemoMode || !supabase) {
-    const rows = getLocal<AthleteRegistration[]>(DEMO_REGISTRATIONS_KEY, [])
-    const athletes = getLocal<Athlete[]>(STORAGE_KEYS.ATHLETES, [])
-    const byRoll = new Map<string, Athlete>()
-    for (const a of athletes) {
-      if (a.roll_no) byRoll.set(normalizeRoll(a.roll_no), a)
-    }
-    const cutoff = Date.now() - 3600_000
-    return rows
-      .filter(
-        (r) =>
-          r.status !== 'pending' || r.photo_uploaded || Date.parse(r.created_at) > cutoff
-      )
-      .map((r) => {
-        const matched = byRoll.get(normalizeRoll(r.roll_no))
-        return {
-          ...r,
-          existing_athlete_id: matched?.id ?? null,
-          existing_athlete_code: matched?.athlete_code ?? null,
-          existing_athlete_name: matched?.name ?? null,
-          existing_athlete_photo_thumb_url: matched?.photo_thumb_url ?? null,
-          existing_athlete_photo_url: matched?.photo_url ?? null
-        }
-      })
+  if (!supabase) {
+    return []
   }
 
   const { data, error } = await supabase.rpc('list_admin_registrations')
@@ -624,12 +490,8 @@ export async function getPendingPhotoSignedUrls(
   const uniquePaths = Array.from(new Set(paths.map((p) => p.trim()).filter(Boolean)))
   if (uniquePaths.length === 0) return {}
 
-  if (isDemoMode || !supabase) {
-    const map: Record<string, string> = {}
-    for (const p of uniquePaths) {
-      map[p] = p
-    }
-    return map
+  if (!supabase) {
+    return {}
   }
 
   const { data, error } = await supabase.storage
@@ -683,109 +545,8 @@ export async function approveRegistration(
     throw new AppError('At least one sport entry is required.')
   }
 
-  if (isDemoMode || !supabase) {
-    const settings = getDemoSettings()
-    const athletes = getLocal<Athlete[]>(STORAGE_KEYS.ATHLETES, [])
-    const players = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, [])
-    const norm = normalizeRoll(rollNo)
-    const existingIdx = athletes.findIndex((a) => a.roll_no && normalizeRoll(a.roll_no) === norm)
-    let targetAthlete: Athlete
-    let createdAthlete = false
-
-    if (existingIdx !== -1) {
-      targetAthlete = {
-        ...athletes[existingIdx],
-        name: fullName,
-        academic_year: academicYear,
-        ...(replacePhoto && registration.pending_photo_path
-          ? {
-              photo_url: registration.pending_photo_path,
-              photo_thumb_url:
-                registration.pending_thumb_path || registration.pending_photo_path
-            }
-          : {})
-      }
-      athletes[existingIdx] = targetAthlete
-    } else {
-      createdAthlete = true
-      targetAthlete = {
-        id: `ath-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        athlete_code: getNextAthleteCode(athletes),
-        name: fullName,
-        academic_year: academicYear,
-        roll_no: rollNo,
-        photo_url: registration.pending_photo_path || undefined,
-        photo_thumb_url:
-          registration.pending_thumb_path || registration.pending_photo_path || undefined,
-        created_at: new Date().toISOString()
-      }
-      athletes.push(targetAthlete)
-    }
-
-    let createdPlayers = 0
-    let skippedPlayers = 0
-    for (const entry of sportEntries) {
-      const dup = players.some(
-        (p) =>
-          p.season_id === registration.season_id &&
-          p.athlete_id === targetAthlete.id &&
-          p.sport.toLowerCase() === entry.sport.toLowerCase()
-      )
-      if (dup) {
-        skippedPlayers += 1
-        continue
-      }
-      createdPlayers += 1
-      players.push({
-        id: `pl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        season_id: registration.season_id,
-        athlete_id: targetAthlete.id,
-        athlete_code: targetAthlete.athlete_code,
-        player_code: String(targetAthlete.athlete_code).padStart(4, '0'),
-        name: targetAthlete.name,
-        photo_url: targetAthlete.photo_url,
-        photo_thumb_url: targetAthlete.photo_thumb_url,
-        academic_year: academicYear,
-        sport: entry.sport,
-        playing_role: entry.playing_role,
-        base_points: settings.default_base_points || 100,
-        status: 'available',
-        team_id: null,
-        purchase_price: null,
-        created_at: new Date().toISOString()
-      })
-    }
-
-    const regs = getLocal<AthleteRegistration[]>(DEMO_REGISTRATIONS_KEY, [])
-    const nextRegs = regs.map((r) =>
-      r.id === registration.id
-        ? {
-            ...r,
-            full_name: fullName,
-            roll_no: rollNo,
-            academic_year: academicYear,
-            sport_entries: sportEntries,
-            status: 'approved' as const,
-            approved_athlete_id: targetAthlete.id,
-            reviewed_at: new Date().toISOString(),
-            pending_photo_path: null,
-            pending_thumb_path: null
-          }
-        : r
-    )
-    markLocalMutation(['athletes', 'players'])
-    setLocal(STORAGE_KEYS.ATHLETES, athletes)
-    setLocal(STORAGE_KEYS.PLAYERS, players)
-    setLocal(DEMO_REGISTRATIONS_KEY, nextRegs)
-    notifyChange('athletes_change')
-    notifyChange('players_change')
-    return {
-      athlete_id: targetAthlete.id,
-      athlete_code: targetAthlete.athlete_code,
-      created_athlete: createdAthlete,
-      players_created: createdPlayers,
-      players_skipped: skippedPlayers
-    }
+  if (!supabase) {
+    throw new AppError('Supabase not configured')
   }
 
   // Decide whether we need to copy pending photo & thumbnail into fieldr-assets
@@ -915,22 +676,8 @@ export async function rejectRegistration(
   registrationId: string,
   reason?: string
 ): Promise<void> {
-  if (isDemoMode || !supabase) {
-    const regs = getLocal<AthleteRegistration[]>(DEMO_REGISTRATIONS_KEY, [])
-    setLocal(
-      DEMO_REGISTRATIONS_KEY,
-      regs.map((r) =>
-        r.id === registrationId
-          ? {
-              ...r,
-              status: 'rejected' as const,
-              rejection_reason: reason?.trim() || null,
-              reviewed_at: new Date().toISOString()
-            }
-          : r
-      )
-    )
-    return
+  if (!supabase) {
+    throw new AppError('Supabase not configured')
   }
 
   const { error } = await supabase.rpc('reject_athlete_registration', {
@@ -943,20 +690,134 @@ export async function rejectRegistration(
   }
 }
 
+function isStorageNotFoundError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  const record = err as Record<string, unknown>
+  const status = record.status ?? record.statusCode
+  if (status === 404 || status === '404') return true
+  const message = typeof record.message === 'string' ? record.message : ''
+  return /not[\s_-]*found|no such|404/i.test(message)
+}
+
+async function removePendingRegistrationPaths(paths: string[]): Promise<number> {
+  if (!supabase) return 0
+  const uniquePaths = Array.from(
+    new Set(paths.map((p) => String(p || '').trim()).filter(Boolean))
+  )
+  if (uniquePaths.length === 0) return 0
+
+  let filesRemoved = 0
+  const BATCH_SIZE = 100
+  for (let i = 0; i < uniquePaths.length; i += BATCH_SIZE) {
+    const batch = uniquePaths.slice(i, i + BATCH_SIZE)
+    try {
+      const { data: removedData, error: rmErr } = await supabase.storage
+        .from(REGISTRATION_PENDING_BUCKET)
+        .remove(batch)
+      if (!rmErr) {
+        filesRemoved += Array.isArray(removedData) ? removedData.length : batch.length
+      } else if (!isStorageNotFoundError(rmErr)) {
+        for (const path of batch) {
+          try {
+            const { data: singleData, error: singleErr } = await supabase.storage
+              .from(REGISTRATION_PENDING_BUCKET)
+              .remove([path])
+            if (!singleErr) {
+              filesRemoved += Array.isArray(singleData) ? singleData.length : 1
+            }
+          } catch {
+            // Ignore missing or already-removed storage objects
+          }
+        }
+      }
+    } catch {
+      // Ignore storage cleanup errors after database rows are removed
+    }
+  }
+  return filesRemoved
+}
+
+function parseClearRpcResult(data: unknown): {
+  deletedCount: number
+  storagePaths: string[]
+} {
+  const row = Array.isArray(data) ? data[0] : data
+  const deletedCount = isRecord(row) ? Number(row.deleted_count || 0) : 0
+  const storagePaths =
+    isRecord(row) && Array.isArray(row.storage_paths)
+      ? row.storage_paths.map((p) => String(p).trim()).filter(Boolean)
+      : []
+  return { deletedCount, storagePaths }
+}
+
+export type ClearRegistrationHistoryScope = 'approved' | 'all'
+
+export async function clearRegistrationHistory(
+  scope: ClearRegistrationHistoryScope
+): Promise<{
+  deletedCount: number
+  filesRemoved: number
+}> {
+  if (!supabase) {
+    throw new AppError('Supabase not configured')
+  }
+
+  let { data, error } = await supabase.rpc('clear_registration_history', {
+    p_scope: scope
+  })
+
+  if (error && error.code === 'PGRST202') {
+    const retry = await supabase.rpc('clear_registration_history', {
+      scope
+    })
+    data = retry.data
+    error = retry.error
+  }
+
+  if (error) {
+    throw new AppError(error.message, { original: error })
+  }
+
+  const { deletedCount, storagePaths } = parseClearRpcResult(data)
+  const filesRemoved = await removePendingRegistrationPaths(storagePaths)
+
+  return { deletedCount, filesRemoved }
+}
+
+export async function deleteReviewedRegistrationEntry(
+  registration: AthleteRegistration
+): Promise<{ filesRemoved: number }> {
+  if (registration.status === 'pending') {
+    throw new AppError('Pending registrations cannot be deleted from history.')
+  }
+  if (!supabase) {
+    throw new AppError('Supabase not configured')
+  }
+
+  const { error } = await supabase
+    .from('athlete_registrations')
+    .delete()
+    .eq('id', registration.id)
+    .in('status', ['approved', 'rejected'])
+
+  if (error) {
+    throw new AppError(error.message, { original: error })
+  }
+
+  const paths = [registration.pending_photo_path, registration.pending_thumb_path].filter(
+    (p): p is string => Boolean(p)
+  )
+  const filesRemoved = await removePendingRegistrationPaths(paths)
+
+  return { filesRemoved }
+}
+
 export async function purgeRejectedAndIncompleteRegistrations(): Promise<{
   deletedCount: number
   filesRemoved: number
 }> {
-  if (isDemoMode || !supabase) {
-    const regs = getLocal<AthleteRegistration[]>(DEMO_REGISTRATIONS_KEY, [])
-    const cutoff = Date.now() - 3600_000
-    const keep = regs.filter(
-      (r) =>
-        r.status === 'approved' ||
-        (r.status === 'pending' && (r.photo_uploaded || Date.parse(r.created_at) > cutoff))
-    )
-    setLocal(DEMO_REGISTRATIONS_KEY, keep)
-    return { deletedCount: regs.length - keep.length, filesRemoved: 0 }
+  if (!supabase) {
+    throw new AppError('Supabase not configured')
   }
 
   const { data, error } = await supabase.rpc('purge_registrations')
@@ -964,25 +825,8 @@ export async function purgeRejectedAndIncompleteRegistrations(): Promise<{
     throw new AppError(error.message, { original: error })
   }
 
-  const deletedCount = isRecord(data) ? Number(data.deleted_count || 0) : 0
-  const storagePaths =
-    isRecord(data) && Array.isArray(data.storage_paths)
-      ? data.storage_paths.map((p) => String(p).trim()).filter(Boolean)
-      : []
-
-  let filesRemoved = 0
-  if (storagePaths.length > 0) {
-    const BATCH_SIZE = 100
-    for (let i = 0; i < storagePaths.length; i += BATCH_SIZE) {
-      const batch = storagePaths.slice(i, i + BATCH_SIZE)
-      const { error: rmErr } = await supabase.storage
-        .from(REGISTRATION_PENDING_BUCKET)
-        .remove(batch)
-      if (!rmErr) {
-        filesRemoved += batch.length
-      }
-    }
-  }
+  const { deletedCount, storagePaths } = parseClearRpcResult(data)
+  const filesRemoved = await removePendingRegistrationPaths(storagePaths)
 
   return { deletedCount, filesRemoved }
 }

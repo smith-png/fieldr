@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, LockKey, SignIn, User, WarningCircle } from '@phosphor-icons/react'
 import { BrandMark } from '../../components/layout/BrandMark'
 import {
@@ -13,13 +13,9 @@ import {
   PUBLIC_PAGE_TITLE
 } from '../../components/public/publicStyles'
 import { useAuth } from '../../lib/AuthContext'
-import type { UserRole } from '../../types'
 
 export const LoginPage: React.FC = () => {
-  const [searchParams] = useSearchParams()
-  const initialRole = searchParams.get('as') === 'projector' ? 'projector' : 'admin'
-
-  const { login, quickDemoLogin, isDemo } = useAuth()
+  const { login } = useAuth()
   const navigate = useNavigate()
 
   const [email, setEmail] = useState('')
@@ -47,26 +43,6 @@ export const LoginPage: React.FC = () => {
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Invalid login credentials'
-      setErrorMsg(msg)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  const handleQuickLogin = async (role: UserRole) => {
-    try {
-      setIsSubmitting(true)
-      setErrorMsg('')
-      const user = await quickDemoLogin(role)
-      if (user.role === 'admin') {
-        navigate('/admin')
-      } else if (user.role === 'owner') {
-        navigate('/teams')
-      } else {
-        navigate('/projector')
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Demo sign in failed'
       setErrorMsg(msg)
     } finally {
       setIsSubmitting(false)
@@ -155,51 +131,6 @@ export const LoginPage: React.FC = () => {
               <span>{isSubmitting ? 'Authenticating...' : 'Sign in'}</span>
             </button>
           </form>
-
-          {/* Quick Demo Login Buttons - ONLY in demo mode */}
-          {isDemo && (
-            <div className="mt-8 pt-6 border-t border-border">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-mono uppercase tracking-wider text-muted">
-                  Demo mode: One-click sign in
-                </span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent-bright/15 text-accent-bright font-medium">
-                  Instant Test
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => handleQuickLogin('admin')}
-                  disabled={isSubmitting}
-                  className={`py-2.5 px-3 rounded-xl border text-xs font-medium transition-all text-center flex items-center justify-center gap-1.5 ${
-                    initialRole === 'admin'
-                      ? 'bg-accent/20 border-accent-bright text-text hover:bg-accent/30'
-                      : 'bg-surface-2 border-border text-text hover:bg-surface'
-                  }`}
-                >
-                  <span>Admin</span>
-                  <span className="text-[10px] text-muted">(/admin)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickLogin('projector')}
-                  disabled={isSubmitting}
-                  className={`py-2.5 px-3 rounded-xl border text-xs font-medium transition-all text-center flex items-center justify-center gap-1.5 ${
-                    initialRole === 'projector'
-                      ? 'bg-accent/20 border-accent-bright text-text hover:bg-accent/30'
-                      : 'bg-surface-2 border-border text-text hover:bg-surface'
-                  }`}
-                >
-                  <span>Projector</span>
-                  <span className="text-[10px] text-muted">(/projector)</span>
-                </button>
-              </div>
-              <p className="text-[11px] text-muted mt-3 text-center">
-                Supabase credentials not detected. Storage and state are operating locally.
-              </p>
-            </div>
-          )}
         </div>
       </div>
 

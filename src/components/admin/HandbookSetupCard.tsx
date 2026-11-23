@@ -12,7 +12,7 @@ import {
 import { useAuth } from '../../lib/AuthContext'
 import { useToast } from '../../lib/ToastContext'
 import { getErrorMessage } from '../../lib/errors'
-import { isDemoMode, supabase } from '../../lib/data'
+import { supabase } from '../../lib/data'
 import { MAX_PDF_BYTES, formatDocumentDate, validatePdfFile } from '../../lib/utils'
 import { Button, Dialog, EmptyState, ErrorState } from '../ui'
 
@@ -66,7 +66,7 @@ export const HandbookSetupCard: React.FC = () => {
   const { showToast } = useToast()
 
   const isAdmin = user?.role === 'admin'
-  const canWrite = isAdmin && !isDemoMode && Boolean(supabase)
+  const canWrite = isAdmin && Boolean(supabase)
 
   const [savedCode, setSavedCode] = useState<string>('')
   const [codeInput, setCodeInput] = useState<string>('')
@@ -98,7 +98,7 @@ export const HandbookSetupCard: React.FC = () => {
     async (options?: { silent?: boolean }) => {
       const reqId = ++latestReqIdRef.current
       const silent = Boolean(options?.silent)
-      if (!supabase || isDemoMode) {
+      if (!supabase) {
         setIsLoading(false)
         return
       }
@@ -167,12 +167,7 @@ export const HandbookSetupCard: React.FC = () => {
   const handleSaveCode = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!canWrite || !supabase) {
-      showToast(
-        isDemoMode
-          ? 'Handbook settings cannot be modified in demo mode.'
-          : 'Admin permissions required.',
-        'error'
-      )
+      showToast('Admin permissions required.', 'error')
       return
     }
 
@@ -241,12 +236,7 @@ export const HandbookSetupCard: React.FC = () => {
   const handleUploadHandbook = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!canWrite || !supabase) {
-      showToast(
-        isDemoMode
-          ? 'Handbooks cannot be uploaded in demo mode.'
-          : 'Admin permissions required.',
-        'error'
-      )
+      showToast('Admin permissions required.', 'error')
       return
     }
 

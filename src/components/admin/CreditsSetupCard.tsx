@@ -18,7 +18,6 @@ import {
   deleteCreditPerson,
   deleteCreditPhotoFromBucket,
   getCreditsPeople,
-  isDemoMode,
   reorderCreditsPeople,
   updateCreditPerson,
   uploadCreditPhoto
@@ -34,7 +33,7 @@ export const CreditsSetupCard: React.FC = () => {
   const { showToast } = useToast()
 
   const isAdmin = user?.role === 'admin'
-  const canWrite = isAdmin && !isDemoMode
+  const canWrite = isAdmin
 
   const [people, setPeople] = useState<CreditPerson[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
@@ -158,12 +157,7 @@ export const CreditsSetupCard: React.FC = () => {
 
   const openAddDialog = (kind: CreditKind) => {
     if (!canWrite) {
-      showToast(
-        isDemoMode
-          ? 'Credits cannot be modified in demo mode.'
-          : 'Admin permissions required.',
-        'error'
-      )
+      showToast('Admin permissions required.', 'error')
       return
     }
     if (kind === 'core' && isCoreFull) {
@@ -183,12 +177,7 @@ export const CreditsSetupCard: React.FC = () => {
 
   const openEditDialog = (person: CreditPerson) => {
     if (!canWrite) {
-      showToast(
-        isDemoMode
-          ? 'Credits cannot be modified in demo mode.'
-          : 'Admin permissions required.',
-        'error'
-      )
+      showToast('Admin permissions required.', 'error')
       return
     }
 
@@ -251,9 +240,7 @@ export const CreditsSetupCard: React.FC = () => {
     if (isSaving) return
 
     if (!canWrite) {
-      const msg = isDemoMode
-        ? 'Credits cannot be modified in demo mode.'
-        : 'Admin permissions required.'
+      const msg = 'Admin permissions required.'
       setDialogError(msg)
       showToast(msg, 'error')
       return
@@ -407,12 +394,7 @@ export const CreditsSetupCard: React.FC = () => {
   const handleConfirmDelete = async () => {
     if (!personToDelete || isDeleting) return
     if (!canWrite) {
-      showToast(
-        isDemoMode
-          ? 'Credits cannot be modified in demo mode.'
-          : 'Admin permissions required.',
-        'error'
-      )
+      showToast('Admin permissions required.', 'error')
       return
     }
 
@@ -441,12 +423,6 @@ export const CreditsSetupCard: React.FC = () => {
       {/* Card Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-border">
         <h2 className="font-syne font-bold text-xl text-text tracking-tight">Credits</h2>
-
-        {isDemoMode && (
-          <div className="px-3.5 py-1.5 rounded-full bg-surface-2 border border-border text-xs text-muted shrink-0 self-start sm:self-auto">
-            Read-only in demo mode
-          </div>
-        )}
       </div>
 
       {loadError ? (

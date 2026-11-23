@@ -7,9 +7,9 @@ import { useAuth } from '../../lib/AuthContext'
 import { triggerPwaInstall, usePwaInstall } from '../../lib/pwaInstall'
 import { prefetchRoute } from '../../lib/queryCache'
 import {
-  getCachedPublicRegistrationConfig,
-  getPublicRegistrationConfig
-} from '../../lib/data/registrations'
+  recomputeRegistrationStatus,
+  useRegistrationStatus
+} from '../../lib/registrationStatusStore'
 import { type ThemePreference, useTheme } from '../../lib/theme'
 import { Dialog } from '../ui/Dialog'
 
@@ -45,23 +45,13 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
   const [isDragging, setIsDragging] = useState<boolean>(false)
   const { canPromptInstall, isInstalled, isIOSSafari } = usePwaInstall()
   const [isIOSInstallOpen, setIsIOSInstallOpen] = useState<boolean>(false)
-  const [isRegistrationOpen, setIsRegistrationOpen] = useState<boolean>(
-    () => getCachedPublicRegistrationConfig()?.is_open ?? false
-  )
+  const { open: isRegistrationOpen } = useRegistrationStatus()
 
   useEffect(() => {
-    let mounted = true
-    getPublicRegistrationConfig()
-      .then((cfg) => {
-        if (mounted) setIsRegistrationOpen(cfg.is_open)
-      })
-      .catch(() => {
-        if (mounted) setIsRegistrationOpen(false)
-      })
-    return () => {
-      mounted = false
+    if (isOpen) {
+      recomputeRegistrationStatus()
     }
-  }, [])
+  }, [isOpen])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -388,7 +378,7 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
             </div>
 
             {/* Vertical Page Links separated by subtle hairlines (~9% text color) */}
-            <nav aria-label="Site navigation" className="divide-y divide-text/[0.09] mt-1">
+            <nav aria-label="Site navigation" className="divide-y divide-text/[0.09] mt-1 min-h-[280px]">
               {visibleLinks.map((link) => (
                 <Link
                   key={link.path}
@@ -397,7 +387,7 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
                   onMouseEnter={() => prefetchRoute(link.path)}
                   onFocus={() => prefetchRoute(link.path)}
                   onTouchStart={() => prefetchRoute(link.path)}
-                  className="group flex items-center py-3.5 text-text hover:text-accent-bright transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright focus-visible:rounded-lg"
+                  className="group flex items-center min-h-[56px] py-3.5 text-text hover:text-accent-bright transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright focus-visible:rounded-lg"
                 >
                   <span className="font-syne font-bold text-[20px] leading-snug tracking-tight">
                     {link.title}

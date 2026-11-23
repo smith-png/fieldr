@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
-import { isDemoMode, getLocal, STORAGE_KEYS, supabase } from './data/client'
+import { supabase } from './data/client'
 import { toFiniteNumber, toNullableFiniteNumber } from './utils'
-import type { Player, Season, Team } from '../types'
 
 export type PublicResultStatus = 'sold' | 'unsold' | 'available'
 
@@ -146,122 +145,6 @@ function normalizeResultRow(raw: Record<string, unknown>): PublicResultRow {
   }
 }
 
-function loadDemoResults(): {
-  version: string
-  seasonId: string | null
-  seasonName: string | null
-  rows: PublicResultRow[]
-} {
-  const seasons = getLocal<Array<Season & { is_rehearsal?: boolean }>>(STORAGE_KEYS.SEASONS, [])
-  const activeSeason =
-    seasons.find(
-      (s) =>
-        s &&
-        s.is_active &&
-        !s.is_rehearsal &&
-        !/\brehearsal\b/i.test(s.name || '')
-    ) || null
-
-  if (!activeSeason) {
-    return { version: 'none', seasonId: null, seasonName: null, rows: [] }
-  }
-
-  const players = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, []).filter(
-    (p) => p && p.season_id === activeSeason.id
-  )
-  const teams = getLocal<Team[]>(STORAGE_KEYS.TEAMS, []).filter(
-    (t) => t && t.season_id === activeSeason.id
-  )
-  const teamMap = new Map<string, { name: string; color: string }>()
-  for (const t of teams) {
-    teamMap.set(t.id, { name: t.name, color: t.color })
-  }
-
-  const demoSales = getLocal<
-    Array<{
-      player_id: string
-      team_id: string
-      price: number
-      reversed_at?: string | null
-      created_at?: string | null
-    }>
-  >('fieldr_auction_sales', [])
-
-  const latestSaleByPlayer = new Map<
-    string,
-    { team_id: string; price: number; created_at: string | null }
-  >()
-  for (const sale of demoSales) {
-    if (!sale || sale.reversed_at) continue
-    const prev = latestSaleByPlayer.get(sale.player_id)
-    if (
-      !prev ||
-      (sale.created_at || '') >= (prev.created_at || '')
-    ) {
-      latestSaleByPlayer.set(sale.player_id, {
-        team_id: sale.team_id,
-        price: Number(sale.price) || 0,
-        created_at: sale.created_at || null
-      })
-    }
-  }
-
-  let soldCount = 0
-  let unsoldCount = 0
-  let priceSum = 0
-  let latestEvent = ''
-
-  const rows: PublicResultRow[] = players.map((p, idx) => {
-    const status = normalizeStatus(p.status)
-    const isSold = status === 'sold'
-    const sale = isSold ? latestSaleByPlayer.get(p.id) : undefined
-    const resolvedTeamId = isSold ? sale?.team_id || p.team_id || null : null
-    const team = resolvedTeamId ? teamMap.get(resolvedTeamId) : undefined
-    const salePrice = isSold
-      ? sale?.price ?? (typeof p.purchase_price === 'number' ? p.purchase_price : null)
-      : null
-    const soldAt = isSold ? sale?.created_at || p.created_at || null : null
-
-    if (isSold) {
-      soldCount += 1
-      priceSum += salePrice ?? 0
-      if (soldAt && soldAt > latestEvent) latestEvent = soldAt
-    } else if (status === 'unsold') {
-      unsoldCount += 1
-    }
-
-    const parsedCode =
-      typeof p.athlete_code === 'number' && p.athlete_code > 0
-        ? p.athlete_code
-        : Number(String(p.player_code || '').replace(/\D/g, '')) || idx + 1
-
-    return {
-      season_id: activeSeason.id,
-      season_name: activeSeason.name,
-      player_id: p.id,
-      athlete_code: parsedCode,
-      name: p.name,
-      photo_thumb_url: p.photo_thumb_url || p.photo_url || null,
-      sport: p.sport,
-      playing_role: p.playing_role,
-      base_points: Number(p.base_points) || 0,
-      status,
-      team_name: isSold ? team?.name || null : null,
-      team_color: isSold ? team?.color || null : null,
-      sale_price: salePrice,
-      sold_at: soldAt
-    }
-  })
-
-  const version = `${activeSeason.id}:${rows.length}:${soldCount}:${unsoldCount}:${priceSum}:${latestEvent}`
-  return {
-    version,
-    seasonId: activeSeason.id,
-    seasonName: activeSeason.name,
-    rows
-  }
-}
-
 async function fetchRemoteVersion(signal: AbortSignal): Promise<string> {
   if (!supabase) return 'none'
   const { data, error } = await supabase
@@ -339,37 +222,6 @@ async function pollOnce(): Promise<void> {
   }
 
   try {
-    if (isDemoMode || !supabase) {
-      const demo = loadDemoResults()
-      if (controller.signal.aborted || listeners.size === 0) return
-
-      const now = Date.now()
-      const hasChanged = snapshot.version === null || demo.version !== snapshot.version
-      if (hasChanged) {
-        unchangedChecks = 0
-        updateSnapshot({
-          seasonId: demo.seasonId,
-          seasonName: demo.seasonName,
-          rows: demo.rows,
-          version: demo.version,
-          isLoading: false,
-          isRefreshing: false,
-          error: null,
-          lastCheckedAt: now,
-          lastChangedAt: now
-        })
-      } else {
-        unchangedChecks += 1
-        updateSnapshot({
-          isLoading: false,
-          isRefreshing: false,
-          error: null,
-          lastCheckedAt: now
-        })
-      }
-      return
-    }
-
     const nextVersion = await fetchRemoteVersion(controller.signal)
     if (controller.signal.aborted || listeners.size === 0) return
 

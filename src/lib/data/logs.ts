@@ -1,14 +1,7 @@
 import { logError } from '../logger'
-import type {
-  ActivityLogEntry,
-  AuctionBid,
-  AuctionSale,
-  Player,
-  PurseTransaction,
-  Team
-} from '../../types'
+import type { ActivityLogEntry } from '../../types'
 import { AppError } from '../errors'
-import { isDemoMode, supabase, getLocal, STORAGE_KEYS } from './client'
+import { supabase } from './client'
 import type { LogsService } from './types'
 
 function mapLogRow(raw: Record<string, unknown>): ActivityLogEntry {
@@ -29,93 +22,6 @@ function mapLogRow(raw: Record<string, unknown>): ActivityLogEntry {
         : null,
     note: raw.note != null ? String(raw.note) : null,
     actor: raw.actor != null ? String(raw.actor) : null
-  }
-}
-
-const demoLogsService: LogsService = {
-  async getAdminActivityLog(
-    seasonId: string,
-    limit = 1000,
-    offset = 0
-  ): Promise<ActivityLogEntry[]> {
-    const players = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, []).filter(
-      (p) => p.season_id === seasonId
-    )
-    const teams = getLocal<Team[]>(STORAGE_KEYS.TEAMS, []).filter(
-      (t) => t.season_id === seasonId
-    )
-    const bids = getLocal<AuctionBid[]>(STORAGE_KEYS.DEMO_AUCTION_BIDS, []).filter(
-      (b) => !b.season_id || b.season_id === seasonId
-    )
-    const sales = getLocal<AuctionSale[]>(STORAGE_KEYS.DEMO_AUCTION_SALES, []).filter(
-      (s) => !s.season_id || s.season_id === seasonId
-    )
-    const txs = getLocal<PurseTransaction[]>(STORAGE_KEYS.TRANSACTIONS, []).filter(
-      (t) => t.season_id === seasonId
-    )
-
-    const playerMap = new Map(players.map((p) => [p.id, p.name]))
-    const teamMap = new Map(teams.map((t) => [t.id, t.name]))
-
-    const entries: ActivityLogEntry[] = []
-
-    for (const b of bids) {
-      entries.push({
-        occurred_at: b.created_at,
-        action: b.voided ? 'Bid cleared' : 'Bid placed',
-        player_name: playerMap.get(b.player_id) || null,
-        team_name: teamMap.get(b.team_id) || null,
-        amount: b.amount,
-        balance_after: null,
-        note: null,
-        actor: 'admin'
-      })
-    }
-
-    for (const s of sales) {
-      entries.push({
-        occurred_at: s.created_at,
-        action: 'Sold',
-        player_name: playerMap.get(s.player_id) || null,
-        team_name: teamMap.get(s.team_id) || null,
-        amount: s.price,
-        balance_after: null,
-        note: null,
-        actor: 'admin'
-      })
-      if (s.reversed_at) {
-        entries.push({
-          occurred_at: s.reversed_at,
-          action: 'Sale reversed',
-          player_name: playerMap.get(s.player_id) || null,
-          team_name: teamMap.get(s.team_id) || null,
-          amount: s.price,
-          balance_after: null,
-          note: null,
-          actor: 'admin'
-        })
-      }
-    }
-
-    for (const tx of txs) {
-      entries.push({
-        occurred_at: tx.created_at,
-        action: `Purse ${tx.type}`,
-        player_name: null,
-        team_name: teamMap.get(tx.team_id) || null,
-        amount: tx.amount,
-        balance_after: tx.balance_after,
-        note: tx.reason || null,
-        actor: tx.created_by || 'admin'
-      })
-    }
-
-    entries.sort(
-      (a, b) =>
-        new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()
-    )
-
-    return entries.slice(offset, offset + limit)
   }
 }
 
@@ -151,9 +57,7 @@ const supabaseLogsService: LogsService = {
   }
 }
 
-export const logsService: LogsService = isDemoMode
-  ? demoLogsService
-  : supabaseLogsService
+export const logsService: LogsService = supabaseLogsService
 
 export const getAdminActivityLog = (
   seasonId: string,

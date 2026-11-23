@@ -1,16 +1,8 @@
 import { logError } from '../logger'
-import type { CarouselItem, Player, ProjectorState, PurseTransaction, Season, SeasonDeletionCounts, Team } from '../../types'
+import type { Season, SeasonDeletionCounts } from '../../types'
 import { AppError } from '../errors'
 import { publicCache } from '../publicCache'
-import {
-  isDemoMode,
-  supabase,
-  getLocal,
-  setLocal,
-  notifyChange,
-  STORAGE_KEYS,
-  markLocalMutation
-} from './client'
+import { supabase, markLocalMutation } from './client'
 import type { SeasonsService } from './types'
 
 export function invalidateSeasonCaches(): void {
@@ -23,182 +15,6 @@ export function invalidateSeasonCaches(): void {
     } catch {
       // ignore storage errors
     }
-  }
-}
-
-const demoSeasonsService: SeasonsService = {
-  async getSeasons(): Promise<Season[]> {
-    try {
-      const stored = getLocal<Season[]>(STORAGE_KEYS.SEASONS, [])
-      if (!Array.isArray(stored)) return []
-      return [...stored].sort((a, b) => {
-        if (a.is_active && !b.is_active) return -1
-        if (!a.is_active && b.is_active) return 1
-        return new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime()
-      })
-    } catch {
-      return []
-    }
-  },
-
-  async getSeason(id: string): Promise<Season | null> {
-    const seasons = await demoSeasonsService.getSeasons()
-    return seasons.find((s) => s.id === id) || null
-  },
-
-  async getActiveSeason(): Promise<Season | null> {
-    try {
-      const seasons = await demoSeasonsService.getSeasons()
-      return seasons.find((s) => s && s.is_active) || null
-    } catch {
-      return null
-    }
-  },
-
-  async createSeason(
-    name: string,
-    startDate?: string,
-    endDate?: string,
-    description?: string
-  ): Promise<Season> {
-    const trimmedName = name.trim()
-    if (!trimmedName) {
-      throw new AppError('Season name is required')
-    }
-
-    const seasons = getLocal<Season[]>(STORAGE_KEYS.SEASONS, [])
-    const nameExists = seasons.some(
-      (s) => s.name.toLowerCase() === trimmedName.toLowerCase()
-    )
-    if (nameExists) {
-      throw new AppError(`A season named "${trimmedName}" already exists`)
-    }
-
-    if (startDate && endDate && endDate < startDate) {
-      throw new AppError('End date must be on or after start date')
-    }
-
-    const newSeason: Season = {
-      id: `season-${Date.now()}`,
-      name: trimmedName,
-      is_active: seasons.length === 0,
-      start_date: startDate || undefined,
-      end_date: endDate || undefined,
-      description: description?.trim() || undefined,
-      created_at: new Date().toISOString()
-    }
-
-    markLocalMutation(['players', 'teams', 'auction'])
-    seasons.unshift(newSeason)
-    setLocal(STORAGE_KEYS.SEASONS, seasons)
-    invalidateSeasonCaches()
-    notifyChange('seasons_change')
-    return newSeason
-  },
-
-  async renameSeason(seasonId: string, name: string): Promise<void> {
-    const trimmedName = name.trim()
-    if (trimmedName.length < 1 || trimmedName.length > 60) {
-      throw new AppError('Season name must be between 1 and 60 characters')
-    }
-
-    const seasons = getLocal<Season[]>(STORAGE_KEYS.SEASONS, [])
-    const target = seasons.find((s) => s.id === seasonId)
-    if (!target) {
-      throw new AppError('Season not found')
-    }
-
-    const duplicate = seasons.some(
-      (s) => s.id !== seasonId && s.name.toLowerCase() === trimmedName.toLowerCase()
-    )
-    if (duplicate) {
-      throw new AppError(`A season named "${trimmedName}" already exists`)
-    }
-
-    const updated = seasons.map((s) =>
-      s.id === seasonId ? { ...s, name: trimmedName } : s
-    )
-    setLocal(STORAGE_KEYS.SEASONS, updated)
-    invalidateSeasonCaches()
-    notifyChange('seasons_change')
-  },
-
-  async setActiveSeason(id: string): Promise<void> {
-    const seasons = getLocal<Season[]>(STORAGE_KEYS.SEASONS, [])
-    const target = seasons.find((s) => s.id === id)
-    if (!target) {
-      throw new AppError('Season not found')
-    }
-
-    markLocalMutation(['players', 'teams', 'auction'])
-    const updated = seasons.map((s) => ({
-      ...s,
-      is_active: s.id === id
-    }))
-    setLocal(STORAGE_KEYS.SEASONS, updated)
-
-    const projector = getLocal<ProjectorState>(STORAGE_KEYS.PROJECTOR, {
-      season_id: id,
-      mode: 'idle',
-      player_id: null,
-      team_id: null,
-      updated_at: new Date().toISOString()
-    })
-    setLocal(STORAGE_KEYS.PROJECTOR, { ...projector, season_id: id })
-
-    invalidateSeasonCaches()
-    notifyChange('seasons_change')
-    notifyChange('projector_change')
-  },
-
-  async getSeasonDeletionPreview(seasonId: string): Promise<SeasonDeletionCounts> {
-    const teams = getLocal<Team[]>(STORAGE_KEYS.TEAMS, []).filter((t) => t.season_id === seasonId)
-    const players = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, []).filter((p) => p.season_id === seasonId)
-    const txs = getLocal<PurseTransaction[]>(STORAGE_KEYS.TRANSACTIONS, []).filter((t) => t.season_id === seasonId)
-    const carousel = getLocal<CarouselItem[]>(STORAGE_KEYS.CAROUSEL, []).filter((c) => c.season_id === seasonId)
-
-    return {
-      teams: teams.length,
-      players: players.length,
-      purse_transactions: txs.length,
-      carousel_items: carousel.length
-    }
-  },
-
-  async deleteSeason(seasonId: string): Promise<void> {
-    const seasons = getLocal<Season[]>(STORAGE_KEYS.SEASONS, [])
-    const target = seasons.find((s) => s.id === seasonId)
-    if (!target) {
-      throw new AppError('Season not found')
-    }
-    if (target.is_active) {
-      throw new AppError('Cannot delete active season. Make another season active first.')
-    }
-    if (seasons.length <= 1) {
-      throw new AppError('Cannot delete the only remaining season.')
-    }
-
-    // Cascade delete season records (athletes are preserved!)
-    const txs = getLocal<PurseTransaction[]>(STORAGE_KEYS.TRANSACTIONS, [])
-    setLocal(STORAGE_KEYS.TRANSACTIONS, txs.filter((t) => t.season_id !== seasonId))
-
-    const players = getLocal<Player[]>(STORAGE_KEYS.PLAYERS, [])
-    setLocal(STORAGE_KEYS.PLAYERS, players.filter((p) => p.season_id !== seasonId))
-
-    const teams = getLocal<Team[]>(STORAGE_KEYS.TEAMS, [])
-    setLocal(STORAGE_KEYS.TEAMS, teams.filter((t) => t.season_id !== seasonId))
-
-    const carousel = getLocal<CarouselItem[]>(STORAGE_KEYS.CAROUSEL, [])
-    setLocal(STORAGE_KEYS.CAROUSEL, carousel.filter((c) => c.season_id !== seasonId))
-
-    markLocalMutation(['players', 'teams', 'auction'])
-    const remainingSeasons = seasons.filter((s) => s.id !== seasonId)
-    setLocal(STORAGE_KEYS.SEASONS, remainingSeasons)
-
-    invalidateSeasonCaches()
-    notifyChange('seasons_change')
-    notifyChange('teams_change')
-    notifyChange('players_change')
   }
 }
 
@@ -417,9 +233,7 @@ const supabaseSeasonsService: SeasonsService = {
   }
 }
 
-export const seasonsService: SeasonsService = isDemoMode
-  ? demoSeasonsService
-  : supabaseSeasonsService
+export const seasonsService: SeasonsService = supabaseSeasonsService
 
 export const getSeasons = () => seasonsService.getSeasons()
 export const getSeason = (id: string) => seasonsService.getSeason(id)

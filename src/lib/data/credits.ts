@@ -2,17 +2,11 @@ import { logError } from '../logger'
 import type { CreditKind, CreditPerson } from '../../types'
 import { AppError } from '../errors'
 import { resizeAndCompressImage } from '../imageCompression'
-import { isDemoMode, supabase } from './client'
+import { supabase } from './client'
 
 const CREDITS_BUCKET = 'credits'
 const CREDITS_SELECT_COLUMNS =
   'id, kind, name, role, description, photo_url, sort_order, created_at'
-
-function ensureWritable(): void {
-  if (isDemoMode || !supabase) {
-    throw new AppError('Credits cannot be modified in demo mode.')
-  }
-}
 
 function generateUniqueId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -39,7 +33,6 @@ export function extractCreditsBucketPath(photoUrl?: string | null): string | nul
 }
 
 export async function uploadCreditPhoto(file: File, kind: CreditKind): Promise<string> {
-  ensureWritable()
   if (!supabase) throw new AppError('Supabase not configured')
 
   const maxLongSide = kind === 'core' ? 900 : 400
@@ -62,7 +55,7 @@ export async function uploadCreditPhoto(file: File, kind: CreditKind): Promise<s
 }
 
 export async function deleteCreditPhotoFromBucket(photoUrl?: string | null): Promise<void> {
-  if (isDemoMode || !supabase || !photoUrl) return
+  if (!supabase || !photoUrl) return
   const path = extractCreditsBucketPath(photoUrl)
   if (!path) return
 
@@ -74,7 +67,7 @@ export async function deleteCreditPhotoFromBucket(photoUrl?: string | null): Pro
 }
 
 export async function getCreditsPeople(): Promise<CreditPerson[]> {
-  if (isDemoMode || !supabase) {
+  if (!supabase) {
     return []
   }
 
@@ -103,7 +96,6 @@ export interface CreateCreditPersonInput {
 export async function createCreditPerson(
   input: CreateCreditPersonInput
 ): Promise<CreditPerson> {
-  ensureWritable()
   if (!supabase) throw new AppError('Supabase not configured')
 
   const trimmedName = input.name.trim()
@@ -157,7 +149,6 @@ export async function updateCreditPerson(
   id: string,
   updates: UpdateCreditPersonInput
 ): Promise<CreditPerson> {
-  ensureWritable()
   if (!supabase) throw new AppError('Supabase not configured')
 
   const payload: Record<string, unknown> = {}
@@ -220,7 +211,6 @@ export async function deleteCreditPerson(
   id: string,
   photoUrl?: string | null
 ): Promise<void> {
-  ensureWritable()
   if (!supabase) throw new AppError('Supabase not configured')
 
   const { error } = await supabase.from('credits_people').delete().eq('id', id)
@@ -236,7 +226,6 @@ export async function deleteCreditPerson(
 export async function reorderCreditsPeople(
   orderedItems: { id: string; sort_order: number }[]
 ): Promise<void> {
-  ensureWritable()
   if (!supabase) throw new AppError('Supabase not configured')
 
   for (const item of orderedItems) {

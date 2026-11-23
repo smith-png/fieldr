@@ -18,14 +18,12 @@ import type {
   SeasonDeletionCounts,
   SiteSettings,
   Sport,
-  Team,
-  UserRole
+  Team
 } from '../../types'
 
 export interface AuthService {
   getCurrentUser(): Promise<AuthUser | null>
   signIn(email: string, password: string): Promise<AuthUser>
-  demoSignIn(role: UserRole): Promise<AuthUser>
   signOut(): Promise<void>
 }
 

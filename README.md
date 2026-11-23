@@ -9,13 +9,9 @@ Fieldr operates with two account roles:
 2. **Projector (`/projector`)**: Fullscreen, read-only stage display for auditorium screens. Features 4 live scenes: Idle Welcome ("Draft. Bid. Win."), All Teams & Purse Standings (with animated counters), Player Spotlight, and Team Roster.
 
 
-## Offline Demo Mode
+## Supabase Configuration
 
-If `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are not provided, Fieldr automatically boots in **Demo Mode**:
-- All data is persisted in browser `localStorage`.
-- Real-time updates between the Admin console and Projector screen are synchronized instantly via `BroadcastChannel('fieldr-projector-sync')` and window storage events.
-- Quick one-click login buttons for Admin and Projector are displayed on the login page for instant testing. (These buttons are automatically hidden when Supabase is connected).
-- Photos are compressed via client-side HTML5 canvas (max 400px, 0.7 JPEG) to ensure smooth storage within browser quotas.
+Fieldr requires `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to connect to Supabase. If either setting is missing at startup, the app displays a full-page configuration error instead of loading.
 
 
 ## Available Sports & Roles

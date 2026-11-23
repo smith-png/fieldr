@@ -2,16 +2,10 @@ import { logError } from '../logger'
 import type { RulesDocument } from '../../types'
 import { AppError } from '../errors'
 import { formatDocumentDate } from '../utils'
-import { isDemoMode, supabase } from './client'
+import { supabase } from './client'
 
 const RULES_BUCKET = 'rules'
 const RULES_SELECT_COLUMNS = 'id, title, file_path, created_at'
-
-function ensureWritable(): void {
-  if (isDemoMode || !supabase) {
-    throw new AppError('Rules documents cannot be modified in demo mode.')
-  }
-}
 
 export function formatRulesDate(iso?: string | null): string {
   return formatDocumentDate(iso)
@@ -32,7 +26,7 @@ export function getRulesPublicUrl(filePath: string): string {
 }
 
 export async function getRulesDocuments(): Promise<RulesDocument[]> {
-  if (isDemoMode || !supabase) {
+  if (!supabase) {
     return []
   }
 
@@ -49,7 +43,6 @@ export async function getRulesDocuments(): Promise<RulesDocument[]> {
 }
 
 export async function uploadRulesPdf(file: File, title: string): Promise<RulesDocument> {
-  ensureWritable()
   if (!supabase) throw new AppError('Supabase not configured')
 
   const trimmedTitle = title.trim()
@@ -92,7 +85,6 @@ export async function uploadRulesPdf(file: File, title: string): Promise<RulesDo
 }
 
 export async function deleteRulesDocument(document: RulesDocument): Promise<void> {
-  ensureWritable()
   if (!supabase) throw new AppError('Supabase not configured')
 
   if (document.file_path) {

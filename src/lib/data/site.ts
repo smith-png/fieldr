@@ -3,12 +3,7 @@ import type { CarouselItem, Season, SiteSettings, Sport } from '../../types'
 import type { SportSlug } from '../sports'
 import { AppError } from '../errors'
 import {
-  isDemoMode,
   supabase,
-  getLocal,
-  setLocal,
-  notifyChange,
-  STORAGE_KEYS,
   DEFAULT_CAROUSEL,
   DEFAULT_SETTINGS,
   FALLBACK_CAROUSEL_TEXTS
@@ -20,136 +15,6 @@ let activeCarouselCache: { data: CarouselItem[]; expiresAt: number } | null = nu
 export function invalidateCarouselCache(): void {
   activeCarouselCache = null
   invalidateCachedPublicHome()
-}
-
-const demoSiteService: SiteService = {
-  invalidateCarouselCache,
-
-  async getCarouselItems(activeOnly = false): Promise<CarouselItem[]> {
-    try {
-      if (activeOnly && activeCarouselCache && Date.now() < activeCarouselCache.expiresAt) {
-        return activeCarouselCache.data
-      }
-
-      const all = getLocal<CarouselItem[]>(STORAGE_KEYS.CAROUSEL, DEFAULT_CAROUSEL)
-      if (!Array.isArray(all) || all.length === 0) {
-        return DEFAULT_CAROUSEL
-      }
-      const sorted = [...all].sort(
-        (a, b) =>
-          a.sort_order - b.sort_order ||
-          (a.created_at || '').localeCompare(b.created_at || '')
-      )
-      const result = activeOnly ? sorted.filter((item) => item.active) : sorted
-      const safeResult = result.length > 0 ? result : DEFAULT_CAROUSEL
-      if (activeOnly) {
-        activeCarouselCache = { data: safeResult, expiresAt: Date.now() + 60_000 }
-      }
-      return safeResult
-    } catch {
-      return activeOnly ? DEFAULT_CAROUSEL.filter((i) => i.active) : DEFAULT_CAROUSEL
-    }
-  },
-
-  async createCarouselItem(
-    text: string,
-    sortOrder: number,
-    seasonId?: string
-  ): Promise<CarouselItem> {
-    const trimmed = text.trim()
-    if (!trimmed || trimmed.length > 80) {
-      throw new AppError('Carousel item must be between 1 and 80 characters.')
-    }
-
-    invalidateCarouselCache()
-
-    const all = getLocal<CarouselItem[]>(STORAGE_KEYS.CAROUSEL, DEFAULT_CAROUSEL)
-    const newItem: CarouselItem = {
-      id: `car-${Date.now()}`,
-      text: trimmed,
-      sort_order: sortOrder,
-      active: true,
-      season_id: seasonId || null,
-      created_at: new Date().toISOString()
-    }
-    all.push(newItem)
-    setLocal(STORAGE_KEYS.CAROUSEL, all)
-    notifyChange('carousel_change')
-    return newItem
-  },
-
-  async updateCarouselItem(
-    id: string,
-    updates: Partial<CarouselItem>
-  ): Promise<CarouselItem> {
-    if (updates.text !== undefined) {
-      const trimmed = updates.text.trim()
-      if (!trimmed || trimmed.length > 80) {
-        throw new AppError('Carousel item must be between 1 and 80 characters.')
-      }
-      updates.text = trimmed
-    }
-
-    invalidateCarouselCache()
-
-    const all = getLocal<CarouselItem[]>(STORAGE_KEYS.CAROUSEL, DEFAULT_CAROUSEL)
-    const idx = all.findIndex((i) => i.id === id)
-    if (idx === -1) throw new AppError('Carousel item not found')
-
-    if (updates.active === false && all[idx].active) {
-      const activeRemaining = all.filter((i) => i.id !== id && i.active)
-      if (activeRemaining.length === 0) {
-        throw new AppError('At least 1 active ticker item is required.')
-      }
-    }
-
-    const updated = { ...all[idx], ...updates }
-    all[idx] = updated
-    setLocal(STORAGE_KEYS.CAROUSEL, all)
-    notifyChange('carousel_change')
-    return updated
-  },
-
-  async deleteCarouselItem(id: string): Promise<void> {
-    invalidateCarouselCache()
-
-    const all = getLocal<CarouselItem[]>(STORAGE_KEYS.CAROUSEL, DEFAULT_CAROUSEL)
-    const target = all.find((i) => i.id === id)
-    if (target?.active) {
-      const activeRemaining = all.filter((i) => i.id !== id && i.active)
-      if (activeRemaining.length === 0) {
-        throw new AppError('At least 1 active ticker item is required.')
-      }
-    }
-    setLocal(STORAGE_KEYS.CAROUSEL, all.filter((i) => i.id !== id))
-    notifyChange('carousel_change')
-  },
-
-  async swapCarouselItems(id1: string, id2: string): Promise<void> {
-    invalidateCarouselCache()
-
-    const all = getLocal<CarouselItem[]>(STORAGE_KEYS.CAROUSEL, DEFAULT_CAROUSEL)
-    const match1 = all.find((i) => i.id === id1)
-    const match2 = all.find((i) => i.id === id2)
-    if (match1 && match2) {
-      const tmp = match1.sort_order
-      match1.sort_order = match2.sort_order
-      match2.sort_order = tmp
-      setLocal(STORAGE_KEYS.CAROUSEL, all)
-      notifyChange('carousel_change')
-    }
-  },
-
-  async getSiteSettings(): Promise<SiteSettings> {
-    return getLocal<SiteSettings>(STORAGE_KEYS.SETTINGS, DEFAULT_SETTINGS)
-  },
-
-  async updateSiteSetting(key: string, value: unknown): Promise<void> {
-    const current = getLocal<SiteSettings>(STORAGE_KEYS.SETTINGS, DEFAULT_SETTINGS)
-    current[key] = value
-    setLocal(STORAGE_KEYS.SETTINGS, current)
-    notifyChange('settings_change')
-  }
 }
 
 const supabaseSiteService: SiteService = {
@@ -359,13 +224,6 @@ export function getTickerSpeedMultiplier(value: unknown): number {
 
 export async function getTickerSpeedSetting(): Promise<number | null> {
   try {
-    if (isDemoMode) {
-      const settings = getLocal<SiteSettings>(STORAGE_KEYS.SETTINGS, DEFAULT_SETTINGS)
-      return settings.ticker_speed !== undefined
-        ? normalizeTickerSpeed(settings.ticker_speed)
-        : DEFAULT_TICKER_SPEED
-    }
-
     if (!supabase) return DEFAULT_TICKER_SPEED
 
     const { data, error } = await supabase
@@ -386,16 +244,6 @@ export async function getTickerSpeedSetting(): Promise<number | null> {
 
 export async function getConfettiFallSpeedSetting(): Promise<number | null> {
   try {
-    if (isDemoMode) {
-      const settings = getLocal<SiteSettings>(STORAGE_KEYS.SETTINGS, DEFAULT_SETTINGS)
-      const raw = settings.confetti_fall_speed
-      if (raw === null || raw === undefined || raw === '' || typeof raw === 'boolean') {
-        return null
-      }
-      const num = typeof raw === 'number' ? raw : Number(raw)
-      return Number.isFinite(num) && num >= 1 && num <= 10 ? Math.round(num) : null
-    }
-
     if (!supabase) return null
 
     const { data, error } = await supabase
@@ -717,9 +565,7 @@ export function isHomeCacheFresh(cache: PublicHomeCachePayload | null): boolean 
   return Date.now() - cache.timestamp < HOME_CACHE_TTL_MS
 }
 
-export const siteService: SiteService = isDemoMode
-  ? demoSiteService
-  : supabaseSiteService
+export const siteService: SiteService = supabaseSiteService
 
 export const getCarouselItems = (activeOnly?: boolean) =>
   siteService.getCarouselItems(activeOnly)

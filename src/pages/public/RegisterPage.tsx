@@ -40,8 +40,6 @@ import { ACADEMIC_YEARS, getAcademicYearLabel } from '../../lib/academicYears'
 import {
   DEFAULT_CONFIRMATION_MESSAGE,
   getActiveSeason,
-  getCachedPublicRegistrationConfig,
-  getPublicRegistrationConfig,
   submitPublicRegistration
 } from '../../lib/data'
 import { getErrorMessage } from '../../lib/errors'
@@ -51,9 +49,12 @@ import {
 } from '../../lib/imageCompression'
 import { publicCache } from '../../lib/publicCache'
 import { prefetchRoute } from '../../lib/queryCache'
+import {
+  refreshRegistrationStatus,
+  useRegistrationStatus
+} from '../../lib/registrationStatusStore'
 import type {
   AcademicYear,
-  PublicRegistrationConfig,
   RegistrationSportEntry,
   Season
 } from '../../types'
@@ -89,14 +90,21 @@ function sanitizeRollNo(value: string): string {
 }
 
 export const RegisterPage: React.FC = () => {
-  const initialConfig = getCachedPublicRegistrationConfig()
+  const regStatus = useRegistrationStatus()
+  const config = regStatus.config
+  const isRegistrationOpen = regStatus.open
+  const registrationReason = regStatus.reason
+  const seasonName = config?.season_name ?? regStatus.season_name
+  const opensAt = config?.opens_at ?? regStatus.opens_at
+  const closesAt = config?.closes_at ?? regStatus.closes_at
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [activeSeason, setActiveSeason] = useState<Season | null>(
     publicCache.activeSeason.value
   )
-  const [config, setConfig] = useState<PublicRegistrationConfig | null>(initialConfig)
-  const [isLoading, setIsLoading] = useState<boolean>(!initialConfig)
+  const [isLoading, setIsLoading] = useState<boolean>(
+    () => !regStatus.config && !(regStatus.hasValue && !regStatus.open)
+  )
 
   // Anti-spam: track page load timestamp + hidden honeypot value
   const loadedAtRef = useRef<number>(Date.now())
@@ -137,8 +145,8 @@ export const RegisterPage: React.FC = () => {
 
     async function loadInitial() {
       try {
-        const [cfg, season] = await Promise.all([
-          getPublicRegistrationConfig(),
+        const [, season] = await Promise.all([
+          refreshRegistrationStatus({ force: true }),
           publicCache.activeSeason.loaded
             ? Promise.resolve(publicCache.activeSeason.value)
             : getActiveSeason()
@@ -146,21 +154,8 @@ export const RegisterPage: React.FC = () => {
         if (!mounted) return
         publicCache.activeSeason = { loaded: true, value: season }
         setActiveSeason(season)
-        setConfig(cfg)
       } catch {
-        if (mounted) {
-          setConfig({
-            is_open: false,
-            reason: 'closed',
-            season_id: null,
-            season_name: null,
-            opens_at: null,
-            closes_at: null,
-            accepted_sports: [],
-            instructions_md: '',
-            confirmation_message: DEFAULT_CONFIRMATION_MESSAGE
-          })
-        }
+        // Keep last known registration status in the shared store
       } finally {
         if (mounted) setIsLoading(false)
       }
@@ -174,7 +169,7 @@ export const RegisterPage: React.FC = () => {
 
   // Seed initial sport row once accepted_sports loads
   useEffect(() => {
-    if (!config || !config.is_open || config.accepted_sports.length === 0) return
+    if (!config || !isRegistrationOpen || config.accepted_sports.length === 0) return
     setSportRows((prev) => {
       if (prev.length > 0) return prev
       const firstSport = config.accepted_sports[0]
@@ -187,7 +182,7 @@ export const RegisterPage: React.FC = () => {
         }
       ]
     })
-  }, [config])
+  }, [config, isRegistrationOpen])
 
   // Revoke object URL on unmount
   useEffect(() => {
@@ -392,8 +387,8 @@ export const RegisterPage: React.FC = () => {
       ? 'Submitting...'
       : 'Submit Registration'
 
-  const opensFormatted = formatDateTimeReadable(config?.opens_at)
-  const closesFormatted = formatDateTimeReadable(config?.closes_at)
+  const opensFormatted = formatDateTimeReadable(opensAt)
+  const closesFormatted = formatDateTimeReadable(closesAt)
 
   return (
     <div className={PUBLIC_PAGE_SHELL}>
@@ -425,8 +420,8 @@ export const RegisterPage: React.FC = () => {
             <h1 className={PUBLIC_PAGE_TITLE}>Register</h1>
           </div>
 
-          {config?.season_name && config.is_open && (
-            <span className={PUBLIC_COUNT_PILL}>{config.season_name}</span>
+          {seasonName && isRegistrationOpen && (
+            <span className={PUBLIC_COUNT_PILL}>{seasonName}</span>
           )}
         </header>
 
@@ -479,7 +474,7 @@ export const RegisterPage: React.FC = () => {
               </Link>
             </div>
           </section>
-        ) : !config?.is_open ? (
+        ) : !isRegistrationOpen || !config ? (
           <section className={`${PUBLIC_CARD} space-y-5`}>
             <div className="flex items-start gap-4">
               <div className="w-11 h-11 rounded-2xl bg-surface-2 border border-border flex items-center justify-center text-muted shrink-0">
@@ -488,9 +483,9 @@ export const RegisterPage: React.FC = () => {
               <div className="space-y-1.5 min-w-0">
                 <h2 className={PUBLIC_SECTION_TITLE}>Registration is closed</h2>
                 <p className="text-sm text-muted leading-relaxed">
-                  {config?.reason === 'before_open' && opensFormatted
+                  {registrationReason === 'before_open' && opensFormatted
                     ? `Athlete self-registration opens on ${opensFormatted}.`
-                    : config?.reason === 'after_close' && closesFormatted
+                    : registrationReason === 'after_close' && closesFormatted
                     ? `The registration window closed on ${closesFormatted}.`
                     : 'Self-registration is not currently accepting entries. Check back with the tournament organizers.'}
                 </p>

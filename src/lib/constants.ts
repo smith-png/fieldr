@@ -79,19 +79,6 @@ const ADMIN_TABS = {
 export type AdminTab = (typeof ADMIN_TABS)[keyof typeof ADMIN_TABS]
 
 export const STORAGE_KEYS = {
-  USER: 'fieldr_auth_user',
-  SEASONS: 'fieldr_seasons',
-  SPORTS: 'fieldr_sports',
-  TEAMS: 'fieldr_teams',
-  PLAYERS: 'fieldr_players',
-  ATHLETES: 'fieldr_athletes',
-  TRANSACTIONS: 'fieldr_transactions',
-  PROJECTOR: 'fieldr_projector_state',
-  CAROUSEL: 'fieldr_carousel_items',
-  SETTINGS: 'fieldr_site_settings',
-  DEMO_AUCTION_BIDS: 'fieldr_auction_bids',
-  DEMO_AUCTION_SALES: 'fieldr_auction_sales',
-  DEMO_AUCTION_SETTINGS: 'fieldr_auction_settings',
   THEME: 'fieldr-theme',
   PROJECTOR_THEME: 'fieldr-projector-theme',
   ADMIN_SIDEBAR_COLLAPSED: 'fieldr_admin_sidebar_collapsed'

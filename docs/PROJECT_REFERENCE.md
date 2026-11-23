@@ -160,7 +160,7 @@ Every route declared in `src/App.tsx` is listed below.
 | `/about` | `ContentPage` (`about_page`) | Everyone | Admin-editable Markdown About page followed by the Credits section (Main people and Contributors) |
 | `/rules` | `RulesPage` | Everyone | Public list of uploaded Auction Rules PDFs with Open and Download buttons |
 | `/handbook` | `HandbookPage` | Anyone with the valid access code | Access-code gate that unlocks a list of uploaded Handbook PDFs with Open and Download buttons |
-| `/login` | `LoginPage` | Everyone | Staff sign-in form for Admin and Projector accounts (also displays one-click demo buttons only when in demo mode) |
+| `/login` | `LoginPage` | Everyone | Staff sign-in form for Admin and Projector accounts |
 | `/owner-login` | `OwnerLoginPage` | Everyone | Franchise owner sign-in using Login ID and password; redirects signed-in owners to `/teams` |
 | `/admin` | `AdminPage` | `admin` only | Full Admin Command Center with sidebar/mobile navigation across all management tabs |
 | `/admin/logs` | `AdminPage` (opens `logs` tab) | `admin` only | Direct deep-link into the Activity Log tab of the Admin Command Center |
@@ -202,8 +202,8 @@ Fieldr uses three authenticated user roles (`admin`, `projector`, `owner`) plus 
 ## 6. Data Layer
 
 ### How Data Is Fetched and Saved
-Most database access lives in modular service files under `src/lib/data/`, each exposing clean async functions and switching automatically between a Supabase implementation and an offline Demo implementation:
-- `client.ts`: Initializes the Supabase client, detects demo mode, holds `localStorage` helpers, realtime suppression timestamps (to ignore echoed events right after a local write), and code formatting helpers.
+Most database access lives in modular service files under `src/lib/data/`, each exposing clean async functions backed by Supabase:
+- `client.ts`: Initializes the Supabase client, exports `isSupabaseConfigured`, holds realtime suppression timestamps (to ignore echoed events right after a local write), default fallback constants, and code formatting helpers.
 - `auth.ts`: Sign-in, sign-out, session lookup.
 - `seasons.ts`: Season CRUD, active season switching, deletion counts preview, rename/delete RPCs.
 - `athletes.ts`: Universal athlete search, 15-per-page server pagination, profile/career lookup, photo cleanup, and realtime subscription.
@@ -589,17 +589,9 @@ Three shared frosted-glass classes live in `src/index.css`:
 
 ---
 
-## 15. Demo Mode
+## 15. Startup Configuration Check
 
-Demo mode is an offline fallback that lets Fieldr boot locally without a Supabase backend. It is currently planned for removal once live Supabase is used everywhere.
-
-### How It Activates
-In `src/lib/data/client.ts`, `isDemoMode` is `true` whenever either `VITE_SUPABASE_URL` or `VITE_SUPABASE_ANON_KEY` is missing at build/runtime. When active, `client.ts` seeds sample seasons, sports, teams, athletes, players, carousel messages, and settings into `localStorage` (under `STORAGE_KEYS`), and uses the browser's `BroadcastChannel` (`fieldr_demo_sync`) plus `storage` events to sync tabs locally.
-
-### Files Touched by Demo Mode
-- **Core & Auth:** `src/lib/data/client.ts`, `src/lib/constants.ts` (`STORAGE_KEYS`), `src/lib/AuthContext.tsx` (`isDemo`, `quickDemoLogin`).
-- **All Data Modules (dual `demo*Service` / `supabase*Service` implementations):** `src/lib/data/auth.ts`, `seasons.ts`, `athletes.ts`, `players.ts`, `teams.ts`, `purses.ts`, `auction.ts`, `projector.ts`, `logs.ts`, `site.ts`, `storage.ts`, `credits.ts`, `rules.ts`.
-- **UI Pages & Components:** `src/pages/public/LoginPage.tsx` (one-click Admin/Projector demo buttons), `src/pages/admin/AdminTeams.tsx` (disables owner login management in demo mode), `src/components/admin/CreditsSetupCard.tsx`, `src/components/admin/HandbookSetupCard.tsx`, and `src/components/admin/RulesSetupCard.tsx` (read-only/disabled in demo mode).
+Fieldr runs exclusively against Supabase. In `src/lib/data/client.ts`, `isSupabaseConfigured` checks that both `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are defined. If either variable is missing at startup, `src/App.tsx` renders a full-page configuration error (`"Fieldr is not configured: missing Supabase settings"`) inside `ThemeProvider` instead of mounting the application routes.
 
 ---
 
@@ -687,10 +679,9 @@ Several findings from the earlier audit have already been fixed (removed unused 
 
 ### Limitations and Deferred Items Visible in Code
 1. **Repo database scripts lag behind live Supabase:** `supabase/*.sql` files do not include live-only tables (`auction_*`, `credits_people`, `handbooks`, `handbook_settings`, `rules_documents`), the `public_squads` view, newer RPCs, or `manage-owner` Edge Function code.
-2. **Demo mode maintenance burden:** Roughly a third of `src/lib/data/` maintains parallel offline demo implementations, even though newer features (Handbook, Auction Rules, Credits, Owner Login, Owner Panel) already require live Supabase.
-3. **Profile-read fallback on staff login:** `src/lib/data/auth.ts` defaults to `'projector'` in memory if a signed-in user's `profiles` row cannot be read, rather than failing closed.
-4. **Owner signing in on `/login`:** `LoginPage.tsx` sends non-admins to `/projector`, relying on `RouteGuard` to bounce `owner` accounts onward to `/teams`.
-5. **Minor code cleanups noted in audit:**
+2. **Profile-read fallback on staff login:** `src/lib/data/auth.ts` defaults to `'projector'` in memory if a signed-in user's `profiles` row cannot be read, rather than failing closed.
+3. **Owner signing in on `/login`:** `LoginPage.tsx` sends non-admins to `/projector`, relying on `RouteGuard` to bounce `owner` accounts onward to `/teams`.
+4. **Minor code cleanups noted in audit:**
    - Unused `@number-flow/react` dependency in `package.json`.
    - Duplicate private `getValidTeamColor` helpers across 4 files and duplicate `format*Date` helpers across 3 files.
    - `seasons.ts` manually removes `'fieldr_public_home_v1'` instead of calling `invalidateCachedPublicHome()`.
@@ -716,4 +707,3 @@ Several findings from the earlier audit have already been fixed (removed unused 
 - **Broadcast Announcement:** A short text banner (up to 200 characters) pushed by an admin onto the projector's Idle scene.
 - **Owner Panel:** The confidential inline section shown on a team's detail page when viewed by that franchise's signed-in owner, displaying remaining purse, spend progress, and purchased players.
 - **Ticker Strip:** The scrolling dot-matrix announcement marquee on the public Home page, fed by active `carousel_items` and controlled by `ticker_speed`.
-- **Demo Mode:** An offline local browser mode (`localStorage` + `BroadcastChannel`) that activates automatically when Supabase environment variables are absent.

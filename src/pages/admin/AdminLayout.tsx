@@ -34,7 +34,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   onSwitchSeason,
   children
 }) => {
-  const { user, isDemo, logout } = useAuth()
+  const { user, logout } = useAuth()
   const { preference, resolvedTheme, setPreference } = useTheme()
   const navigate = useNavigate()
 
@@ -197,11 +197,6 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           </div>
 
           <div className="flex items-center gap-2 pr-32">
-            {isDemo && (
-              <span className="text-muted font-mono text-[10px]">
-                Demo
-              </span>
-            )}
             <button
               type="button"
               onClick={handleToggleQuickTheme}

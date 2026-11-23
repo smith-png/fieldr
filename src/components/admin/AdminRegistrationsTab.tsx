@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowsClockwise,
+  CaretDown,
   Check,
   CheckCircle,
   PencilSimple,
@@ -19,6 +20,8 @@ import type {
 } from '../../types'
 import {
   approveRegistration,
+  clearRegistrationHistory,
+  deleteReviewedRegistrationEntry,
   formatAthleteCode,
   getPendingPhotoSignedUrls,
   listAdminRegistrations,
@@ -114,9 +117,18 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
   const [rejectReason, setRejectReason] = useState('')
   const [isRejecting, setIsRejecting] = useState(false)
 
-  // Purge confirmation dialog state
-  const [isPurgeDialogOpen, setIsPurgeDialogOpen] = useState(false)
-  const [isPurging, setIsPurging] = useState(false)
+  // Clear menu & confirmation dialog state
+  const [isClearMenuOpen, setIsClearMenuOpen] = useState(false)
+  const [clearAction, setClearAction] = useState<
+    'approved' | 'rejected_incomplete' | 'all' | null
+  >(null)
+  const [isClearing, setIsClearing] = useState(false)
+  const clearMenuRef = useRef<HTMLDivElement | null>(null)
+
+  // Single history-row delete confirmation state
+  const [deleteHistoryTarget, setDeleteHistoryTarget] = useState<AthleteRegistration | null>(null)
+  const [deletingHistoryId, setDeletingHistoryId] = useState<string | null>(null)
+
   const isMountedRef = useRef(true)
   const latestReqIdRef = useRef(0)
 
@@ -126,6 +138,26 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
       isMountedRef.current = false
     }
   }, [])
+
+  useEffect(() => {
+    if (!isClearMenuOpen) return
+    const handlePointerDown = (e: MouseEvent) => {
+      if (clearMenuRef.current && !clearMenuRef.current.contains(e.target as Node)) {
+        setIsClearMenuOpen(false)
+      }
+    }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsClearMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isClearMenuOpen])
 
   const loadRegistrations = useCallback(
     async (options?: { manual?: boolean; resetPage?: boolean }) => {
@@ -197,6 +229,27 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
     () => registrations.filter((r) => r.status !== 'pending'),
     [registrations]
   )
+
+  const approvedHistoryCount = useMemo(
+    () => historyList.filter((r) => r.status === 'approved').length,
+    [historyList]
+  )
+
+  const rejectedAndIncompleteCount = useMemo(() => {
+    const oneHourAgo = Date.now() - 60 * 60 * 1000
+    let count = 0
+    for (const reg of registrations) {
+      if (reg.status === 'rejected') {
+        count += 1
+      } else if (reg.status === 'pending' && !reg.photo_uploaded) {
+        const createdMs = Date.parse(reg.created_at)
+        if (Number.isFinite(createdMs) && createdMs <= oneHourAgo) {
+          count += 1
+        }
+      }
+    }
+    return count
+  }, [registrations])
 
   const approvablePending = useMemo(
     () => pendingList.filter((r) => r.photo_uploaded),
@@ -463,25 +516,50 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
     await Promise.all([loadRegistrations({ manual: true }), onApprovedOrChanged()])
   }
 
-  const handleConfirmPurge = async () => {
-    if (isPurging) return
+  const openClearDialog = (action: 'approved' | 'rejected_incomplete' | 'all') => {
+    setIsClearMenuOpen(false)
+    setClearAction(action)
+  }
+
+  const handleConfirmClear = async () => {
+    if (!clearAction || isClearing) return
+    const action = clearAction
     try {
-      setIsPurging(true)
-      const res = await purgeRejectedAndIncompleteRegistrations()
-      setIsPurgeDialogOpen(false)
+      setIsClearing(true)
+      const res =
+        action === 'approved'
+          ? await clearRegistrationHistory('approved')
+          : action === 'all'
+          ? await clearRegistrationHistory('all')
+          : await purgeRejectedAndIncompleteRegistrations()
+      setClearAction(null)
+      await loadRegistrations({ manual: true })
       showToast(
         res.deletedCount > 0
-          ? `Purged ${res.deletedCount} ${res.deletedCount === 1 ? 'entry' : 'entries'} (${res.filesRemoved} pending ${
-              res.filesRemoved === 1 ? 'file' : 'files'
-            } removed)`
-          : 'No rejected or incomplete entries to purge.',
+          ? `Cleared ${res.deletedCount} ${res.deletedCount === 1 ? 'entry' : 'entries'}`
+          : 'No matching entries to clear.',
         res.deletedCount > 0 ? 'success' : 'info'
       )
-      await loadRegistrations({ manual: true })
     } catch (err: unknown) {
-      showToast(getErrorMessage(err, 'Purge failed'), 'error')
+      showToast(getErrorMessage(err, 'Clear failed'), 'error')
     } finally {
-      setIsPurging(false)
+      setIsClearing(false)
+    }
+  }
+
+  const handleConfirmDeleteHistoryEntry = async () => {
+    if (!deleteHistoryTarget || deletingHistoryId) return
+    const target = deleteHistoryTarget
+    try {
+      setDeletingHistoryId(target.id)
+      await deleteReviewedRegistrationEntry(target)
+      setDeleteHistoryTarget(null)
+      await loadRegistrations({ manual: true })
+      showToast(`Cleared 1 entry (${target.full_name})`, 'success')
+    } catch (err: unknown) {
+      showToast(getErrorMessage(err, 'Failed to clear history entry'), 'error')
+    } finally {
+      setDeletingHistoryId(null)
     }
   }
 
@@ -536,17 +614,65 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
           >
             Refresh
           </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            leftIcon={Trash}
-            disabled={isPurging || isBulkApproving}
-            onClick={() => setIsPurgeDialogOpen(true)}
-            className="rounded-full text-muted hover:text-error hover:bg-error/10"
-          >
-            Purge rejected &amp; incomplete
-          </Button>
+          <div ref={clearMenuRef} className="relative">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              leftIcon={Trash}
+              rightIcon={CaretDown}
+              aria-haspopup="menu"
+              aria-expanded={isClearMenuOpen}
+              disabled={isClearing || isBulkApproving || Boolean(deletingHistoryId)}
+              onClick={() => setIsClearMenuOpen((prev) => !prev)}
+              className="rounded-full text-muted hover:text-error hover:bg-error/10"
+            >
+              Clear
+            </Button>
+
+            {isClearMenuOpen && (
+              <div
+                role="menu"
+                aria-label="Clear registration history"
+                className="absolute right-0 mt-1.5 w-64 rounded-2xl border border-border bg-surface shadow-xl p-1.5 z-30"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => openClearDialog('approved')}
+                  className="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-xl text-left text-xs text-text hover:bg-surface-2 transition-colors cursor-pointer"
+                >
+                  <span>Clear approved history</span>
+                  <span className="font-mono text-[11px] text-muted tabular-nums">
+                    {approvedHistoryCount}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => openClearDialog('rejected_incomplete')}
+                  className="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-xl text-left text-xs text-text hover:bg-surface-2 transition-colors cursor-pointer"
+                >
+                  <span>Clear rejected and incomplete</span>
+                  <span className="font-mono text-[11px] text-muted tabular-nums">
+                    {rejectedAndIncompleteCount}
+                  </span>
+                </button>
+                <div className="my-1 border-t border-border" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => openClearDialog('all')}
+                  className="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-xl text-left text-xs text-error hover:bg-error/10 transition-colors cursor-pointer"
+                >
+                  <span>Clear all reviewed history</span>
+                  <span className="font-mono text-[11px] text-error/80 tabular-nums">
+                    {historyList.length}
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -814,15 +940,29 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-1.5 shrink-0">
-                {reg.sport_entries.map((entry) => (
-                  <span
-                    key={`${reg.id}-hist-${entry.sport}`}
-                    className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-surface-2 border border-border text-[11px] text-muted"
+              <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
+                <div className="flex flex-wrap gap-1.5">
+                  {reg.sport_entries.map((entry) => (
+                    <span
+                      key={`${reg.id}-hist-${entry.sport}`}
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-surface-2 border border-border text-[11px] text-muted"
+                    >
+                      {entry.sport} · {entry.playing_role}
+                    </span>
+                  ))}
+                </div>
+                {(reg.status === 'approved' || reg.status === 'rejected') && (
+                  <button
+                    type="button"
+                    disabled={isClearing || Boolean(deletingHistoryId)}
+                    onClick={() => setDeleteHistoryTarget(reg)}
+                    aria-label={`Clear ${reg.full_name} from history`}
+                    title="Clear entry from history"
+                    className="h-8 w-8 rounded-full text-muted hover:text-error hover:bg-error/10 flex items-center justify-center transition-colors cursor-pointer shrink-0 disabled:opacity-40 disabled:pointer-events-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
                   >
-                    {entry.sport} · {entry.playing_role}
-                  </span>
-                ))}
+                    <Trash size={15} weight="regular" />
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -1197,14 +1337,32 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
         </div>
       </Dialog>
 
-      {/* Purge Confirmation Dialog */}
+      {/* Clear History / Purge Confirmation Dialog */}
       <Dialog
-        isOpen={isPurgeDialogOpen}
+        isOpen={Boolean(clearAction)}
         onClose={() => {
-          if (!isPurging) setIsPurgeDialogOpen(false)
+          if (!isClearing) setClearAction(null)
         }}
-        title="Purge Rejected & Incomplete"
-        description="Permanently delete all rejected registrations, incomplete entries older than 1 hour without a photo, and their temporary photo files."
+        title={
+          clearAction === 'approved'
+            ? 'Clear approved history'
+            : clearAction === 'all'
+            ? 'Clear all reviewed history'
+            : 'Clear rejected and incomplete'
+        }
+        description={
+          clearAction === 'approved'
+            ? `Permanently remove ${approvedHistoryCount} approved registration ${
+                approvedHistoryCount === 1 ? 'entry' : 'entries'
+              } from history and any remaining temporary photo files. Pending entries and athletes are never deleted.`
+            : clearAction === 'all'
+            ? `Permanently remove all ${historyList.length} reviewed registration ${
+                historyList.length === 1 ? 'entry' : 'entries'
+              } (approved and rejected) from history and any remaining temporary photo files. Pending entries and athletes are never deleted.`
+            : `Permanently remove ${rejectedAndIncompleteCount} rejected and incomplete ${
+                rejectedAndIncompleteCount === 1 ? 'entry' : 'entries'
+              } (rejected registrations and incomplete entries older than 1 hour without a photo) and their temporary photo files. Pending entries and athletes are never deleted.`
+        }
         size="sm"
         className={ADMIN_DIALOG_CLASS}
       >
@@ -1213,8 +1371,8 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
             type="button"
             variant="secondary"
             size="sm"
-            disabled={isPurging}
-            onClick={() => setIsPurgeDialogOpen(false)}
+            disabled={isClearing}
+            onClick={() => setClearAction(null)}
             className="rounded-full"
           >
             Cancel
@@ -1223,12 +1381,56 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
             type="button"
             variant="danger"
             size="sm"
-            disabled={isPurging}
-            isLoading={isPurging}
-            onClick={() => void handleConfirmPurge()}
+            disabled={isClearing}
+            isLoading={isClearing}
+            onClick={() => void handleConfirmClear()}
             className="rounded-full px-4"
           >
-            Purge now
+            {clearAction === 'approved'
+              ? 'Clear approved'
+              : clearAction === 'all'
+              ? 'Clear all reviewed'
+              : 'Clear now'}
+          </Button>
+        </div>
+      </Dialog>
+
+      {/* Single History Entry Delete Confirmation Dialog */}
+      <Dialog
+        isOpen={Boolean(deleteHistoryTarget)}
+        onClose={() => {
+          if (!deletingHistoryId) setDeleteHistoryTarget(null)
+        }}
+        title="Clear history entry"
+        description={
+          deleteHistoryTarget
+            ? `Permanently remove the ${deleteHistoryTarget.status} registration entry for ${deleteHistoryTarget.full_name} (Roll ${deleteHistoryTarget.roll_no}) from history and any leftover temporary photo files. Pending entries and athletes are never deleted.`
+            : ''
+        }
+        size="sm"
+        className={ADMIN_DIALOG_CLASS}
+      >
+        <div className="pt-4 border-t border-border flex justify-end gap-2.5">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={Boolean(deletingHistoryId)}
+            onClick={() => setDeleteHistoryTarget(null)}
+            className="rounded-full"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="danger"
+            size="sm"
+            disabled={Boolean(deletingHistoryId)}
+            isLoading={Boolean(deletingHistoryId)}
+            onClick={() => void handleConfirmDeleteHistoryEntry()}
+            className="rounded-full px-4"
+          >
+            Clear entry
           </Button>
         </div>
       </Dialog>
