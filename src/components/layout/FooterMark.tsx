@@ -103,6 +103,10 @@ const css = `.fmk-egg{-webkit-touch-callout:none;-webkit-user-select:none;user-s
 @keyframes fmk-surgeA{0%{transform:scale(1);filter:brightness(1)}12%{transform:scale(.95);filter:brightness(.7)}26%{transform:scale(1.05);filter:brightness(1.4)}50%{transform:scale(1);filter:brightness(1.1)}100%{transform:scale(1);filter:brightness(1)}}
 @keyframes fmk-surgeL{0%{transform:scale(1);filter:brightness(1)}12%{transform:scale(.95);filter:brightness(.82)}30%{transform:scale(1.04);filter:brightness(1.1)}55%{transform:scale(1);filter:brightness(1.03)}100%{transform:scale(1);filter:brightness(1)}}
 @keyframes fmk-surgeB{0%{transform:scale(1);filter:brightness(1)}20%{transform:scale(.97);filter:brightness(.85)}60%{transform:scale(1);filter:brightness(.97)}100%{transform:scale(1);filter:brightness(1)}}
+@keyframes fmk-ffin{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
+@keyframes fmk-ffout{from{opacity:1}to{opacity:0}}
+.fmk-ff-in{animation:fmk-ffin .4s ease-out both}
+.fmk-ff-out{animation:fmk-ffout .4s ease-out both}
 @keyframes fmk-shIn{to{opacity:1}}
 @keyframes fmk-shOut{from{opacity:1}to{opacity:0}}
 @keyframes fmk-sheen{from{background-position:100% 0}to{background-position:0 0}}
@@ -123,25 +127,32 @@ const noopSubscribe = () => () => {};
 const HOLD_MS = 800;
 const HOLD_MOVE_TOLERANCE_PX = 10;
 
-function getFlameAssetUrl(isLight: boolean, reducedMotion: boolean): string {
+export type FlameColor = 'green' | 'red' | 'orange' | 'blue';
+
+function getFlameAssetUrl(
+  isLight: boolean,
+  reducedMotion: boolean,
+  color: FlameColor = 'green'
+): string {
   if (reducedMotion) {
     return isLight
       ? '/images/fieldr-flame-still-light.png'
       : '/images/fieldr-flame-still-dark.png';
   }
-  return isLight
-    ? '/images/fieldr-flame-loop-light.webp'
-    : '/images/fieldr-flame-loop.webp';
+  const base = color === 'green' ? 'fieldr-flame-loop' : `fieldr-flame-loop-${color}`;
+  return `/images/${base}${isLight ? '-light' : ''}.webp`;
 }
 
 export default function FooterMark({
   size = 44,
   previewVariant,
   eggEnabled = true,
+  flameColor = 'green',
 }: {
   size?: number;
   previewVariant?: PrimaryIconVariant;
   eggEnabled?: boolean;
+  flameColor?: FlameColor;
 }) {
   const { resolvedTheme } = useTheme();
   const storedPrimary = useSyncExternalStore(
@@ -166,6 +177,10 @@ export default function FooterMark({
       ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
       : false
   );
+
+  const [displayColor, setDisplayColor] = useState<FlameColor>(flameColor);
+  const [fadeFromSrc, setFadeFromSrc] = useState<string | null>(null);
+  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [phase, setPhase] = useState<EggPhase>('');
   const [fromVariant, setFromVariant] = useState<PrimaryIconVariant | null>(null);
@@ -253,6 +268,47 @@ export default function FooterMark({
   }, []);
 
   const light = activeTheme === 'light';
+
+  const flameVisibleNow =
+    phase !== '' && fromVariant !== null && toVariant !== null
+      ? fromVariant === 'flames' || toVariant === 'flames'
+      : primary === 'flames';
+
+  // Crossfade between flame colours. The new colour's file is loaded only when
+  // it is chosen, and the old one fades out once the new one is ready.
+  useEffect(() => {
+    if (flameColor === displayColor) return;
+    if (!flameVisibleNow || prefersReducedMotion) {
+      setDisplayColor(flameColor);
+      return;
+    }
+    let cancelled = false;
+    const oldSrc = getFlameAssetUrl(light, false, displayColor);
+    const newSrc = getFlameAssetUrl(light, false, flameColor);
+    const swap = () => {
+      if (cancelled) return;
+      setFadeFromSrc(oldSrc);
+      setDisplayColor(flameColor);
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+      fadeTimerRef.current = setTimeout(() => {
+        setFadeFromSrc(null);
+        fadeTimerRef.current = null;
+      }, 450);
+    };
+    const img = new Image();
+    img.onload = swap;
+    img.onerror = swap;
+    img.src = newSrc;
+    return () => {
+      cancelled = true;
+    };
+  }, [flameColor, displayColor, flameVisibleNow, prefersReducedMotion, light]);
+
+  useEffect(() => {
+    return () => {
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+    };
+  }, []);
 
   const preloadFlame = (isLight: boolean) => {
     const url = getFlameAssetUrl(isLight, prefersReducedMotion);
@@ -380,7 +436,9 @@ export default function FooterMark({
     ? `${phase} out-${fromVariant} in-${toVariant}`
     : `is-${primary}`;
 
-  const flameSrc = showFlame ? getFlameAssetUrl(light, prefersReducedMotion) : '';
+  const flameSrc = showFlame
+    ? getFlameAssetUrl(light, prefersReducedMotion, displayColor)
+    : '';
 
   return (
     <span
@@ -415,7 +473,22 @@ export default function FooterMark({
       )}
       {showFlame && (
         <span className="fmk-fire">
-          <img alt="" src={flameSrc} decoding="async" />
+          {fadeFromSrc && (
+            <img
+              key={`out-${fadeFromSrc}`}
+              className="fmk-ff-out"
+              alt=""
+              src={fadeFromSrc}
+              decoding="async"
+            />
+          )}
+          <img
+            key={flameSrc}
+            className={fadeFromSrc ? 'fmk-ff-in' : undefined}
+            alt=""
+            src={flameSrc}
+            decoding="async"
+          />
         </span>
       )}
       {showFlash && <span className="fmk-fl" />}
