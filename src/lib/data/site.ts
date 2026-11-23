@@ -1,7 +1,8 @@
 import { logError } from '../logger'
-import type { CarouselItem, Season, SiteSettings, Sport } from '../../types'
+import type { CarouselItem, PrimaryIconVariant, Season, SiteSettings, Sport } from '../../types'
 import type { SportSlug } from '../sports'
 import { AppError } from '../errors'
+import { publicCache } from '../publicCache'
 import {
   supabase,
   DEFAULT_CAROUSEL,
@@ -187,6 +188,7 @@ const supabaseSiteService: SiteService = {
     for (const row of data) {
       result[row.key] = row.value
     }
+    syncCachedPrimaryIcon(normalizePrimaryIcon(result.primary_icon))
     return result
   },
 
@@ -273,7 +275,148 @@ export async function getConfettiFallSpeedSetting(): Promise<number | null> {
 
 const PUBLIC_TICKER_CACHE_KEY = 'fieldr_public_ticker_v1'
 export const PUBLIC_HOME_CACHE_KEY = 'fieldr_public_home_v1'
+const PUBLIC_PRIMARY_ICON_CACHE_KEY = 'fieldr_public_primary_icon_v1'
 export const HOME_CACHE_TTL_MS = 5 * 60 * 1000
+
+export const DEFAULT_PRIMARY_ICON: PrimaryIconVariant = 'classic'
+
+export function normalizePrimaryIcon(raw: unknown): PrimaryIconVariant {
+  if (raw === 'floodlights' || raw === 'flames' || raw === 'classic') {
+    return raw
+  }
+  return DEFAULT_PRIMARY_ICON
+}
+
+function readStoredPrimaryIcon(): { value: PrimaryIconVariant; timestamp: number } | null {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return null
+    const raw = window.localStorage.getItem(PUBLIC_PRIMARY_ICON_CACHE_KEY)
+    if (!raw) return null
+    const parsed: unknown = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return null
+    const obj = parsed as { value?: unknown; timestamp?: unknown }
+    if (typeof obj.timestamp !== 'number' || !Number.isFinite(obj.timestamp)) return null
+    return {
+      value: normalizePrimaryIcon(obj.value),
+      timestamp: obj.timestamp
+    }
+  } catch {
+    return null
+  }
+}
+
+function writeStoredPrimaryIcon(value: PrimaryIconVariant, timestamp: number): void {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return
+    window.localStorage.setItem(
+      PUBLIC_PRIMARY_ICON_CACHE_KEY,
+      JSON.stringify({ value, timestamp })
+    )
+  } catch {
+    // Ignore localStorage errors
+  }
+}
+
+const initialStoredPrimaryIcon = readStoredPrimaryIcon()
+let cachedPrimaryIcon: PrimaryIconVariant =
+  initialStoredPrimaryIcon?.value ?? DEFAULT_PRIMARY_ICON
+let cachedPrimaryIconAt: number = initialStoredPrimaryIcon?.timestamp ?? 0
+let pendingPrimaryIconPromise: Promise<PrimaryIconVariant> | null = null
+const primaryIconListeners = new Set<() => void>()
+
+function notifyPrimaryIconListeners(): void {
+  for (const listener of primaryIconListeners) {
+    listener()
+  }
+}
+
+function syncCachedPrimaryIcon(value: PrimaryIconVariant, timestamp = Date.now()): void {
+  const normalized = normalizePrimaryIcon(value)
+  const changed = cachedPrimaryIcon !== normalized
+  cachedPrimaryIcon = normalized
+  cachedPrimaryIconAt = timestamp
+  writeStoredPrimaryIcon(normalized, timestamp)
+  if (publicCache.siteSettings.loaded) {
+    publicCache.siteSettings = {
+      loaded: true,
+      value: { ...publicCache.siteSettings.value, primary_icon: normalized }
+    }
+  }
+  if (changed) {
+    notifyPrimaryIconListeners()
+  }
+}
+
+export function getPrimaryIconSnapshot(): PrimaryIconVariant {
+  return cachedPrimaryIcon
+}
+
+export function subscribePrimaryIcon(listener: () => void): () => void {
+  primaryIconListeners.add(listener)
+  void getPrimaryIconSetting()
+  return () => {
+    primaryIconListeners.delete(listener)
+  }
+}
+
+export async function getPrimaryIconSetting(force = false): Promise<PrimaryIconVariant> {
+  if (
+    !force &&
+    publicCache.siteSettings.loaded &&
+    publicCache.siteSettings.value.primary_icon !== undefined
+  ) {
+    const fromCache = normalizePrimaryIcon(publicCache.siteSettings.value.primary_icon)
+    if (fromCache !== cachedPrimaryIcon) {
+      syncCachedPrimaryIcon(fromCache)
+    }
+    return cachedPrimaryIcon
+  }
+
+  if (
+    !force &&
+    cachedPrimaryIconAt > 0 &&
+    Date.now() - cachedPrimaryIconAt < HOME_CACHE_TTL_MS
+  ) {
+    return cachedPrimaryIcon
+  }
+
+  if (!force && pendingPrimaryIconPromise) {
+    return pendingPrimaryIconPromise
+  }
+
+  const run = async (): Promise<PrimaryIconVariant> => {
+    try {
+      if (!supabase) return cachedPrimaryIcon
+
+      const { data, error } = await supabase
+        .from('site_settings')
+        .select('key, value')
+        .eq('key', 'primary_icon')
+        .limit(1)
+        .maybeSingle()
+
+      if (error) {
+        return cachedPrimaryIcon
+      }
+
+      const resolved = normalizePrimaryIcon(data?.value)
+      syncCachedPrimaryIcon(resolved)
+      return resolved
+    } catch {
+      return cachedPrimaryIcon
+    }
+  }
+
+  const promise = run()
+  pendingPrimaryIconPromise = promise
+  try {
+    return await promise
+  } finally {
+    if (pendingPrimaryIconPromise === promise) {
+      pendingPrimaryIconPromise = null
+    }
+  }
+}
 
 export interface PublicTickerCachePayload {
   items: string[]
@@ -593,6 +736,8 @@ export const updateSiteSetting = async (key: string, value: unknown) => {
   await siteService.updateSiteSetting(key, value)
   if (key === 'ticker_speed') {
     writeCachedTickerSpeed(value)
+  } else if (key === 'primary_icon') {
+    syncCachedPrimaryIcon(normalizePrimaryIcon(value))
   }
 }
 export { FALLBACK_CAROUSEL_TEXTS }

@@ -17,6 +17,7 @@ import { useToast } from '../../lib/ToastContext'
 import { getErrorMessage } from '../../lib/errors'
 import {
   DEFAULT_AUCTION_SETTINGS,
+  DEFAULT_PRIMARY_ICON,
   DEFAULT_TICKER_SPEED,
   addSportRole,
   createCarouselItem,
@@ -30,6 +31,7 @@ import {
   getSports,
   getTeams,
   getTickerSpeedMultiplier,
+  normalizePrimaryIcon,
   normalizeTickerSpeed,
   renameSportRole,
   reorderSportRoles,
@@ -47,6 +49,7 @@ import {
   ErrorState,
   SkeletonBlock
 } from '../../components/ui'
+import FooterMark from '../../components/layout/FooterMark'
 import { normalizeConfettiFallSpeed } from '../../components/projector/ProjectorConfetti'
 
 const SecuredSequence = lazy(() =>
@@ -83,6 +86,7 @@ import type {
   AuctionSettings,
   CarouselItem,
   PageContentSetting,
+  PrimaryIconVariant,
   Season,
   SiteSettings,
   Sport,
@@ -97,6 +101,28 @@ const SETUP_TABS: readonly { value: SetupTab; label: string }[] = [
   { value: 'content', label: 'Content' },
   { value: 'documents', label: 'Documents' },
   { value: 'sports', label: 'Sports' }
+]
+
+const PRIMARY_ICON_OPTIONS: readonly {
+  value: PrimaryIconVariant
+  label: string
+  description: string
+}[] = [
+  {
+    value: 'classic',
+    label: 'Classic',
+    description: 'Animated emerald glass tile'
+  },
+  {
+    value: 'floodlights',
+    label: 'Stadium floodlights',
+    description: 'Sweeping stadium beams'
+  },
+  {
+    value: 'flames',
+    label: 'Flames',
+    description: 'Animated emerald flames'
+  }
 ]
 
 const DEFAULT_CONFETTI_FALL_SPEED = 5
@@ -177,6 +203,15 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
   const [confettiSpeedSaved, setConfettiSpeedSaved] = useState<boolean>(false)
   const [confettiSpeedError, setConfettiSpeedError] = useState<string | null>(null)
   const confettiSpeedSavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Site Icon State (classic | floodlights | flames, default classic)
+  const [savedPrimaryIcon, setSavedPrimaryIcon] =
+    useState<PrimaryIconVariant>(DEFAULT_PRIMARY_ICON)
+  const [primaryIcon, setPrimaryIcon] = useState<PrimaryIconVariant>(DEFAULT_PRIMARY_ICON)
+  const [isSavingPrimaryIcon, setIsSavingPrimaryIcon] = useState<boolean>(false)
+  const [primaryIconSaved, setPrimaryIconSaved] = useState<boolean>(false)
+  const [primaryIconError, setPrimaryIconError] = useState<string | null>(null)
+  const primaryIconSavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Test Confetti on Projector State (4s cooldown, 3s error message)
   const [isConfettiTestCoolingDown, setIsConfettiTestCoolingDown] = useState<boolean>(false)
@@ -334,6 +369,9 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
       )
       setSavedConfettiFallSpeed(loadedConfettiSpeed)
       setConfettiFallSpeed(loadedConfettiSpeed)
+      const loadedPrimaryIcon = normalizePrimaryIcon(settings.primary_icon)
+      setSavedPrimaryIcon(loadedPrimaryIcon)
+      setPrimaryIcon(loadedPrimaryIcon)
       const initialPage = settings[selectedPageKey] as PageContentSetting | undefined
       if (initialPage) {
         setPageTitle(initialPage.title || '')
@@ -660,6 +698,54 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
     setConfettiSpeedSaved(false)
     setConfettiSpeedError(null)
   }
+
+  const isPrimaryIconDirty = primaryIcon !== savedPrimaryIcon
+
+  const handleSavePrimaryIcon = async () => {
+    if (!isPrimaryIconDirty || isSavingPrimaryIcon) return
+    const normalized = normalizePrimaryIcon(primaryIcon)
+    try {
+      setIsSavingPrimaryIcon(true)
+      setPrimaryIconError(null)
+      setPrimaryIconSaved(false)
+      await updateSiteSetting('primary_icon', normalized)
+      setSavedPrimaryIcon(normalized)
+      setPrimaryIcon(normalized)
+      setSiteSettings((prev) => {
+        const next = { ...prev, primary_icon: normalized }
+        publicCache.siteSettings = { loaded: true, value: next }
+        return next
+      })
+      setPrimaryIconSaved(true)
+      if (primaryIconSavedTimerRef.current) {
+        clearTimeout(primaryIconSavedTimerRef.current)
+      }
+      primaryIconSavedTimerRef.current = setTimeout(() => {
+        setPrimaryIconSaved(false)
+        primaryIconSavedTimerRef.current = null
+      }, 2500)
+    } catch (err) {
+      setPrimaryIconSaved(false)
+      setPrimaryIconError(getErrorMessage(err, 'Failed to save site icon'))
+    } finally {
+      setIsSavingPrimaryIcon(false)
+    }
+  }
+
+  const handleResetPrimaryIcon = () => {
+    if (isSavingPrimaryIcon) return
+    setPrimaryIcon(DEFAULT_PRIMARY_ICON)
+    setPrimaryIconSaved(false)
+    setPrimaryIconError(null)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (primaryIconSavedTimerRef.current) {
+        clearTimeout(primaryIconSavedTimerRef.current)
+      }
+    }
+  }, [])
 
   const showConfettiTestError = (message: string) => {
     setConfettiTestError(message)
@@ -1895,6 +1981,100 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
                   disabled={!isConfettiSpeedDirty || isSavingConfettiSpeed}
                   isLoading={isSavingConfettiSpeed}
                   onClick={() => void handleSaveConfettiSpeed()}
+                  className="rounded-full px-5"
+                >
+                  Save
+                </Button>
+              </div>
+            </div>
+          </section>
+
+          {/* Section 4: Site Icon */}
+          <section className="bg-surface border border-border rounded-3xl p-6 sm:p-8 space-y-6">
+            <div className="pb-5 border-b border-border space-y-1">
+              <h2 className="font-syne font-bold text-xl text-text tracking-tight">Site icon</h2>
+              <p className="text-xs text-muted">
+                Choose the primary icon shown in the footer and About page.
+              </p>
+            </div>
+
+            <div
+              role="radiogroup"
+              aria-label="Site icon"
+              className="grid grid-cols-1 sm:grid-cols-3 gap-4"
+            >
+              {PRIMARY_ICON_OPTIONS.map((opt) => {
+                const isSelected = primaryIcon === opt.value
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={isSelected}
+                    disabled={isSavingPrimaryIcon}
+                    onClick={() => {
+                      setPrimaryIcon(opt.value)
+                      setPrimaryIconSaved(false)
+                      setPrimaryIconError(null)
+                    }}
+                    className={`relative flex flex-col items-center text-center gap-3.5 p-5 rounded-2xl border transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright disabled:opacity-50 ${
+                      isSelected
+                        ? 'border-accent-bright bg-accent-bright/10 ring-1 ring-accent-bright/40'
+                        : 'border-border bg-bg hover:border-text/30 hover:bg-surface-2/60'
+                    }`}
+                  >
+                    {isSelected && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute top-3 right-3 w-5 h-5 rounded-full bg-accent-bright text-on-accent flex items-center justify-center"
+                      >
+                        <Check size={12} weight="bold" />
+                      </span>
+                    )}
+                    <FooterMark size={64} previewVariant={opt.value} />
+                    <div className="space-y-0.5">
+                      <div className="text-sm font-medium text-text">{opt.label}</div>
+                      <div className="text-xs text-muted">{opt.description}</div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+
+            {primaryIconError && (
+              <p role="alert" className="text-xs text-error">
+                {primaryIconError}
+              </p>
+            )}
+
+            <div className="pt-5 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <Button
+                type="button"
+                variant="ghost"
+                size="md"
+                leftIcon={ArrowCounterClockwise}
+                disabled={isSavingPrimaryIcon || primaryIcon === DEFAULT_PRIMARY_ICON}
+                onClick={handleResetPrimaryIcon}
+                className="rounded-full self-start sm:self-auto"
+              >
+                Reset to default
+              </Button>
+
+              <div className="flex items-center gap-3 self-end sm:self-auto">
+                {primaryIconSaved && !isPrimaryIconDirty && (
+                  <span className="text-xs text-accent-bright inline-flex items-center gap-1">
+                    <Check size={14} weight="regular" />
+                    <span>Saved</span>
+                  </span>
+                )}
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  leftIcon={FloppyDisk}
+                  disabled={!isPrimaryIconDirty || isSavingPrimaryIcon}
+                  isLoading={isSavingPrimaryIcon}
+                  onClick={() => void handleSavePrimaryIcon()}
                   className="rounded-full px-5"
                 >
                   Save

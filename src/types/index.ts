@@ -235,12 +235,15 @@ export interface PageContentSetting {
   body: string
 }
 
+export type PrimaryIconVariant = 'classic' | 'floodlights' | 'flames'
+
 export interface SiteSettings {
   help_page?: PageContentSetting
   about_page?: PageContentSetting
   auction_timing?: {
     window_duration_seconds?: number
   }
+  primary_icon?: PrimaryIconVariant
   [key: string]: unknown
 }
 

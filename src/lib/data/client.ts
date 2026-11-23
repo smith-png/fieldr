@@ -116,5 +116,6 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   },
   auction_timing: {
     window_duration_seconds: 60
-  }
+  },
+  primary_icon: 'classic'
 }

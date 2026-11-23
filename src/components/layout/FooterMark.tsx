@@ -1,5 +1,22 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from 'react';
+import {
+  getPrimaryIconSnapshot,
+  subscribePrimaryIcon
+} from '../../lib/data/site';
 import { useTheme } from '../../lib/theme';
+import type { PrimaryIconVariant } from '../../types';
+
+const ICON_ORDER: readonly PrimaryIconVariant[] = ['classic', 'floodlights', 'flames'];
+
+function getAlternateIcons(
+  primary: PrimaryIconVariant
+): [PrimaryIconVariant, PrimaryIconVariant] {
+  const idx = ICON_ORDER.indexOf(primary);
+  return [
+    ICON_ORDER[(idx + 1) % ICON_ORDER.length],
+    ICON_ORDER[(idx + 2) % ICON_ORDER.length],
+  ];
+}
 
 const css = `.fmk{position:relative;width:var(--s);height:var(--s);border-radius:22%;overflow:hidden;background:#06241a;flex:none;display:inline-block;isolation:isolate;user-select:none;-webkit-tap-highlight-color:transparent;--b0:rgba(150,245,205,.05);--b1:rgba(200,255,230,.5);--g0:#fff;--g1:#b9f5d6;--f0:rgba(225,255,240,.95);--f1:rgba(120,235,185,.35)}
 .fmk-bl{position:absolute;inset:-40%;animation:fmk-sp 14s linear infinite}
@@ -31,33 +48,41 @@ const css = `.fmk{position:relative;width:var(--s);height:var(--s);border-radius
 .fmk-bm{position:absolute;top:0;width:220%;height:220%;mix-blend-mode:screen;filter:blur(calc(var(--s)*.03));will-change:transform}
 .fmk-bm.l{left:0;transform-origin:0 0;background:conic-gradient(from 0deg at 0 0,transparent 112deg,var(--b0) 121deg,var(--b1) 135deg,var(--b0) 149deg,transparent 158deg);animation:fmk-swl 3s ease-in-out infinite alternate}
 .fmk-bm.r{right:0;transform-origin:100% 0;background:conic-gradient(from 0deg at 100% 0,transparent 202deg,var(--b0) 211deg,var(--b1) 225deg,var(--b0) 239deg,transparent 248deg);animation:fmk-swr 3.6s ease-in-out infinite alternate}
-.fmk:not(.lit) .fmk-bm{animation-play-state:paused}
+.fmk:not(.is-floodlights):not(.in-floodlights):not(.out-floodlights) .fmk-bm{animation-play-state:paused}
 @keyframes fmk-swl{from{transform:rotate(-12deg)}to{transform:rotate(16deg)}}
 @keyframes fmk-swr{from{transform:rotate(12deg)}to{transform:rotate(-16deg)}}
 .fmk-sh{z-index:5;opacity:0;background:linear-gradient(105deg,var(--g0) 38%,var(--g1) 50%,var(--g0) 62%) 0 0/260% 100%;-webkit-background-clip:text;background-clip:text;color:transparent}
 .fmk-fl{position:absolute;inset:0;z-index:3;opacity:0;pointer-events:none}
-.fx-flood .fmk-fl{background:radial-gradient(70% 70% at 50% 40%,var(--f0),var(--f1) 55%,transparent 80%)}
-.fx-flame .fmk-fl{background:radial-gradient(85% 70% at 50% 100%,var(--f0),var(--f1) 55%,transparent 78%)}
+.in-floodlights .fmk-fl{background:radial-gradient(70% 70% at 50% 40%,var(--f0),var(--f1) 55%,transparent 80%)}
+.in-flames .fmk-fl{background:radial-gradient(85% 70% at 50% 100%,var(--f0),var(--f1) 55%,transparent 78%)}
 .fmk-fire{position:absolute;inset:0;z-index:2;-webkit-mask-image:linear-gradient(to bottom,transparent 0%,transparent 33%,#000 66%,#000 100%);mask-image:linear-gradient(to bottom,transparent 0%,transparent 33%,#000 66%,#000 100%);-webkit-mask-size:100% 300%;mask-size:100% 300%;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:0 0%;mask-position:0 0%}
 .fmk-fire img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
-.fmk-fire .still{display:none}
-.fx-flood .fmk-fire,.fx-flame .fmk-lt,.fx-flame .fmk-sh{display:none}
+.out-flames.in-floodlights .fmk-fire{z-index:1}
 
-/* transitions: on */
+/* resting states */
+.is-classic .fmk-cl{opacity:1}
+.is-floodlights .fmk-lt{opacity:1}
+.is-floodlights .fmk-sh{opacity:1;animation:fmk-sheen 4s ease-in-out infinite alternate}
+.is-flames .fmk-fire{-webkit-mask-position:0 100%;mask-position:0 100%}
+
+/* transitions: surge */
 .lit{animation:fmk-surgeA 1.9s ease-in-out forwards}
 .th-l.lit{animation:fmk-surgeL 1.9s ease-in-out forwards}
-.lit .fmk-cl{animation:fmk-clOut 1.2s ease-in .3s forwards}
-.lit.fx-flood .fmk-lt{animation:fmk-ignite 1.4s linear .35s forwards}
-.lit.fx-flood .fmk-fl{animation:fmk-flash .6s ease-out .3s}
-.lit.fx-flood .fmk-sh{animation:fmk-shIn .6s ease-out .9s forwards,fmk-sheen 4s ease-in-out 1.5s infinite alternate}
-.lit.fx-flame .fmk-fire{animation:fmk-rise 1.3s cubic-bezier(.3,.6,.3,1) .3s forwards}
-.lit.fx-flame .fmk-fl{animation:fmk-flash .8s ease-out .25s}
-/* transitions: off */
 .unlit{animation:fmk-surgeB 1.3s ease-in-out forwards}
-.unlit .fmk-cl{animation:fmk-clIn 1s ease-out .55s forwards}
-.unlit.fx-flood .fmk-lt{animation:fmk-out .9s linear forwards}
-.unlit.fx-flood .fmk-sh{animation:fmk-shOut .4s ease-in forwards}
-.unlit.fx-flame .fmk-fire{animation:fmk-fall 1s cubic-bezier(.5,0,.8,.4) forwards}
+
+/* transitions: outgoing */
+.out-classic .fmk-cl{animation:fmk-clOut 1.2s ease-in .3s forwards}
+.out-floodlights .fmk-lt{opacity:1;animation:fmk-out .9s linear forwards}
+.out-floodlights .fmk-sh{opacity:1;animation:fmk-shOut .4s ease-in forwards}
+.out-flames .fmk-fire{-webkit-mask-position:0 100%;mask-position:0 100%;animation:fmk-fall 1s cubic-bezier(.5,0,.8,.4) forwards}
+
+/* transitions: incoming */
+.in-classic .fmk-cl{opacity:0;animation:fmk-clIn 1s ease-out .55s forwards}
+.in-floodlights .fmk-lt{animation:fmk-ignite 1.4s linear .35s forwards}
+.in-floodlights .fmk-fl{animation:fmk-flash .6s ease-out .3s}
+.in-floodlights .fmk-sh{animation:fmk-shIn .6s ease-out .9s forwards,fmk-sheen 4s ease-in-out 1.5s infinite alternate}
+.in-flames .fmk-fire{animation:fmk-rise 1.3s cubic-bezier(.3,.6,.3,1) .3s forwards}
+.in-flames .fmk-fl{animation:fmk-flash .8s ease-out .25s}
 
 @keyframes fmk-clOut{from{opacity:1;filter:blur(0);transform:scale(1)}to{opacity:0;filter:blur(calc(var(--s)*.06));transform:scale(1.2)}}
 @keyframes fmk-clIn{from{opacity:0;filter:blur(calc(var(--s)*.06));transform:scale(1.2)}to{opacity:1;filter:blur(0);transform:scale(1)}}
@@ -75,17 +100,44 @@ const css = `.fmk{position:relative;width:var(--s);height:var(--s);border-radius
 
 @media (prefers-reduced-motion:reduce){
  .fmk,.fmk *{animation:none!important;transition:none!important}
- .fmk-fire .live{display:none}.fmk-fire .still{display:block}
- .lit .fmk-cl{opacity:0}
- .lit.fx-flood .fmk-lt{opacity:1}.lit.fx-flood .fmk-sh{opacity:1}
- .lit.fx-flame .fmk-fire{-webkit-mask-position:0 100%;mask-position:0 100%}
+ .out-classic .fmk-cl,.out-floodlights .fmk-lt,.out-floodlights .fmk-sh{opacity:0}
+ .out-flames .fmk-fire{-webkit-mask-position:0 0%;mask-position:0 0%}
+ .in-classic .fmk-cl,.is-classic .fmk-cl{opacity:1}
+ .in-floodlights .fmk-lt,.is-floodlights .fmk-lt,.in-floodlights .fmk-sh,.is-floodlights .fmk-sh{opacity:1}
+ .in-flames .fmk-fire,.is-flames .fmk-fire{-webkit-mask-position:0 100%;mask-position:0 100%}
 }`;
 
-type EggKind = '' | 'fx-flood' | 'fx-flame';
 type EggPhase = '' | 'lit' | 'unlit';
 
-export default function FooterMark({ size = 44 }: { size?: number }) {
+const noopSubscribe = () => () => {};
+
+function getFlameAssetUrl(isLight: boolean, reducedMotion: boolean): string {
+  if (reducedMotion) {
+    return isLight
+      ? '/images/fieldr-flame-still-light.png'
+      : '/images/fieldr-flame-still-dark.png';
+  }
+  return isLight
+    ? '/images/fieldr-flame-loop-light.webp'
+    : '/images/fieldr-flame-loop.webp';
+}
+
+export default function FooterMark({
+  size = 44,
+  previewVariant,
+}: {
+  size?: number;
+  previewVariant?: PrimaryIconVariant;
+}) {
   const { resolvedTheme } = useTheme();
+  const storedPrimary = useSyncExternalStore(
+    previewVariant ? noopSubscribe : subscribePrimaryIcon,
+    previewVariant ? () => previewVariant : getPrimaryIconSnapshot,
+    previewVariant ? () => previewVariant : getPrimaryIconSnapshot
+  );
+  const primary: PrimaryIconVariant = previewVariant ?? storedPrimary;
+  const isPreview = Boolean(previewVariant);
+
   const [activeTheme, setActiveTheme] = useState<'light' | 'dark'>(() => {
     if (typeof document !== 'undefined') {
       const rootAttr = document.documentElement.getAttribute('data-theme');
@@ -94,9 +146,15 @@ export default function FooterMark({ size = 44 }: { size?: number }) {
     return resolvedTheme;
   });
 
-  const [egg, setEgg] = useState<EggKind>('');
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : false
+  );
+
   const [phase, setPhase] = useState<EggPhase>('');
-  const [mounted, setMounted] = useState({ flood: false, flame: false });
+  const [fromVariant, setFromVariant] = useState<PrimaryIconVariant | null>(null);
+  const [toVariant, setToVariant] = useState<PrimaryIconVariant | null>(null);
 
   const rootRef = useRef<HTMLSpanElement | null>(null);
   const activationCountRef = useRef(0);
@@ -105,6 +163,19 @@ export default function FooterMark({ size = 44 }: { size?: number }) {
   const lockedRef = useRef(false);
   const lockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const preloadedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const onChange = () => setPrefersReducedMotion(mq.matches);
+    onChange();
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', onChange);
+      return () => mq.removeEventListener('change', onChange);
+    }
+    mq.addListener(onChange);
+    return () => mq.removeListener(onChange);
+  }, []);
 
   useEffect(() => {
     const syncTheme = () => {
@@ -139,6 +210,24 @@ export default function FooterMark({ size = 44 }: { size?: number }) {
     return () => observer.disconnect();
   }, [resolvedTheme]);
 
+  // Reset easter egg state cleanly if the configured primary icon changes
+  useEffect(() => {
+    if (tapTimerRef.current) {
+      clearTimeout(tapTimerRef.current);
+      tapTimerRef.current = null;
+    }
+    if (lockTimerRef.current) {
+      clearTimeout(lockTimerRef.current);
+      lockTimerRef.current = null;
+    }
+    tapsRef.current = 0;
+    lockedRef.current = false;
+    activationCountRef.current = 0;
+    setPhase('');
+    setFromVariant(null);
+    setToVariant(null);
+  }, [primary]);
+
   useEffect(() => {
     return () => {
       if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
@@ -149,28 +238,24 @@ export default function FooterMark({ size = 44 }: { size?: number }) {
   const light = activeTheme === 'light';
 
   const preloadFlame = (isLight: boolean) => {
-    const urls = isLight
-      ? ['/images/fieldr-flame-loop-light.webp', '/images/fieldr-flame-still-light.png']
-      : ['/images/fieldr-flame-loop.webp', '/images/fieldr-flame-still-dark.png'];
-    for (const url of urls) {
-      if (preloadedRef.current.has(url)) continue;
-      preloadedRef.current.add(url);
-      const img = new Image();
-      img.src = url;
-    }
+    const url = getFlameAssetUrl(isLight, prefersReducedMotion);
+    if (preloadedRef.current.has(url)) return;
+    preloadedRef.current.add(url);
+    const img = new Image();
+    img.src = url;
   };
 
   const onTap = () => {
-    if (lockedRef.current) return;
+    if (isPreview || lockedRef.current) return;
 
     if (tapTimerRef.current) clearTimeout(tapTimerRef.current);
     tapsRef.current += 1;
 
-    if (phase !== 'lit' && tapsRef.current === 3) {
-      const nextEgg: EggKind = activationCountRef.current % 2 === 0 ? 'fx-flood' : 'fx-flame';
-      if (nextEgg === 'fx-flame') {
-        preloadFlame(light);
-      }
+    const alternates = getAlternateIcons(primary);
+    const nextAlt = alternates[activationCountRef.current % alternates.length];
+
+    if (phase !== 'lit' && tapsRef.current === 3 && nextAlt === 'flames') {
+      preloadFlame(light);
     }
 
     if (tapsRef.current >= 5) {
@@ -181,8 +266,6 @@ export default function FooterMark({ size = 44 }: { size?: number }) {
       const el = rootRef.current;
 
       if (turningOn) {
-        const nextEgg: EggKind = activationCountRef.current % 2 === 0 ? 'fx-flood' : 'fx-flame';
-
         lockedRef.current = true;
         if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
         lockTimerRef.current = setTimeout(() => {
@@ -190,32 +273,25 @@ export default function FooterMark({ size = 44 }: { size?: number }) {
           lockTimerRef.current = null;
         }, 2000);
 
-        setMounted((prev) =>
-          nextEgg === 'fx-flood'
-            ? prev.flood
-              ? prev
-              : { ...prev, flood: true }
-            : prev.flame
-              ? prev
-              : { ...prev, flame: true }
-        );
-
         if (el) {
           el.classList.remove('lit', 'unlit');
           void el.offsetWidth;
         }
 
-        setEgg(nextEgg);
+        setFromVariant(primary);
+        setToVariant(nextAlt);
         setPhase('lit');
       } else {
+        const currentAlt = toVariant ?? nextAlt;
         lockedRef.current = true;
         if (lockTimerRef.current) clearTimeout(lockTimerRef.current);
         lockTimerRef.current = setTimeout(() => {
           lockedRef.current = false;
           lockTimerRef.current = null;
           activationCountRef.current += 1;
-          setEgg('');
           setPhase('');
+          setFromVariant(null);
+          setToVariant(null);
         }, 1600);
 
         if (el) {
@@ -223,6 +299,8 @@ export default function FooterMark({ size = 44 }: { size?: number }) {
           void el.offsetWidth;
         }
 
+        setFromVariant(currentAlt);
+        setToVariant(primary);
         setPhase('unlit');
       }
       return;
@@ -234,24 +312,54 @@ export default function FooterMark({ size = 44 }: { size?: number }) {
     }, 1500);
   };
 
+  const isTransitioning = phase !== '' && fromVariant !== null && toVariant !== null;
+  const showClassic = isTransitioning
+    ? fromVariant === 'classic' || toVariant === 'classic'
+    : primary === 'classic';
+  const showFlood = isTransitioning
+    ? fromVariant === 'floodlights' || toVariant === 'floodlights'
+    : primary === 'floodlights';
+  const showFlame = isTransitioning
+    ? fromVariant === 'flames' || toVariant === 'flames'
+    : primary === 'flames';
+  const showFlash =
+    isTransitioning && (toVariant === 'floodlights' || toVariant === 'flames');
+
+  const stateClass = isTransitioning
+    ? `${phase} out-${fromVariant} in-${toVariant}`
+    : `is-${primary}`;
+
+  const flameSrc = showFlame ? getFlameAssetUrl(light, prefersReducedMotion) : '';
+
   return (
     <span
       ref={rootRef}
-      className={`fmk th-${light ? 'l' : 'd'} ${egg ? egg : ''} ${phase}`}
+      className={`fmk th-${light ? 'l' : 'd'} ${stateClass}`}
       style={{ '--s': size + 'px' } as CSSProperties}
       aria-hidden="true"
-      onClick={onTap}
+      onClick={isPreview ? undefined : onTap}
     >
       <style>{css}</style>
-      <span className="fmk-cl">
-        <span className="fmk-bl"><i /><i /><i /></span>
-        <span className="fmk-bl fmk-r"><i /><i /></span>
-      </span>
-      {mounted.flood && (<span className="fmk-lt"><i className="fmk-bm l" /><i className="fmk-bm r" /></span>)}
-      {mounted.flame && (<span className="fmk-fire"><img className="live" alt="" src={light ? '/images/fieldr-flame-loop-light.webp' : '/images/fieldr-flame-loop.webp'} /><img className="still" alt="" src={light ? '/images/fieldr-flame-still-light.png' : '/images/fieldr-flame-still-dark.png'} /></span>)}
-      {(mounted.flood || mounted.flame) && <span className="fmk-fl" />}
+      {showClassic && (
+        <span className="fmk-cl">
+          <span className="fmk-bl"><i /><i /><i /></span>
+          <span className="fmk-bl fmk-r"><i /><i /></span>
+        </span>
+      )}
+      {showFlood && (
+        <span className="fmk-lt">
+          <i className="fmk-bm l" />
+          <i className="fmk-bm r" />
+        </span>
+      )}
+      {showFlame && (
+        <span className="fmk-fire">
+          <img alt="" src={flameSrc} decoding="async" />
+        </span>
+      )}
+      {showFlash && <span className="fmk-fl" />}
       <span className="fmk-f">F</span>
-      {mounted.flood && <span className="fmk-f fmk-sh" aria-hidden="true">F</span>}
+      {showFlood && <span className="fmk-f fmk-sh" aria-hidden="true">F</span>}
     </span>
   );
 }
