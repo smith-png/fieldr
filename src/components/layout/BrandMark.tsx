@@ -18,7 +18,7 @@ export const BrandMark: React.FC<BrandMarkProps> = ({
 
   const content = (
     <>
-      <FooterMark size={isSmall ? 32 : 52} />
+      <FooterMark size={isSmall ? 32 : 52} eggEnabled={false} />
 
       {showWordmark && (
         <div className="flex flex-col text-left">
