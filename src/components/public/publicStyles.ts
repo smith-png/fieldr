@@ -1,5 +1,5 @@
 export const PUBLIC_PAGE_SHELL =
-  'min-h-screen bg-bg text-text flex flex-col justify-between overflow-x-clip selection:bg-accent-bright selection:text-on-accent relative'
+  'min-h-dvh bg-bg text-text flex flex-col justify-between overflow-x-clip selection:bg-accent-bright selection:text-on-accent relative'
 
 export const PUBLIC_MAIN =
   'flex-1 max-w-7xl mx-auto w-full px-6 md:px-16 lg:px-24 pt-10 sm:pt-14 pb-20 min-w-0'

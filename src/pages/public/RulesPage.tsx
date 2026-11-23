@@ -26,7 +26,6 @@ import {
   getRulesPublicUrl,
   getSafeRulesDownloadFilename
 } from '../../lib/data/rules'
-import { getActiveSeason } from '../../lib/data/seasons'
 import { hasDataChanged, publicCache } from '../../lib/publicCache'
 import {
   isQueryFresh,
@@ -34,13 +33,10 @@ import {
   setCachedQuery,
   shouldRevalidateQuery
 } from '../../lib/queryCache'
-import type { RulesDocument, Season } from '../../types'
+import type { RulesDocument } from '../../types'
 
 export const RulesPage: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [activeSeason, setActiveSeason] = useState<Season | null>(
-    publicCache.activeSeason.value
-  )
 
   const initialDocuments = publicCache.rulesDocuments.loaded
     ? publicCache.rulesDocuments.value
@@ -65,22 +61,9 @@ export const RulesPage: React.FC = () => {
 
     async function loadData() {
       try {
-        const [season, docs] = await Promise.all([
-          publicCache.activeSeason.loaded
-            ? Promise.resolve(publicCache.activeSeason.value)
-            : getActiveSeason(),
-          getRulesDocuments()
-        ])
+        const docs = await getRulesDocuments()
 
         if (!mounted) return
-
-        const prevSeason = publicCache.activeSeason.value
-        const seasonChanged =
-          !publicCache.activeSeason.loaded || hasDataChanged(prevSeason, season)
-        publicCache.activeSeason = { loaded: true, value: season }
-        if (seasonChanged) {
-          setActiveSeason(season)
-        }
 
         const prevDocs = publicCache.rulesDocuments.value
         const docsChanged =

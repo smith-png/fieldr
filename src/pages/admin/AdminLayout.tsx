@@ -130,7 +130,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   }
 
   return (
-    <div className="relative min-h-screen bg-bg text-text font-sans flex flex-col md:flex-row antialiased selection:bg-accent-bright selection:text-on-accent">
+    <div className="relative min-h-dvh bg-bg text-text font-sans flex flex-col md:flex-row antialiased selection:bg-accent-bright selection:text-on-accent">
       <style>{`
         @keyframes fieldrConfettiCooldownBar {
           0% {
@@ -158,7 +158,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
       {/* Desktop Frosted Sidebar (Collapsible 264px / 72px rail, persisted in localStorage) */}
       <aside
-        className={`admin-desktop-sidebar hidden md:flex flex-col shrink-0 self-start sticky top-0 h-screen backdrop-blur-[20px] backdrop-saturate-[1.35] border-r z-20 overflow-hidden ${
+        className={`admin-desktop-sidebar hidden md:flex flex-col shrink-0 self-start sticky top-0 h-dvh backdrop-blur-[20px] backdrop-saturate-[1.35] border-r z-20 overflow-hidden ${
           isCollapsed ? 'w-[72px] px-3 py-4' : 'w-[264px] px-4 py-5'
         }`}
       >

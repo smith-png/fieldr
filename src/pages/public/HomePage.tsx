@@ -514,7 +514,7 @@ export const HomePage: React.FC = () => {
   return (
     <div
       onMouseMove={handleMouseMove}
-      className="min-h-screen bg-bg text-text flex flex-col justify-between selection:bg-accent-bright selection:text-white relative overflow-x-clip"
+      className="min-h-dvh bg-bg text-text flex flex-col justify-between selection:bg-accent-bright selection:text-white relative overflow-x-clip"
     >
       {/* Muted inline vector sports backdrop */}
       <HomeBackdrop />

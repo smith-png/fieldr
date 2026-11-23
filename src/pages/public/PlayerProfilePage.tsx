@@ -32,7 +32,7 @@ import {
   shouldRevalidateQuery
 } from '../../lib/queryCache'
 import { SPORTS } from '../../lib/sports'
-import type { Athlete, AthleteCareerEntry, Season } from '../../types'
+import type { Athlete, AthleteCareerEntry } from '../../types'
 
 function getProfileCacheKey(code?: string): string {
   return (code || '').trim().toLowerCase()
@@ -72,9 +72,6 @@ export const PlayerProfilePage: React.FC = () => {
   }
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [activeSeason, setActiveSeason] = useState<Season | null>(
-    publicCache.activeSeason.value
-  )
   const [athlete, setAthlete] = useState<Athlete | null>(
     initialCached?.athlete ?? null
   )
@@ -120,13 +117,7 @@ export const PlayerProfilePage: React.FC = () => {
         getAthleteByCode(code)
       ])
       if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
-      const prevActive = publicCache.activeSeason.value
-      const activeChanged =
-        !publicCache.activeSeason.loaded || hasDataChanged(prevActive, active)
       publicCache.activeSeason = { loaded: true, value: active }
-      if (activeChanged) {
-        setActiveSeason(active)
-      }
 
       if (!profile) {
         const emptyEntry: PlayerProfileCacheEntry = { athlete: null, career: [] }

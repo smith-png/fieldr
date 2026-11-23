@@ -55,8 +55,7 @@ import {
 } from '../../lib/registrationStatusStore'
 import type {
   AcademicYear,
-  RegistrationSportEntry,
-  Season
+  RegistrationSportEntry
 } from '../../types'
 
 interface SportRowDraft {
@@ -99,9 +98,6 @@ export const RegisterPage: React.FC = () => {
   const closesAt = config?.closes_at ?? regStatus.closes_at
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [activeSeason, setActiveSeason] = useState<Season | null>(
-    publicCache.activeSeason.value
-  )
   const [isLoading, setIsLoading] = useState<boolean>(
     () => !regStatus.config && !(regStatus.hasValue && !regStatus.open)
   )
@@ -153,7 +149,6 @@ export const RegisterPage: React.FC = () => {
         ])
         if (!mounted) return
         publicCache.activeSeason = { loaded: true, value: season }
-        setActiveSeason(season)
       } catch {
         // Keep last known registration status in the shared store
       } finally {

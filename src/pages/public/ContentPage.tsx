@@ -1,5 +1,5 @@
 import { logError } from '../../lib/logger'
-import React, { useEffect, useState, useSyncExternalStore } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft } from '@phosphor-icons/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
@@ -16,12 +16,7 @@ import {
   PUBLIC_PAGE_TITLE
 } from '../../components/public/publicStyles'
 import { SkeletonText } from '../../components/ui'
-import { getActiveSeason } from '../../lib/data/seasons'
-import {
-  getPrimaryIconSnapshot,
-  getSiteSettings,
-  subscribePrimaryIcon
-} from '../../lib/data/site'
+import { getSiteSettings } from '../../lib/data/site'
 import { hasDataChanged, publicCache } from '../../lib/publicCache'
 import {
   isQueryFresh,
@@ -29,7 +24,7 @@ import {
   setCachedQuery,
   shouldRevalidateQuery
 } from '../../lib/queryCache'
-import type { PageContentSetting, Season } from '../../types'
+import type { PageContentSetting } from '../../types'
 
 interface ContentPageProps {
   pageKey: 'help_page' | 'about_page'
@@ -56,32 +51,21 @@ function getCachedPageContent(pageKey: 'help_page' | 'about_page'): {
   return { hasCache: false, value: null }
 }
 
-const FLAME_SWATCHES: { value: FlameColor; label: string; color: string }[] = [
-  { value: 'green', label: 'Green', color: '#3fa97f' },
-  { value: 'red', label: 'Red', color: '#e5484d' },
-  { value: 'orange', label: 'Orange', color: '#f59e0b' },
-  { value: 'blue', label: 'Blue', color: '#3b82f6' }
-]
+const FLAME_COLOR_ORDER: FlameColor[] = ['green', 'red', 'orange', 'blue']
 
 export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle }) => {
   const initialCached = getCachedPageContent(pageKey)
 
-  const primaryIcon = useSyncExternalStore(
-    subscribePrimaryIcon,
-    getPrimaryIconSnapshot,
-    getPrimaryIconSnapshot
-  )
   const [flameColor, setFlameColor] = useState<FlameColor>('green')
-  const prefersReducedMotion =
-    typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  const showFlameSwatches = primaryIcon === 'flames' && !prefersReducedMotion
+  const cycleFlameColor = () =>
+    setFlameColor(
+      (current) =>
+        FLAME_COLOR_ORDER[
+          (FLAME_COLOR_ORDER.indexOf(current) + 1) % FLAME_COLOR_ORDER.length
+        ]
+    )
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [activeSeason, setActiveSeason] = useState<Season | null>(
-    publicCache.activeSeason.value
-  )
   const [content, setContent] = useState<PageContentSetting | null>(initialCached.value)
   const [isLoading, setIsLoading] = useState<boolean>(!initialCached.hasCache)
 
@@ -104,20 +88,7 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
 
     async function loadData() {
       try {
-        const [season, settings] = await Promise.all([
-          publicCache.activeSeason.loaded
-            ? Promise.resolve(publicCache.activeSeason.value)
-            : getActiveSeason(),
-          getSiteSettings()
-        ])
-
-        const prevSeason = publicCache.activeSeason.value
-        const seasonChanged =
-          !publicCache.activeSeason.loaded || hasDataChanged(prevSeason, season)
-        publicCache.activeSeason = { loaded: true, value: season }
-        if (mounted && seasonChanged) {
-          setActiveSeason(season)
-        }
+        const settings = await getSiteSettings()
 
         publicCache.siteSettings = { loaded: true, value: settings }
         const helpVal = (settings.help_page as PageContentSetting | undefined) ?? null
@@ -163,40 +134,8 @@ export const ContentPage: React.FC<ContentPageProps> = ({ pageKey, fallbackTitle
 
       <main className={PUBLIC_MAIN_NARROW}>
         {pageKey === 'about_page' && (
-          <div className="flex flex-col items-center mb-4 md:mb-6">
-            <div aria-hidden="true">
-              <FooterMark size={112} flameColor={flameColor} />
-            </div>
-            {showFlameSwatches && (
-              <div
-                className="flex items-center justify-center mt-2"
-                role="group"
-                aria-label="Flame colour"
-              >
-                {FLAME_SWATCHES.map((sw) => (
-                  <button
-                    key={sw.value}
-                    type="button"
-                    onClick={() => setFlameColor(sw.value)}
-                    aria-label={`${sw.label} flame`}
-                    aria-pressed={flameColor === sw.value}
-                    className="flex items-center justify-center w-11 h-11 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
-                  >
-                    <span
-                      className="block w-7 h-7 rounded-full transition-transform"
-                      style={{
-                        background: sw.color,
-                        boxShadow:
-                          flameColor === sw.value
-                            ? '0 0 0 2px var(--color-bg, #0b0f0d), 0 0 0 4px ' + sw.color
-                            : 'inset 0 0 0 1px rgba(255,255,255,.18)',
-                        transform: flameColor === sw.value ? 'scale(1.05)' : 'scale(1)',
-                      }}
-                    />
-                  </button>
-                ))}
-              </div>
-            )}
+          <div className="flex justify-center mb-4 md:mb-6" aria-hidden="true">
+            <FooterMark size={112} flameColor={flameColor} onFlameTap={cycleFlameColor} />
           </div>
         )}
 

@@ -148,11 +148,14 @@ export default function FooterMark({
   previewVariant,
   eggEnabled = true,
   flameColor = 'green',
+  onFlameTap,
 }: {
   size?: number;
   previewVariant?: PrimaryIconVariant;
   eggEnabled?: boolean;
   flameColor?: FlameColor;
+  /** Single tap while the flame is the resting primary icon. Ignored otherwise. */
+  onFlameTap?: () => void;
 }) {
   const { resolvedTheme } = useTheme();
   const storedPrimary = useSyncExternalStore(
@@ -419,6 +422,13 @@ export default function FooterMark({
     e.preventDefault();
   };
 
+  const onClick = () => {
+    if (!onFlameTap) return;
+    // Active only while the flame is the primary icon and sitting at rest
+    if (primary !== 'flames' || phase !== '' || prefersReducedMotion) return;
+    onFlameTap();
+  };
+
   const isTransitioning = phase !== '' && fromVariant !== null && toVariant !== null;
   const showClassic = isTransitioning
     ? fromVariant === 'classic' || toVariant === 'classic'
@@ -454,6 +464,7 @@ export default function FooterMark({
             onPointerCancel: cancelHold,
             onPointerLeave: cancelHold,
             onClickCapture,
+            onClick,
             onContextMenu,
           }
         : {})}

@@ -30,7 +30,7 @@ import {
   setCachedQuery,
   shouldRevalidateQuery
 } from '../../lib/queryCache'
-import type { PublicPlayer, PublicTeam, Season } from '../../types'
+import type { PublicPlayer, PublicTeam } from '../../types'
 
 const ACADEMIC_YEAR_FILTER_OPTIONS = ['All', ...ACADEMIC_YEAR_VALUES] as const
 const KNOWN_SPORT_SLUGS = new Set(['cricket', 'futsal', 'volleyball'])
@@ -65,7 +65,6 @@ export const RosterSportPage: React.FC = () => {
     : []
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [activeSeason, setActiveSeason] = useState<Season | null>(initialSeason)
   const [teams, setTeams] = useState<PublicTeam[]>(initialTeams)
   const [selectedYear, setSelectedYear] = useState<string>(initialYear)
   const [selectedRole, setSelectedRole] = useState<string>(initialRole)
@@ -165,13 +164,7 @@ export const RosterSportPage: React.FC = () => {
             : getActiveSeason(),
           knownSeasonId ? getPublicTeams(knownSeasonId) : Promise.resolve(null)
         ])
-        const prevSeason = publicCache.activeSeason.value
-        const seasonChanged =
-          !publicCache.activeSeason.loaded || hasDataChanged(prevSeason, season)
         publicCache.activeSeason = { loaded: true, value: season }
-        if (mounted && seasonChanged) {
-          setActiveSeason(season)
-        }
 
         if (season) {
           const publicTeams =

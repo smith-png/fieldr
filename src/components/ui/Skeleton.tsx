@@ -178,7 +178,7 @@ export const AdminCardsSkeleton: React.FC<{ count?: number }> = ({ count = 6 }) 
 export const AdminShellSkeleton: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
   <div
     aria-hidden="true"
-    className="min-h-screen bg-bg text-text font-sans flex flex-col md:flex-row antialiased"
+    className="min-h-dvh bg-bg text-text font-sans flex flex-col md:flex-row antialiased"
   >
     <aside className="hidden md:flex flex-col justify-between bg-surface border-r border-border shrink-0 w-64 lg:w-72 p-5">
       <div className="flex flex-col gap-5">
@@ -222,7 +222,7 @@ export const AdminShellSkeleton: React.FC<{ children?: React.ReactNode }> = ({ c
 export const PublicPageSkeleton: React.FC<{ variant?: 'cards' | 'profile' | 'content' }> = ({
   variant = 'cards'
 }) => (
-  <div aria-hidden="true" className="min-h-screen bg-bg text-text flex flex-col overflow-x-clip">
+  <div aria-hidden="true" className="min-h-dvh bg-bg text-text flex flex-col overflow-x-clip">
     <header className="w-full max-w-7xl mx-auto h-16 px-6 md:px-16 lg:px-24 flex items-center justify-between">
       <div className="flex items-center gap-3">
         <SkeletonBlock className="w-10 h-10 rounded-2xl" />
@@ -260,7 +260,7 @@ export const ProjectorPageSkeleton: React.FC = () => (
   <div
     aria-hidden="true"
     data-theme="dark"
-    className="min-h-screen bg-[#0B0B0B] text-[#F0F2EE] flex flex-col justify-between p-8 lg:p-14"
+    className="min-h-dvh bg-[#0B0B0B] text-[#F0F2EE] flex flex-col justify-between p-8 lg:p-14"
   >
     <div className="flex items-center justify-between">
       <SkeletonBlock className="w-36 h-9 rounded-xl bg-[#1A1D1A]" />

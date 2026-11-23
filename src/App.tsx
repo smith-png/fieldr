@@ -90,7 +90,7 @@ export default function App() {
   if (!isSupabaseConfigured) {
     return (
       <ThemeProvider>
-        <div className="min-h-screen bg-bg text-text flex items-center justify-center p-6">
+        <div className="min-h-dvh bg-bg text-text flex items-center justify-center p-6">
           <div className="max-w-md w-full bg-surface border border-border rounded-2xl p-8 text-center space-y-4 shadow-xl">
             <span className="w-2.5 h-2.5 rounded-full bg-error inline-block" />
             <h1 className="font-syne font-bold text-xl text-text">
@@ -109,7 +109,7 @@ export default function App() {
     <ErrorBoundary
       name="GlobalApp"
       fallback={
-        <div className="min-h-screen bg-bg text-text flex items-center justify-center p-6">
+        <div className="min-h-dvh bg-bg text-text flex items-center justify-center p-6">
           <div className="max-w-md w-full bg-surface border border-border rounded-2xl p-8 text-center space-y-4 shadow-xl">
             <span className="w-2.5 h-2.5 rounded-full bg-accent-bright inline-block" />
             <h1 className="font-syne font-bold text-xl text-text">Something went wrong</h1>
