@@ -1,0 +1,45 @@
+name: Copy storage
+on: workflow_dispatch
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install rclone
+        run: sudo apt-get update && sudo apt-get install -y rclone
+
+      - name: Copy buckets
+        env:
+          OLD_KEY: ${{ secrets.OLD_S3_KEY_ID }}
+          OLD_SECRET: ${{ secrets.OLD_S3_SECRET }}
+          NEW_KEY: ${{ secrets.NEW_S3_KEY_ID }}
+          NEW_SECRET: ${{ secrets.NEW_S3_SECRET }}
+          NEW_REF: ${{ secrets.NEW_PROJECT_REF }}
+        run: |
+          export RCLONE_CONFIG_OLD_TYPE=s3
+          export RCLONE_CONFIG_OLD_PROVIDER=Other
+          export RCLONE_CONFIG_OLD_ACCESS_KEY_ID="$OLD_KEY"
+          export RCLONE_CONFIG_OLD_SECRET_ACCESS_KEY="$OLD_SECRET"
+          export RCLONE_CONFIG_OLD_ENDPOINT="https://cqngxirukrdrdvcvzusf.supabase.co/storage/v1/s3"
+          export RCLONE_CONFIG_OLD_REGION=ap-southeast-2
+          export RCLONE_CONFIG_OLD_FORCE_PATH_STYLE=true
+          export RCLONE_CONFIG_OLD_NO_CHECK_BUCKET=true
+
+          export RCLONE_CONFIG_NEW_TYPE=s3
+          export RCLONE_CONFIG_NEW_PROVIDER=Other
+          export RCLONE_CONFIG_NEW_ACCESS_KEY_ID="$NEW_KEY"
+          export RCLONE_CONFIG_NEW_SECRET_ACCESS_KEY="$NEW_SECRET"
+          export RCLONE_CONFIG_NEW_ENDPOINT="https://${NEW_REF}.supabase.co/storage/v1/s3"
+          export RCLONE_CONFIG_NEW_REGION=ap-south-1
+          export RCLONE_CONFIG_NEW_FORCE_PATH_STYLE=true
+          export RCLONE_CONFIG_NEW_NO_CHECK_BUCKET=true
+
+          for b in registration-pending rules handbooks credits fieldr-assets; do
+            echo "== copying $b"
+            rclone copy "old:$b" "new:$b" -v
+          done
+
+          for b in registration-pending rules handbooks credits fieldr-assets; do
+            echo "== $b"
+            echo "old:"; rclone size "old:$b"
+            echo "new:"; rclone size "new:$b"
+          done
