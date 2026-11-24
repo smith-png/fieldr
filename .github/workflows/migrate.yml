@@ -26,13 +26,11 @@ jobs:
           supabase db dump --db-url "$OLD" -f data.sql --use-copy --data-only
           /usr/lib/postgresql/17/bin/pg_dump "$OLD" --data-only --inserts --on-conflict-do-nothing -t auth.users -t auth.identities -f auth.sql
 
-      - name: Restore into new project
+            - name: Restore into new project
         env:
           NEW: ${{ secrets.NEW_DB_URL }}
         run: |
-          psql "$NEW" -f roles.sql || true
-          psql "$NEW" --single-transaction -v ON_ERROR_STOP=1 -f schema.sql
-          psql "$NEW" -v ON_ERROR_STOP=1 -c "SET session_replication_role = replica" -f auth.sql
+          psql "$NEW" -v ON_ERROR_STOP=1 -c "delete from auth.users;"
           psql "$NEW" --single-transaction -v ON_ERROR_STOP=1 -c "SET session_replication_role = replica" -f data.sql
 
       - name: Compare counts
