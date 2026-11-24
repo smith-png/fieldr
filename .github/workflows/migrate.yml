@@ -12,14 +12,20 @@ jobs:
         env:
           OLD: ${{ secrets.OLD_DB_URL }}
         run: |
-          supabase db dump --db-url "$OLD" -f data.sql --use-copy --data-only -x "storage.*"
+          supabase db dump --db-url "$OLD" -f data.sql --use-copy --data-only
+
+      - name: Strip storage tables from dump
+        run: |
+          awk '/^COPY "?storage"?\./{skip=1} !skip{print} skip && /^\\\.$/{skip=0}' data.sql > data_clean.sql
+          echo "storage COPY lines before: $(grep -c -E '^COPY "?storage"?\.' data.sql)"
+          echo "storage COPY lines after: $(grep -c -E '^COPY "?storage"?\.' data_clean.sql)"
 
       - name: Restore into new project
         env:
           NEW: ${{ secrets.NEW_DB_URL }}
         run: |
           psql "$NEW" -v ON_ERROR_STOP=1 -c "delete from auth.users;"
-          psql "$NEW" --single-transaction -v ON_ERROR_STOP=1 -c "SET session_replication_role = replica" -f data.sql
+          psql "$NEW" --single-transaction -v ON_ERROR_STOP=1 -c "SET session_replication_role = replica" -f data_clean.sql
 
       - name: Compare counts
         env:
