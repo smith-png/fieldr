@@ -85,6 +85,12 @@ const ResultsPage = lazy(() =>
 const RegisterPage = lazy(() =>
   import('./pages/public/RegisterPage').then((m) => ({ default: m.RegisterPage }))
 )
+const ReelsPage = lazy(() =>
+  import('./pages/public/ReelsPage').then((m) => ({ default: m.ReelsPage }))
+)
+const ReelSubmitPage = lazy(() =>
+  import('./pages/public/ReelSubmitPage').then((m) => ({ default: m.ReelSubmitPage }))
+)
 
 export default function App() {
   if (!isSupabaseConfigured) {
@@ -154,6 +160,22 @@ export default function App() {
                   element={
                     <Suspense fallback={<PublicPageSkeleton variant="content" />}>
                       <RegisterPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/reels"
+                  element={
+                    <Suspense fallback={<PublicPageSkeleton variant="content" />}>
+                      <ReelsPage />
+                    </Suspense>
+                  }
+                />
+                <Route
+                  path="/reels/submit"
+                  element={
+                    <Suspense fallback={<PublicPageSkeleton variant="content" />}>
+                      <ReelSubmitPage />
                     </Suspense>
                   }
                 />

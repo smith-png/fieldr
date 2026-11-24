@@ -328,3 +328,95 @@ export interface AthleteRegistration {
   existing_athlete_photo_url: string | null
 }
 
+
+export type ReelSubmissionStatus = 'pending' | 'approved' | 'rejected'
+export type ReelParticipation = 'solo' | 'team'
+
+export interface ReelPrize {
+  place: string
+  reward: string
+}
+
+export interface ReelCriterion {
+  name: string
+  weight: number
+  description: string
+}
+
+export interface ReelKeyDate {
+  label: string
+  when: string
+}
+
+export interface ReelFaq {
+  q: string
+  a: string
+}
+
+export interface ReelSettings {
+  is_visible: boolean
+  is_open: boolean
+  opens_at: string | null
+  closes_at: string | null
+  title: string
+  tagline: string
+  theme: string
+  description_md: string
+  rules_md: string
+  eligibility_md: string
+  instructions_md: string
+  prizes: ReelPrize[]
+  criteria: ReelCriterion[]
+  key_dates: ReelKeyDate[]
+  faqs: ReelFaq[]
+  contact_text: string
+  confirmation_message: string
+  closed_message: string
+  consent_text: string
+  categories: string[]
+  allowed_hosts: string[]
+  max_per_roll: number
+  max_team_size: number
+  show_gallery: boolean
+  updated_at: string | null
+}
+
+export type ReelPhase = 'hidden' | 'upcoming' | 'open' | 'closed' | 'ended'
+
+export interface ReelTeamMember {
+  name: string
+  roll_no: string
+}
+
+export interface ReelSubmission {
+  id: string
+  full_name: string
+  roll_no: string
+  academic_year: AcademicYear
+  whatsapp: string
+  participation: ReelParticipation
+  team_name: string
+  team_members: ReelTeamMember[]
+  reel_title: string
+  reel_url: string
+  category: string
+  description: string
+  music_credit: string
+  consent_original: boolean
+  consent_rules: boolean
+  consent_share: boolean
+  status: ReelSubmissionStatus
+  admin_note: string
+  created_at: string
+  reviewed_at: string | null
+}
+
+export interface PublicReelGalleryItem {
+  id: string
+  reel_title: string
+  full_name: string
+  participation: ReelParticipation
+  team_name: string
+  category: string
+  reel_url: string
+}

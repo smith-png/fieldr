@@ -2,6 +2,7 @@ import React from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../lib/AuthContext'
 import { prefetchRoute } from '../../lib/queryCache'
+import { useReelsVisible } from '../../lib/useReelsVisible'
 import FooterMark from './FooterMark'
 
 const FOOTER_GROUP_HEADING =
@@ -13,6 +14,7 @@ const FOOTER_PILL_CLASS =
 export const SiteFooter: React.FC = () => {
   const { user, logout } = useAuth()
   const isOwner = user?.role === 'owner'
+  const showReels = useReelsVisible()
 
   return (
     <footer className="border-t border-border py-12 px-6 md:px-16 lg:px-24 bg-[#F1F1F2] dark:bg-[#171817] text-muted">
@@ -71,6 +73,19 @@ export const SiteFooter: React.FC = () => {
                   Results
                 </Link>
               </li>
+              {showReels && (
+                <li>
+                  <Link
+                    to="/reels"
+                    onMouseEnter={() => prefetchRoute('/reels')}
+                    onFocus={() => prefetchRoute('/reels')}
+                    onTouchStart={() => prefetchRoute('/reels')}
+                    className={FOOTER_PILL_CLASS}
+                  >
+                    Reels
+                  </Link>
+                </li>
+              )}
             </ul>
           </div>
 

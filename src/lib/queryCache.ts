@@ -59,6 +59,14 @@ export function prefetchRoute(path: string): void {
     runOncePrefetch('route:/results', () => import('../pages/public/ResultsPage'))
     return
   }
+  if (cleanPath === '/reels') {
+    runOncePrefetch('route:/reels', () => import('../pages/public/ReelsPage'))
+    return
+  }
+  if (cleanPath === '/reels/submit') {
+    runOncePrefetch('route:/reels/submit', () => import('../pages/public/ReelSubmitPage'))
+    return
+  }
   if (cleanPath === '/register') {
     runOncePrefetch('route:/register', () => import('../pages/public/RegisterPage'))
     return

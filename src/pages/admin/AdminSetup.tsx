@@ -72,6 +72,16 @@ const RegistrationSetupCard = lazy(() =>
     default: m.RegistrationSetupCard
   }))
 )
+const ReelsSetupCard = lazy(() =>
+  import('../../components/admin/ReelsSetupCard').then((m) => ({
+    default: m.ReelsSetupCard
+  }))
+)
+const ReelSubmissionsCard = lazy(() =>
+  import('../../components/admin/ReelSubmissionsCard').then((m) => ({
+    default: m.ReelSubmissionsCard
+  }))
+)
 const RulesSetupCard = lazy(() =>
   import('../../components/admin/RulesSetupCard').then((m) => ({
     default: m.RulesSetupCard
@@ -93,12 +103,13 @@ import type {
   Team
 } from '../../types'
 
-type SetupTab = 'display' | 'registration' | 'content' | 'documents' | 'sports'
+type SetupTab = 'display' | 'registration' | 'content' | 'reels' | 'documents' | 'sports'
 
 const SETUP_TABS: readonly { value: SetupTab; label: string }[] = [
   { value: 'display', label: 'Display' },
   { value: 'registration', label: 'Registration' },
   { value: 'content', label: 'Content' },
+  { value: 'reels', label: 'Reels' },
   { value: 'documents', label: 'Documents' },
   { value: 'sports', label: 'Sports' }
 ]
@@ -2218,6 +2229,16 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
           {/* Section 2: Credits */}
           <Suspense fallback={<SkeletonBlock className="h-64 w-full rounded-3xl" />}>
             <CreditsSetupCard />
+          </Suspense>
+        </div>
+      )}
+
+      {/* Tab: Reels (Reel Competition settings and submissions) */}
+      {activeTab === 'reels' && (
+        <div className="space-y-6">
+          <Suspense fallback={<SkeletonBlock className="h-72 w-full rounded-3xl" />}>
+            <ReelsSetupCard />
+            <ReelSubmissionsCard />
           </Suspense>
         </div>
       )}
