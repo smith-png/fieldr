@@ -12,7 +12,7 @@ jobs:
         env:
           OLD: ${{ secrets.OLD_DB_URL }}
         run: |
-          supabase db dump --db-url "$OLD" -f data.sql --use-copy --data-only
+          supabase db dump --db-url "$OLD" -f data.sql --use-copy --data-only -x "storage.*"
 
       - name: Restore into new project
         env:
