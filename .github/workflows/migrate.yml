@@ -1,0 +1,45 @@
+name: Migrate Supabase
+on: workflow_dispatch
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Install Postgres 17 client
+        run: |
+          sudo apt-get install -y curl ca-certificates
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          sudo sh -c 'echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Dump old project
+        env:
+          OLD: ${{ secrets.OLD_DB_URL }}
+        run: |
+          supabase db dump --db-url "$OLD" -f roles.sql --role-only
+          supabase db dump --db-url "$OLD" -f schema.sql
+          supabase db dump --db-url "$OLD" -f data.sql --use-copy --data-only
+          /usr/lib/postgresql/17/bin/pg_dump "$OLD" --data-only --inserts --on-conflict-do-nothing -t auth.users -t auth.identities -f auth.sql
+
+      - name: Restore into new project
+        env:
+          NEW: ${{ secrets.NEW_DB_URL }}
+        run: |
+          psql "$NEW" -f roles.sql || true
+          psql "$NEW" --single-transaction -v ON_ERROR_STOP=1 -f schema.sql
+          psql "$NEW" -v ON_ERROR_STOP=1 -c "SET session_replication_role = replica" -f auth.sql
+          psql "$NEW" --single-transaction -v ON_ERROR_STOP=1 -c "SET session_replication_role = replica" -f data.sql
+
+      - name: Compare counts
+        env:
+          OLD: ${{ secrets.OLD_DB_URL }}
+          NEW: ${{ secrets.NEW_DB_URL }}
+        run: |
+          Q="select (select count(*) from auth.users) as users, (select count(*) from public.players) as players, (select count(*) from public.teams) as teams"
+          echo "OLD:"; psql "$OLD" -c "$Q"
+          echo "NEW:"; psql "$NEW" -c "$Q"
