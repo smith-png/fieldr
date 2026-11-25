@@ -227,10 +227,18 @@ button, input, select, textarea {
   z-index: 2;
 }
 
-/* Solid wordmark with a green sheen band that sweeps across as the page scrolls (--sheen-pos set in HeroWord) */
+/* Wordmark: each letter carries a slice of one word-wide green sheen band (--sheen-pos, --hw, --cx set in HeroWord)
+   and floats upward as the page scrolls (--float 0 to 1 per letter) */
 .hero-word-main {
   position: relative;
   color: var(--text);
+}
+
+.hero-char {
+  display: inline-block;
+  will-change: transform, opacity;
+  transform: translate3d(0, calc(var(--float, 0) * -0.5em), 0);
+  opacity: calc(1 - var(--float, 0) * 0.65);
   background-image: linear-gradient(
     112deg,
     var(--text) 0%,
@@ -239,6 +247,9 @@ button, input, select, textarea {
     var(--text) calc(var(--sheen-pos, 18%) + 14%),
     var(--text) 100%
   );
+  background-repeat: no-repeat;
+  background-size: var(--hw, 100%) 100%;
+  background-position: calc(var(--cx, 0px) * -1) 0;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -324,10 +335,11 @@ button, input, select, textarea {
     opacity: 1 !important;
     transform: none !important;
   }
-  .hero-word-main {
+  .hero-char {
     background-image: none;
     -webkit-text-fill-color: currentColor;
-    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
   }
   .animate-ticker {
     animation: none !important;
@@ -614,14 +626,14 @@ button, input, select, textarea {
 }
 
 :root[data-theme="light"] .sa {
-  --sa-key-op: 0.72;
-  --sa-key-mid-op: 0.24;
-  --sa-glow-op: 0.52;
-  --sa-glow-mid-op: 0.2;
-  --sa-hz-op: 0.34;
+  --sa-key-op: 0.2;
+  --sa-key-mid-op: 0.07;
+  --sa-glow-op: 0.18;
+  --sa-glow-mid-op: 0.07;
+  --sa-hz-op: 0.16;
   --sa-ring-op: 0.34;
   --sa-ring-mid-op: 0.16;
-  --sa-vig-op: 0.22;
+  --sa-vig-op: 0.3;
   --sa-shd-op: 0.24;
   --sa-ao-op: 0.36;
   --sa-post-shd-op: 0.2;
@@ -631,10 +643,10 @@ button, input, select, textarea {
   --sa-shade-end-op: 0.36;
 
   /* Cricket (daylight sage) */
-  --sa-cr-bg0: #E6EDE4; --sa-cr-bg1: #DBE5D8; --sa-cr-bg2: #CDDACA;
+  --sa-cr-bg0: #D2E2CF; --sa-cr-bg1: #C2D7BF; --sa-cr-bg2: #B2C9AE;
   --sa-cr-key0: #FCFDF8; --sa-cr-key1: #E8F0E5;
   --sa-cr-glow0: #F6F9F2; --sa-cr-glow1: #D5E3D2;
-  --sa-cr-fl0: #B6CCB5; --sa-cr-fl1: #C5D6C3; --sa-cr-fl2: #DDE5DA; --sa-cr-fl3: #E7ECE4;
+  --sa-cr-fl0: #B6CCB5; --sa-cr-fl1: #C5D6C3; --sa-cr-fl2: #C8D8C4; --sa-cr-fl3: #D2DFCE;
   --sa-cr-tex0: #8EAD8F; --sa-cr-tex1: #A6C0A6; --sa-cr-tex-op0: 0.34; --sa-cr-tex-op1: 0.14;
   --sa-cr-strip0: #CFC4A8; --sa-cr-strip1: #D8D1BC; --sa-cr-strip-op0: 0.48; --sa-cr-strip-op1: 0.22;
   --sa-cr-hz: #E6EFE4;
@@ -653,10 +665,10 @@ button, input, select, textarea {
   --sa-cr-vig: #A3B6A4;
 
   /* Futsal (daylight cool blue-grey) */
-  --sa-fu-bg0: #E4EBF0; --sa-fu-bg1: #D5E1EA; --sa-fu-bg2: #C6D5E2;
+  --sa-fu-bg0: #CEDFEB; --sa-fu-bg1: #BCD2E3; --sa-fu-bg2: #A9C3D9;
   --sa-fu-key0: #F9FCFE; --sa-fu-key1: #E1ECF4;
   --sa-fu-glow0: #F3F8FC; --sa-fu-glow1: #CCE0EE;
-  --sa-fu-fl0: #AEC5DC; --sa-fu-fl1: #C0D3E4; --sa-fu-fl2: #DCE6EE; --sa-fu-fl3: #E7EEF3;
+  --sa-fu-fl0: #AEC5DC; --sa-fu-fl1: #C0D3E4; --sa-fu-fl2: #C5D5E3; --sa-fu-fl3: #D1DEE9;
   --sa-fu-tex0: #89A8C6; --sa-fu-tex1: #A3BED6; --sa-fu-tex-op0: 0.24; --sa-fu-tex-op1: 0.1;
   --sa-fu-hz: #DCE8F2;
   --sa-fu-ring0: #7A9AB8; --sa-fu-ring1: #9CB5CD;
@@ -681,10 +693,10 @@ button, input, select, textarea {
   --sa-fu-vig: #9CB3C7;
 
   /* Volleyball (daylight warm sand & honey wood) */
-  --sa-vb-bg0: #F0E9DC; --sa-vb-bg1: #E6DCC9; --sa-vb-bg2: #DBD0BA;
+  --sa-vb-bg0: #EADBC1; --sa-vb-bg1: #DFCBA9; --sa-vb-bg2: #D2BA91;
   --sa-vb-key0: #FFFDF6; --sa-vb-key1: #F6EFE1;
   --sa-vb-glow0: #FCF7EC; --sa-vb-glow1: #E6D9C3;
-  --sa-vb-fl0: #D8B684; --sa-vb-fl1: #DFC398; --sa-vb-fl2: #ECE2D1; --sa-vb-fl3: #F1ECE1;
+  --sa-vb-fl0: #D8B684; --sa-vb-fl1: #DFC398; --sa-vb-fl2: #DFCFB3; --sa-vb-fl3: #E5D8C0;
   --sa-vb-tex0: #B88E58; --sa-vb-tex1: #C9A472; --sa-vb-tex-op0: 0.24; --sa-vb-tex-op1: 0.1;
   --sa-vb-seam: #856136; --sa-vb-seam-op: 0.2;
   --sa-vb-sheen0: #FFF9EB; --sa-vb-sheen1: #F5E5C6; --sa-vb-sheen-op0: 0.36; --sa-vb-sheen-op1: 0.14;
@@ -723,9 +735,9 @@ button, input, select, textarea {
 :root[data-theme="light"] .sa-card-scrim {
   background: linear-gradient(
     to top,
-    color-mix(in srgb, var(--bg) 92%, transparent) 0%,
-    color-mix(in srgb, var(--bg) 52%, transparent) 38%,
-    transparent 70%
+    color-mix(in srgb, var(--bg) 72%, transparent) 0%,
+    color-mix(in srgb, var(--bg) 28%, transparent) 34%,
+    transparent 60%
   );
 }
 

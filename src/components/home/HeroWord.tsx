@@ -8,6 +8,27 @@ interface HeroWordProps {
 export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
   const wordRef = useRef<HTMLHeadingElement>(null)
 
+  // Measure the word and each letter so every letter shows its slice of one shared sheen band
+  useEffect(() => {
+    const el = wordRef.current
+    if (!el) return
+    const measure = () => {
+      el.style.setProperty('--hw', `${el.offsetWidth}px`)
+      el.querySelectorAll<HTMLElement>('[data-hero-char]').forEach((c) => {
+        c.style.setProperty('--cx', `${c.offsetLeft}px`)
+      })
+    }
+    measure()
+    void document.fonts?.ready.then(measure)
+    window.addEventListener('resize', measure)
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null
+    ro?.observe(el)
+    return () => {
+      window.removeEventListener('resize', measure)
+      ro?.disconnect()
+    }
+  }, [word])
+
   useEffect(() => {
     if (typeof window === 'undefined') return
     const el = wordRef.current
@@ -23,8 +44,18 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
 
     const updatePosition = () => {
       rafId = null
-      const pos = Math.min(100, 18 + (window.scrollY / 420) * 74)
+      const y = window.scrollY
+      const pos = Math.min(100, 18 + (y / 420) * 74)
       el.style.setProperty('--sheen-pos', `${pos.toFixed(1)}%`)
+
+      // Letters float upward one after another, left to right
+      const overall = Math.min(1, Math.max(0, y / Math.max(window.innerHeight * 0.45, 240)))
+      const chars = el.querySelectorAll<HTMLElement>('[data-hero-char]')
+      chars.forEach((c, i) => {
+        const raw = Math.min(1, Math.max(0, (overall - i * 0.09) / 0.5))
+        const eased = 1 - Math.pow(1 - raw, 2)
+        c.style.setProperty('--float', eased.toFixed(3))
+      })
     }
 
     const onScroll = () => {
@@ -50,6 +81,9 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
         rafId = null
       }
       el.style.removeProperty('--sheen-pos')
+      el.querySelectorAll<HTMLElement>('[data-hero-char]').forEach((c) => {
+        c.style.removeProperty('--float')
+      })
     }
 
     const syncMotionPref = () => {
@@ -118,7 +152,12 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
       {/* Solid Syne 800 wordmark with scroll-driven green sheen */}
       <div className={`hero-word-main-wrap${playIntro ? ' hero-word-enter' : ''}`}>
         <h1 ref={wordRef} className="hero-word hero-word-main">
-          {word}
+          <span className="sr-only">{word}</span>
+          {word.split('').map((ch, i) => (
+            <span key={i} aria-hidden="true" data-hero-char className="hero-char">
+              {ch}
+            </span>
+          ))}
         </h1>
       </div>
     </div>
