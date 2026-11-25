@@ -68,29 +68,27 @@ const d = (s: number): React.CSSProperties => ({ ['--d' as string]: `${s}s` } as
 
 const Cricket: React.FC = () => (
   <g>
+    {/* Proportions follow the real game: stumps 71 cm tall and 23 cm wide, ball 7 cm across */}
     <rect width="400" height="250" fill="#14241A" />
-    <circle className="sa-fade" style={d(0)} cx="165" cy="115" r="88" fill="none" stroke="#2A4B35" strokeWidth="1" opacity="0.6" />
-    <circle className="sa-draw" style={d(0.1)} pathLength={1} cx="165" cy="115" r="112" fill="none" stroke="#2A4B35" strokeWidth="1" />
+    <circle className="sa-fade" style={d(0)} cx="200" cy="120" r="88" fill="none" stroke="#2A4B35" strokeWidth="1" opacity="0.6" />
+    <circle className="sa-draw" style={d(0.1)} pathLength={1} cx="200" cy="120" r="112" fill="none" stroke="#2A4B35" strokeWidth="1" />
     <circle className="sa-fade" style={d(0.1)} cx="330" cy="40" r="16" fill="#1F3A2A" />
-    <rect className="sa-fade" style={d(0.05)} x="0" y="172" width="400" height="78" fill="#1F4A32" />
-    <rect className="sa-fade" style={d(0.15)} x="0" y="172" width="400" height="14" fill="#2A6044" />
-    <line className="sa-draw" style={d(0.35)} pathLength={1} x1="210" y1="198" x2="400" y2="198" stroke="#E9E4D2" strokeWidth="2" />
-    <line className="sa-draw" style={d(0.55)} pathLength={1} x1="318" y1="172" x2="318" y2="250" stroke="#E9E4D2" strokeWidth="2" />
-    <ellipse className="sa-fade" style={d(0.8)} cx="165" cy="180" rx="30" ry="4.5" fill="#0B1710" opacity="0.7" />
-    <ellipse className="sa-fade" style={d(0.8)} cx="268" cy="182" rx="30" ry="4" fill="#0B1710" opacity="0.6" />
-    {[255, 267, 279].map((x, i) => (
-      <rect key={x} className="sa-rise" style={d(0.45 + i * 0.1)} x={x - 3} y="96" width="6" height="84" rx="2" fill="#E9DDB4" />
+    <rect className="sa-fade" style={d(0.05)} x="0" y="178" width="400" height="72" fill="#1F4A32" />
+    <rect className="sa-fade" style={d(0.15)} x="0" y="178" width="400" height="12" fill="#2A6044" />
+    <line className="sa-draw" style={d(0.35)} pathLength={1} x1="200" y1="203" x2="400" y2="203" stroke="#E9E4D2" strokeWidth="2" />
+    <line className="sa-draw" style={d(0.55)} pathLength={1} x1="322" y1="178" x2="322" y2="250" stroke="#E9E4D2" strokeWidth="2" />
+    <ellipse className="sa-fade" style={d(0.8)} cx="270" cy="184" rx="30" ry="4" fill="#0B1710" opacity="0.6" />
+    {[253, 270, 287].map((x, i) => (
+      <rect key={x} className="sa-rise" style={d(0.45 + i * 0.1)} x={x - 4} y="50" width="8" height="130" rx="3" fill="#E9DDB4" />
     ))}
-    <rect className="sa-fade" style={d(1.0)} x="252" y="90" width="14" height="4" rx="2" fill="#F3EBCB" />
-    <rect className="sa-fade" style={d(1.05)} x="268" y="90" width="14" height="4" rx="2" fill="#F3EBCB" />
+    <rect className="sa-fade" style={d(1.0)} x="253" y="44" width="17" height="4" rx="2" fill="#F3EBCB" />
+    <rect className="sa-fade" style={d(1.05)} x="270" y="44" width="17" height="4" rx="2" fill="#F3EBCB" />
+    <ellipse className="sa-fade" style={d(0.8)} cx="170" cy="184" rx="8" ry="1.8" fill="#0B1710" opacity="0.7" />
     <g className="sa-pop" style={d(0.7)}>
-      <g transform="translate(165 130) scale(0.78) translate(-165 -115)">
-      <circle cx="165" cy="115" r="44" fill="#C2312A" />
-      <path d="M121 115a44 44 0 0 1 88 0" fill="none" stroke="#8F1F1A" strokeWidth="3" opacity="0.55" transform="rotate(-18 165 115)" />
-      <path d="M130 90c18 10 52 10 70 0M127 140c20 -10 56 -10 76 0" fill="none" stroke="#F3E3C8" strokeWidth="1.5" />
-      <path d="M130 90c18 10 52 10 70 0M127 140c20 -10 56 -10 76 0" fill="none" stroke="#F3E3C8" strokeWidth="5" strokeDasharray="1 5" opacity="0.8" />
-      <path d="M140 92a40 40 0 0 1 22 -20" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" opacity="0.3" />
-      </g>
+      <circle cx="170" cy="150" r="7" fill="#C2312A" />
+      <path d="M163.5 148.5c2.5 1.6 10.5 1.6 13 0" fill="none" stroke="#F3E3C8" strokeWidth="0.8" />
+      <path d="M163.5 152c2.5 -1.4 10.5 -1.4 13 0" fill="none" stroke="#F3E3C8" strokeWidth="0.8" />
+      <path d="M165 146a6 6 0 0 1 4 -3" fill="none" stroke="#fff" strokeWidth="1" strokeLinecap="round" opacity="0.45" />
     </g>
   </g>
 )
