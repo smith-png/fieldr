@@ -3,16 +3,15 @@ import { ArrowLeft, ArrowRight } from '@phosphor-icons/react'
 import { motion, useMotionValue, useReducedMotion, useTransform, type PanInfo } from 'motion/react'
 import { getPublicPlayersBySeason } from '../../lib/data/players'
 import type { PublicPlayer } from '../../types'
-import { SkeletonBlock } from '../ui/Skeleton'
-import { AthleteCard, AthleteCardSkeleton } from './AthleteCard'
+import { AthleteCard, AthleteCardBack, AthleteDeckSkeleton } from './AthleteCard'
 import {
-  MAX_HAND_SIZE,
+  CLOSED_STACK_EDGES,
   getDeckSessionState,
   getFanPose,
   getNormalizedCode,
   getPhonePose,
   getRelativeFanOffset,
-  markDeckDealt,
+  getStackStartPose,
   resolveHandForPageLoad,
   setDeckEmpty
 } from './athleteDeckUtils'
@@ -22,10 +21,11 @@ interface AthleteDeckProps {
   seasonLoaded: boolean
 }
 
+type DeckPhase = 'closed' | 'dealing' | 'open'
+
 export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, seasonLoaded }) => {
   const reducedMotion = Boolean(useReducedMotion())
   const initialSession = getDeckSessionState()
-  const mountedAfterDealRef = useRef<boolean>(initialSession.hasDealtOnce)
 
   const [players, setPlayers] = useState<PublicPlayer[]>(() => initialSession.players ?? [])
   const [status, setStatus] = useState<'loading' | 'ready' | 'empty'>(() => {
@@ -34,11 +34,11 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
     return 'loading'
   })
 
+  // Always starts closed on every mount (including returning from another route)
+  const [deckPhase, setDeckPhase] = useState<DeckPhase>('closed')
   const [activeIndex, setActiveIndex] = useState<number>(0)
   const [openCode, setOpenCode] = useState<string | null>(null)
   const [sheenCounter, setSheenCounter] = useState<number>(0)
-  const [hasDealt, setHasDealt] = useState<boolean>(() => initialSession.hasDealtOnce || reducedMotion)
-  const [flippedUp, setFlippedUp] = useState<boolean>(() => initialSession.hasDealtOnce || reducedMotion)
   const [isInView, setIsInView] = useState<boolean>(false)
   const [isDragging, setIsDragging] = useState<boolean>(false)
   const [dismissDir, setDismissDir] = useState<number>(0)
@@ -55,6 +55,9 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
   const cardButtonRefs = useRef<Array<HTMLButtonElement | null>>([])
   const wasDraggedRef = useRef<boolean>(false)
   const dismissTimerRef = useRef<number | null>(null)
+  const dealTimerRef = useRef<number | null>(null)
+  const deckPressStartRef = useRef<{ x: number; y: number } | null>(null)
+  const deckMovedRef = useRef<boolean>(false)
 
   const mobileDragX = useMotionValue(0)
   const mobileDragRotate = useTransform(mobileDragX, [-200, 0, 200], [-12, 0, 12])
@@ -139,59 +142,92 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
     }
   }, [activeSeasonId, seasonLoaded])
 
-  // Observe visibility to trigger deal-in once and pause idle breathing off-screen
+  // Visibility observer solely pauses/resumes idle breathing (never triggers reveal)
   useEffect(() => {
     const el = sectionRef.current
     if (!el || status !== 'ready' || players.length === 0) return
     if (typeof IntersectionObserver === 'undefined') {
       setIsInView(true)
-      markDeckDealt()
-      setHasDealt(true)
-      setFlippedUp(true)
       return
     }
 
     const observer = new IntersectionObserver(
       (entries) => {
         const entry = entries[0]
-        if (!entry) return
-        setIsInView(entry.isIntersecting)
-        if (entry.isIntersecting && !getDeckSessionState().hasDealtOnce) {
-          markDeckDealt()
-          setHasDealt(true)
-        }
+        if (entry) setIsInView(entry.isIntersecting)
       },
-      { threshold: 0.2 }
+      { threshold: 0.15 }
     )
     observer.observe(el)
     return () => observer.disconnect()
   }, [status, players.length])
 
   useEffect(() => {
-    if (reducedMotion) {
-      setHasDealt(true)
-      setFlippedUp(true)
-      return
-    }
-    if (!hasDealt || flippedUp) return
-    const timer = window.setTimeout(() => {
-      setFlippedUp(true)
-      setSheenCounter((c) => c + 1)
-    }, 380)
-    return () => window.clearTimeout(timer)
-  }, [hasDealt, flippedUp, reducedMotion])
-
-  useEffect(() => {
     return () => {
       if (dismissTimerRef.current !== null) window.clearTimeout(dismissTimerRef.current)
+      if (dealTimerRef.current !== null) window.clearTimeout(dealTimerRef.current)
     }
   }, [])
 
   const safeActiveIndex = players.length > 0 ? activeIndex % players.length : 0
 
+  const handleDrawDeck = useCallback(() => {
+    if (deckPhase !== 'closed' || players.length === 0) return
+
+    if (reducedMotion) {
+      setDeckPhase('open')
+      window.requestAnimationFrame(() => {
+        cardButtonRefs.current[0]?.focus({ preventScroll: true })
+      })
+      return
+    }
+
+    setDeckPhase('dealing')
+    const steps = isPhone ? Math.min(players.length, 3) : players.length
+    const finishMs = 560 + Math.max(steps - 1, 0) * 130
+    if (dealTimerRef.current !== null) window.clearTimeout(dealTimerRef.current)
+    dealTimerRef.current = window.setTimeout(() => {
+      dealTimerRef.current = null
+      setDeckPhase('open')
+      setSheenCounter((c) => c + 1)
+    }, finishMs)
+  }, [deckPhase, players.length, reducedMotion, isPhone])
+
+  const handleDeckPointerDown = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    deckPressStartRef.current = { x: e.clientX, y: e.clientY }
+    deckMovedRef.current = false
+  }, [])
+
+  const handleDeckPointerMove = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    const start = deckPressStartRef.current
+    if (!start) return
+    if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 8) {
+      deckMovedRef.current = true
+    }
+  }, [])
+
+  const handleDeckPointerCancel = useCallback(() => {
+    deckMovedRef.current = true
+    deckPressStartRef.current = null
+  }, [])
+
+  const handleDeckKeyDown = useCallback((e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      deckMovedRef.current = false
+    }
+  }, [])
+
+  const handleDeckClick = useCallback(() => {
+    const wasScrollGesture = deckMovedRef.current
+    deckPressStartRef.current = null
+    deckMovedRef.current = false
+    if (wasScrollGesture) return
+    handleDrawDeck()
+  }, [handleDrawDeck])
+
   const focusCard = useCallback(
     (nextIndex: number, moveDomFocus = false) => {
-      if (players.length === 0) return
+      if (players.length === 0 || deckPhase !== 'open') return
       const wrapped = ((nextIndex % players.length) + players.length) % players.length
       setActiveIndex(wrapped)
       setOpenCode(null)
@@ -202,7 +238,7 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
         })
       }
     },
-    [players.length, reducedMotion]
+    [players.length, deckPhase, reducedMotion]
   )
 
   const handleStep = useCallback(
@@ -212,6 +248,7 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
 
   const handleCardSelect = useCallback(
     (index: number, code: string) => {
+      if (deckPhase !== 'open') return
       if (wasDraggedRef.current) {
         wasDraggedRef.current = false
         return
@@ -222,11 +259,12 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
       }
       setOpenCode((prev) => (prev === code ? null : code))
     },
-    [safeActiveIndex, focusCard]
+    [deckPhase, safeActiveIndex, focusCard]
   )
 
   const handleRegionKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (deckPhase !== 'open') return
       if (players.length <= 1 && e.key !== 'Escape') return
       if (e.key === 'ArrowRight') {
         e.preventDefault()
@@ -240,13 +278,13 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
         cardButtonRefs.current[safeActiveIndex]?.focus({ preventScroll: true })
       }
     },
-    [players.length, handleStep, openCode, safeActiveIndex]
+    [deckPhase, players.length, handleStep, openCode, safeActiveIndex]
   )
 
   const handleDesktopDragEnd = useCallback(
     (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
       setIsDragging(false)
-      if (players.length <= 1) return
+      if (deckPhase !== 'open' || players.length <= 1) return
       if (Math.abs(info.offset.x) > 12) {
         wasDraggedRef.current = true
         window.setTimeout(() => { wasDraggedRef.current = false }, 120)
@@ -254,13 +292,13 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
       if (info.offset.x < -48 || info.velocity.x < -320) handleStep(1)
       else if (info.offset.x > 48 || info.velocity.x > 320) handleStep(-1)
     },
-    [players.length, handleStep]
+    [deckPhase, players.length, handleStep]
   )
 
   const handleMobileDragEnd = useCallback(
     (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
       setIsDragging(false)
-      if (players.length <= 1) return
+      if (deckPhase !== 'open' || players.length <= 1) return
       if (Math.abs(info.offset.x) > 12) {
         wasDraggedRef.current = true
         window.setTimeout(() => { wasDraggedRef.current = false }, 160)
@@ -279,13 +317,17 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
         }, 180)
       }
     },
-    [players.length, focusCard, safeActiveIndex, mobileDragX]
+    [deckPhase, players.length, focusCard, safeActiveIndex, mobileDragX]
   )
 
   if (status === 'empty') return null
 
-  const canBrowse = players.length > 1
-  const breatheActive = !reducedMotion && flippedUp && isInView && !isDragging
+  const isOpenPhase = deckPhase === 'open'
+  const isDealingPhase = deckPhase === 'dealing'
+  const canBrowse = isOpenPhase && players.length > 1
+  const breatheActive = !reducedMotion && isInView && !isDragging && (deckPhase === 'closed' || isOpenPhase)
+  const visibleEdges = CLOSED_STACK_EDGES.slice(0, Math.min(Math.max(players.length - 1, 0), CLOSED_STACK_EDGES.length))
+  const minRelOffset = players.length > 1 ? -Math.floor((players.length - 1) / 2) : 0
 
   return (
     <section
@@ -300,7 +342,7 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
             DRAW A CARD
           </span>
           <div className="flex items-baseline gap-3">
-            <span className="font-mono text-xs tabular-nums text-muted select-none">03</span>
+            <span className="font-mono text-xs tabular-nums text-muted select-none">02</span>
             <h2
               id="athlete-deck-heading"
               className="font-syne font-extrabold text-3xl sm:text-4xl text-text tracking-tight"
@@ -312,33 +354,46 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
       </div>
 
       {status === 'loading' ? (
-        <div aria-busy="true" aria-label="Loading featured athletes">
-          <div className="relative h-[388px] sm:h-[364px] md:h-[388px] lg:h-[408px] flex items-center justify-center overflow-hidden">
-            {Array.from({ length: MAX_HAND_SIZE }).map((_, idx) => {
-              const pose = isPhone
-                ? getPhonePose(idx, idx, true, 0)
-                : getFanPose(idx - 2, idx, true, fanSpacing)
-              return (
-                <AthleteCardSkeleton
-                  key={idx}
-                  style={{
-                    transform: `translate3d(${pose.x}px, ${pose.y}px, 0) rotate(${pose.rotate}deg) scale(${pose.scale})`,
-                    zIndex: pose.zIndex,
-                    opacity: pose.opacity
-                  }}
-                />
-              )
-            })}
-          </div>
-          <div className="mt-5 h-11 flex items-center justify-center gap-4">
-            <SkeletonBlock className="w-11 h-11 rounded-full" />
-            <SkeletonBlock className="w-24 h-2.5 rounded-full" />
-            <SkeletonBlock className="w-11 h-11 rounded-full" />
-          </div>
-        </div>
+        <AthleteDeckSkeleton />
       ) : (
         <div role="region" aria-label="Featured athletes" onKeyDown={handleRegionKeyDown}>
-          {reducedMotion ? (
+          {deckPhase === 'closed' ? (
+            <div className="relative h-[388px] sm:h-[364px] md:h-[388px] lg:h-[408px] flex items-center justify-center touch-pan-y">
+              <div className={breatheActive ? 'athlete-card-breathe' : 'athlete-card-breathe athlete-card-breathe-paused'}>
+                <button
+                  type="button"
+                  onPointerDown={handleDeckPointerDown}
+                  onPointerMove={handleDeckPointerMove}
+                  onPointerCancel={handleDeckPointerCancel}
+                  onKeyDown={handleDeckKeyDown}
+                  onClick={handleDeckClick}
+                  aria-label="Tap to draw featured athletes"
+                  className="group relative block w-[236px] sm:w-[214px] md:w-[228px] lg:w-[240px] aspect-[5/7] rounded-2xl touch-pan-y select-none cursor-pointer transition-transform duration-200 hover:-translate-y-0.5 active:scale-[0.985] motion-reduce:transition-none motion-reduce:transform-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright focus-visible:ring-offset-4 focus-visible:ring-offset-bg"
+                >
+                  {/* Offset face-down stacked edges behind the top card */}
+                  {visibleEdges
+                    .slice()
+                    .reverse()
+                    .map((edge, idx) => (
+                      <div
+                        key={idx}
+                        aria-hidden="true"
+                        style={{
+                          transform: `translate3d(${edge.x}px, ${edge.y}px, 0) rotate(${edge.rotate}deg)`
+                        }}
+                        className="athlete-card-back-bg athlete-card-rim pointer-events-none absolute inset-0 rounded-2xl shadow-md"
+                      />
+                    ))}
+
+                  {/* Top face-down branded card back */}
+                  <AthleteCardBack
+                    label="Tap to draw"
+                    className="relative w-full h-full shadow-xl"
+                  />
+                </button>
+              </div>
+            </div>
+          ) : reducedMotion ? (
             <div className="flex gap-4 overflow-x-auto sm:overflow-visible sm:flex-wrap lg:flex-nowrap sm:justify-center pb-3 thin-scrollbar snap-x snap-mandatory">
               {players.map((player, idx) => {
                 const code = getNormalizedCode(player)
@@ -354,6 +409,7 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
                       player={player}
                       isCenter={isCenter}
                       isFaceUp
+                      initialFaceUp
                       isOpen={isCenter && openCode === code}
                       sheenTrigger={0}
                       enableHoverTilt={false}
@@ -372,17 +428,14 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
                 const code = getNormalizedCode(player)
                 const stackPos = (idx - safeActiveIndex + players.length) % players.length
                 const isTop = stackPos === 0
-                const pose = getPhonePose(stackPos, idx, hasDealt, dismissDir)
-                const startPose = getPhonePose(stackPos, idx, false, 0)
+                const pose = getPhonePose(stackPos, dismissDir)
+                const startPose = getStackStartPose(stackPos)
+                const dealStep = Math.min(stackPos, 2)
 
                 return (
                   <motion.div
                     key={player.id}
-                    initial={
-                      mountedAfterDealRef.current
-                        ? false
-                        : { x: startPose.x, y: startPose.y, rotate: startPose.rotate, scale: startPose.scale, opacity: startPose.opacity }
-                    }
+                    initial={isDealingPhase ? startPose : false}
                     drag={isTop && canBrowse && openCode === null ? 'x' : false}
                     dragDirectionLock
                     dragConstraints={{ left: 0, right: 0 }}
@@ -393,13 +446,19 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
                       x: isTop ? mobileDragX : undefined,
                       rotate: isTop && dismissDir === 0 ? mobileDragRotate : undefined,
                       zIndex: pose.zIndex,
-                      pointerEvents: isTop ? 'auto' : 'none'
+                      pointerEvents: isTop && isOpenPhase ? 'auto' : 'none'
                     }}
                     animate={{ x: pose.x, y: pose.y, rotate: pose.rotate, scale: pose.scale, opacity: pose.opacity }}
                     transition={
                       isTop && dismissDir !== 0
                         ? { duration: 0.18, ease: 'easeOut' }
-                        : { type: 'spring', stiffness: 270, damping: 25, mass: 0.85, delay: hasDealt && !flippedUp ? idx * 0.05 : 0 }
+                        : {
+                            type: 'spring',
+                            stiffness: 270,
+                            damping: 25,
+                            mass: 0.85,
+                            delay: isDealingPhase ? dealStep * 0.1 : 0
+                          }
                     }
                     className="absolute w-[236px] touch-pan-y"
                   >
@@ -410,12 +469,14 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
                       <AthleteCard
                         player={player}
                         isCenter={isTop}
-                        isFaceUp={flippedUp}
+                        isFaceUp
+                        initialFaceUp={isOpenPhase}
+                        interactive={isOpenPhase}
                         isOpen={isTop && openCode === code}
                         sheenTrigger={isTop ? sheenCounter : 0}
                         enableHoverTilt={false}
                         reducedMotion={false}
-                        flipDelay={idx * 0.06}
+                        flipDelay={0.12 + dealStep * 0.12}
                         tabIndex={isTop ? 0 : -1}
                         buttonRef={(el) => { cardButtonRefs.current[idx] = el }}
                         onSelect={() => handleCardSelect(idx, code)}
@@ -440,20 +501,26 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
                 const code = getNormalizedCode(player)
                 const rel = getRelativeFanOffset(idx, safeActiveIndex, players.length)
                 const isCenter = rel === 0
-                const pose = getFanPose(rel, idx, hasDealt, fanSpacing)
-                const startPose = getFanPose(rel, idx, false, fanSpacing)
+                const pose = getFanPose(rel, fanSpacing)
+                const startPose = getStackStartPose(idx)
+                const dealStep = Math.max(0, rel - minRelOffset)
 
                 return (
                   <motion.div
                     key={player.id}
-                    initial={
-                      mountedAfterDealRef.current
-                        ? false
-                        : { x: startPose.x, y: startPose.y, rotate: startPose.rotate, scale: startPose.scale, opacity: startPose.opacity }
-                    }
+                    initial={isDealingPhase ? startPose : false}
                     animate={{ x: pose.x, y: pose.y, rotate: pose.rotate, scale: pose.scale, opacity: pose.opacity }}
-                    transition={{ type: 'spring', stiffness: 260, damping: 25, mass: 0.85, delay: hasDealt && !flippedUp ? idx * 0.065 : 0 }}
-                    style={{ zIndex: pose.zIndex }}
+                    transition={{
+                      type: 'spring',
+                      stiffness: 260,
+                      damping: 25,
+                      mass: 0.85,
+                      delay: isDealingPhase ? dealStep * 0.1 : 0
+                    }}
+                    style={{
+                      zIndex: pose.zIndex,
+                      pointerEvents: isOpenPhase ? 'auto' : 'none'
+                    }}
                     className="absolute w-[214px] md:w-[228px] lg:w-[240px]"
                   >
                     <div
@@ -463,12 +530,14 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
                       <AthleteCard
                         player={player}
                         isCenter={isCenter}
-                        isFaceUp={flippedUp}
+                        isFaceUp
+                        initialFaceUp={isOpenPhase}
+                        interactive={isOpenPhase}
                         isOpen={isCenter && openCode === code}
                         sheenTrigger={isCenter ? sheenCounter : 0}
-                        enableHoverTilt={hasFinePointer && isCenter && flippedUp && openCode === null && !isDragging}
+                        enableHoverTilt={hasFinePointer && isCenter && isOpenPhase && openCode === null && !isDragging}
                         reducedMotion={false}
-                        flipDelay={idx * 0.075}
+                        flipDelay={0.16 + dealStep * 0.12}
                         buttonRef={(el) => { cardButtonRefs.current[idx] = el }}
                         onSelect={() => handleCardSelect(idx, code)}
                         onCloseDetails={() => setOpenCode(null)}
@@ -480,52 +549,55 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
             </motion.div>
           )}
 
-          {canBrowse && (
-            <div className="mt-5 h-11 flex items-center justify-center gap-4">
-              <button
-                type="button"
-                onClick={() => handleStep(-1)}
-                aria-label="Previous athlete"
-                className="w-11 h-11 rounded-full bg-surface border border-border text-text hover:border-accent-bright hover:text-accent-bright active:scale-[0.96] transition-[border-color,color,transform] duration-150 motion-reduce:transition-none flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright cursor-pointer"
-              >
-                <ArrowLeft size={16} weight="bold" aria-hidden="true" />
-              </button>
+          {/* Fixed-height control bar slot to avoid layout shift between closed and open */}
+          <div className="mt-5 h-11 flex items-center justify-center gap-4">
+            {canBrowse && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleStep(-1)}
+                  aria-label="Previous athlete"
+                  className="w-11 h-11 rounded-full bg-surface border border-border text-text hover:border-accent-bright hover:text-accent-bright active:scale-[0.96] transition-[border-color,color,transform] duration-150 motion-reduce:transition-none flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright cursor-pointer"
+                >
+                  <ArrowLeft size={16} weight="bold" aria-hidden="true" />
+                </button>
 
-              <div className="flex items-center gap-2" role="group" aria-label="Choose athlete card">
-                {players.map((player, idx) => {
-                  const isActive = idx === safeActiveIndex
-                  return (
-                    <button
-                      key={player.id}
-                      type="button"
-                      onClick={() => focusCard(idx)}
-                      aria-label={`Show ${player.name}`}
-                      aria-current={isActive ? 'true' : undefined}
-                      className="hit-44 relative p-1 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright rounded-full cursor-pointer"
-                    >
-                      <span
-                        aria-hidden="true"
-                        className={`block w-2.5 h-2.5 rounded-full transition-[transform,opacity] duration-200 motion-reduce:transition-none ${
-                          isActive
-                            ? 'bg-accent-bright scale-125 opacity-100'
-                            : 'bg-muted scale-90 opacity-45 hover:opacity-75'
-                        }`}
-                      />
-                    </button>
-                  )
-                })}
-              </div>
+                <div className="flex items-center gap-2" role="group" aria-label="Choose athlete card">
+                  {players.map((player, idx) => {
+                    const isActive = idx === safeActiveIndex
+                    return (
+                      <button
+                        key={player.id}
+                        type="button"
+                        onClick={() => focusCard(idx)}
+                        aria-label={`Show ${player.name}`}
+                        aria-current={isActive ? 'true' : undefined}
+                        className="hit-44 relative p-1 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright rounded-full cursor-pointer"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`block w-2.5 h-2.5 rounded-full transition-[transform,opacity] duration-200 motion-reduce:transition-none ${
+                            isActive
+                              ? 'bg-accent-bright scale-125 opacity-100'
+                              : 'bg-muted scale-90 opacity-45 hover:opacity-75'
+                          }`}
+                        />
+                      </button>
+                    )
+                  })}
+                </div>
 
-              <button
-                type="button"
-                onClick={() => handleStep(1)}
-                aria-label="Next athlete"
-                className="w-11 h-11 rounded-full bg-surface border border-border text-text hover:border-accent-bright hover:text-accent-bright active:scale-[0.96] transition-[border-color,color,transform] duration-150 motion-reduce:transition-none flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright cursor-pointer"
-              >
-                <ArrowRight size={16} weight="bold" aria-hidden="true" />
-              </button>
-            </div>
-          )}
+                <button
+                  type="button"
+                  onClick={() => handleStep(1)}
+                  aria-label="Next athlete"
+                  className="w-11 h-11 rounded-full bg-surface border border-border text-text hover:border-accent-bright hover:text-accent-bright active:scale-[0.96] transition-[border-color,color,transform] duration-150 motion-reduce:transition-none flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright cursor-pointer"
+                >
+                  <ArrowRight size={16} weight="bold" aria-hidden="true" />
+                </button>
+              </>
+            )}
+          </div>
         </div>
       )}
     </section>

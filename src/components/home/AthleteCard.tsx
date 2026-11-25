@@ -8,13 +8,56 @@ import { prefetchRoute } from '../../lib/queryCache'
 import { getInitials } from '../../lib/utils'
 import { PhotoPlaceholder } from '../roster/PhotoPlaceholder'
 import FooterMark from '../layout/FooterMark'
-import { SkeletonBlock, SkeletonText } from '../ui/Skeleton'
+import { SkeletonBlock } from '../ui/Skeleton'
+import { CLOSED_STACK_EDGES } from './athleteDeckUtils'
+
+export interface AthleteCardBackProps {
+  label?: string
+  className?: string
+  ariaHidden?: boolean
+}
+
+export const AthleteCardBack: React.FC<AthleteCardBackProps> = ({
+  label,
+  className = '',
+  ariaHidden
+}) => (
+  <div
+    aria-hidden={ariaHidden}
+    className={`athlete-card-back-bg athlete-card-rim rounded-2xl overflow-hidden flex items-center justify-center ${className}`}
+  >
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute top-4 left-4 font-dot text-[10px] uppercase tracking-[0.16em] text-accent-bright/80"
+    >
+      F
+    </span>
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute bottom-4 right-4 font-dot text-[10px] uppercase tracking-[0.16em] text-accent-bright/80 rotate-180"
+    >
+      F
+    </span>
+    <div className="relative z-10 p-2 rounded-2xl bg-surface/60 border border-border/70">
+      <FooterMark size={48} eggEnabled={false} />
+    </div>
+    {label && (
+      <span className="pointer-events-none absolute inset-x-4 bottom-5 z-10 flex justify-center">
+        <span className="px-3 py-1 rounded-full bg-surface/85 border border-border font-dot text-[10px] sm:text-[11px] uppercase tracking-[0.16em] text-text">
+          {label}
+        </span>
+      </span>
+    )}
+  </div>
+)
 
 export interface AthleteCardProps {
   player: PublicPlayer
   isCenter: boolean
   isFaceUp: boolean
+  initialFaceUp?: boolean
   isOpen: boolean
+  interactive?: boolean
   sheenTrigger: number
   enableHoverTilt: boolean
   reducedMotion: boolean
@@ -32,7 +75,9 @@ export const AthleteCard: React.FC<AthleteCardProps> = React.memo(
     player,
     isCenter,
     isFaceUp,
+    initialFaceUp = false,
     isOpen,
+    interactive = true,
     sheenTrigger,
     enableHoverTilt,
     reducedMotion,
@@ -109,15 +154,11 @@ export const AthleteCard: React.FC<AthleteCardProps> = React.memo(
         {/* 3D tilt + face-down/face-up flip wrapper */}
         <motion.div
           className="athlete-card-3d relative w-full h-full"
-          style={
-            enableHoverTilt
-              ? { rotateX: tiltX, rotateY: tiltY }
-              : undefined
-          }
+          style={enableHoverTilt ? { rotateX: tiltX, rotateY: tiltY } : undefined}
         >
           <motion.div
             className="athlete-card-3d relative w-full h-full"
-            initial={false}
+            initial={reducedMotion || initialFaceUp ? { rotateY: 0 } : { rotateY: 180 }}
             animate={{ rotateY: reducedMotion || isFaceUp ? 0 : 180 }}
             transition={
               reducedMotion
@@ -126,27 +167,26 @@ export const AthleteCard: React.FC<AthleteCardProps> = React.memo(
                     type: 'spring',
                     stiffness: 220,
                     damping: 24,
-                    delay: isFaceUp ? flipDelay : 0
+                    delay: isFaceUp && !initialFaceUp ? flipDelay : 0
                   }
             }
           >
             {/* CARD FRONT */}
             <div
-              className={`athlete-card-face absolute inset-0 rounded-2xl overflow-hidden bg-surface border transition-colors duration-200 ${
-                isCenter
-                  ? 'border-accent-bright/70'
-                  : 'border-border'
+              className={`athlete-card-face athlete-card-rim absolute inset-0 rounded-2xl overflow-hidden bg-surface transition-colors duration-200 ${
+                isCenter ? 'athlete-card-rim-active' : ''
               }`}
             >
               {/* Primary accessible card trigger */}
               <button
                 ref={buttonRef}
                 type="button"
-                tabIndex={tabIndex}
+                disabled={!interactive}
+                tabIndex={interactive ? tabIndex : -1}
                 onClick={onSelect}
                 aria-label={accessibleLabel}
                 aria-expanded={isCenter ? isOpen : undefined}
-                className="group relative block w-full h-full text-left rounded-2xl overflow-hidden bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright focus-visible:ring-inset cursor-pointer"
+                className="group relative block w-full h-full text-left rounded-[14px] overflow-hidden bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright focus-visible:ring-inset cursor-pointer disabled:cursor-default"
               >
                 {/* Full-bleed portrait photo or silhouette placeholder */}
                 <PhotoPlaceholder />
@@ -184,12 +224,6 @@ export const AthleteCard: React.FC<AthleteCardProps> = React.memo(
                   className="athlete-card-scrim-bottom pointer-events-none absolute inset-x-0 bottom-0 h-32 z-[2]"
                 />
 
-                {/* Thin inner playing-card frame */}
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-2 rounded-xl border border-border/80 z-[3]"
-                />
-
                 {/* Top corner playing-card indices: sport (left) & role (right) in dot font */}
                 <div className="pointer-events-none absolute inset-x-4 top-3.5 z-[4] flex items-start justify-between gap-2">
                   <span className="font-dot text-[10px] sm:text-[11px] uppercase tracking-[0.14em] text-accent-bright leading-tight shrink-0">
@@ -206,7 +240,7 @@ export const AthleteCard: React.FC<AthleteCardProps> = React.memo(
                     <span className="font-mono text-[11px] font-semibold tracking-[0.14em] text-accent-bright uppercase tabular-nums">
                       #{formattedCode}
                     </span>
-                    {isCenter && !isOpen && (
+                    {isCenter && interactive && !isOpen && (
                       <span className="font-dot text-[10px] uppercase tracking-[0.12em] text-muted">
                         TAP
                       </span>
@@ -241,7 +275,7 @@ export const AthleteCard: React.FC<AthleteCardProps> = React.memo(
                         ? { duration: 0 }
                         : { duration: 0.2, ease: [0.22, 1, 0.36, 1] }
                     }
-                    className="frost-strong absolute inset-0 z-10 rounded-2xl p-4 flex flex-col justify-between border border-accent-bright/40"
+                    className="frost-strong absolute inset-0 z-10 rounded-[14px] p-4 flex flex-col justify-between"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
@@ -306,23 +340,11 @@ export const AthleteCard: React.FC<AthleteCardProps> = React.memo(
               </AnimatePresence>
             </div>
 
-            {/* CARD BACK (Fieldr F mark centered on fine sage pattern & thin frame) */}
-            <div
-              aria-hidden="true"
-              className="athlete-card-face athlete-card-face-back athlete-card-back-bg absolute inset-0 rounded-2xl overflow-hidden border border-accent-bright/40 flex items-center justify-center"
-            >
-              <div className="pointer-events-none absolute inset-2.5 rounded-xl border border-accent-bright/30" />
-              <div className="pointer-events-none absolute inset-4 rounded-lg border border-border/60" />
-              <span className="pointer-events-none absolute top-4 left-4 font-dot text-[10px] uppercase tracking-[0.16em] text-accent-bright/75">
-                F
-              </span>
-              <span className="pointer-events-none absolute bottom-4 right-4 font-dot text-[10px] uppercase tracking-[0.16em] text-accent-bright/75 rotate-180">
-                F
-              </span>
-              <div className="relative z-10 p-2 rounded-2xl bg-surface/55 border border-border/70">
-                <FooterMark size={48} eggEnabled={false} />
-              </div>
-            </div>
+            {/* CARD BACK */}
+            <AthleteCardBack
+              ariaHidden
+              className="athlete-card-face athlete-card-face-back absolute inset-0"
+            />
           </motion.div>
         </motion.div>
       </div>
@@ -332,20 +354,28 @@ export const AthleteCard: React.FC<AthleteCardProps> = React.memo(
 
 AthleteCard.displayName = 'AthleteCard'
 
-export const AthleteCardSkeleton: React.FC<{ style?: React.CSSProperties }> = ({ style }) => (
-  <div
-    style={style}
-    className="absolute w-[236px] sm:w-[214px] md:w-[228px] lg:w-[240px] aspect-[5/7] rounded-2xl bg-surface border border-border p-4 flex flex-col justify-between overflow-hidden"
-  >
-    <div className="flex items-center justify-between gap-2">
-      <SkeletonBlock className="h-3 w-14 rounded-sm" />
-      <SkeletonBlock className="h-3 w-16 rounded-sm" />
+export const AthleteDeckSkeleton: React.FC = () => (
+  <div aria-busy="true" aria-label="Loading featured athletes deck">
+    <div className="relative h-[388px] sm:h-[364px] md:h-[388px] lg:h-[408px] flex items-center justify-center overflow-hidden">
+      <div className="relative w-[236px] sm:w-[214px] md:w-[228px] lg:w-[240px] aspect-[5/7]">
+        {CLOSED_STACK_EDGES.slice()
+          .reverse()
+          .map((edge, i) => (
+            <div
+              key={i}
+              aria-hidden="true"
+              style={{
+                transform: `translate3d(${edge.x}px, ${edge.y}px, 0) rotate(${edge.rotate}deg)`
+              }}
+              className="athlete-card-rim absolute inset-0 rounded-2xl bg-surface"
+            />
+          ))}
+        <div className="athlete-card-rim relative w-full h-full rounded-2xl bg-surface p-5 flex flex-col items-center justify-center gap-5 overflow-hidden">
+          <SkeletonBlock className="w-16 h-16 rounded-2xl" />
+          <SkeletonBlock className="w-24 h-6 rounded-full" />
+        </div>
+      </div>
     </div>
-    <div className="space-y-2">
-      <SkeletonBlock className="h-3 w-12 rounded-sm" />
-      <SkeletonText width="w-4/5" className="h-4" />
-      <SkeletonText width="w-3/5" className="h-4" />
-    </div>
+    <div className="mt-5 h-11" aria-hidden="true" />
   </div>
 )
-

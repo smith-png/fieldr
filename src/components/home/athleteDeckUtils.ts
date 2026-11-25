@@ -10,28 +10,34 @@ export interface CardPose {
   zIndex: number
 }
 
+export interface StackEdgePose {
+  x: number
+  y: number
+  rotate: number
+}
+
 export const MAX_HAND_SIZE = 5
+
+// Closed deck visual stack edges behind the top card (nearest to deepest)
+export const CLOSED_STACK_EDGES: readonly StackEdgePose[] = [
+  { x: -4, y: 4, rotate: -1.4 },
+  { x: 5, y: 7, rotate: 2.1 },
+  { x: -7, y: 10, rotate: -3.1 }
+]
 
 // Module-level session memory: resets on browser refresh, never reshuffles on in-app navigation
 let chosenPlayerCodes: string[] | null = null
 let chosenSeasonId: string | null = null
 let cachedHandPlayers: PublicPlayer[] | null = null
-let dealtOnce = false
 
 export function getDeckSessionState(): {
   players: PublicPlayer[] | null
   seasonId: string | null
-  hasDealtOnce: boolean
 } {
   return {
     players: cachedHandPlayers,
-    seasonId: chosenSeasonId,
-    hasDealtOnce: dealtOnce
+    seasonId: chosenSeasonId
   }
-}
-
-export function markDeckDealt(): void {
-  dealtOnce = true
 }
 
 export function setDeckEmpty(): void {
@@ -86,11 +92,14 @@ export function getRelativeFanOffset(index: number, activeIndex: number, count: 
   return diff
 }
 
-export function getFanPose(rel: number, idx: number, dealt: boolean, spacing: number): CardPose {
+export function getStackStartPose(idx: number): { x: number; y: number; rotate: number; scale: number; opacity: number } {
+  if (idx === 0) return { x: 0, y: 0, rotate: 0, scale: 1, opacity: 1 }
+  const edge = CLOSED_STACK_EDGES[Math.min(idx - 1, CLOSED_STACK_EDGES.length - 1)]
+  return { x: edge.x, y: edge.y, rotate: edge.rotate, scale: 1, opacity: 1 }
+}
+
+export function getFanPose(rel: number, spacing: number): CardPose {
   const absRel = Math.abs(rel)
-  if (!dealt) {
-    return { x: 0, y: idx * 1.5, rotate: (idx - 2) * 1.4, scale: 0.94, opacity: 1, zIndex: 30 - absRel * 8 }
-  }
   return {
     x: rel * spacing,
     y: absRel === 0 ? -14 : absRel === 1 ? 6 : 30,
@@ -101,12 +110,9 @@ export function getFanPose(rel: number, idx: number, dealt: boolean, spacing: nu
   }
 }
 
-export function getPhonePose(stackPos: number, idx: number, dealt: boolean, dismissDir: number): CardPose {
+export function getPhonePose(stackPos: number, dismissDir: number): CardPose {
   const isTop = stackPos === 0
   const visible = stackPos <= 2
-  if (!dealt) {
-    return { x: 0, y: stackPos * 2, rotate: (idx - 2) * 1.2, scale: 0.94, opacity: visible ? 1 : 0, zIndex: 30 - stackPos * 10 }
-  }
   if (isTop && dismissDir !== 0) {
     return { x: dismissDir * 300, y: -6, rotate: dismissDir * 14, scale: 1, opacity: 0, zIndex: 30 }
   }

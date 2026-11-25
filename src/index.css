@@ -953,6 +953,33 @@ button, input, select, textarea {
   transform: rotateY(180deg);
 }
 
+.athlete-card-rim {
+  --athlete-card-border: var(--accent-bright);
+  --athlete-card-border-active: color-mix(in srgb, var(--accent-bright) 88%, var(--text));
+  --athlete-card-inner-line: color-mix(in srgb, var(--accent-bright) 34%, transparent);
+  border: 2px solid var(--athlete-card-border);
+}
+
+[data-theme="dark"] .athlete-card-rim {
+  --athlete-card-border: color-mix(in srgb, var(--accent-bright) 68%, rgb(var(--hero-shine-rgb)));
+  --athlete-card-border-active: color-mix(in srgb, var(--accent-bright) 48%, rgb(var(--hero-shine-rgb)));
+  --athlete-card-inner-line: color-mix(in srgb, var(--athlete-card-border) 38%, transparent);
+}
+
+.athlete-card-rim::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border-radius: calc(1rem - 6px);
+  border: 1px solid var(--athlete-card-inner-line);
+  pointer-events: none;
+  z-index: 6;
+}
+
+.athlete-card-rim-active {
+  border-color: var(--athlete-card-border-active);
+}
+
 .athlete-card-back-bg {
   background-color: color-mix(in srgb, var(--accent) 9%, var(--surface));
   background-image:

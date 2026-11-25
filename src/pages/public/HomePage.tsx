@@ -562,13 +562,6 @@ export const HomePage: React.FC = () => {
         </div>
       </ErrorBoundary>
 
-      {/* Permanent quick links (destination pages handle their own locked state) */}
-      <ErrorBoundary name="QuickLinksSection" fallback={null}>
-        <div className="relative z-10">
-          <QuickLinks />
-        </div>
-      </ErrorBoundary>
-
       {/* Meet the athletes interactive card hand */}
       <ErrorBoundary name="AthleteDeckSection" fallback={null}>
         <div className="relative z-10">
@@ -576,6 +569,13 @@ export const HomePage: React.FC = () => {
             activeSeasonId={activeSeason?.id ?? null}
             seasonLoaded={hasLoadedSeason}
           />
+        </div>
+      </ErrorBoundary>
+
+      {/* Permanent quick links (destination pages handle their own locked state) */}
+      <ErrorBoundary name="QuickLinksSection" fallback={null}>
+        <div className="relative z-10">
+          <QuickLinks />
         </div>
       </ErrorBoundary>
 
