@@ -151,13 +151,6 @@ button, input, select, textarea {
   transition: none !important;
 }
 
-/* Hero fold: fill 100svh minus sticky HeaderBar on mobile */
-@media (max-width: 639px) {
-  .hero-mobile-fold {
-    min-height: calc(100svh - 4rem - env(safe-area-inset-top, 0px));
-  }
-}
-
 /* Hero wordmark: solid Syne 800 gradient fill, static 1px sage echo, and faint pitch arc */
 .hero-word-stage {
   position: relative;
@@ -252,6 +245,42 @@ button, input, select, textarea {
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+/* Hero fold & balanced mobile layout (<640px only; tablet/desktop unchanged) */
+@media (max-width: 639px) {
+  .hero-mobile-fold {
+    min-height: min(calc(100svh - 4rem - env(safe-area-inset-top, 0px)), 556px);
+    overflow: hidden;
+  }
+
+  .hero-mobile-main {
+    padding-top: clamp(0.75rem, 2.5svh, 1.5rem);
+    padding-bottom: clamp(0.75rem, 3svh, 1.75rem);
+  }
+
+  .hero-mobile-center {
+    padding-top: clamp(1rem, 4svh, 2.5rem);
+    padding-bottom: clamp(1rem, 4svh, 2.5rem);
+  }
+
+  .hero-word-stage {
+    padding-right: 4px;
+  }
+
+  .hero-word {
+    font-size: var(--hero-mobile-fs, clamp(2.5rem, calc((100vw - 48px) / 6.15), 5.4rem));
+  }
+
+  .hero-arc-wrap {
+    width: 115vw;
+    height: 115vw;
+    top: calc(50% + 2.75rem);
+  }
+
+  .hero-mobile-balls {
+    margin-top: clamp(1.25rem, 5svh, 3rem);
+  }
 }
 
 @keyframes heroWordEnter {
@@ -955,24 +984,15 @@ button, input, select, textarea {
 }
 
 .athlete-card-back-mark {
-  border-radius: 22%;
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--text) 16%, transparent),
-    0 6px 16px color-mix(in srgb, var(--text) 14%, transparent);
+  --athlete-card-mark: var(--accent-bright);
+  color: var(--athlete-card-mark);
+  transform: translateX(3%);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
 
 [data-theme="dark"] .athlete-card-back-mark {
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--text) 20%, transparent),
-    0 8px 18px rgba(0, 0, 0, 0.5);
-}
-
-.athlete-card-back-mark .fmk,
-.athlete-card-back-mark .fmk * {
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
+  --athlete-card-mark: var(--text);
 }
 
 .athlete-card-rim {

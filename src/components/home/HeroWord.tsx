@@ -6,13 +6,34 @@ interface HeroWordProps {
 }
 
 export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
+  const stageRef = useRef<HTMLDivElement>(null)
   const wordRef = useRef<HTMLHeadingElement>(null)
 
-  // Measure the word and each letter so every letter shows its slice of one shared sheen band
+  // Measure the word and each letter so every letter shows its slice of one shared sheen band.
+  // On mobile (<640px), fit the wordmark + 4px echo cleanly inside 20px side margins.
   useEffect(() => {
     const el = wordRef.current
     if (!el) return
     const measure = () => {
+      const stage = stageRef.current
+      if (stage && window.innerWidth < 640) {
+        const targetW = Math.max(200, window.innerWidth - 46)
+        const currentW = el.scrollWidth
+        const currentFs = parseFloat(window.getComputedStyle(el).fontSize)
+        if (currentW > 0 && currentFs > 0 && Math.abs(currentW - targetW) > 2) {
+          const nextFs = Math.max(
+            28,
+            Math.min(92, Math.floor((currentFs * (targetW / currentW)) * 2) / 2)
+          )
+          const prevProp = parseFloat(stage.style.getPropertyValue('--hero-mobile-fs'))
+          if (Number.isNaN(prevProp) || Math.abs(nextFs - prevProp) >= 0.5) {
+            stage.style.setProperty('--hero-mobile-fs', `${nextFs}px`)
+          }
+        }
+      } else if (stage) {
+        stage.style.removeProperty('--hero-mobile-fs')
+      }
+
       el.style.setProperty('--hw', `${el.offsetWidth}px`)
       el.querySelectorAll<HTMLElement>('[data-hero-char]').forEach((c) => {
         c.style.setProperty('--cx', `${c.offsetLeft}px`)
@@ -356,7 +377,7 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
   }, [])
 
   return (
-    <div className="hero-word-stage">
+    <div ref={stageRef} className="hero-word-stage">
       {/* Slowly rotating architectural stadium arc behind the wordmark */}
       <div aria-hidden="true" className="hero-arc-wrap">
         <svg viewBox="0 0 600 600" fill="none" className="hero-arc-spin">

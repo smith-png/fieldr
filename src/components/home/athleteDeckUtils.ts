@@ -13,16 +13,16 @@ export interface CardPose {
 export interface StackEdgePose {
   x: number
   y: number
-  rotate: number
+  opacity: number
 }
 
 export const MAX_HAND_SIZE = 5
 
-// Closed deck visual stack edges behind the top card (nearest to deepest)
+// Closed deck decorative stack edges behind the top card (nearest to deepest, ~3px right and 4px down per layer)
 export const CLOSED_STACK_EDGES: readonly StackEdgePose[] = [
-  { x: -4, y: 4, rotate: -1.4 },
-  { x: 5, y: 7, rotate: 2.1 },
-  { x: -7, y: 10, rotate: -3.1 }
+  { x: 3, y: 4, opacity: 0.88 },
+  { x: 6, y: 8, opacity: 0.72 },
+  { x: 9, y: 12, opacity: 0.54 }
 ]
 
 // Module-level session memory: resets on browser refresh, never reshuffles on in-app navigation
@@ -95,7 +95,7 @@ export function getRelativeFanOffset(index: number, activeIndex: number, count: 
 export function getStackStartPose(idx: number): { x: number; y: number; rotate: number; scale: number; opacity: number } {
   if (idx === 0) return { x: 0, y: 0, rotate: 0, scale: 1, opacity: 1 }
   const edge = CLOSED_STACK_EDGES[Math.min(idx - 1, CLOSED_STACK_EDGES.length - 1)]
-  return { x: edge.x, y: edge.y, rotate: edge.rotate, scale: 1, opacity: 1 }
+  return { x: edge.x, y: edge.y, rotate: 0, scale: 1, opacity: 1 }
 }
 
 export function getFanPose(rel: number, spacing: number): CardPose {

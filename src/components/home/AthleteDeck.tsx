@@ -326,7 +326,6 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
   const isDealingPhase = deckPhase === 'dealing'
   const canBrowse = isOpenPhase && players.length > 1
   const breatheActive = !reducedMotion && isInView && !isDragging && (deckPhase === 'closed' || isOpenPhase)
-  const visibleEdges = CLOSED_STACK_EDGES.slice(0, Math.min(Math.max(players.length - 1, 0), CLOSED_STACK_EDGES.length))
   const minRelOffset = players.length > 1 ? -Math.floor((players.length - 1) / 2) : 0
 
   return (
@@ -370,18 +369,18 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
                   aria-label="Tap to draw featured athletes"
                   className="group relative block w-[236px] sm:w-[214px] md:w-[228px] lg:w-[240px] aspect-[5/7] rounded-2xl touch-pan-y select-none cursor-pointer transition-transform duration-200 hover:-translate-y-0.5 active:scale-[0.985] motion-reduce:transition-none motion-reduce:transform-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright focus-visible:ring-offset-4 focus-visible:ring-offset-bg"
                 >
-                  {/* Offset face-down stacked edges behind the top card */}
-                  {visibleEdges
-                    .slice()
+                  {/* Always 3 decorative stacked edges behind the top card (independent of player count) */}
+                  {CLOSED_STACK_EDGES.slice()
                     .reverse()
                     .map((edge, idx) => (
                       <div
                         key={idx}
                         aria-hidden="true"
                         style={{
-                          transform: `translate3d(${edge.x}px, ${edge.y}px, 0) rotate(${edge.rotate}deg)`
+                          transform: `translate3d(${edge.x}px, ${edge.y}px, 0)`,
+                          opacity: edge.opacity
                         }}
-                        className="athlete-card-back-bg athlete-card-rim pointer-events-none absolute inset-0 rounded-2xl shadow-md"
+                        className="athlete-card-back-bg athlete-card-rim absolute inset-0 rounded-2xl shadow-md"
                       />
                     ))}
 
@@ -424,6 +423,25 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
             </div>
           ) : isPhone ? (
             <div className="relative h-[388px] flex items-center justify-center overflow-hidden touch-pan-y">
+              {isDealingPhase && (
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute w-[236px] aspect-[5/7]"
+                  style={{ zIndex: 0 }}
+                >
+                  {CLOSED_STACK_EDGES.slice()
+                    .reverse()
+                    .map((edge, idx) => (
+                      <motion.div
+                        key={idx}
+                        initial={{ x: edge.x, y: edge.y, opacity: edge.opacity }}
+                        animate={{ x: edge.x, y: edge.y, opacity: 0 }}
+                        transition={{ duration: 0.28, ease: 'easeOut' }}
+                        className="athlete-card-back-bg athlete-card-rim absolute inset-0 rounded-2xl shadow-md"
+                      />
+                    ))}
+                </div>
+              )}
               {players.map((player, idx) => {
                 const code = getNormalizedCode(player)
                 const stackPos = (idx - safeActiveIndex + players.length) % players.length
@@ -497,6 +515,25 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
               onDragEnd={handleDesktopDragEnd}
               className="relative h-[364px] md:h-[388px] lg:h-[408px] flex items-center justify-center overflow-visible touch-pan-y"
             >
+              {isDealingPhase && (
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute w-[214px] md:w-[228px] lg:w-[240px] aspect-[5/7]"
+                  style={{ zIndex: 0 }}
+                >
+                  {CLOSED_STACK_EDGES.slice()
+                    .reverse()
+                    .map((edge, idx) => (
+                      <motion.div
+                        key={idx}
+                        initial={{ x: edge.x, y: edge.y, opacity: edge.opacity }}
+                        animate={{ x: edge.x, y: edge.y, opacity: 0 }}
+                        transition={{ duration: 0.28, ease: 'easeOut' }}
+                        className="athlete-card-back-bg athlete-card-rim absolute inset-0 rounded-2xl shadow-md"
+                      />
+                    ))}
+                </div>
+              )}
               {players.map((player, idx) => {
                 const code = getNormalizedCode(player)
                 const rel = getRelativeFanOffset(idx, safeActiveIndex, players.length)

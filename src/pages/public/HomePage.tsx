@@ -479,7 +479,7 @@ export const HomePage: React.FC = () => {
       <div className="hero-mobile-fold flex flex-col">
         {/* Main Hero Container wrapped in ErrorBoundary */}
         <ErrorBoundary name="HeroSection" fallback={null}>
-          <main className="relative z-10 flex-1 sm:flex-initial flex flex-col px-6 md:px-16 lg:px-24 pt-5 sm:pt-8 lg:pt-10 pb-2 sm:pb-12 lg:pb-14 max-w-7xl mx-auto w-full">
+          <main className="hero-mobile-main relative z-10 flex-1 sm:flex-initial flex flex-col px-5 sm:px-6 md:px-16 lg:px-24 sm:pt-8 lg:pt-10 sm:pb-12 lg:pb-14 max-w-7xl mx-auto w-full">
             {/* 1. Top Row (hairline hidden on mobile, preserved on sm+) */}
             <div className="relative z-10 shrink-0 flex items-center justify-between gap-4 pb-0 sm:pb-3.5 sm:border-b sm:border-border/60 min-h-[2rem]">
               <div className="flex items-center gap-2.5 font-sans text-[11px] sm:text-xs font-medium uppercase tracking-[0.2em] text-muted shrink-0">
@@ -495,9 +495,9 @@ export const HomePage: React.FC = () => {
             </div>
 
             {/* 2. Center: solid Syne 800 wordmark + sage echo + faint stadium arc + sport balls */}
-            <div className="relative flex-1 sm:flex-initial flex flex-col items-center justify-center py-6 sm:py-10 lg:py-12">
+            <div className="hero-mobile-center relative flex-1 sm:flex-initial flex flex-col items-center justify-center sm:py-10 lg:py-12">
               <HeroWord word={HERO_WORD} playIntro={playHeroIntro} />
-              <HeroBalls />
+              <HeroBalls playerCounts={playerCounts} countsLoaded={hasLoadedCounts} />
             </div>
 
             {/* 3. Bottom Row (hairline and secondary metadata hidden on mobile, preserved on sm+) */}

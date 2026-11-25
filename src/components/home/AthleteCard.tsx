@@ -7,7 +7,6 @@ import { formatAthleteCode } from '../../lib/data/client'
 import { prefetchRoute } from '../../lib/queryCache'
 import { getInitials } from '../../lib/utils'
 import { PhotoPlaceholder } from '../roster/PhotoPlaceholder'
-import FooterMark from '../layout/FooterMark'
 import { SkeletonBlock } from '../ui/Skeleton'
 import { CLOSED_STACK_EDGES } from './athleteDeckUtils'
 
@@ -26,9 +25,17 @@ export const AthleteCardBack: React.FC<AthleteCardBackProps> = ({
     aria-hidden={ariaHidden}
     className={`athlete-card-back-bg athlete-card-rim rounded-2xl overflow-hidden flex items-center justify-center ${className}`}
   >
-    <div className="athlete-card-back-mark relative z-10 inline-flex items-center justify-center pointer-events-none">
-      <FooterMark size={92} eggEnabled={false} staticOnly />
-    </div>
+    <svg
+      viewBox="19 16 27 32"
+      fill="none"
+      aria-hidden="true"
+      className="athlete-card-back-mark relative z-10 w-[22%] h-auto pointer-events-none"
+    >
+      <path
+        d="M19 16H46V23.5H28.5V29.5H41V36.5H28.5V48H19V16Z"
+        fill="currentColor"
+      />
+    </svg>
     {label && (
       <span className="pointer-events-none absolute inset-x-4 bottom-5 z-10 flex justify-center">
         <span className="px-3 py-1 rounded-full bg-surface/85 border border-border font-dot text-[10px] sm:text-[11px] uppercase tracking-[0.16em] text-text">
@@ -344,7 +351,7 @@ AthleteCard.displayName = 'AthleteCard'
 
 export const AthleteDeckSkeleton: React.FC = () => (
   <div aria-busy="true" aria-label="Loading featured athletes deck">
-    <div className="relative h-[388px] sm:h-[364px] md:h-[388px] lg:h-[408px] flex items-center justify-center overflow-hidden">
+    <div className="relative h-[388px] sm:h-[364px] md:h-[388px] lg:h-[408px] flex items-center justify-center overflow-visible">
       <div className="relative w-[236px] sm:w-[214px] md:w-[228px] lg:w-[240px] aspect-[5/7]">
         {CLOSED_STACK_EDGES.slice()
           .reverse()
@@ -353,7 +360,8 @@ export const AthleteDeckSkeleton: React.FC = () => (
               key={i}
               aria-hidden="true"
               style={{
-                transform: `translate3d(${edge.x}px, ${edge.y}px, 0) rotate(${edge.rotate}deg)`
+                transform: `translate3d(${edge.x}px, ${edge.y}px, 0)`,
+                opacity: edge.opacity
               }}
               className="athlete-card-rim absolute inset-0 rounded-2xl bg-surface"
             />
