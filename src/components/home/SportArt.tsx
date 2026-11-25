@@ -68,7 +68,7 @@ const d = (s: number): React.CSSProperties => ({ ['--d' as string]: `${s}s` } as
 
 const Cricket: React.FC = () => (
   <g>
-    {/* Proportions follow the real game: stumps 71 cm tall and 23 cm wide, ball 7 cm across */}
+    {/* Proportions are loosely based on the real game, ball enlarged a little so it reads clearly */}
     <rect width="400" height="250" fill="#14241A" />
     <circle className="sa-fade" style={d(0)} cx="200" cy="120" r="88" fill="none" stroke="#2A4B35" strokeWidth="1" opacity="0.6" />
     <circle className="sa-draw" style={d(0.1)} pathLength={1} cx="200" cy="120" r="112" fill="none" stroke="#2A4B35" strokeWidth="1" />
@@ -83,12 +83,12 @@ const Cricket: React.FC = () => (
     ))}
     <rect className="sa-fade" style={d(1.0)} x="253" y="44" width="17" height="4" rx="2" fill="#F3EBCB" />
     <rect className="sa-fade" style={d(1.05)} x="270" y="44" width="17" height="4" rx="2" fill="#F3EBCB" />
-    <ellipse className="sa-fade" style={d(0.8)} cx="170" cy="184" rx="8" ry="1.8" fill="#0B1710" opacity="0.7" />
+    <ellipse className="sa-fade" style={d(0.8)} cx="170" cy="184" rx="13" ry="2.5" fill="#0B1710" opacity="0.7" />
     <g className="sa-pop" style={d(0.7)}>
-      <circle cx="170" cy="150" r="7" fill="#C2312A" />
-      <path d="M163.5 148.5c2.5 1.6 10.5 1.6 13 0" fill="none" stroke="#F3E3C8" strokeWidth="0.8" />
-      <path d="M163.5 152c2.5 -1.4 10.5 -1.4 13 0" fill="none" stroke="#F3E3C8" strokeWidth="0.8" />
-      <path d="M165 146a6 6 0 0 1 4 -3" fill="none" stroke="#fff" strokeWidth="1" strokeLinecap="round" opacity="0.45" />
+      <circle cx="170" cy="150" r="13" fill="#C2312A" />
+      <path d="M158 147c4 3 20 3 24 0" fill="none" stroke="#F3E3C8" strokeWidth="1.1" />
+      <path d="M158 154c4 -3 20 -3 24 0" fill="none" stroke="#F3E3C8" strokeWidth="1.1" />
+      <path d="M161 143a11 11 0 0 1 7 -5" fill="none" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" opacity="0.45" />
     </g>
   </g>
 )
@@ -96,28 +96,30 @@ const Cricket: React.FC = () => (
 const Futsal: React.FC = () => (
   <g>
     <rect width="400" height="250" fill="#0F1E33" />
-    <circle className="sa-fade" style={d(0)} cx="255" cy="118" r="88" fill="none" stroke="#1F3A5C" strokeWidth="1" opacity="0.7" />
-    <circle className="sa-draw" style={d(0.1)} pathLength={1} cx="255" cy="118" r="112" fill="none" stroke="#1F3A5C" strokeWidth="1" />
-    <rect className="sa-fade" style={d(0.05)} x="0" y="172" width="400" height="78" fill="#1B3A5C" />
-    <line className="sa-draw" style={d(0.3)} pathLength={1} x1="0" y1="196" x2="400" y2="196" stroke="#8FB0CF" strokeWidth="2" />
+    <circle className="sa-fade" style={d(0)} cx="230" cy="118" r="88" fill="none" stroke="#1F3A5C" strokeWidth="1" opacity="0.7" />
+    <circle className="sa-draw" style={d(0.1)} pathLength={1} cx="230" cy="118" r="112" fill="none" stroke="#1F3A5C" strokeWidth="1" />
+    <rect className="sa-fade" style={d(0.05)} x="0" y="178" width="400" height="72" fill="#1B3A5C" />
+    <line className="sa-draw" style={d(0.3)} pathLength={1} x1="0" y1="200" x2="400" y2="200" stroke="#8FB0CF" strokeWidth="2" />
     <circle className="sa-draw" style={d(0.5)} pathLength={1} cx="255" cy="250" r="46" fill="none" stroke="#8FB0CF" strokeWidth="2" />
-    {/* goal */}
-    <path className="sa-draw" style={d(0.35)} pathLength={1} d="M100 176V98H176V176" fill="none" stroke="#F0F2EE" strokeWidth="3" strokeLinejoin="round" />
+    {/* goal: 3 x 2 proportions */}
+    <path className="sa-draw" style={d(0.35)} pathLength={1} d="M96 180V82H240V180" fill="none" stroke="#F0F2EE" strokeWidth="3" strokeLinejoin="round" />
     <path
       className="sa-draw"
       style={d(0.7)}
       pathLength={1}
-      d="M100 118H176M100 138H176M100 158H176M118 98V176M138 98V176M158 98V176"
+      d="M96 106H240M96 130H240M96 154H240M120 82V180M144 82V180M168 82V180M192 82V180M216 82V180"
       fill="none"
       stroke="#9FB6CF"
       strokeWidth="1"
     />
-    <ellipse className="sa-fade" style={d(0.9)} cx="255" cy="183" rx="42" ry="6" fill="#08121F" opacity="0.7" />
+    <ellipse className="sa-fade" style={d(0.9)} cx="288" cy="186" rx="20" ry="3.5" fill="#08121F" opacity="0.7" />
     <g className="sa-pop" style={d(0.75)}>
-      <circle cx="255" cy="130" r="42" fill="#F1EEE3" />
-      <path d="M255 110l17 12-6 20h-22l-6-20z" fill="#12263F" />
-      <path d="M255 110V95M272 122l15-7M266 142l10 14M244 142l-10 14M238 122l-15-7" stroke="#12263F" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-      <path d="M230 104a40 40 0 0 1 22 -12" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" opacity="0.5" />
+      <g transform="translate(288 160) scale(0.55)">
+        <circle cx="0" cy="0" r="40" fill="#F1EEE3" />
+        <path d="M0 -20l17 12-6 20h-22l-6-20z" fill="#12263F" />
+        <path d="M0 -20V-35M17 -8l15-7M11 12l10 14M-11 12l-10 14M-17 -8l-15-7" stroke="#12263F" strokeWidth="3" strokeLinecap="round" fill="none" />
+        <path d="M-26 -26a36 36 0 0 1 20 -10" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round" opacity="0.5" />
+      </g>
     </g>
   </g>
 )
@@ -146,9 +148,9 @@ const Volleyball: React.FC = () => (
       strokeWidth="1"
     />
     <rect className="sa-draw" style={d(0.4)} pathLength={1} x="108" y="56" width="184" height="7" rx="2" fill="none" stroke="#F1E9D8" strokeWidth="2.5" />
-    <ellipse className="sa-fade" style={d(0.9)} cx="200" cy="186" rx="30" ry="4" fill="#120D08" opacity="0.7" />
+    <ellipse className="sa-fade" style={d(0.9)} cx="200" cy="178" rx="18" ry="3" fill="#120D08" opacity="0.7" />
     <g className="sa-pop" style={d(0.75)}>
-      <g transform="translate(200 154) scale(0.75)">
+      <g transform="translate(200 156) scale(0.45)">
         <circle cx="0" cy="0" r="40" fill="#F1E3B5" />
         <g clipPath="url(#sa-vb-clip)">
           <path d="M-44 -14C-20 -34 14 -38 44 -22L44 -6C16 -20 -18 -16 -44 4Z" fill="#2F66B3" />
