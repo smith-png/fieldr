@@ -76,7 +76,7 @@ const Cricket: React.FC = () => (
     <rect className="sa-fade" style={d(0.15)} x="0" y="172" width="400" height="14" fill="#2A6044" />
     <line className="sa-draw" style={d(0.35)} pathLength={1} x1="210" y1="198" x2="400" y2="198" stroke="#E9E4D2" strokeWidth="2" />
     <line className="sa-draw" style={d(0.55)} pathLength={1} x1="318" y1="172" x2="318" y2="250" stroke="#E9E4D2" strokeWidth="2" />
-    <ellipse className="sa-fade" style={d(0.8)} cx="165" cy="180" rx="44" ry="6" fill="#0B1710" opacity="0.7" />
+    <ellipse className="sa-fade" style={d(0.8)} cx="165" cy="180" rx="30" ry="4.5" fill="#0B1710" opacity="0.7" />
     <ellipse className="sa-fade" style={d(0.8)} cx="268" cy="182" rx="30" ry="4" fill="#0B1710" opacity="0.6" />
     {[255, 267, 279].map((x, i) => (
       <rect key={x} className="sa-rise" style={d(0.45 + i * 0.1)} x={x - 3} y="96" width="6" height="84" rx="2" fill="#E9DDB4" />
@@ -84,11 +84,13 @@ const Cricket: React.FC = () => (
     <rect className="sa-fade" style={d(1.0)} x="252" y="90" width="14" height="4" rx="2" fill="#F3EBCB" />
     <rect className="sa-fade" style={d(1.05)} x="268" y="90" width="14" height="4" rx="2" fill="#F3EBCB" />
     <g className="sa-pop" style={d(0.7)}>
+      <g transform="translate(165 130) scale(0.78) translate(-165 -115)">
       <circle cx="165" cy="115" r="44" fill="#C2312A" />
       <path d="M121 115a44 44 0 0 1 88 0" fill="none" stroke="#8F1F1A" strokeWidth="3" opacity="0.55" transform="rotate(-18 165 115)" />
       <path d="M130 90c18 10 52 10 70 0M127 140c20 -10 56 -10 76 0" fill="none" stroke="#F3E3C8" strokeWidth="1.5" />
       <path d="M130 90c18 10 52 10 70 0M127 140c20 -10 56 -10 76 0" fill="none" stroke="#F3E3C8" strokeWidth="5" strokeDasharray="1 5" opacity="0.8" />
       <path d="M140 92a40 40 0 0 1 22 -20" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" opacity="0.3" />
+      </g>
     </g>
   </g>
 )
@@ -124,30 +126,40 @@ const Futsal: React.FC = () => (
 
 const Volleyball: React.FC = () => (
   <g>
+    <defs>
+      <clipPath id="sa-vb-clip">
+        <circle cx="0" cy="0" r="40" />
+      </clipPath>
+    </defs>
     <rect width="400" height="250" fill="#1E1812" />
     <circle className="sa-fade" style={d(0)} cx="200" cy="130" r="92" fill="none" stroke="#3A2E22" strokeWidth="1" opacity="0.8" />
-    <rect className="sa-fade" style={d(0.05)} x="0" y="190" width="400" height="60" fill="#4A3622" />
-    <line className="sa-draw" style={d(0.3)} pathLength={1} x1="0" y1="222" x2="400" y2="222" stroke="#E6D8BC" strokeWidth="2" />
+    <rect className="sa-fade" style={d(0.05)} x="0" y="182" width="400" height="68" fill="#4A3622" />
+    <line className="sa-draw" style={d(0.3)} pathLength={1} x1="0" y1="206" x2="400" y2="206" stroke="#E6D8BC" strokeWidth="2" />
     {/* net */}
-    <rect className="sa-rise" style={d(0.2)} x="96" y="48" width="6" height="146" rx="2" fill="#7A6E62" />
-    <rect className="sa-rise" style={d(0.3)} x="298" y="48" width="6" height="146" rx="2" fill="#7A6E62" />
+    <rect className="sa-rise" style={d(0.2)} x="108" y="52" width="5" height="130" rx="2" fill="#7A6E62" />
+    <rect className="sa-rise" style={d(0.3)} x="287" y="52" width="5" height="130" rx="2" fill="#7A6E62" />
     <path
       className="sa-draw"
       style={d(0.5)}
       pathLength={1}
-      d="M102 70H298M102 86H298M102 102H298M102 118H298M102 134H298M120 58V140M140 58V140M160 58V140M180 58V140M200 58V140M220 58V140M240 58V140M260 58V140M280 58V140"
+      d="M113 72H287M113 88H287M113 104H287M113 120H287M130 60V126M150 60V126M170 60V126M190 60V126M210 60V126M230 60V126M250 60V126M270 60V126"
       fill="none"
       stroke="#8C7F70"
       strokeWidth="1"
     />
-    <rect className="sa-draw" style={d(0.4)} pathLength={1} x="96" y="52" width="208" height="8" rx="2" fill="none" stroke="#F1E9D8" strokeWidth="3" />
-    <ellipse className="sa-fade" style={d(0.9)} cx="200" cy="204" rx="40" ry="5" fill="#120D08" opacity="0.7" />
+    <rect className="sa-draw" style={d(0.4)} pathLength={1} x="108" y="56" width="184" height="7" rx="2" fill="none" stroke="#F1E9D8" strokeWidth="2.5" />
+    <ellipse className="sa-fade" style={d(0.9)} cx="200" cy="186" rx="30" ry="4" fill="#120D08" opacity="0.7" />
     <g className="sa-pop" style={d(0.75)}>
-      <circle cx="200" cy="158" r="42" fill="#F1E3B5" />
-      <path d="M158 158c0 -20 12 -34 30 -40c-6 14 -4 32 8 44c-12 6 -26 8 -38 -4z" fill="#2F66B3" />
-      <path d="M214 118c18 6 28 22 28 40c-12 -4 -22 -2 -30 6c-6 -14 -4 -34 2 -46z" fill="#E59B2D" />
-      <path d="M170 196c10 4 22 4 32 0c-4 -8 -12 -14 -20 -18c-6 4 -10 10 -12 18z" fill="#2F66B3" opacity="0.9" />
-      <path d="M172 128a40 40 0 0 1 20 -10" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" opacity="0.5" />
+      <g transform="translate(200 154) scale(0.75)">
+        <circle cx="0" cy="0" r="40" fill="#F1E3B5" />
+        <g clipPath="url(#sa-vb-clip)">
+          <path d="M-44 -14C-20 -34 14 -38 44 -22L44 -6C16 -20 -18 -16 -44 4Z" fill="#2F66B3" />
+          <path d="M-44 16C-18 -2 16 2 44 18L44 36C16 22 -18 24 -44 42Z" fill="#E59B2D" />
+          <path d="M-12 -44C-6 -26 -4 -8 -8 10C-12 26 -20 38 -30 46" fill="none" stroke="#C9B67E" strokeWidth="1.5" />
+          <path d="M16 -44C22 -26 22 -4 16 14C12 28 6 40 -2 46" fill="none" stroke="#C9B67E" strokeWidth="1.5" />
+        </g>
+        <path d="M-26 -22a36 36 0 0 1 20 -14" fill="none" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" opacity="0.5" />
+      </g>
     </g>
   </g>
 )
