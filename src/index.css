@@ -228,7 +228,7 @@ button, input, select, textarea {
 }
 
 /* Wordmark: each letter carries a slice of one word-wide green sheen band (--sheen-pos, --hw, --cx set in HeroWord)
-   and floats upward as the page scrolls (--float 0 to 1 per letter) */
+   and lifts slightly upward off its outline as the page scrolls (--float 0 to 1 per letter) */
 .hero-word-main {
   position: relative;
   color: var(--text);
@@ -236,9 +236,8 @@ button, input, select, textarea {
 
 .hero-char {
   display: inline-block;
-  will-change: transform, opacity;
-  transform: translate3d(0, calc(var(--float, 0) * -0.5em), 0);
-  opacity: calc(1 - var(--float, 0) * 0.65);
+  will-change: transform;
+  transform: translate3d(0, calc(var(--float, 0) * -0.09em), 0);
   background-image: linear-gradient(
     112deg,
     var(--text) 0%,

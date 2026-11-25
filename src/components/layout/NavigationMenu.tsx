@@ -381,14 +381,14 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
                   </button>
                 ) : (
                   <Link
-                    to="/login"
+                    to="/owner-login"
                     onClick={handleClose}
-                    onMouseEnter={() => prefetchRoute('/login')}
-                    onFocus={() => prefetchRoute('/login')}
-                    onTouchStart={() => prefetchRoute('/login')}
+                    onMouseEnter={() => prefetchRoute('/owner-login')}
+                    onFocus={() => prefetchRoute('/owner-login')}
+                    onTouchStart={() => prefetchRoute('/owner-login')}
                     className="w-full inline-flex items-center justify-center h-11 px-5 rounded-full bg-btn-bg text-btn-fg hover:opacity-90 font-sans text-[11px] font-medium uppercase tracking-[0.18em] transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
                   >
-                    Sign in
+                    Team owner sign in
                   </Link>
                 )}
               </div>
