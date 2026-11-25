@@ -1,7 +1,8 @@
-import React from 'react'
+import React, { useState } from 'react'
 import type { PublicPlayer, PublicTeam } from '../../types'
 import { formatAthleteCode } from '../../lib/data/client'
 import { getInitials, getValidTeamColor } from '../../lib/utils'
+import { PhotoPlaceholder } from './PhotoPlaceholder'
 
 export interface RosterPlayerCardProps {
   player: PublicPlayer
@@ -20,6 +21,9 @@ const RosterPlayerCardInner: React.FC<RosterPlayerCardProps> = ({
   onClick,
   onSelect
 }) => {
+  const photoSrc = player.photo_thumb_url || player.photo_url || ''
+  const [failedSrc, setFailedSrc] = useState<string | null>(null)
+  const photoFailed = failedSrc === photoSrc
   const formattedCode = formatAthleteCode(player.athlete_code || player.player_code)
   const handleClick = onSelect ? () => onSelect(player) : onClick
   const teamColor = getValidTeamColor(team?.color)
@@ -45,17 +49,21 @@ const RosterPlayerCardInner: React.FC<RosterPlayerCardProps> = ({
       }`}
     >
       <div className="flex items-start gap-3.5 mb-4 min-w-0">
-        {player.photo_thumb_url || player.photo_url ? (
-          <img
-            src={player.photo_thumb_url || player.photo_url}
-            alt={player.name}
-            width={52}
-            height={52}
-            loading="lazy"
-            decoding="async"
-            referrerPolicy="no-referrer"
-            className="w-13 h-13 rounded-2xl object-cover bg-surface-2 border border-border shrink-0"
-          />
+        {(player.photo_thumb_url || player.photo_url) && !photoFailed ? (
+          <div className="relative w-13 h-13 rounded-2xl overflow-hidden bg-surface-2 border border-border shrink-0">
+            <PhotoPlaceholder />
+            <img
+              src={player.photo_thumb_url || player.photo_url}
+              alt={player.name}
+              width={52}
+              height={52}
+              loading="lazy"
+              decoding="async"
+              referrerPolicy="no-referrer"
+              onError={() => setFailedSrc(photoSrc)}
+              className="relative w-full h-full object-cover"
+            />
+          </div>
         ) : (
           <div className="w-13 h-13 rounded-2xl bg-surface-2 border border-border flex items-center justify-center text-muted font-mono text-sm font-bold shrink-0">
             {getInitials(player.name)}

@@ -8,7 +8,7 @@ import type {
 } from '../../types'
 import { AppError } from '../errors'
 import { isRecord } from '../utils'
-import { createThumbnailBlob } from '../imageCompression'
+import { THUMB_MAX_WIDTH, THUMB_QUALITY, createThumbnailBlob } from '../imageCompression'
 import { markLocalMutation, supabase } from './client'
 import { invalidateRegistrationStatus } from '../registrationStatusStore'
 
@@ -581,20 +581,21 @@ export async function approveRegistration(
     }
     if (!thumbBlob) {
       const photoFile = new File([photoData], 'photo.jpg', { type: 'image/jpeg' })
-      thumbBlob = await createThumbnailBlob(photoFile, 400, 0.82)
+      thumbBlob = await createThumbnailBlob(photoFile, THUMB_MAX_WIDTH, THUMB_QUALITY)
     }
 
     // Match exact fieldr-assets paths used by uploadPlayerPhotos in src/lib/data/storage.ts
     const timestamp = Date.now()
     const rand = Math.random().toString(36).substring(2, 8)
-    uploadedOrigPath = `players/originals/${timestamp}-${rand}.jpg`
-    uploadedThumbPath = `players/thumbnails/${timestamp}-${rand}.jpg`
+    uploadedOrigPath = `players/originals/v2-${timestamp}-${rand}.jpg`
+    uploadedThumbPath = `players/thumbnails/v2-${timestamp}-${rand}.jpg`
 
     const { error: upOrigErr } = await supabase.storage
       .from('fieldr-assets')
       .upload(uploadedOrigPath, photoData, {
         contentType: 'image/jpeg',
-        upsert: false
+        upsert: false,
+        cacheControl: '31536000'
       })
 
     if (upOrigErr) {
@@ -607,7 +608,8 @@ export async function approveRegistration(
       .from('fieldr-assets')
       .upload(uploadedThumbPath, thumbBlob, {
         contentType: 'image/jpeg',
-        upsert: false
+        upsert: false,
+        cacheControl: '31536000'
       })
 
     if (upThumbErr) {

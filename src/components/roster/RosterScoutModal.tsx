@@ -4,6 +4,7 @@ import { ArrowRight, User, X } from '@phosphor-icons/react'
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock'
 import type { PublicPlayer, PublicTeam } from '../../types'
 import { formatAthleteCode } from '../../lib/data/client'
+import { PhotoPlaceholder } from './PhotoPlaceholder'
 
 export interface RosterScoutModalProps {
   player: PublicPlayer | null
@@ -101,6 +102,19 @@ export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({
           <div className="relative w-full h-72 sm:h-80 lg:h-full lg:min-h-[440px] rounded-2xl bg-surface-2 flex items-center justify-center overflow-hidden border border-border">
             {primaryPhotoSrc ? (
               <>
+                <PhotoPlaceholder />
+                {backdropPhotoSrc && backdropPhotoSrc !== primaryPhotoSrc && (
+                  <img
+                    src={backdropPhotoSrc}
+                    alt=""
+                    aria-hidden="true"
+                    width={448}
+                    height={288}
+                    decoding="async"
+                    referrerPolicy="no-referrer"
+                    className="lg:hidden absolute inset-0 w-full h-full object-cover pointer-events-none select-none"
+                  />
+                )}
                 {backdropPhotoSrc && (
                   <img
                     src={backdropPhotoSrc}

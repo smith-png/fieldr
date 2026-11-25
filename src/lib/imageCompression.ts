@@ -1,6 +1,13 @@
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024 // 5 MB
 
+// Player photo sizing. Thumbnails are shown in small slots (cards and lists), so keep them light.
+export const THUMB_MAX_WIDTH = 240
+export const THUMB_QUALITY = 0.8
+export const ORIGINAL_MAX_LONG_SIDE = 1600
+export const ORIGINAL_QUALITY = 0.86
+const ORIGINAL_RECOMPRESS_BYTES = 500 * 1024
+
 export function validateImageFile(file: File): void {
   if (!ALLOWED_TYPES.includes(file.type)) {
     throw new Error('Unsupported image format. Please upload a JPG, PNG, or WebP image.')
@@ -258,7 +265,7 @@ export async function processRegistrationPhoto(file: File): Promise<ProcessedReg
   const croppedFile = new File([fittedBlob], 'registration-photo.jpg', {
     type: 'image/jpeg'
   })
-  const thumbBlob = await createThumbnailBlob(croppedFile, 400, 0.82)
+  const thumbBlob = await createThumbnailBlob(croppedFile, THUMB_MAX_WIDTH, THUMB_QUALITY)
 
   return {
     photoBlob: fittedBlob,
@@ -270,3 +277,25 @@ export async function processRegistrationPhoto(file: File): Promise<ProcessedReg
   }
 }
 
+
+/**
+ * Returns the blob to store as the full size photo. Small files are kept as is; larger ones are
+ * scaled to ORIGINAL_MAX_LONG_SIDE and re-encoded as JPEG, only if that actually makes them smaller.
+ */
+export async function prepareOriginalPhoto(file: File): Promise<{ blob: Blob; contentType: string; ext: string }> {
+  const keepOriginal = {
+    blob: file as Blob,
+    contentType: file.type || 'image/jpeg',
+    ext: (file.name.split('.').pop() || 'jpg').toLowerCase()
+  }
+  if (file.size <= ORIGINAL_RECOMPRESS_BYTES) return keepOriginal
+  try {
+    const compressed = await resizeAndCompressImage(file, ORIGINAL_MAX_LONG_SIDE, ORIGINAL_QUALITY)
+    if (compressed.size > 0 && compressed.size < file.size) {
+      return { blob: compressed, contentType: 'image/jpeg', ext: 'jpg' }
+    }
+  } catch {
+    // Fall back to the original file
+  }
+  return keepOriginal
+}

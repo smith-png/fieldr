@@ -82,6 +82,11 @@ const ReelSubmissionsCard = lazy(() =>
     default: m.ReelSubmissionsCard
   }))
 )
+const PhotoOptimizerCard = lazy(() =>
+  import('../../components/admin/PhotoOptimizerCard').then((m) => ({
+    default: m.PhotoOptimizerCard
+  }))
+)
 const RulesSetupCard = lazy(() =>
   import('../../components/admin/RulesSetupCard').then((m) => ({
     default: m.RulesSetupCard
@@ -2093,6 +2098,9 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
               </div>
             </div>
           </section>
+          <Suspense fallback={<SkeletonBlock className="h-40 w-full rounded-3xl" />}>
+            <PhotoOptimizerCard />
+          </Suspense>
         </div>
       )}
 

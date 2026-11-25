@@ -1,10 +1,16 @@
 import { logError } from '../logger'
 import { AppError } from '../errors'
 import {
+  THUMB_MAX_WIDTH,
+  THUMB_QUALITY,
   createThumbnailBlob,
+  prepareOriginalPhoto,
   resizeAndCompressImage,
   validateImageFile
 } from '../imageCompression'
+
+// Files get a unique name on every upload, so they can be cached for a year.
+const LONG_CACHE_SECONDS = '31536000'
 import { supabase } from './client'
 import type { StorageService } from './types'
 
@@ -30,20 +36,25 @@ const supabaseStorageService: StorageService = {
     file: File
   ): Promise<{ photoUrl: string; thumbUrl: string }> {
     validateImageFile(file)
-    const thumbBlob = await createThumbnailBlob(file, 400, 0.82)
+    const thumbBlob = await createThumbnailBlob(file, THUMB_MAX_WIDTH, THUMB_QUALITY)
+    const original = await prepareOriginalPhoto(file)
 
     if (!supabase) throw new AppError('Supabase not configured')
 
     const timestamp = Date.now()
     const rand = Math.random().toString(36).substring(2, 8)
-    const ext = file.name.split('.').pop() || 'jpg'
 
-    const origPath = `players/originals/${timestamp}-${rand}.${ext}`
-    const thumbPath = `players/thumbnails/${timestamp}-${rand}.jpg`
+    // The v2- prefix marks files made by the current (optimized) pipeline
+    const origPath = `players/originals/v2-${timestamp}-${rand}.${original.ext}`
+    const thumbPath = `players/thumbnails/v2-${timestamp}-${rand}.jpg`
 
     const { error: origErr } = await supabase.storage
       .from('fieldr-assets')
-      .upload(origPath, file, { contentType: file.type, upsert: true })
+      .upload(origPath, original.blob, {
+        contentType: original.contentType,
+        upsert: true,
+        cacheControl: LONG_CACHE_SECONDS
+      })
 
     if (origErr) {
       throw new AppError(`Original upload failed: ${origErr.message}`, {
@@ -58,7 +69,11 @@ const supabaseStorageService: StorageService = {
     try {
       const { error: thumbErr } = await supabase.storage
         .from('fieldr-assets')
-        .upload(thumbPath, thumbBlob, { contentType: 'image/jpeg', upsert: true })
+        .upload(thumbPath, thumbBlob, {
+          contentType: 'image/jpeg',
+          upsert: true,
+          cacheControl: LONG_CACHE_SECONDS
+        })
 
       if (!thumbErr) {
         const { data: thumbData } = supabase.storage
