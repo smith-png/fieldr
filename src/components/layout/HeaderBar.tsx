@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { BrandMark } from './BrandMark'
 import { prefetchRoute } from '../../lib/queryCache'
 
@@ -8,6 +8,7 @@ interface HeaderBarProps {
 }
 
 export const HeaderBar: React.FC<HeaderBarProps> = ({ onOpenMenu }) => {
+  const { pathname } = useLocation()
   const [isScrolled, setIsScrolled] = useState<boolean>(() =>
     typeof window !== 'undefined' ? window.scrollY > 8 : false
   )
@@ -71,23 +72,39 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ onOpenMenu }) => {
         className="public-site-header__backdrop frost absolute inset-0 z-0 pointer-events-none border-b border-border/60"
       />
       <div className="relative z-10 max-w-7xl mx-auto w-full h-16 px-6 md:px-16 lg:px-24 flex items-center justify-between gap-4">
-        <div className="inline-flex items-center gap-3 shrink-0">
-          <BrandMark onClick={onOpenMenu} showWordmark={false} size="sm" />
-          <Link
-            to="/"
-            onMouseEnter={() => prefetchRoute('/')}
-            onFocus={() => prefetchRoute('/')}
-            onTouchStart={() => prefetchRoute('/')}
-            className="group flex flex-col text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright rounded-lg"
-          >
+        <Link
+          to="/"
+          aria-label="Fieldr home"
+          onClick={() => {
+            if (pathname === '/') {
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }
+          }}
+          onMouseEnter={() => prefetchRoute('/')}
+          onFocus={() => prefetchRoute('/')}
+          onTouchStart={() => prefetchRoute('/')}
+          className="group inline-flex items-center gap-3 shrink-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright rounded-lg"
+        >
+          <BrandMark showWordmark={false} size="sm" />
+          <span className="flex flex-col">
             <span className="font-syne font-extrabold syne-display text-base sm:text-lg tracking-tight text-text leading-none group-hover:text-accent-bright transition-colors">
               Fieldr
             </span>
             <span className="font-sans font-normal text-[9px] tracking-[0.22em] text-muted uppercase mt-1 leading-none">
               AUCTIONS
             </span>
-          </Link>
-        </div>
+          </span>
+        </Link>
+
+        <button
+          type="button"
+          onClick={onOpenMenu}
+          aria-label="Open menu"
+          aria-haspopup="dialog"
+          className="hit-44 relative inline-flex items-center justify-center h-9 px-4 rounded-full bg-surface/70 hover:bg-surface-2 border border-border/80 font-sans text-[11px] font-medium uppercase tracking-[0.18em] text-text transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright shrink-0"
+        >
+          Menu
+        </button>
       </div>
     </header>
   )

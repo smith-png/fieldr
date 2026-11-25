@@ -18,8 +18,8 @@ export const HomeBackdrop: React.FC = () => {
     const updateParallax = () => {
       rafId = null
       if (!layerRef.current) return
-      const y = Math.min(Math.max(window.scrollY * 0.04, 0), 48)
-      layerRef.current.style.transform = `translate3d(0, ${y.toFixed(1)}px, 0)`
+      const y = Math.max(window.scrollY * 0.12, 0)
+      layerRef.current.style.transform = `translate3d(-50%, ${y.toFixed(1)}px, 0)`
     }
 
     const onScroll = () => {
@@ -39,7 +39,7 @@ export const HomeBackdrop: React.FC = () => {
           rafId = null
         }
         if (layerRef.current) {
-          layerRef.current.style.transform = 'translate3d(0, 0, 0)'
+          layerRef.current.style.transform = 'translate3d(-50%, 0, 0)'
         }
       } else if (!listening) {
         updateParallax()
@@ -75,104 +75,61 @@ export const HomeBackdrop: React.FC = () => {
   }, [])
 
   return (
-    <div
-      aria-hidden="true"
-      className="home-arch-backdrop fixed inset-0 pointer-events-none select-none overflow-hidden z-0"
-    >
+    <>
+      {/* Tactile paper grain (about 3% opacity) */}
+      <div aria-hidden="true" className="home-paper-grain" />
+
+      {/* Architectural stadium blueprint with gentle scroll parallax */}
       <div
-        ref={layerRef}
-        className="w-full h-[115%] -top-[7.5%] left-0 relative flex items-center justify-center will-change-transform"
+        aria-hidden="true"
+        className="home-arch-backdrop fixed inset-0 pointer-events-none select-none overflow-hidden z-0"
       >
-        <svg
-          viewBox="0 0 1440 900"
-          preserveAspectRatio="xMidYMid slice"
-          fill="none"
-          className="w-full h-full block text-text dark:text-white"
+        <div
+          ref={layerRef}
+          className="absolute left-1/2 will-change-transform"
+          style={{
+            top: '-10%',
+            width: 'min(1500px, 140vw)',
+            transform: 'translate3d(-50%, 0, 0)'
+          }}
         >
-          <defs>
-            <radialGradient
-              id="home-arch-sage-glow"
-              cx="50%"
-              cy="35%"
-              r="55%"
-            >
-              <stop
-                offset="0%"
-                stopColor="var(--accent)"
-                stopOpacity="0.06"
-              />
-              <stop
-                offset="100%"
-                stopColor="var(--accent)"
-                stopOpacity="0"
-              />
-            </radialGradient>
-          </defs>
-
-          {/* Soft radial sage glow on full-size rect */}
-          <rect
-            x="0"
-            y="0"
-            width="1440"
-            height="900"
-            fill="url(#home-arch-sage-glow)"
-          />
-
-          {/* Thin 1px architectural lines */}
-          <ellipse
-            cx="380"
-            cy="340"
-            rx="410"
-            ry="210"
-            transform="rotate(-15 380 340)"
-            stroke="currentColor"
-            strokeOpacity="0.06"
-            strokeWidth="1"
-            vectorEffect="non-scaling-stroke"
-          />
-
-          <ellipse
-            cx="380"
-            cy="340"
-            rx="280"
-            ry="135"
-            transform="rotate(-15 380 340)"
-            stroke="currentColor"
-            strokeOpacity="0.035"
-            strokeWidth="1"
-            vectorEffect="non-scaling-stroke"
-          />
-
-          <path
-            d="M920 60L1410 190L1310 530L820 400Z"
-            stroke="currentColor"
-            strokeOpacity="0.05"
-            strokeWidth="1"
-            vectorEffect="non-scaling-stroke"
-          />
-
-          <circle
-            cx="1115"
-            cy="295"
-            r="95"
-            stroke="var(--accent)"
-            strokeOpacity="0.08"
-            strokeWidth="1"
-            vectorEffect="non-scaling-stroke"
-          />
-
-          <line
-            x1="0"
-            y1="720"
-            x2="1440"
-            y2="610"
-            stroke="currentColor"
-            strokeOpacity="0.04"
-            strokeWidth="1"
-            vectorEffect="non-scaling-stroke"
-          />
-        </svg>
+          <svg viewBox="0 0 1440 1200" fill="none" className="w-full h-auto block">
+            {/* Concentric stadium pitch arcs */}
+            <circle cx="720" cy="460" r="320" stroke="var(--blueprint-stroke)" strokeWidth="1" />
+            <circle
+              cx="720"
+              cy="460"
+              r="480"
+              stroke="var(--blueprint-stroke)"
+              strokeWidth="1"
+              strokeDasharray="6 10"
+            />
+            <circle cx="720" cy="460" r="650" stroke="var(--blueprint-stroke)" strokeWidth="1" />
+            {/* Diagonal court axes */}
+            <line x1="0" y1="120" x2="1440" y2="960" stroke="var(--blueprint-stroke)" strokeWidth="1" />
+            <line x1="1440" y1="80" x2="0" y2="920" stroke="var(--blueprint-stroke)" strokeWidth="1" />
+            {/* Vertical centre meridian */}
+            <line
+              x1="720"
+              y1="0"
+              x2="720"
+              y2="1200"
+              stroke="var(--blueprint-stroke)"
+              strokeWidth="1"
+              strokeDasharray="4 12"
+            />
+            {/* Lower baseline and key geometry */}
+            <rect
+              x="380"
+              y="780"
+              width="680"
+              height="320"
+              stroke="var(--blueprint-stroke)"
+              strokeWidth="1"
+            />
+          </svg>
+        </div>
       </div>
-    </div>
+    </>
   )
 }

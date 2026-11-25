@@ -13,14 +13,6 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
     const el = wordRef.current
     if (!el) return
 
-    const supportsScrollTimeline =
-      typeof CSS !== 'undefined' &&
-      typeof CSS.supports === 'function' &&
-      CSS.supports('animation-timeline', 'scroll(root)') &&
-      CSS.supports('animation-range', '0 28vh')
-
-    if (supportsScrollTimeline) return
-
     const mq =
       typeof window.matchMedia === 'function'
         ? window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -31,10 +23,8 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
 
     const updatePosition = () => {
       rafId = null
-      const range = window.innerHeight * 0.28
-      const progress = range > 0 ? Math.min(1, Math.max(0, window.scrollY / range)) : 0
-      const posX = ((1 - progress) * 100).toFixed(2)
-      el.style.backgroundPosition = `${posX}% 0, 0 0`
+      const pos = Math.min(100, 18 + (window.scrollY / 420) * 74)
+      el.style.setProperty('--sheen-pos', `${pos.toFixed(1)}%`)
     }
 
     const onScroll = () => {
@@ -59,7 +49,7 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
         window.cancelAnimationFrame(rafId)
         rafId = null
       }
-      el.style.backgroundPosition = ''
+      el.style.removeProperty('--sheen-pos')
     }
 
     const syncMotionPref = () => {
@@ -94,19 +84,29 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
 
   return (
     <div className="hero-word-stage">
-      {/* Large faint circular pitch/stadium arc rotating slowly behind the wordmark */}
+      {/* Slowly rotating architectural stadium arc behind the wordmark */}
       <div aria-hidden="true" className="hero-arc-wrap">
-        <svg viewBox="0 0 400 400" fill="none" className="hero-arc-spin">
+        <svg viewBox="0 0 600 600" fill="none" className="hero-arc-spin">
           <circle
-            cx="200"
-            cy="200"
-            r="186"
-            stroke="currentColor"
+            cx="300"
+            cy="300"
+            r="245"
+            stroke="var(--arc-stroke)"
             strokeWidth="1"
-            vectorEffect="non-scaling-stroke"
-            strokeDasharray="860 309"
-            strokeLinecap="round"
+            strokeDasharray="140 28 36 28"
           />
+          <circle
+            cx="300"
+            cy="300"
+            r="198"
+            stroke="var(--arc-stroke)"
+            strokeWidth="0.9"
+            strokeDasharray="6 10"
+          />
+          <line x1="300" y1="24" x2="300" y2="72" stroke="var(--arc-stroke)" strokeWidth="1" />
+          <line x1="300" y1="528" x2="300" y2="576" stroke="var(--arc-stroke)" strokeWidth="1" />
+          <line x1="24" y1="300" x2="72" y2="300" stroke="var(--arc-stroke)" strokeWidth="1" />
+          <line x1="528" y1="300" x2="576" y2="300" stroke="var(--arc-stroke)" strokeWidth="1" />
         </svg>
       </div>
 
@@ -115,7 +115,7 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
         {word}
       </span>
 
-      {/* Solid Syne 800 wordmark with vertical token gradient and scroll-driven shine */}
+      {/* Solid Syne 800 wordmark with scroll-driven green sheen */}
       <div className={`hero-word-main-wrap${playIntro ? ' hero-word-enter' : ''}`}>
         <h1 ref={wordRef} className="hero-word hero-word-main">
           {word}
