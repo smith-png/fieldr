@@ -947,10 +947,32 @@ button, input, select, textarea {
 .athlete-card-face {
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
+  transform: translateZ(0.5px);
 }
 
 .athlete-card-face-back {
-  transform: rotateY(180deg);
+  transform: rotateY(180deg) translateZ(0.5px);
+}
+
+.athlete-card-back-mark {
+  border-radius: 22%;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--text) 16%, transparent),
+    0 6px 16px color-mix(in srgb, var(--text) 14%, transparent);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+[data-theme="dark"] .athlete-card-back-mark {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--text) 20%, transparent),
+    0 8px 18px rgba(0, 0, 0, 0.5);
+}
+
+.athlete-card-back-mark .fmk,
+.athlete-card-back-mark .fmk * {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .athlete-card-rim {

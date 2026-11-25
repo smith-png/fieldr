@@ -26,20 +26,8 @@ export const AthleteCardBack: React.FC<AthleteCardBackProps> = ({
     aria-hidden={ariaHidden}
     className={`athlete-card-back-bg athlete-card-rim rounded-2xl overflow-hidden flex items-center justify-center ${className}`}
   >
-    <span
-      aria-hidden="true"
-      className="pointer-events-none absolute top-4 left-4 font-dot text-[10px] uppercase tracking-[0.16em] text-accent-bright/80"
-    >
-      F
-    </span>
-    <span
-      aria-hidden="true"
-      className="pointer-events-none absolute bottom-4 right-4 font-dot text-[10px] uppercase tracking-[0.16em] text-accent-bright/80 rotate-180"
-    >
-      F
-    </span>
-    <div className="relative z-10 p-2 rounded-2xl bg-surface/60 border border-border/70">
-      <FooterMark size={48} eggEnabled={false} />
+    <div className="athlete-card-back-mark relative z-10 inline-flex items-center justify-center pointer-events-none">
+      <FooterMark size={92} eggEnabled={false} staticOnly />
     </div>
     {label && (
       <span className="pointer-events-none absolute inset-x-4 bottom-5 z-10 flex justify-center">

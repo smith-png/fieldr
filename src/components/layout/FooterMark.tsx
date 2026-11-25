@@ -118,7 +118,8 @@ const css = `.fmk-egg{-webkit-touch-callout:none;-webkit-user-select:none;user-s
  .in-classic .fmk-cl,.is-classic .fmk-cl{opacity:1}
  .in-floodlights .fmk-lt,.is-floodlights .fmk-lt,.in-floodlights .fmk-sh,.is-floodlights .fmk-sh{opacity:1}
  .in-flames .fmk-fire,.is-flames .fmk-fire{-webkit-mask-position:0 100%;mask-position:0 100%}
-}`;
+}
+.fmk.fmk-static,.fmk.fmk-static *{animation:none!important;transition:none!important;will-change:auto!important}`;
 
 type EggPhase = '' | 'lit' | 'unlit';
 
@@ -149,6 +150,7 @@ export default function FooterMark({
   eggEnabled = true,
   flameColor = 'green',
   onFlameTap,
+  staticOnly = false,
 }: {
   size?: number;
   previewVariant?: PrimaryIconVariant;
@@ -156,6 +158,8 @@ export default function FooterMark({
   flameColor?: FlameColor;
   /** Single tap while the flame is the resting primary icon. Ignored otherwise. */
   onFlameTap?: () => void;
+  /** Render completely static (no CSS animations and still flame asset). */
+  staticOnly?: boolean;
 }) {
   const { resolvedTheme } = useTheme();
   const storedPrimary = useSyncExternalStore(
@@ -165,7 +169,7 @@ export default function FooterMark({
   );
   const primary: PrimaryIconVariant = previewVariant ?? storedPrimary;
   const isPreview = Boolean(previewVariant);
-  const interactive = eggEnabled && !isPreview;
+  const interactive = eggEnabled && !isPreview && !staticOnly;
 
   const [activeTheme, setActiveTheme] = useState<'light' | 'dark'>(() => {
     if (typeof document !== 'undefined') {
@@ -447,13 +451,13 @@ export default function FooterMark({
     : `is-${primary}`;
 
   const flameSrc = showFlame
-    ? getFlameAssetUrl(light, prefersReducedMotion, displayColor)
+    ? getFlameAssetUrl(light, staticOnly || prefersReducedMotion, displayColor)
     : '';
 
   return (
     <span
       ref={rootRef}
-      className={`fmk th-${light ? 'l' : 'd'} ${stateClass}${interactive ? ' fmk-egg' : ''}`}
+      className={`fmk th-${light ? 'l' : 'd'} ${stateClass}${interactive ? ' fmk-egg' : ''}${staticOnly ? ' fmk-static' : ''}`}
       style={{ '--s': size + 'px' } as CSSProperties}
       aria-hidden="true"
       {...(interactive

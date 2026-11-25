@@ -29,8 +29,9 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
     }
   }, [word])
 
-  // Pinned scroll-linked intro: at the top of the page, wheel / swipe / keys drive the letters and the
-  // sheen (progress 0 to 1) while the page itself stays put. Once finished, normal scrolling resumes.
+  // Two-phase scroll-linked intro:
+  // - 0 to 50% (280px): pinned at the top, driven by wheel / swipe / keys.
+  // - 50 to 100% (next 280px): pin releases seamlessly and real scrollY drives the second half.
   useEffect(() => {
     if (typeof window === 'undefined') return
     const el = wordRef.current
@@ -42,14 +43,27 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
         : null
     if (mq?.matches) return
 
-    const DISTANCE = 560 // virtual scroll distance (px) for the whole sequence
+    const TOTAL_DISTANCE = 560 // 280px pinned (0..50%) + 280px real scroll (50..100%)
+    const SCROLL_DISTANCE = 280
+    const PIN_PROGRESS = 0.5
     const SHEEN_START = 18
     const SHEEN_END = 125 // band fully past the last letter
+    const TOP_REST_MS = 400
 
-    let progress = window.scrollY > 0 ? 1 : 0
+    const startsScrolled = window.scrollY > 0
+    let progress = startsScrolled ? 1 : 0
+    let forceFinished = startsScrolled
     let rafId: number | null = null
-    let lastOffTop = 0
+    let momentumRafId: number | null = null
+    let lastOffTop = startsScrolled ? Date.now() : 0
+    let touchX: number | null = null
     let touchY: number | null = null
+    let touchTime = 0
+    let touchVelocity = 0 // px/ms, positive = scrolling down
+    let touchLocked = false // true when preventDefault took over scrolling during this touch
+
+    const progressFromScrollY = (y: number) =>
+      PIN_PROGRESS + Math.min(1, Math.max(0, y) / SCROLL_DISTANCE) * (1 - PIN_PROGRESS)
 
     const render = () => {
       rafId = null
@@ -72,44 +86,196 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
       progress = clamped
       schedule()
     }
+    const syncFromScroll = () => {
+      const y = window.scrollY
+      if (y > 0) {
+        lastOffTop = Date.now()
+        setProgress(progressFromScrollY(y))
+      } else {
+        setProgress(PIN_PROGRESS)
+      }
+    }
+    const stopMomentum = () => {
+      if (momentumRafId !== null) {
+        window.cancelAnimationFrame(momentumRafId)
+        momentumRafId = null
+      }
+    }
 
     const modalOpen = (target: EventTarget | null) =>
       Boolean(document.querySelector('[aria-modal="true"]')) ||
       (target instanceof Element && Boolean(target.closest('[role="dialog"]')))
 
-    // Returns true when the movement was consumed by the intro (so the page must not scroll)
-    const consume = (delta: number): boolean => {
-      if (window.scrollY > 0) return false
-      if (delta > 0 && progress < 1) {
-        setProgress(progress + delta / DISTANCE)
-        return true
+    // Returns true when this input was handled (and caller should preventDefault).
+    // When crossing 50%, leftover movement is carried directly into window.scrollBy for a seamless handover.
+    const consume = (delta: number, carryLockedTouch = false): boolean => {
+      if (window.scrollY > 0) {
+        if (carryLockedTouch && touchLocked) {
+          if (delta < 0 && window.scrollY + delta <= 0) {
+            window.scrollTo(0, 0)
+            lastOffTop = Date.now()
+            setProgress(PIN_PROGRESS)
+          } else {
+            window.scrollBy(0, delta)
+            syncFromScroll()
+          }
+          return true
+        }
+        return false
       }
-      // Only reverse after the page has rested at the top, so fast flicks upward do not rewind it
-      if (delta < 0 && progress > 0 && Date.now() - lastOffTop > 400) {
-        setProgress(progress + delta / DISTANCE)
+
+      if (delta > 0) {
+        if (progress < PIN_PROGRESS) {
+          const remaining = (PIN_PROGRESS - progress) * TOTAL_DISTANCE
+          if (delta <= remaining) {
+            setProgress(progress + delta / TOTAL_DISTANCE)
+          } else {
+            const leftover = delta - remaining
+            forceFinished = false
+            setProgress(PIN_PROGRESS)
+            window.scrollBy(0, leftover)
+            syncFromScroll()
+          }
+          return true
+        }
+        if (carryLockedTouch && touchLocked) {
+          forceFinished = false
+          window.scrollBy(0, delta)
+          syncFromScroll()
+          return true
+        }
+        return false
+      }
+
+      // Only reverse the pinned half after resting at the top for 400ms
+      if (delta < 0 && progress > 0 && Date.now() - lastOffTop > TOP_REST_MS) {
+        forceFinished = false
+        setProgress(Math.min(progress, PIN_PROGRESS) + delta / TOTAL_DISTANCE)
         return true
       }
       return false
     }
 
+    const startTouchMomentum = (initialVelocity: number) => {
+      stopMomentum()
+      let v = Math.max(-4.5, Math.min(4.5, initialVelocity))
+      let prevNow = performance.now()
+
+      const step = (now: number) => {
+        const dt = Math.min(32, Math.max(1, now - prevNow))
+        prevNow = now
+        const dist = v * dt
+
+        if (v > 0) {
+          if (window.scrollY <= 0 && progress < PIN_PROGRESS) {
+            const remaining = (PIN_PROGRESS - progress) * TOTAL_DISTANCE
+            if (dist <= remaining) {
+              setProgress(progress + dist / TOTAL_DISTANCE)
+            } else {
+              const leftover = dist - remaining
+              forceFinished = false
+              setProgress(PIN_PROGRESS)
+              window.scrollBy(0, leftover)
+              syncFromScroll()
+            }
+          } else {
+            const before = window.scrollY
+            window.scrollBy(0, dist)
+            syncFromScroll()
+            if (window.scrollY === before && before > 0) {
+              momentumRafId = null
+              return
+            }
+          }
+        } else if (window.scrollY > 0) {
+          if (window.scrollY + dist <= 0) {
+            window.scrollTo(0, 0)
+            lastOffTop = Date.now()
+            setProgress(PIN_PROGRESS)
+            momentumRafId = null
+            return
+          }
+          window.scrollBy(0, dist)
+          syncFromScroll()
+        } else if (progress > 0 && Date.now() - lastOffTop > TOP_REST_MS) {
+          forceFinished = false
+          setProgress(Math.min(progress, PIN_PROGRESS) + dist / TOTAL_DISTANCE)
+          if (progress <= 0) {
+            momentumRafId = null
+            return
+          }
+        } else {
+          momentumRafId = null
+          return
+        }
+
+        v *= Math.exp(-0.0032 * dt)
+        if (Math.abs(v) < 0.04) {
+          momentumRafId = null
+          return
+        }
+        momentumRafId = window.requestAnimationFrame(step)
+      }
+
+      momentumRafId = window.requestAnimationFrame(step)
+    }
+
     const onWheel = (e: WheelEvent) => {
       if (e.ctrlKey || modalOpen(e.target)) return
+      stopMomentum()
       const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? window.innerHeight : 1
       if (consume(e.deltaY * unit)) e.preventDefault()
     }
 
     const onTouchStart = (e: TouchEvent) => {
-      touchY = e.touches.length === 1 ? e.touches[0].clientY : null
+      stopMomentum()
+      if (e.touches.length === 1) {
+        touchX = e.touches[0].clientX
+        touchY = e.touches[0].clientY
+        touchTime = performance.now()
+        touchVelocity = 0
+        touchLocked = false
+      } else {
+        touchX = null
+        touchY = null
+        touchVelocity = 0
+        touchLocked = false
+      }
     }
     const onTouchMove = (e: TouchEvent) => {
       if (touchY === null || e.touches.length !== 1 || modalOpen(e.target)) return
+      const x = e.touches[0].clientX
       const y = e.touches[0].clientY
+      const dx = touchX !== null ? touchX - x : 0
       const delta = touchY - y
+      touchX = x
       touchY = y
-      if (consume(delta) && e.cancelable) e.preventDefault()
+
+      // Do not hijack predominantly horizontal gestures before locking
+      if (!touchLocked && Math.abs(dx) > Math.abs(delta)) return
+
+      const now = performance.now()
+      const dt = now - touchTime
+      if (dt > 0) {
+        const instantV = delta / dt
+        touchVelocity = touchVelocity === 0 ? instantV : touchVelocity * 0.4 + instantV * 0.6
+      }
+      touchTime = now
+
+      if (consume(delta, true)) {
+        touchLocked = true
+        if (e.cancelable) e.preventDefault()
+      }
     }
     const onTouchEnd = () => {
+      const shouldCoast =
+        touchLocked && performance.now() - touchTime < 80 && Math.abs(touchVelocity) > 0.15
+      const releaseV = touchVelocity
+      touchX = null
       touchY = null
+      touchVelocity = 0
+      touchLocked = false
+      if (shouldCoast) startTouchMomentum(releaseV)
     }
 
     const onKeyDown = (e: KeyboardEvent) => {
@@ -121,21 +287,45 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
       ) {
         return
       }
+      stopMomentum()
+
+      if (e.key === 'End' && window.scrollY <= 0 && progress < PIN_PROGRESS) {
+        forceFinished = true
+        setProgress(1)
+        return
+      }
+
       let delta = 0
       if (e.key === 'ArrowDown') delta = 80
       else if (e.key === 'ArrowUp') delta = -80
-      else if (e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey)) delta = DISTANCE * 0.6
-      else if (e.key === 'PageUp' || (e.key === ' ' && e.shiftKey)) delta = -DISTANCE * 0.6
-      else if (e.key === 'End') delta = DISTANCE
-      else if (e.key === 'Home') delta = -DISTANCE
+      else if (e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey)) delta = TOTAL_DISTANCE * 0.6
+      else if (e.key === 'PageUp' || (e.key === ' ' && e.shiftKey)) delta = -TOTAL_DISTANCE * 0.6
+      else if (e.key === 'Home') delta = -TOTAL_DISTANCE
       if (delta !== 0 && consume(delta)) e.preventDefault()
     }
 
-    // Any other way of leaving the top (anchor jump, Rosters button, scrollbar) completes the intro
+    // Drives 50..100% from real scrollY, reverses 100..50% when scrolling back up,
+    // and finishes immediately on anchor jumps, Rosters button, or scrollbar drags from top.
     const onScroll = () => {
-      if (window.scrollY > 0) {
+      const y = window.scrollY
+      if (y > 0) {
         lastOffTop = Date.now()
-        if (progress < 1) setProgress(1)
+        if (progress < PIN_PROGRESS) {
+          forceFinished = true
+          setProgress(1)
+          return
+        }
+        if (forceFinished) {
+          if (y >= SCROLL_DISTANCE) forceFinished = false
+          if (progress < 1) setProgress(1)
+          return
+        }
+        setProgress(progressFromScrollY(y))
+      } else {
+        forceFinished = false
+        if (progress > PIN_PROGRESS) {
+          setProgress(PIN_PROGRESS)
+        }
       }
     }
 
@@ -149,6 +339,7 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
     window.addEventListener('scroll', onScroll, { passive: true })
 
     return () => {
+      stopMomentum()
       window.removeEventListener('wheel', onWheel)
       window.removeEventListener('touchstart', onTouchStart)
       window.removeEventListener('touchmove', onTouchMove)
