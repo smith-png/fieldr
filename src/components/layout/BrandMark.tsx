@@ -23,7 +23,7 @@ export const BrandMark: React.FC<BrandMarkProps> = ({
       {showWordmark && (
         <div className="flex flex-col text-left">
           <span
-            className={`font-syne font-extrabold tracking-tight text-text leading-none transition-colors ${
+            className={`font-syne font-extrabold syne-display tracking-tight text-text leading-none transition-colors ${
               isSmall ? 'text-sm' : 'text-[21px] group-hover:text-accent-bright'
             }`}
           >

@@ -1,8 +1,10 @@
-import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowDown, ArrowUpRight } from '@phosphor-icons/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { HomeBackdrop } from '../../components/home/HomeBackdrop'
+import { HeroWord } from '../../components/home/HeroWord'
+import { HeroBalls } from '../../components/home/HeroBalls'
 import { TickerStrip } from '../../components/home/TickerStrip'
 import { SportCardsGrid } from '../../components/home/SportCardsGrid'
 import { SiteFooter } from '../../components/layout/SiteFooter'
@@ -43,7 +45,7 @@ const DEFAULT_COUNTS: Record<SportSlug, number> = {
   volleyball: 0
 }
 
-const HERO_LINES = ['DRAFT.', 'BID.', 'WIN.'] as const
+const HERO_WORD = 'Fieldr'
 
 let hasPlayedHomeHeroEntrance = false
 
@@ -200,44 +202,6 @@ export const HomePage: React.FC = () => {
       window.clearTimeout(timer)
     }
   }, [])
-
-  const heroParallaxRef = useRef<HTMLDivElement>(null)
-  const parallaxFrameRef = useRef<number | null>(null)
-  const supportsFineHoverRef = useRef<boolean>(
-    typeof window === 'undefined' || typeof window.matchMedia !== 'function'
-      ? true
-      : window.matchMedia('(hover: hover) and (pointer: fine)').matches
-  )
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
-    const mq = window.matchMedia('(hover: hover) and (pointer: fine)')
-    const syncPointer = () => {
-      supportsFineHoverRef.current = mq.matches
-    }
-    syncPointer()
-    if (typeof mq.addEventListener === 'function') {
-      mq.addEventListener('change', syncPointer)
-      return () => mq.removeEventListener('change', syncPointer)
-    }
-    mq.addListener(syncPointer)
-    return () => mq.removeListener(syncPointer)
-  }, [])
-
-  useEffect(() => {
-    if (shouldReduceMotion && heroParallaxRef.current) {
-      if (parallaxFrameRef.current !== null) {
-        cancelAnimationFrame(parallaxFrameRef.current)
-        parallaxFrameRef.current = null
-      }
-      heroParallaxRef.current.style.transform = 'translate3d(0, 0, 0)'
-    }
-    return () => {
-      if (parallaxFrameRef.current !== null) {
-        cancelAnimationFrame(parallaxFrameRef.current)
-      }
-    }
-  }, [shouldReduceMotion])
 
   const handleOpenMenu = useCallback(() => {
     setHasOpenedMenu(true)
@@ -443,33 +407,6 @@ export const HomePage: React.FC = () => {
     initialTickerSpeed
   ])
 
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (
-        shouldReduceMotion ||
-        !heroParallaxRef.current ||
-        !supportsFineHoverRef.current
-      ) {
-        return
-      }
-      const clientX = e.clientX
-      const clientY = e.clientY
-      if (parallaxFrameRef.current !== null) {
-        cancelAnimationFrame(parallaxFrameRef.current)
-      }
-      parallaxFrameRef.current = requestAnimationFrame(() => {
-        parallaxFrameRef.current = null
-        if (!heroParallaxRef.current) return
-        const { innerWidth, innerHeight } = window
-        if (innerWidth <= 0 || innerHeight <= 0) return
-        const x = Math.max(-6, Math.min(6, (clientX / innerWidth - 0.5) * 12))
-        const y = Math.max(-6, Math.min(6, (clientY / innerHeight - 0.5) * 12))
-        heroParallaxRef.current.style.transform = `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0)`
-      })
-    },
-    [shouldReduceMotion]
-  )
-
   const totalAthletes =
     (playerCounts.cricket || 0) +
     (playerCounts.futsal || 0) +
@@ -509,11 +446,10 @@ export const HomePage: React.FC = () => {
     return parts
   }, [hasLoadedSeason, hasLoadedCounts, activeSeason?.name, totalAthletes, cachedTeamsCount])
 
-  const shouldAnimateReveal = animateHeroEntrance && !shouldReduceMotion
+  const playHeroIntro = animateHeroEntrance && !shouldReduceMotion
 
   return (
     <div
-      onMouseMove={handleMouseMove}
       className="min-h-dvh bg-bg text-text flex flex-col justify-between selection:bg-accent-bright selection:text-white relative overflow-x-clip"
     >
       {/* Muted inline vector sports backdrop */}
@@ -546,35 +482,10 @@ export const HomePage: React.FC = () => {
             </span>
           </div>
 
-          {/* 2. Center: 3 Stacked Poster Lines in Syne ExtraBold */}
-          <div className="py-7 sm:py-9 lg:py-10 overflow-hidden">
-            <div
-              ref={heroParallaxRef}
-              className="flex flex-col items-start justify-center gap-0 select-none w-full max-w-full will-change-transform"
-            >
-              {HERO_LINES.map((line, index) => (
-                <div key={line} className="overflow-hidden w-full max-w-full py-0.5 pr-2">
-                  <h1
-                    style={
-                      shouldAnimateReveal && index > 0
-                        ? { animationDelay: `${index * 0.1}s` }
-                        : undefined
-                    }
-                    className={`font-syne font-extrabold uppercase text-left text-[clamp(2.2rem,9.5vw,4.75rem)] lg:text-[clamp(4.25rem,7.4vw,6.25rem)] tracking-[-0.04em] leading-[0.9] lg:leading-[0.88] whitespace-nowrap ${
-                      shouldAnimateReveal ? 'animate-hero-line' : ''
-                    } ${
-                      index === 2
-                        ? 'text-text'
-                        : index === 1
-                        ? 'text-text/70'
-                        : 'text-muted'
-                    }`}
-                  >
-                    {line}
-                  </h1>
-                </div>
-              ))}
-            </div>
+          {/* 2. Center: single hollow Syne ExtraBold word that fades to a sage fill, plus small decorative balls */}
+          <div className="flex flex-col items-center py-8 sm:py-10 lg:py-12">
+            <HeroWord word={HERO_WORD} playIntro={playHeroIntro} />
+            <HeroBalls />
           </div>
 
           {/* 3. Bottom Row with 1px hairline above it */}

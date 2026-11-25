@@ -225,7 +225,7 @@ export const AdminNav: React.FC<AdminNavProps> = ({
               >
                 <BrandMark showWordmark={false} size="sm" />
                 <span className="flex flex-col text-left">
-                  <span className="font-syne font-extrabold text-base sm:text-lg tracking-tight text-text leading-none group-hover:text-accent-bright transition-colors">
+                  <span className="font-syne font-extrabold syne-display text-base sm:text-lg tracking-tight text-text leading-none group-hover:text-accent-bright transition-colors">
                     Fieldr
                   </span>
                   <span className="font-sans font-normal text-[9px] tracking-[0.22em] text-muted uppercase mt-1 leading-none">

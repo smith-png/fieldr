@@ -103,6 +103,29 @@ button, input, select, textarea {
   font-family: 'Syne', sans-serif;
 }
 
+/* Syne weight tiers: 800 is reserved for the hero, brand wordmarks and the Projector */
+:root {
+  --syne-title: 600;
+  --syne-sub: 500;
+}
+
+.font-syne.font-extrabold {
+  font-weight: var(--syne-title);
+}
+
+.font-syne.font-bold {
+  font-weight: var(--syne-sub);
+}
+
+.font-syne.syne-display,
+[data-projector] .font-syne.font-extrabold {
+  font-weight: 800;
+}
+
+[data-projector] .font-syne.font-bold {
+  font-weight: 700;
+}
+
 .font-dot {
   font-family: 'DotGothic16', monospace;
 }
@@ -116,17 +139,52 @@ button, input, select, textarea {
   transition: none !important;
 }
 
-@keyframes heroLineReveal {
-  0% {
-    transform: translate3d(0, 105%, 0);
-  }
-  100% {
-    transform: translate3d(0, 0, 0);
-  }
+/* Hero word: hollow outline that fades to a flat sage fill on hover or tap */
+.hero-word-stage {
+  display: grid;
+  justify-items: center;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-.animate-hero-line {
-  animation: heroLineReveal 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+.hero-word {
+  grid-area: 1 / 1;
+  margin: 0;
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  font-size: clamp(2.5rem, 13vw, 9rem);
+  line-height: 1;
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: transparent;
+  -webkit-text-stroke-width: max(1.5px, 0.014em);
+}
+
+.hero-word-outline {
+  -webkit-text-stroke-color: var(--text);
+}
+
+.hero-word-fill {
+  -webkit-text-stroke-color: var(--accent-bright);
+  background: var(--accent-bright);
+  -webkit-background-clip: text;
+  background-clip: text;
+  opacity: 0;
+  transition: opacity 0.9s ease;
+  pointer-events: none;
+}
+
+.hero-word-stage[data-filled='true'] .hero-word-fill {
+  opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .hero-word-stage:hover .hero-word-fill {
+    opacity: 1;
+  }
 }
 
 @keyframes tickerMarquee {
@@ -186,8 +244,8 @@ button, input, select, textarea {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-hero-line {
-    animation: none !important;
+  .hero-word-fill {
+    transition: none !important;
   }
   .animate-ticker {
     animation: none !important;

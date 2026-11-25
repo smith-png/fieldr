@@ -1628,6 +1628,7 @@ export const ProjectorPage: React.FC = () => {
   return (
     <div
       data-theme={projectorTheme}
+      data-projector
       className="min-h-screen w-screen bg-bg text-text overflow-hidden flex flex-col justify-between relative select-none antialiased"
     >
       <ProjectorConfetti

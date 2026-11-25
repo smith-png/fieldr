@@ -22,7 +22,7 @@ export const SiteFooter: React.FC = () => {
         <div className="flex items-center gap-4">
           <FooterMark size={44} />
           <div>
-            <div className="font-syne font-extrabold text-xl text-text tracking-tight">
+            <div className="font-syne font-extrabold syne-display text-xl text-text tracking-tight">
               Fieldr
             </div>
             <p className="text-xs text-muted mt-1">
