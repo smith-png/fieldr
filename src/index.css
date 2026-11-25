@@ -362,3 +362,266 @@ button, input, select, textarea {
   .sa-card .sa-line,
   .sa-card .sa-text { opacity: 1 !important; transform: none !important; animation: none !important; }
 }
+
+/* ---- Sport illustrations: dark defaults & light-mode daylight palette ---- */
+.sa {
+  --sa-key-op: 0.38;
+  --sa-key-mid-op: 0.13;
+  --sa-glow-op: 0.33;
+  --sa-glow-mid-op: 0.14;
+  --sa-hz-op: 0.22;
+  --sa-ring-op: 0.3;
+  --sa-ring-mid-op: 0.14;
+  --sa-vig-op: 0.74;
+  --sa-shd-op: 0.72;
+  --sa-ao-op: 0.92;
+  --sa-post-shd-op: 0.58;
+  --sa-post-ao-op: 0.9;
+  --sa-refl-op: 1;
+  --sa-shade-mid-op: 0.5;
+  --sa-shade-end-op: 0.72;
+
+  /* Cricket (dark studio default) */
+  --sa-cr-bg0: #132219; --sa-cr-bg1: #0C1610; --sa-cr-bg2: #080B09;
+  --sa-cr-key0: #395F3D; --sa-cr-key1: #047554;
+  --sa-cr-glow0: #395F3D; --sa-cr-glow1: #1D3A26;
+  --sa-cr-fl0: #1B3927; --sa-cr-fl1: #12271B; --sa-cr-fl2: #0C140F; --sa-cr-fl3: #090B09;
+  --sa-cr-tex0: #43704D; --sa-cr-tex1: #294A33; --sa-cr-tex-op0: 0.18; --sa-cr-tex-op1: 0.08;
+  --sa-cr-strip0: #4F5A43; --sa-cr-strip1: #2B3628; --sa-cr-strip-op0: 0.28; --sa-cr-strip-op1: 0.13;
+  --sa-cr-hz: #395F3D;
+  --sa-cr-ring0: #5D8C66; --sa-cr-ring1: #395F3D;
+  --sa-cr-line: #EFEBE0; --sa-cr-line-op0: 0.72; --sa-cr-line-op1: 0.62; --sa-cr-chalk-v-op: 0.6;
+  --sa-cr-post0: #F6EED6; --sa-cr-post1: #E6D5A9; --sa-cr-post2: #AE9363; --sa-cr-post3: #705B3A; --sa-cr-post4: #8F8A70;
+  --sa-cr-wood-b: #09130D; --sa-cr-wood-b-op: 0.52;
+  --sa-cr-wood-edge: transparent; --sa-cr-wood-edge-op: 0;
+  --sa-cr-bail0: #FCF7E8; --sa-cr-bail1: #E3D0A1; --sa-cr-bail2: #8A7148; --sa-cr-bail-shd: #09120B;
+  --sa-cr-ball0: #E65748; --sa-cr-ball1: #BE2A24; --sa-cr-ball2: #721412; --sa-cr-ball3: #2B0706;
+  --sa-cr-spec0: #FFF7F2; --sa-cr-spec1: #FFD8CE; --sa-cr-spec-op: 0.64;
+  --sa-cr-rim: #7BA688; --sa-cr-edge: #1E0504;
+  --sa-cr-shd: #050C07; --sa-cr-ao: #030805; --sa-cr-bshd: #030704;
+  --sa-cr-prefl: #DECAA0; --sa-cr-prefl-op: 0.2;
+  --sa-cr-brefl0: #B8362F; --sa-cr-brefl1: #7A1D19; --sa-cr-brefl-op: 0.34;
+  --sa-cr-vig: #070908;
+
+  /* Futsal (dark studio default) */
+  --sa-fu-bg0: #0F1C2F; --sa-fu-bg1: #0A1322; --sa-fu-bg2: #060A11;
+  --sa-fu-key0: #2A5380; --sa-fu-key1: #163354;
+  --sa-fu-glow0: #28517D; --sa-fu-glow1: #122742;
+  --sa-fu-fl0: #17304D; --sa-fu-fl1: #0E1F35; --sa-fu-fl2: #08111D; --sa-fu-fl3: #06090F;
+  --sa-fu-tex0: #3A6B9E; --sa-fu-tex1: #204266; --sa-fu-tex-op0: 0.14; --sa-fu-tex-op1: 0.06;
+  --sa-fu-hz: #356599;
+  --sa-fu-ring0: #5D8EC2; --sa-fu-ring1: #2A4D73;
+  --sa-fu-line: #C2DAF0; --sa-fu-line-op0: 0.58; --sa-fu-line-op1: 0.5;
+  --sa-fu-arc0: #BDD6EE; --sa-fu-arc1: #9AB9D8; --sa-fu-arc-op0: 0.48; --sa-fu-arc-op1: 0.32;
+  --sa-fu-box: #040A14; --sa-fu-box-op: 0.54;
+  --sa-fu-rear: #587699;
+  --sa-fu-net0: #C5D9ED; --sa-fu-net1: #86A4C4; --sa-fu-net2: #587494;
+  --sa-fu-net-op0: 0.42; --sa-fu-net-op1: 0.28; --sa-fu-net-op2: 0.18;
+  --sa-fu-post0: #FFFFFF; --sa-fu-post1: #E4EBF2; --sa-fu-post2: #99ABC0; --sa-fu-post3: #657A92;
+  --sa-fu-bar0: #FFFFFF; --sa-fu-bar1: #E1E8F0; --sa-fu-bar2: #859AB2;
+  --sa-fu-frame-edge: transparent; --sa-fu-frame-edge-op: 0;
+  --sa-fu-bar-shd: #040A14; --sa-fu-bar-shd-op: 0;
+  --sa-fu-ball0: #FFFFFF; --sa-fu-ball1: #E9EEF2; --sa-fu-ball2: #B2C0CF; --sa-fu-ball3: #7C8EA3;
+  --sa-fu-panel0: #264366; --sa-fu-panel1: #13253D; --sa-fu-panel2: #091322;
+  --sa-fu-shade0: #060E1C; --sa-fu-shade1: #040914;
+  --sa-fu-spec0: #FFFFFF; --sa-fu-spec1: #E6F2FF; --sa-fu-spec-op: 0.78;
+  --sa-fu-rim: #85B3E0; --sa-fu-edge: #081220;
+  --sa-fu-shd: #03070E; --sa-fu-ao: #03070F; --sa-fu-bshd: #02050B;
+  --sa-fu-prefl: #DCE8F5; --sa-fu-prefl-op: 0.24;
+  --sa-fu-brefl0: #A6C5E6; --sa-fu-brefl1: #5880AB; --sa-fu-brefl-op: 0.28;
+  --sa-fu-vig: #05080E;
+
+  /* Volleyball (dark studio default) */
+  --sa-vb-bg0: #1E1610; --sa-vb-bg1: #130E0A; --sa-vb-bg2: #0A0806;
+  --sa-vb-key0: #7A5633; --sa-vb-key1: #452E1B;
+  --sa-vb-glow0: #69482B; --sa-vb-glow1: #332215;
+  --sa-vb-fl0: #422E1E; --sa-vb-fl1: #2A1D13; --sa-vb-fl2: #140E0A; --sa-vb-fl3: #0B0806;
+  --sa-vb-tex0: #855E3A; --sa-vb-tex1: #523821; --sa-vb-tex-op0: 0.18; --sa-vb-tex-op1: 0.08;
+  --sa-vb-seam: #120B07; --sa-vb-seam-op: 0.28;
+  --sa-vb-sheen0: #C99D6B; --sa-vb-sheen1: #8A643E; --sa-vb-sheen-op0: 0.18; --sa-vb-sheen-op1: 0.06;
+  --sa-vb-hz: #785637;
+  --sa-vb-ring0: #A68563; --sa-vb-ring1: #5C4632;
+  --sa-vb-line: #F0E3CC; --sa-vb-line-op0: 0.6; --sa-vb-line-op1: 0.52;
+  --sa-vb-post0: #D4C7B8; --sa-vb-post1: #948475; --sa-vb-post2: #4A3F36; --sa-vb-post3: #695C50;
+  --sa-vb-collar: #2A221C;
+  --sa-vb-net0: #B5A48F; --sa-vb-net1: #D6C6B0; --sa-vb-net2: #8C7B68;
+  --sa-vb-net-op0: 0.26; --sa-vb-net-op1: 0.44; --sa-vb-net-op2: 0.22;
+  --sa-vb-tape0: #FAF3E4; --sa-vb-tape1: #E6D9C0; --sa-vb-tape2: #ADA088;
+  --sa-vb-tape-edge: transparent; --sa-vb-tape-edge-op: 0;
+  --sa-vb-tape-shd: #0B0704; --sa-vb-tape-shd-op: 0.45;
+  --sa-vb-cord: #D5C5AA; --sa-vb-cord-op: 0.72;
+  --sa-vb-ball0: #FBF3DD; --sa-vb-ball1: #E7D4A6; --sa-vb-ball2: #B59E6E; --sa-vb-ball3: #7C6945;
+  --sa-vb-blue0: #4679BE; --sa-vb-blue1: #2B558E; --sa-vb-blue2: #162E52;
+  --sa-vb-gold0: #F0B148; --sa-vb-gold1: #CB8524; --sa-vb-gold2: #7E4C10;
+  --sa-vb-shade0: #140C06; --sa-vb-shade1: #0D0804;
+  --sa-vb-spec0: #FFFDF5; --sa-vb-spec1: #FFECC8; --sa-vb-spec-op: 0.72;
+  --sa-vb-rim: #E5C391; --sa-vb-edge: #1E140B;
+  --sa-vb-shd: #080503; --sa-vb-ao: #060402; --sa-vb-bshd: #060301;
+  --sa-vb-prefl: #B8A38C; --sa-vb-prefl-op: 0.2;
+  --sa-vb-brefl0: #DFB46C; --sa-vb-brefl1: #8F6732; --sa-vb-brefl-op: 0.28;
+  --sa-vb-vig: #070504;
+}
+
+:root[data-theme="light"] .sa {
+  --sa-key-op: 0.72;
+  --sa-key-mid-op: 0.24;
+  --sa-glow-op: 0.52;
+  --sa-glow-mid-op: 0.2;
+  --sa-hz-op: 0.34;
+  --sa-ring-op: 0.34;
+  --sa-ring-mid-op: 0.16;
+  --sa-vig-op: 0.22;
+  --sa-shd-op: 0.24;
+  --sa-ao-op: 0.36;
+  --sa-post-shd-op: 0.2;
+  --sa-post-ao-op: 0.34;
+  --sa-refl-op: 0.45;
+  --sa-shade-mid-op: 0.22;
+  --sa-shade-end-op: 0.36;
+
+  /* Cricket (daylight sage) */
+  --sa-cr-bg0: #E6EDE4; --sa-cr-bg1: #DBE5D8; --sa-cr-bg2: #CDDACA;
+  --sa-cr-key0: #FCFDF8; --sa-cr-key1: #E8F0E5;
+  --sa-cr-glow0: #F6F9F2; --sa-cr-glow1: #D5E3D2;
+  --sa-cr-fl0: #B6CCB5; --sa-cr-fl1: #C5D6C3; --sa-cr-fl2: #DDE5DA; --sa-cr-fl3: #E7ECE4;
+  --sa-cr-tex0: #8EAD8F; --sa-cr-tex1: #A6C0A6; --sa-cr-tex-op0: 0.34; --sa-cr-tex-op1: 0.14;
+  --sa-cr-strip0: #CFC4A8; --sa-cr-strip1: #D8D1BC; --sa-cr-strip-op0: 0.48; --sa-cr-strip-op1: 0.22;
+  --sa-cr-hz: #E6EFE4;
+  --sa-cr-ring0: #7E9B81; --sa-cr-ring1: #9EB5A0;
+  --sa-cr-line: #FFFFFF; --sa-cr-line-op0: 0.9; --sa-cr-line-op1: 0.78; --sa-cr-chalk-v-op: 0.8;
+  --sa-cr-post0: #FBF3DE; --sa-cr-post1: #DFC186; --sa-cr-post2: #9B7A46; --sa-cr-post3: #6B5029; --sa-cr-post4: #8C856B;
+  --sa-cr-wood-b: #4B5E4A; --sa-cr-wood-b-op: 0.18;
+  --sa-cr-wood-edge: #6B5330; --sa-cr-wood-edge-op: 0.34;
+  --sa-cr-bail0: #FDF8EB; --sa-cr-bail1: #D9B97E; --sa-cr-bail2: #785B32; --sa-cr-bail-shd: #47361E;
+  --sa-cr-ball0: #EF6453; --sa-cr-ball1: #C72C26; --sa-cr-ball2: #841917; --sa-cr-ball3: #4A0D0C;
+  --sa-cr-spec0: #FFFFFF; --sa-cr-spec1: #FFE4DC; --sa-cr-spec-op: 0.85;
+  --sa-cr-rim: #B4D1BA; --sa-cr-edge: #4A1210;
+  --sa-cr-shd: #28422C; --sa-cr-ao: #1B301E; --sa-cr-bshd: #243B27;
+  --sa-cr-prefl: #E6D5B0; --sa-cr-prefl-op: 0.16;
+  --sa-cr-brefl0: #B53D36; --sa-cr-brefl1: #8A3A35; --sa-cr-brefl-op: 0.22;
+  --sa-cr-vig: #A3B6A4;
+
+  /* Futsal (daylight cool blue-grey) */
+  --sa-fu-bg0: #E4EBF0; --sa-fu-bg1: #D5E1EA; --sa-fu-bg2: #C6D5E2;
+  --sa-fu-key0: #F9FCFE; --sa-fu-key1: #E1ECF4;
+  --sa-fu-glow0: #F3F8FC; --sa-fu-glow1: #CCE0EE;
+  --sa-fu-fl0: #AEC5DC; --sa-fu-fl1: #C0D3E4; --sa-fu-fl2: #DCE6EE; --sa-fu-fl3: #E7EEF3;
+  --sa-fu-tex0: #89A8C6; --sa-fu-tex1: #A3BED6; --sa-fu-tex-op0: 0.24; --sa-fu-tex-op1: 0.1;
+  --sa-fu-hz: #DCE8F2;
+  --sa-fu-ring0: #7A9AB8; --sa-fu-ring1: #9CB5CD;
+  --sa-fu-line: #FFFFFF; --sa-fu-line-op0: 0.88; --sa-fu-line-op1: 0.78;
+  --sa-fu-arc0: #FFFFFF; --sa-fu-arc1: #F2F7FC; --sa-fu-arc-op0: 0.82; --sa-fu-arc-op1: 0.6;
+  --sa-fu-box: #4D6A87; --sa-fu-box-op: 0.18;
+  --sa-fu-rear: #5E7B9A;
+  --sa-fu-net0: #6886A6; --sa-fu-net1: #4F6D8D; --sa-fu-net2: #405B78;
+  --sa-fu-net-op0: 0.54; --sa-fu-net-op1: 0.42; --sa-fu-net-op2: 0.3;
+  --sa-fu-post0: #FFFFFF; --sa-fu-post1: #EEF3F8; --sa-fu-post2: #B9C8D9; --sa-fu-post3: #7C92AB;
+  --sa-fu-bar0: #FFFFFF; --sa-fu-bar1: #EDF3F8; --sa-fu-bar2: #8EA4BC;
+  --sa-fu-frame-edge: #577391; --sa-fu-frame-edge-op: 0.62;
+  --sa-fu-bar-shd: #415D7B; --sa-fu-bar-shd-op: 0.24;
+  --sa-fu-ball0: #FFFFFF; --sa-fu-ball1: #F0F4F8; --sa-fu-ball2: #CBD6E2; --sa-fu-ball3: #9BAEC2;
+  --sa-fu-panel0: #3C5B80; --sa-fu-panel1: #264060; --sa-fu-panel2: #192D47;
+  --sa-fu-shade0: #263E5C; --sa-fu-shade1: #1B304A;
+  --sa-fu-spec0: #FFFFFF; --sa-fu-spec1: #F0F7FF; --sa-fu-spec-op: 0.86;
+  --sa-fu-rim: #C5DCF2; --sa-fu-edge: #4B6682;
+  --sa-fu-shd: #2B435D; --sa-fu-ao: #1F344C; --sa-fu-bshd: #273E57;
+  --sa-fu-prefl: #FFFFFF; --sa-fu-prefl-op: 0.22;
+  --sa-fu-brefl0: #FFFFFF; --sa-fu-brefl1: #B6CEE3; --sa-fu-brefl-op: 0.24;
+  --sa-fu-vig: #9CB3C7;
+
+  /* Volleyball (daylight warm sand & honey wood) */
+  --sa-vb-bg0: #F0E9DC; --sa-vb-bg1: #E6DCC9; --sa-vb-bg2: #DBD0BA;
+  --sa-vb-key0: #FFFDF6; --sa-vb-key1: #F6EFE1;
+  --sa-vb-glow0: #FCF7EC; --sa-vb-glow1: #E6D9C3;
+  --sa-vb-fl0: #D8B684; --sa-vb-fl1: #DFC398; --sa-vb-fl2: #ECE2D1; --sa-vb-fl3: #F1ECE1;
+  --sa-vb-tex0: #B88E58; --sa-vb-tex1: #C9A472; --sa-vb-tex-op0: 0.24; --sa-vb-tex-op1: 0.1;
+  --sa-vb-seam: #856136; --sa-vb-seam-op: 0.2;
+  --sa-vb-sheen0: #FFF9EB; --sa-vb-sheen1: #F5E5C6; --sa-vb-sheen-op0: 0.36; --sa-vb-sheen-op1: 0.14;
+  --sa-vb-hz: #EDE2CE;
+  --sa-vb-ring0: #A39075; --sa-vb-ring1: #C2B198;
+  --sa-vb-line: #FFFDF7; --sa-vb-line-op0: 0.85; --sa-vb-line-op1: 0.74;
+  --sa-vb-post0: #BCB0A2; --sa-vb-post1: #82776C; --sa-vb-post2: #4C433B; --sa-vb-post3: #6D635A;
+  --sa-vb-collar: #473E37;
+  --sa-vb-net0: #7A736B; --sa-vb-net1: #5E5851; --sa-vb-net2: #736C64;
+  --sa-vb-net-op0: 0.42; --sa-vb-net-op1: 0.56; --sa-vb-net-op2: 0.38;
+  --sa-vb-tape0: #FFFBF0; --sa-vb-tape1: #F0E4CC; --sa-vb-tape2: #C9B99D;
+  --sa-vb-tape-edge: #786956; --sa-vb-tape-edge-op: 0.58;
+  --sa-vb-tape-shd: #5A4A36; --sa-vb-tape-shd-op: 0.32;
+  --sa-vb-cord: #756C61; --sa-vb-cord-op: 0.78;
+  --sa-vb-ball0: #FFFBF0; --sa-vb-ball1: #F2E5C6; --sa-vb-ball2: #CEBA90; --sa-vb-ball3: #A38E64;
+  --sa-vb-blue0: #507BB3; --sa-vb-blue1: #345D94; --sa-vb-blue2: #22416E;
+  --sa-vb-gold0: #E6A845; --sa-vb-gold1: #CC8728; --sa-vb-gold2: #965E18;
+  --sa-vb-shade0: #3D2915; --sa-vb-shade1: #2B1C0E;
+  --sa-vb-spec0: #FFFFFF; --sa-vb-spec1: #FFF2D6; --sa-vb-spec-op: 0.82;
+  --sa-vb-rim: #F5E2C4; --sa-vb-edge: #634D34;
+  --sa-vb-shd: #4D3620; --sa-vb-ao: #3B2816; --sa-vb-bshd: #4A341E;
+  --sa-vb-prefl: #8C7862; --sa-vb-prefl-op: 0.16;
+  --sa-vb-brefl0: #FFF7E6; --sa-vb-brefl1: #DFC191; --sa-vb-brefl-op: 0.24;
+  --sa-vb-vig: #BAA485;
+}
+
+/* Bottom readability scrim for home sport cards */
+.sa-card-scrim {
+  background: linear-gradient(
+    to top,
+    rgba(10, 10, 12, 0.82) 0%,
+    rgba(10, 10, 12, 0.36) 38%,
+    rgba(10, 10, 12, 0) 70%
+  );
+}
+:root[data-theme="light"] .sa-card-scrim {
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--bg) 92%, transparent) 0%,
+    color-mix(in srgb, var(--bg) 52%, transparent) 38%,
+    transparent 70%
+  );
+}
+
+/* Home page ticker strip: contained rounded sage-tinted recessed rail */
+.ticker-strip-surface {
+  --ticker-bg: color-mix(in srgb, var(--accent-bright) 2%, color-mix(in srgb, var(--accent) 4%, var(--surface)));
+  --ticker-rim: color-mix(in srgb, var(--accent-bright) 40%, var(--border));
+  isolation: isolate;
+  background-color: var(--ticker-bg);
+  border: 1px solid var(--ticker-rim);
+  box-shadow:
+    inset 0 6px 10px -6px color-mix(in srgb, var(--accent) 18%, rgba(18, 20, 18, 0.14)),
+    inset 0 -1px 0 0 rgba(255, 255, 255, 0.72),
+    inset 0 -5px 8px -6px rgba(255, 255, 255, 0.52);
+}
+
+.ticker-strip-surface::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: calc(1rem - 3px);
+  border: 1px solid color-mix(in srgb, var(--accent-bright) 14%, transparent);
+  pointer-events: none;
+  z-index: 2;
+}
+
+[data-theme="dark"] .ticker-strip-surface {
+  --ticker-bg: color-mix(in srgb, var(--accent-bright) 2%, color-mix(in srgb, var(--accent) 4%, var(--surface)));
+  --ticker-rim: color-mix(in srgb, var(--accent-bright) 35%, var(--border));
+  box-shadow:
+    inset 0 7px 12px -6px rgba(0, 0, 0, 0.62),
+    inset 0 -1px 0 0 rgba(240, 242, 238, 0.08),
+    inset 0 -5px 8px -6px color-mix(in srgb, var(--accent-bright) 10%, rgba(240, 242, 238, 0.05));
+}
+
+[data-theme="dark"] .ticker-strip-surface::before {
+  border-color: color-mix(in srgb, var(--accent-bright) 13%, transparent);
+}
+
+.ticker-strip-surface > .ticker-strip-mask {
+  position: relative;
+  z-index: 0;
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 9%, #000 91%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0%, #000 9%, #000 91%, transparent 100%);
+}
+
+.ticker-strip-surface .ticker-strip-track {
+  will-change: transform;
+  transform: translateZ(0);
+}

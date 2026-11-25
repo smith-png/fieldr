@@ -441,12 +441,13 @@ export const TickerStrip: React.FC<TickerStripProps> = ({
   )
 
   return (
-    <div
-      ref={containerRef}
-      role="region"
-      aria-label="Live season statistics ticker"
-      className="w-full bg-surface border-y border-border py-3.5 overflow-hidden select-none relative"
-    >
+    <div className="w-full max-w-7xl mx-auto px-6 md:px-16 lg:px-24 py-6 md:py-8">
+      <div
+        ref={containerRef}
+        role="region"
+        aria-label="Live season statistics ticker"
+        className="w-full ticker-strip-surface rounded-2xl py-3.5 overflow-hidden select-none relative"
+      >
       <style>{`
         @keyframes tickerWipeReveal {
           0% {
@@ -547,39 +548,43 @@ export const TickerStrip: React.FC<TickerStripProps> = ({
           <span>&nbsp;</span>
         </div>
       ) : (
-        <div
-          className={
-            isEntering
-              ? shouldReduceMotion
-                ? 'ticker-fade-enter-reduced'
-                : 'ticker-wipe-enter'
-              : undefined
-          }
-        >
-          {shouldReduceMotion ? (
-            <div className="flex justify-center overflow-x-hidden py-0.5">
-              {renderItemGroup(false)}
-            </div>
-          ) : (
-            <div
-              className={`flex will-change-transform ${
-                shouldLoop ? 'animate-ticker' : ''
-              }`}
-              style={
-                shouldLoop
-                  ? {
-                      animationDuration: `${animationDuration}s`,
-                      animationPlayState: entranceDone ? 'running' : 'paused'
-                    }
-                  : undefined
-              }
-            >
-              {renderItemGroup(false)}
-              {renderItemGroup(true)}
-            </div>
-          )}
+        <div className="ticker-strip-mask">
+          <div
+            className={
+              isEntering
+                ? shouldReduceMotion
+                  ? 'ticker-fade-enter-reduced'
+                  : 'ticker-wipe-enter'
+                : undefined
+            }
+          >
+            {shouldReduceMotion ? (
+              <div className="flex justify-center overflow-x-hidden py-0.5">
+                {renderItemGroup(false)}
+              </div>
+            ) : (
+              <div
+                className={`flex ${
+                  shouldLoop ? 'animate-ticker ticker-strip-track' : ''
+                }`}
+                style={
+                  shouldLoop
+                    ? {
+                        animationDuration: `${animationDuration}s`,
+                        animationPlayState: entranceDone ? 'running' : 'paused'
+                      }
+                    : undefined
+                }
+              >
+                {renderItemGroup(false)}
+                {renderItemGroup(true)}
+              </div>
+            )}
+          </div>
         </div>
       )}
+
+      </div>
     </div>
   )
 }

@@ -35,26 +35,19 @@ const SportCard: React.FC<SportCardProps> = ({ slug, label, index, count, counts
       style={{ ['--sa-base' as string]: `${delay}s` } as React.CSSProperties}
       className={`sa-card ${
         seen ? 'sa-card-play' : ''
-      } group relative flex flex-col justify-between bg-[#0a0a0c] border border-border rounded-2xl p-4 md:p-7 hover:border-accent-bright transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright overflow-hidden`}
+      } group relative flex flex-col justify-between bg-surface dark:bg-[#0a0a0c] border border-border rounded-2xl p-4 md:p-7 hover:border-accent-bright transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright overflow-hidden`}
     >
-      {/* Illustration + bottom gradient for legible text */}
+      {/* Illustration + themed bottom gradient for legible text */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
         <SportArt slug={slug} play={seen} delay={delay} className="w-full h-full block" />
-        <div
-          aria-hidden="true"
-          className="absolute inset-0"
-          style={{
-            background:
-              'linear-gradient(to top, rgba(10, 10, 12, 0.82) 0%, rgba(10, 10, 12, 0.36) 38%, rgba(10, 10, 12, 0) 70%)'
-          }}
-        />
+        <div aria-hidden="true" className="sa-card-scrim absolute inset-0" />
       </div>
 
       <div className="flex items-center justify-between gap-4 z-10">
-        <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-black/45 border border-white/15 font-mono text-xs font-medium text-zinc-200 tabular-nums">
+        <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-surface/80 dark:bg-black/45 border border-border dark:border-white/15 font-mono text-xs font-medium text-text dark:text-zinc-200 tabular-nums">
           {indexLabel}
         </span>
-        <div className="w-9 h-9 rounded-full bg-black/45 border border-white/15 flex items-center justify-center text-zinc-200 group-hover:text-white group-hover:border-accent-bright transition-colors shrink-0">
+        <div className="w-9 h-9 rounded-full bg-surface/80 dark:bg-black/45 border border-border dark:border-white/15 flex items-center justify-center text-text dark:text-zinc-200 group-hover:text-accent-bright dark:group-hover:text-white group-hover:border-accent-bright transition-colors shrink-0">
           <ArrowUpRight size={18} weight="bold" />
         </div>
       </div>
@@ -63,15 +56,15 @@ const SportCard: React.FC<SportCardProps> = ({ slug, label, index, count, counts
       <div aria-hidden="true" className="h-16 md:my-4 md:h-40 pointer-events-none" />
 
       <div className="relative z-10">
-        <div className="sa-line absolute top-0 left-0 right-0 h-px bg-white/15" />
+        <div className="sa-line absolute top-0 left-0 right-0 h-px bg-text/15 dark:bg-white/15" />
         <div className="pt-3 md:pt-4 flex items-baseline justify-between gap-4 min-h-[2.75rem] md:min-h-[3rem]">
-          <h3 className="sa-text font-syne font-bold text-xl md:text-2xl text-white group-hover:text-accent-bright transition-colors tracking-tight">
+          <h3 className="sa-text font-syne font-bold text-xl md:text-2xl text-text dark:text-white group-hover:text-accent-bright transition-colors tracking-tight">
             {label}
           </h3>
           {countsLoaded && (
             <div className="sa-text flex items-baseline gap-1.5 shrink-0">
-              <span className="font-mono font-semibold text-sm text-white tabular-nums">{count}</span>
-              <span className="font-sans text-xs text-zinc-300">athletes</span>
+              <span className="font-mono font-semibold text-sm text-text dark:text-white tabular-nums">{count}</span>
+              <span className="font-sans text-xs text-muted dark:text-zinc-300">athletes</span>
             </div>
           )}
         </div>
