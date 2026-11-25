@@ -683,3 +683,151 @@ button, input, select, textarea {
   will-change: transform;
   transform: translateZ(0);
 }
+
+/* Public pages: Court Monograph + Draft Dossier visual system */
+.pub-rule {
+  position: relative;
+  border-bottom: 1px solid var(--border);
+}
+
+.pub-rule::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 32px;
+  height: 2px;
+  background-color: var(--accent-bright);
+  pointer-events: none;
+}
+
+.pub-corner-ticks {
+  --pub-tick-color: color-mix(in srgb, var(--accent-bright) 34%, var(--border));
+  position: relative;
+}
+
+[data-theme="dark"] .pub-corner-ticks {
+  --pub-tick-color: color-mix(in srgb, var(--accent-bright) 42%, var(--border));
+}
+
+.pub-corner-ticks::after {
+  content: "";
+  position: absolute;
+  inset: 10px;
+  pointer-events: none;
+  z-index: 2;
+  background-repeat: no-repeat;
+  background-image:
+    linear-gradient(var(--pub-tick-color), var(--pub-tick-color)),
+    linear-gradient(var(--pub-tick-color), var(--pub-tick-color)),
+    linear-gradient(var(--pub-tick-color), var(--pub-tick-color)),
+    linear-gradient(var(--pub-tick-color), var(--pub-tick-color)),
+    linear-gradient(var(--pub-tick-color), var(--pub-tick-color)),
+    linear-gradient(var(--pub-tick-color), var(--pub-tick-color)),
+    linear-gradient(var(--pub-tick-color), var(--pub-tick-color)),
+    linear-gradient(var(--pub-tick-color), var(--pub-tick-color));
+  background-size:
+    10px 1.5px, 1.5px 10px,
+    10px 1.5px, 1.5px 10px,
+    10px 1.5px, 1.5px 10px,
+    10px 1.5px, 1.5px 10px;
+  background-position:
+    left top, left top,
+    right top, right top,
+    left bottom, left bottom,
+    right bottom, right bottom;
+}
+
+.pub-corner-ticks-media::after {
+  z-index: 15;
+}
+
+.pub-team-card {
+  position: relative;
+  background-color: var(--surface);
+  background-color: color-mix(in srgb, var(--team-color) 4%, var(--surface));
+  border-color: var(--border);
+}
+
+.pub-team-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--team-color);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.pub-team-card:hover,
+.pub-team-card:focus-visible {
+  border-color: color-mix(in srgb, var(--team-color) 65%, var(--border));
+}
+
+.pub-card-lift {
+  transition:
+    transform 150ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pub-card-lift:hover {
+    transform: translate3d(0, -2px, 0);
+  }
+}
+
+.pub-card-lift:active {
+  transform: scale(0.985);
+}
+
+.pub-ledger-row {
+  transition:
+    background-color 150ms ease,
+    transform 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pub-ledger-row:hover {
+    background-color: color-mix(in srgb, var(--accent-bright) 5%, var(--surface));
+  }
+}
+
+.pub-ledger-row:active {
+  transform: scale(0.985);
+}
+
+@keyframes pubEnter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.pub-enter {
+  animation: pubEnter 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pub-enter {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .pub-card-lift,
+  .pub-ledger-row {
+    transition: none !important;
+  }
+  .pub-card-lift:hover,
+  .pub-card-lift:active,
+  .pub-ledger-row:active {
+    transform: none !important;
+  }
+}
+

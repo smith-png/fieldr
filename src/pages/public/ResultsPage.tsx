@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ShareNetwork } from '@phosphor-icons/react'
+import { Gavel, ShareNetwork } from '@phosphor-icons/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
@@ -8,16 +8,19 @@ import {
   PUBLIC_BTN_PRIMARY,
   PUBLIC_BTN_SECONDARY,
   PUBLIC_CARD,
-  PUBLIC_COUNT_PILL,
   PUBLIC_ERROR_BANNER,
+  PUBLIC_FOLIO,
   PUBLIC_INPUT,
+  PUBLIC_KICKER,
   PUBLIC_MAIN,
+  PUBLIC_META_ROW,
   PUBLIC_PAGE_HEADER,
   PUBLIC_PAGE_SHELL,
   PUBLIC_PAGE_TITLE,
+  PUBLIC_SECTION_HEADER,
   PUBLIC_SECTION_TITLE
 } from '../../components/public/publicStyles'
-import { SkeletonBlock, SkeletonText } from '../../components/ui'
+import { EmptyState, SkeletonBlock, SkeletonText } from '../../components/ui'
 import { formatAthleteCode } from '../../lib/data/client'
 import { prefetchRoute } from '../../lib/queryCache'
 import {
@@ -119,10 +122,10 @@ function useVisibleNowMs(enabled: boolean): number {
   return nowMs
 }
 
-const UpdatedAgoPill: React.FC<{ lastCheckedAt: number }> = ({ lastCheckedAt }) => {
+const UpdatedAgoText: React.FC<{ lastCheckedAt: number }> = ({ lastCheckedAt }) => {
   const nowMs = useVisibleNowMs(true)
   return (
-    <span className={PUBLIC_COUNT_PILL}>
+    <span className="font-mono text-xs tabular-nums text-muted">
       Updated {formatElapsedClock(nowMs - lastCheckedAt)} ago
     </span>
   )
@@ -231,13 +234,13 @@ const ResultThumbnail: React.FC<{
 }
 
 const ResultsLoadingSkeleton: React.FC = () => (
-  <div aria-hidden="true" className="space-y-8">
-    {/* Summary stat tiles (reserved height matches loaded cards) */}
-    <div className="grid grid-cols-3 gap-3 sm:gap-4">
+  <div aria-hidden="true" className="space-y-10">
+    {/* 3-column hairline summary strip (reserved height matches loaded strip) */}
+    <div className="rounded-2xl bg-surface border border-border grid grid-cols-3 divide-x divide-border overflow-hidden">
       {[0, 1, 2].map((i) => (
         <div
           key={i}
-          className="min-h-[96px] rounded-3xl bg-surface border border-border p-3 min-[400px]:p-4 sm:p-6 flex flex-col justify-between"
+          className="min-h-[96px] p-3.5 min-[400px]:p-4 sm:p-6 flex flex-col justify-between"
         >
           <SkeletonText width="w-16" className="h-3" />
           <SkeletonBlock className="w-14 h-7 rounded-lg" />
@@ -249,7 +252,7 @@ const ResultsLoadingSkeleton: React.FC = () => (
     <div className={`${PUBLIC_CARD} min-h-[212px] space-y-5`}>
       <div className="flex items-center justify-between gap-3 pb-4 border-b border-border">
         <SkeletonBlock className="w-40 h-6 rounded-lg" />
-        <SkeletonBlock className="w-28 h-7 rounded-full" />
+        <SkeletonBlock className="w-28 h-4 rounded-lg" />
       </div>
       <div className="space-y-4">
         {[0, 1, 2].map((i) => (
@@ -280,17 +283,17 @@ const ResultsLoadingSkeleton: React.FC = () => (
       </div>
     </div>
 
-    {/* Feed rows (reserved height 84px per row) */}
-    <div className="space-y-3">
-      <div className="flex items-center justify-between pb-3 border-b border-border">
+    {/* Hairline ledger feed rows (reserved height 80px per row) */}
+    <div className="space-y-4">
+      <div className="flex items-center justify-between pb-3.5 border-b border-border">
         <SkeletonBlock className="w-32 h-6 rounded-lg" />
-        <SkeletonBlock className="w-10 h-7 rounded-full" />
+        <SkeletonBlock className="w-12 h-4 rounded-lg" />
       </div>
-      <div className="space-y-3">
+      <div className="divide-y divide-border border-b border-border">
         {Array.from({ length: 8 }).map((_, idx) => (
           <div
             key={idx}
-            className="min-h-[84px] px-5 py-4 rounded-3xl bg-surface border border-border flex items-center justify-between gap-4"
+            className="min-h-[80px] px-3 sm:px-4 py-3.5 flex items-center justify-between gap-4"
           >
             <div className="flex items-center gap-3.5 min-w-0 flex-1">
               <SkeletonBlock className="w-13 h-13 rounded-2xl shrink-0" />
@@ -300,8 +303,8 @@ const ResultsLoadingSkeleton: React.FC = () => (
                 <SkeletonText width="w-24" className="h-3" />
               </div>
             </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <SkeletonBlock className="hidden sm:block w-24 h-7 rounded-full" />
+            <div className="flex items-center gap-4 shrink-0">
+              <SkeletonBlock className="hidden sm:block w-24 h-4 rounded-lg" />
               <div className="space-y-1.5 flex flex-col items-end">
                 <SkeletonBlock className="w-16 h-4 rounded-md" />
                 <SkeletonText width="w-12" className="h-2.5" />
@@ -727,26 +730,27 @@ export const ResultsPage: React.FC = () => {
       <main className={PUBLIC_MAIN}>
         {/* Page Header */}
         <header className={PUBLIC_PAGE_HEADER}>
-          <div className="min-w-0 space-y-1">
-            <span className="block text-[11px] font-mono uppercase tracking-[0.16em] text-accent-bright font-semibold">
-              LIVE AUCTION FEED
-            </span>
+          <div className="min-w-0">
+            <span className={PUBLIC_KICKER}>LIVE AUCTION FEED</span>
             <h1 className={PUBLIC_PAGE_TITLE}>Results</h1>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 min-h-[1.75rem] shrink-0">
+          <div className={`${PUBLIC_META_ROW} min-h-[1.5rem] shrink-0`}>
             {results.isLoading ? (
               <>
-                <SkeletonBlock className="w-36 h-7 rounded-full" />
-                <SkeletonBlock className="w-32 h-7 rounded-full" />
+                <SkeletonBlock className="w-28 h-4 rounded-lg" />
+                <SkeletonBlock className="w-28 h-4 rounded-lg" />
               </>
             ) : (
               <>
                 {results.seasonName && (
-                  <span className={PUBLIC_COUNT_PILL}>{results.seasonName}</span>
+                  <span className="text-text font-medium">{results.seasonName}</span>
+                )}
+                {results.seasonName && results.lastCheckedAt !== null && (
+                  <span aria-hidden="true">·</span>
                 )}
                 {results.lastCheckedAt !== null && (
-                  <UpdatedAgoPill lastCheckedAt={results.lastCheckedAt} />
+                  <UpdatedAgoText lastCheckedAt={results.lastCheckedAt} />
                 )}
               </>
             )}
@@ -762,11 +766,11 @@ export const ResultsPage: React.FC = () => {
         {results.isLoading ? (
           <ResultsLoadingSkeleton />
         ) : auctionHasNotBegun && !hasActiveFilters ? (
-          <div className="space-y-8">
+          <div className="space-y-10">
             {summary.total > 0 && (
-              <section aria-label="Auction summary" className="space-y-4">
-                <div className="grid grid-cols-3 gap-3 sm:gap-4">
-                  <div className="min-h-[96px] rounded-3xl bg-surface border border-border p-3 min-[400px]:p-4 sm:p-6 flex flex-col justify-between">
+              <section aria-label="Auction summary">
+                <div className="rounded-2xl bg-surface border border-border grid grid-cols-3 divide-x divide-border overflow-hidden">
+                  <div className="min-h-[96px] p-3.5 min-[400px]:p-4 sm:p-6 flex flex-col justify-between">
                     <span className="font-mono text-[11px] uppercase tracking-[0.04em] min-[400px]:tracking-[0.14em] text-muted">
                       Sold
                     </span>
@@ -774,7 +778,7 @@ export const ResultsPage: React.FC = () => {
                       0
                     </span>
                   </div>
-                  <div className="min-h-[96px] rounded-3xl bg-surface border border-border p-3 min-[400px]:p-4 sm:p-6 flex flex-col justify-between">
+                  <div className="min-h-[96px] p-3.5 min-[400px]:p-4 sm:p-6 flex flex-col justify-between">
                     <span className="font-mono text-[11px] uppercase tracking-[0.04em] min-[400px]:tracking-[0.14em] text-muted">
                       Unsold
                     </span>
@@ -782,7 +786,7 @@ export const ResultsPage: React.FC = () => {
                       0
                     </span>
                   </div>
-                  <div className="min-h-[96px] rounded-3xl bg-surface border border-border p-3 min-[400px]:p-4 sm:p-6 flex flex-col justify-between">
+                  <div className="min-h-[96px] p-3.5 min-[400px]:p-4 sm:p-6 flex flex-col justify-between">
                     <span className="font-mono text-[11px] uppercase tracking-[0.04em] min-[400px]:tracking-[0.14em] text-muted">
                       Remaining
                     </span>
@@ -794,18 +798,19 @@ export const ResultsPage: React.FC = () => {
               </section>
             )}
 
-            <section className={`${PUBLIC_CARD} py-16 text-center`}>
-              <p className="text-sm sm:text-base text-muted">
-                Results will appear here once the auction begins.
-              </p>
-            </section>
+            <EmptyState
+              icon={Gavel}
+              statusLabel="AWAITING LOT"
+              title="Auction Has Not Begun"
+              description="Live lot results will appear here once the first bid closes."
+            />
           </div>
         ) : (
-          <div className="space-y-8">
-            {/* Summary Counts & Sport Progress Bars */}
-            <section aria-label="Auction progress summary" className="space-y-5">
-              <div className="grid grid-cols-3 gap-3 sm:gap-4">
-                <div className="min-h-[96px] rounded-3xl bg-surface border border-border p-3 min-[400px]:p-4 sm:p-6 flex flex-col justify-between">
+          <div className="space-y-10">
+            {/* 3-Column Summary Strip (hairline divided, not three separate boxes) & Sport Progress */}
+            <section aria-label="Auction progress summary" className="space-y-8">
+              <div className="rounded-2xl bg-surface border border-border grid grid-cols-3 divide-x divide-border overflow-hidden">
+                <div className="min-h-[96px] p-3.5 min-[400px]:p-4 sm:p-6 flex flex-col justify-between">
                   <span className="font-mono text-[11px] uppercase tracking-[0.04em] min-[400px]:tracking-[0.14em] text-muted">
                     Sold
                   </span>
@@ -813,7 +818,7 @@ export const ResultsPage: React.FC = () => {
                     {summary.sold}
                   </span>
                 </div>
-                <div className="min-h-[96px] rounded-3xl bg-surface border border-border p-3 min-[400px]:p-4 sm:p-6 flex flex-col justify-between">
+                <div className="min-h-[96px] p-3.5 min-[400px]:p-4 sm:p-6 flex flex-col justify-between">
                   <span className="font-mono text-[11px] uppercase tracking-[0.04em] min-[400px]:tracking-[0.14em] text-muted">
                     Unsold
                   </span>
@@ -821,7 +826,7 @@ export const ResultsPage: React.FC = () => {
                     {summary.unsold}
                   </span>
                 </div>
-                <div className="min-h-[96px] rounded-3xl bg-surface border border-border p-3 min-[400px]:p-4 sm:p-6 flex flex-col justify-between">
+                <div className="min-h-[96px] p-3.5 min-[400px]:p-4 sm:p-6 flex flex-col justify-between">
                   <span className="font-mono text-[11px] uppercase tracking-[0.04em] min-[400px]:tracking-[0.14em] text-muted">
                     Remaining
                   </span>
@@ -833,9 +838,12 @@ export const ResultsPage: React.FC = () => {
 
               {summary.perSport.length > 0 && (
                 <div className={`${PUBLIC_CARD} space-y-5`}>
-                  <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-border">
-                    <h2 className={PUBLIC_SECTION_TITLE}>Progress by sport</h2>
-                    <span className={PUBLIC_COUNT_PILL}>
+                  <div className={PUBLIC_SECTION_HEADER}>
+                    <div className="flex items-baseline gap-3">
+                      <span className={PUBLIC_FOLIO}>01</span>
+                      <h2 className={PUBLIC_SECTION_TITLE}>Progress by sport</h2>
+                    </div>
+                    <span className="font-mono text-xs tabular-nums text-muted">
                       {summary.sold + summary.unsold} / {summary.total} decided
                     </span>
                   </div>
@@ -851,11 +859,13 @@ export const ResultsPage: React.FC = () => {
                             <span className="font-syne font-bold text-sm text-text">
                               {sp.sport}
                             </span>
-                            <div className="flex items-center gap-3 font-mono tabular-nums text-muted">
+                            <div className="flex items-center gap-2.5 font-mono tabular-nums text-muted">
                               <span className="text-accent-bright font-medium">
                                 {sp.sold} sold
                               </span>
+                              <span aria-hidden="true">·</span>
                               <span>{sp.unsold} unsold</span>
+                              <span aria-hidden="true">·</span>
                               <span>{sp.remaining} left</span>
                             </div>
                           </div>
@@ -890,7 +900,7 @@ export const ResultsPage: React.FC = () => {
             </section>
 
             {/* URL-synced Filters */}
-            <section aria-label="Filter results" className={`${PUBLIC_CARD} space-y-4`}>
+            <section aria-label="Filter results" className={`${PUBLIC_CARD} p-4 sm:p-6 space-y-4`}>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <label
@@ -966,7 +976,7 @@ export const ResultsPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={clearFilters}
-                    className={`relative hit-44 ${PUBLIC_BTN_SECONDARY} h-8 px-3.5 text-xs`}
+                    className={`${PUBLIC_BTN_SECONDARY} px-4 py-2 text-xs`}
                   >
                     Reset filters
                   </button>
@@ -974,171 +984,179 @@ export const ResultsPage: React.FC = () => {
               )}
             </section>
 
-            {/* Sold So Far / Results Feed */}
+            {/* Sold So Far / Results Feed as Hairline Ledger Rows */}
             <section aria-label={feedTitle} className="space-y-4">
-              <div className="flex items-center justify-between gap-3 pb-3 border-b border-border">
-                <h2 className={PUBLIC_SECTION_TITLE}>{feedTitle}</h2>
-                <span className={PUBLIC_COUNT_PILL}>{filteredRows.length}</span>
+              <div className={PUBLIC_SECTION_HEADER}>
+                <div className="flex items-baseline gap-3">
+                  <span className={PUBLIC_FOLIO}>02</span>
+                  <h2 className={PUBLIC_SECTION_TITLE}>{feedTitle}</h2>
+                </div>
+                <span className="font-mono text-xs tabular-nums text-muted">
+                  {filteredRows.length} {filteredRows.length === 1 ? 'lot' : 'lots'}
+                </span>
               </div>
 
               {filteredRows.length === 0 ? (
-                <div className={`${PUBLIC_CARD} py-12 text-center space-y-3`}>
-                  <p className="text-sm text-muted">
-                    {summary.sold === 0 && summary.unsold === 0
+                <EmptyState
+                  icon={Gavel}
+                  statusLabel={
+                    summary.sold === 0 && summary.unsold === 0 ? 'AWAITING LOT' : 'NO RECORDS'
+                  }
+                  title={
+                    summary.sold === 0 && summary.unsold === 0
+                      ? 'Auction Has Not Begun'
+                      : 'No Matching Lots'
+                  }
+                  description={
+                    summary.sold === 0 && summary.unsold === 0
                       ? 'Results will appear here once the auction begins.'
-                      : 'No players match the selected filters.'}
-                  </p>
-                  {hasActiveFilters && (
-                    <button
-                      type="button"
-                      onClick={clearFilters}
-                      className={`relative hit-44 ${PUBLIC_BTN_SECONDARY} h-9 px-4 text-xs`}
-                    >
-                      Reset filters
-                    </button>
-                  )}
-                </div>
+                      : 'No players match the selected filters.'
+                  }
+                  actionLabel={hasActiveFilters ? 'Reset filters' : undefined}
+                  onAction={hasActiveFilters ? clearFilters : undefined}
+                />
               ) : (
-                <div className="space-y-3">
-                  {visibleRows.map((row: PublicResultRow) => {
-                    const code = formatAthleteCode(row.athlete_code)
-                    const profilePath = `/players/${code}`
-                    const validTeamColor = getValidTeamColor(row.team_color)
-                    const isSold = row.status === 'sold'
+                <div>
+                  <div className="divide-y divide-border border-b border-border">
+                    {visibleRows.map((row: PublicResultRow) => {
+                      const code = formatAthleteCode(row.athlete_code)
+                      const profilePath = `/players/${code}`
+                      const validTeamColor = getValidTeamColor(row.team_color)
+                      const isSold = row.status === 'sold'
 
-                    return (
-                      <Link
-                        key={row.player_id}
-                        to={profilePath}
-                        onMouseEnter={() => prefetchRoute(profilePath)}
-                        onFocus={() => prefetchRoute(profilePath)}
-                        onTouchStart={() => prefetchRoute(profilePath)}
-                        style={
-                          isSold && validTeamColor
-                            ? ({ '--team-color': validTeamColor } as React.CSSProperties)
-                            : undefined
-                        }
-                        className={`group min-h-[84px] px-4 sm:px-5 py-3.5 sm:py-4 rounded-3xl bg-surface border-[1.5px] border-solid transition-colors flex items-center justify-between gap-3 sm:gap-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright ${
-                          isSold
-                            ? validTeamColor
-                              ? 'border-[color:color-mix(in_srgb,var(--team-color)_65%,transparent)] hover:border-[color:var(--team-color)]'
-                              : 'border-[color:color-mix(in_srgb,var(--accent-bright)_65%,transparent)] hover:border-accent-bright'
-                            : 'border-border hover:border-accent-bright'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                          <ResultThumbnail src={row.photo_thumb_url} name={row.name} />
+                      return (
+                        <Link
+                          key={row.player_id}
+                          to={profilePath}
+                          onMouseEnter={() => prefetchRoute(profilePath)}
+                          onFocus={() => prefetchRoute(profilePath)}
+                          onTouchStart={() => prefetchRoute(profilePath)}
+                          className="pub-ledger-row group min-h-[80px] px-3 sm:px-4 py-3.5 sm:py-4 rounded-2xl flex items-center justify-between gap-3 sm:gap-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                        >
+                          <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                            <ResultThumbnail src={row.photo_thumb_url} name={row.name} />
 
-                          <div className="min-w-0 flex-1">
-                            <span className="font-mono text-[11px] tracking-wider text-accent-bright block uppercase font-semibold tabular-nums mb-0.5">
-                              #{code}
-                            </span>
-
-                            <div className="font-syne font-bold text-base text-text group-hover:text-accent-bright transition-colors truncate">
-                              {row.name}
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
-                              {row.playing_role && (
-                                <span className="font-syne font-bold text-sm text-text truncate">
-                                  {row.playing_role}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <span className="font-mono text-[11px] tracking-[0.12em] text-accent-bright uppercase font-semibold tabular-nums">
+                                  #{code}
                                 </span>
-                              )}
-                              {selectedSport === 'all' && row.sport && (
-                                <>
+                                {selectedSport === 'all' && row.sport && (
+                                  <>
+                                    <span aria-hidden="true" className="text-muted/50 text-xs">
+                                      ·
+                                    </span>
+                                    <span className="text-xs text-muted truncate">{row.sport}</span>
+                                  </>
+                                )}
+                              </div>
+
+                              <div className="font-syne font-bold text-base text-text group-hover:text-accent-bright transition-colors truncate">
+                                {row.name}
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted mt-0.5">
+                                {row.playing_role && (
+                                  <span className="text-text/85 truncate">{row.playing_role}</span>
+                                )}
+                                {/* Mobile team / status inline */}
+                                <span className="sm:hidden inline-flex items-center gap-1.5 min-w-0">
                                   {row.playing_role && (
-                                    <span className="text-xs text-muted">·</span>
+                                    <span aria-hidden="true" className="text-muted/50">
+                                      ·
+                                    </span>
                                   )}
-                                  <span className="text-xs text-muted">{row.sport}</span>
-                                </>
-                              )}
-                            </div>
-
-                            {/* Mobile team chip / status */}
-                            <div className="mt-1.5 sm:hidden">
-                              {isSold && row.team_name ? (
-                                <span
-                                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium border bg-bg text-text max-w-full"
-                                  style={{
-                                    borderColor: validTeamColor || 'var(--accent-bright)'
-                                  }}
-                                >
-                                  <span className="truncate">{row.team_name}</span>
+                                  {isSold && row.team_name ? (
+                                    <>
+                                      <span
+                                        aria-hidden="true"
+                                        className="w-2 h-2 rounded-full shrink-0"
+                                        style={{
+                                          backgroundColor: validTeamColor || 'var(--accent-bright)'
+                                        }}
+                                      />
+                                      <span className="text-text font-medium truncate">
+                                        {row.team_name}
+                                      </span>
+                                    </>
+                                  ) : row.status === 'unsold' ? (
+                                    <>
+                                      <span
+                                        aria-hidden="true"
+                                        className="w-1.5 h-1.5 rounded-full shrink-0 bg-muted"
+                                      />
+                                      <span>Unsold</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span
+                                        aria-hidden="true"
+                                        className="w-1.5 h-1.5 rounded-full shrink-0 bg-accent-bright"
+                                      />
+                                      <span>Remaining</span>
+                                    </>
+                                  )}
                                 </span>
-                              ) : row.status === 'unsold' ? (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-surface-2 border border-border text-muted">
-                                  <span
-                                    aria-hidden="true"
-                                    className="w-2 h-2 rounded-full shrink-0 bg-muted"
-                                  />
-                                  <span>Unsold</span>
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-surface-2 border border-border text-muted">
-                                  <span
-                                    aria-hidden="true"
-                                    className="w-2 h-2 rounded-full shrink-0 bg-accent-bright"
-                                  />
-                                  <span>Remaining</span>
-                                </span>
-                              )}
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        {/* Desktop team chip / status */}
-                        <div className="hidden sm:flex items-center shrink-0">
-                          {isSold && row.team_name ? (
-                            <span
-                              className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border bg-bg text-text max-w-[200px]"
-                              style={{
-                                borderColor: validTeamColor || 'var(--accent-bright)'
-                              }}
-                            >
-                              <span className="truncate">{row.team_name}</span>
-                            </span>
-                          ) : row.status === 'unsold' ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-surface-2 border border-border text-muted">
-                              <span
-                                aria-hidden="true"
-                                className="w-2 h-2 rounded-full shrink-0 bg-muted"
-                              />
-                              <span>Unsold</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-surface-2 border border-border text-muted">
-                              <span
-                                aria-hidden="true"
-                                className="w-2 h-2 rounded-full shrink-0 bg-accent-bright"
-                              />
-                              <span>Remaining</span>
-                            </span>
-                          )}
-                        </div>
+                          {/* Desktop unboxed team / status */}
+                          <div className="hidden sm:flex items-center shrink-0 max-w-[210px]">
+                            {isSold && row.team_name ? (
+                              <span className="inline-flex items-center gap-2 text-xs font-medium text-text truncate">
+                                <span
+                                  aria-hidden="true"
+                                  className="w-2 h-2 rounded-full shrink-0"
+                                  style={{
+                                    backgroundColor: validTeamColor || 'var(--accent-bright)'
+                                  }}
+                                />
+                                <span className="truncate">{row.team_name}</span>
+                              </span>
+                            ) : row.status === 'unsold' ? (
+                              <span className="inline-flex items-center gap-1.5 font-mono text-xs text-muted">
+                                <span
+                                  aria-hidden="true"
+                                  className="w-2 h-2 rounded-full shrink-0 bg-muted"
+                                />
+                                <span>Unsold</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 font-mono text-xs text-muted">
+                                <span
+                                  aria-hidden="true"
+                                  className="w-2 h-2 rounded-full shrink-0 bg-accent-bright"
+                                />
+                                <span>Remaining</span>
+                              </span>
+                            )}
+                          </div>
 
-                        {/* Price in amber mono & time ago */}
-                        <div className="text-right shrink-0 space-y-0.5 min-w-[76px]">
-                          {isSold && row.sale_price !== null ? (
-                            <div className="font-mono font-semibold text-sm sm:text-base tabular-nums text-points">
-                              {formatPoints(row.sale_price)}
-                            </div>
-                          ) : (
-                            <div className="font-mono text-xs tabular-nums text-points font-semibold">
-                              Base {formatPoints(row.base_points)}
-                            </div>
-                          )}
+                          {/* Right-aligned amber points & time ago */}
+                          <div className="text-right shrink-0 space-y-0.5 min-w-[84px]">
+                            {isSold && row.sale_price !== null ? (
+                              <div className="font-mono font-semibold text-sm sm:text-base tabular-nums text-points">
+                                {formatPoints(row.sale_price)}
+                              </div>
+                            ) : (
+                              <div className="font-mono text-xs tabular-nums text-points font-semibold">
+                                Base {formatPoints(row.base_points)}
+                              </div>
+                            )}
 
-                          {isSold && <SoldTimeAgo soldAt={row.sold_at} />}
-                        </div>
-                      </Link>
-                    )
-                  })}
+                            {isSold && <SoldTimeAgo soldAt={row.sold_at} />}
+                          </div>
+                        </Link>
+                      )
+                    })}
+                  </div>
 
                   {/* Infinite scroll sentinel & accessible fallback */}
                   {hasMore && (
                     <div
                       ref={sentinelRef}
-                      className="pt-4 flex items-center justify-center min-h-[48px]"
+                      className="pt-5 flex items-center justify-center min-h-[48px]"
                     >
                       <button
                         type="button"
@@ -1147,7 +1165,7 @@ export const ResultsPage: React.FC = () => {
                             Math.min(prev + FEED_PAGE_SIZE, filteredRows.length)
                           )
                         }
-                        className={`${PUBLIC_BTN_SECONDARY} h-9 px-5 text-xs`}
+                        className={`${PUBLIC_BTN_SECONDARY} px-5 py-2 text-xs`}
                       >
                         Load more ({filteredRows.length - visibleCount} remaining)
                       </button>
@@ -1161,17 +1179,15 @@ export const ResultsPage: React.FC = () => {
             {auctionStats && (
               <section
                 aria-label="Auction stats"
-                className="pt-8 border-t border-border space-y-6"
+                className="pt-10 border-t border-border space-y-6"
               >
-                <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-5 border-b border-border">
+                <div className="pub-rule flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-5">
                   <div className="space-y-1">
-                    <span className="block text-[11px] font-mono uppercase tracking-[0.16em] text-accent-bright font-semibold">
-                      SEASON ANALYTICS
-                    </span>
+                    <span className={PUBLIC_KICKER}>SEASON ANALYTICS</span>
                     <h2 className="font-syne font-extrabold text-2xl sm:text-3xl tracking-tight text-text">
                       Auction stats
                     </h2>
-                    <p className="text-xs text-muted">
+                    <p className="font-mono text-xs tabular-nums text-muted">
                       Computed live from {auctionStats.soldCount}{' '}
                       {auctionStats.soldCount === 1 ? 'sale' : 'sales'} this season
                     </p>
@@ -1181,26 +1197,28 @@ export const ResultsPage: React.FC = () => {
                     type="button"
                     onClick={() => void handleShareResults()}
                     disabled={isSharingResults}
-                    className={`${PUBLIC_BTN_PRIMARY} h-10 px-5 text-xs sm:text-sm whitespace-nowrap shrink-0 self-start sm:self-auto`}
+                    className={`${PUBLIC_BTN_PRIMARY} px-5 py-2.5 text-xs sm:text-sm whitespace-nowrap shrink-0 self-start sm:self-auto`}
                   >
                     <ShareNetwork size={15} weight="regular" />
                     <span>{isSharingResults ? 'Generating...' : 'Share results'}</span>
                   </button>
                 </div>
 
-                {/* Card 1: Total points spent */}
-                <div className={`${PUBLIC_CARD} flex flex-col sm:flex-row sm:items-end justify-between gap-5`}>
+                {/* Card 1 (Featured): Total points spent with corner registration ticks */}
+                <div
+                  className={`${PUBLIC_CARD} pub-corner-ticks flex flex-col sm:flex-row sm:items-end justify-between gap-6`}
+                >
                   <div className="space-y-1.5">
-                    <span className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-muted block">
-                      Total points spent
+                    <span className="font-dot text-[11px] uppercase tracking-[0.18em] text-muted block">
+                      TOTAL POINTS SPENT
                     </span>
                     <div className="font-mono font-bold text-3xl sm:text-5xl tabular-nums text-points tracking-tight">
                       {formatPoints(auctionStats.totalSpent)}
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-4 sm:gap-6 pt-4 sm:pt-0 border-t sm:border-t-0 border-border">
-                    <div>
+                  <div className="grid grid-cols-3 divide-x divide-border pt-4 sm:pt-0 border-t sm:border-t-0 border-border">
+                    <div className="pr-4 sm:pr-6">
                       <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted block">
                         Sales
                       </span>
@@ -1208,7 +1226,7 @@ export const ResultsPage: React.FC = () => {
                         {auctionStats.soldCount}
                       </span>
                     </div>
-                    <div>
+                    <div className="px-4 sm:px-6">
                       <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted block">
                         Avg price
                       </span>
@@ -1216,7 +1234,7 @@ export const ResultsPage: React.FC = () => {
                         {formatPoints(Math.round(auctionStats.averagePrice))}
                       </span>
                     </div>
-                    <div>
+                    <div className="pl-4 sm:pl-6">
                       <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted block">
                         Top buy
                       </span>
@@ -1231,9 +1249,14 @@ export const ResultsPage: React.FC = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
                   {/* Card 2: Most expensive buys (top 5) */}
                   <div className={`${PUBLIC_CARD} space-y-4`}>
-                    <div className="flex items-center justify-between gap-2 pb-3.5 border-b border-border">
-                      <h3 className={PUBLIC_SECTION_TITLE}>Most expensive buys</h3>
-                      <span className={PUBLIC_COUNT_PILL}>Top {auctionStats.mostExpensive.length}</span>
+                    <div className={PUBLIC_SECTION_HEADER}>
+                      <div className="flex items-baseline gap-2.5">
+                        <span className={PUBLIC_FOLIO}>01</span>
+                        <h3 className={PUBLIC_SECTION_TITLE}>Most expensive buys</h3>
+                      </div>
+                      <span className="font-mono text-xs tabular-nums text-muted">
+                        Top {auctionStats.mostExpensive.length}
+                      </span>
                     </div>
 
                     <div className="divide-y divide-border">
@@ -1248,7 +1271,7 @@ export const ResultsPage: React.FC = () => {
                             to={profilePath}
                             onMouseEnter={() => prefetchRoute(profilePath)}
                             onFocus={() => prefetchRoute(profilePath)}
-                            className="group py-3 first:pt-1 last:pb-1 flex items-center justify-between gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright rounded-xl"
+                            className="pub-ledger-row group py-3 px-2 -mx-2 rounded-2xl flex items-center justify-between gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
                           >
                             <div className="flex items-center gap-3 min-w-0 flex-1">
                               <span className="font-mono text-xs tabular-nums text-muted w-5 shrink-0">
@@ -1259,15 +1282,22 @@ export const ResultsPage: React.FC = () => {
                                 <div className="font-syne font-bold text-sm sm:text-base text-text group-hover:text-accent-bright transition-colors truncate">
                                   {row.name}
                                 </div>
-                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted mt-1">
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted mt-0.5">
                                   {row.team_name && (
-                                    <span
-                                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border bg-bg text-text max-w-full"
-                                      style={{
-                                        borderColor: validColor || 'var(--accent-bright)'
-                                      }}
-                                    >
+                                    <span className="inline-flex items-center gap-1.5 text-text/90 max-w-full">
+                                      <span
+                                        aria-hidden="true"
+                                        className="w-2 h-2 rounded-full shrink-0"
+                                        style={{
+                                          backgroundColor: validColor || 'var(--accent-bright)'
+                                        }}
+                                      />
                                       <span className="truncate">{row.team_name}</span>
+                                    </span>
+                                  )}
+                                  {row.team_name && row.playing_role && (
+                                    <span aria-hidden="true" className="text-muted/50">
+                                      ·
                                     </span>
                                   )}
                                   {row.playing_role && (
@@ -1288,9 +1318,15 @@ export const ResultsPage: React.FC = () => {
 
                   {/* Card 3: Spend per team (horizontal bars in team colours) */}
                   <div className={`${PUBLIC_CARD} space-y-4`}>
-                    <div className="flex items-center justify-between gap-2 pb-3.5 border-b border-border">
-                      <h3 className={PUBLIC_SECTION_TITLE}>Spend per team</h3>
-                      <span className={PUBLIC_COUNT_PILL}>{auctionStats.spendPerTeam.length}</span>
+                    <div className={PUBLIC_SECTION_HEADER}>
+                      <div className="flex items-baseline gap-2.5">
+                        <span className={PUBLIC_FOLIO}>02</span>
+                        <h3 className={PUBLIC_SECTION_TITLE}>Spend per team</h3>
+                      </div>
+                      <span className="font-mono text-xs tabular-nums text-muted">
+                        {auctionStats.spendPerTeam.length}{' '}
+                        {auctionStats.spendPerTeam.length === 1 ? 'team' : 'teams'}
+                      </span>
                     </div>
 
                     {auctionStats.spendPerTeam.length === 0 ? (
@@ -1353,9 +1389,12 @@ export const ResultsPage: React.FC = () => {
 
                   {/* Card 4: Biggest premium over base points (top 3) */}
                   <div className={`${PUBLIC_CARD} space-y-4`}>
-                    <div className="flex items-center justify-between gap-2 pb-3.5 border-b border-border">
-                      <h3 className={PUBLIC_SECTION_TITLE}>Biggest premium over base</h3>
-                      <span className={PUBLIC_COUNT_PILL}>
+                    <div className={PUBLIC_SECTION_HEADER}>
+                      <div className="flex items-baseline gap-2.5">
+                        <span className={PUBLIC_FOLIO}>03</span>
+                        <h3 className={PUBLIC_SECTION_TITLE}>Biggest premium over base</h3>
+                      </div>
+                      <span className="font-mono text-xs tabular-nums text-muted">
                         Top {Math.max(1, auctionStats.biggestPremium.length)}
                       </span>
                     </div>
@@ -1377,7 +1416,7 @@ export const ResultsPage: React.FC = () => {
                               to={profilePath}
                               onMouseEnter={() => prefetchRoute(profilePath)}
                               onFocus={() => prefetchRoute(profilePath)}
-                              className="group py-3 first:pt-1 last:pb-1 flex items-center justify-between gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright rounded-xl"
+                              className="pub-ledger-row group py-3 px-2 -mx-2 rounded-2xl flex items-center justify-between gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
                             >
                               <div className="flex items-center gap-3 min-w-0 flex-1">
                                 <span className="font-mono text-xs tabular-nums text-muted w-5 shrink-0">
@@ -1387,15 +1426,22 @@ export const ResultsPage: React.FC = () => {
                                   <div className="font-syne font-bold text-sm sm:text-base text-text group-hover:text-accent-bright transition-colors truncate">
                                     {item.row.name}
                                   </div>
-                                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted mt-1">
+                                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted mt-0.5">
                                     {item.row.team_name && (
-                                      <span
-                                        className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border bg-bg text-text max-w-full"
-                                        style={{
-                                          borderColor: validColor || 'var(--accent-bright)'
-                                        }}
-                                      >
+                                      <span className="inline-flex items-center gap-1.5 text-text/90 max-w-full">
+                                        <span
+                                          aria-hidden="true"
+                                          className="w-2 h-2 rounded-full shrink-0"
+                                          style={{
+                                            backgroundColor: validColor || 'var(--accent-bright)'
+                                          }}
+                                        />
                                         <span className="truncate">{item.row.team_name}</span>
+                                      </span>
+                                    )}
+                                    {item.row.team_name && (
+                                      <span aria-hidden="true" className="text-muted/50">
+                                        ·
                                       </span>
                                     )}
                                     <span className="font-mono text-[11px] tabular-nums">
@@ -1424,8 +1470,11 @@ export const ResultsPage: React.FC = () => {
 
                   {/* Card 5: Sold versus unsold per sport */}
                   <div className={`${PUBLIC_CARD} space-y-4`}>
-                    <div className="flex flex-wrap items-center justify-between gap-2 pb-3.5 border-b border-border">
-                      <h3 className={PUBLIC_SECTION_TITLE}>Sold vs unsold by sport</h3>
+                    <div className={PUBLIC_SECTION_HEADER}>
+                      <div className="flex items-baseline gap-2.5">
+                        <span className={PUBLIC_FOLIO}>04</span>
+                        <h3 className={PUBLIC_SECTION_TITLE}>Sold vs unsold by sport</h3>
+                      </div>
                       <div className="flex items-center gap-3 text-[11px] font-mono text-muted">
                         <span className="inline-flex items-center gap-1.5">
                           <span
@@ -1455,10 +1504,11 @@ export const ResultsPage: React.FC = () => {
                           <div key={sp.sport} className="space-y-1.5">
                             <div className="flex items-baseline justify-between gap-2 text-xs">
                               <span className="font-medium text-text">{sp.sport}</span>
-                              <div className="flex items-center gap-2.5 font-mono tabular-nums text-muted">
+                              <div className="flex items-center gap-2 font-mono tabular-nums text-muted">
                                 <span className="text-accent-bright font-medium">
                                   {sp.sold} sold
                                 </span>
+                                <span aria-hidden="true">·</span>
                                 <span>{sp.unsold} unsold</span>
                                 {decided > 0 && (
                                   <span className="text-[11px]">({soldRate}%)</span>
@@ -1510,8 +1560,11 @@ export const ResultsPage: React.FC = () => {
 
                 {/* Card 6: Average price by sport and by role (small bars, sage palette) */}
                 <div className={`${PUBLIC_CARD} space-y-5`}>
-                  <div className="pb-3.5 border-b border-border">
-                    <h3 className={PUBLIC_SECTION_TITLE}>Average price by sport and role</h3>
+                  <div className={PUBLIC_SECTION_HEADER}>
+                    <div className="flex items-baseline gap-2.5">
+                      <span className={PUBLIC_FOLIO}>05</span>
+                      <h3 className={PUBLIC_SECTION_TITLE}>Average price by sport and role</h3>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

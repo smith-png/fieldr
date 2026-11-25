@@ -85,21 +85,21 @@ export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({
         ref={modalRef}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="frost-deep border border-border rounded-3xl max-w-md lg:max-w-[920px] w-full max-h-[90dvh] lg:max-h-[88dvh] overflow-y-auto lg:overflow-hidden shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 motion-reduce:animate-none outline-none flex flex-col lg:flex-row"
+        className="frost-deep border border-border rounded-2xl max-w-md lg:max-w-[920px] w-full max-h-[90dvh] lg:max-h-[88dvh] overflow-y-auto lg:overflow-hidden shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 motion-reduce:animate-none outline-none flex flex-col lg:flex-row"
       >
         {/* Close Button */}
         <button
           type="button"
           onClick={onClose}
           aria-label="Close modal"
-          className="hit-44 frost absolute top-5 right-5 z-20 w-9 h-9 rounded-full border border-border flex items-center justify-center text-text hover:opacity-80 transition-opacity duration-150 motion-reduce:transition-none cursor-pointer"
+          className="hit-44 frost absolute top-5 right-5 z-20 w-9 h-9 rounded-full border border-border flex items-center justify-center text-text hover:opacity-80 active:scale-[0.985] transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 cursor-pointer"
         >
           <X size={16} weight="regular" />
         </button>
 
-        {/* Inset Photo Column */}
+        {/* Inset Photo Column with featured corner registration ticks */}
         <div className="p-4 lg:w-[45%] lg:shrink-0 flex flex-col">
-          <div className="relative w-full h-72 sm:h-80 lg:h-full lg:min-h-[440px] rounded-2xl bg-surface-2 flex items-center justify-center overflow-hidden border border-border">
+          <div className="pub-corner-ticks pub-corner-ticks-media relative w-full h-72 sm:h-80 lg:h-full lg:min-h-[440px] rounded-2xl bg-surface-2 flex items-center justify-center overflow-hidden border border-border">
             {primaryPhotoSrc ? (
               <>
                 <PhotoPlaceholder />
@@ -148,7 +148,7 @@ export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({
               </div>
             )}
 
-            <div className="frost absolute top-3 left-3 z-20 border border-border rounded-full px-3 py-1 text-xs font-mono text-text font-semibold tabular-nums">
+            <div className="frost absolute top-4 left-4 z-20 border border-border rounded-full px-3 py-1 text-xs font-mono text-text font-semibold tabular-nums">
               #{formattedCode}
             </div>
           </div>
@@ -157,6 +157,9 @@ export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({
         {/* Details Column */}
         <div className="flex-1 flex flex-col min-h-0 lg:overflow-y-auto thin-scrollbar px-6 pt-2 pb-6 lg:p-8 lg:pl-4">
           <div className="mb-5 lg:pr-10">
+            <span className="block font-dot text-[11px] uppercase tracking-[0.18em] text-accent-bright mb-1.5">
+              SCOUT DOSSIER
+            </span>
             <h2 className="font-syne font-extrabold text-text tracking-tight text-balance break-words leading-[1.08] text-[clamp(1.625rem,4.5vw,2.25rem)]">
               {displayName}
             </h2>
@@ -170,20 +173,24 @@ export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3 py-4 border-y border-border text-xs">
-            <div className="rounded-2xl bg-bg/70 border border-border px-3.5 py-3">
-              <span className="text-muted block mb-0.5">Academic Year</span>
-              <span className="text-text font-medium">{player.academic_year} Year</span>
+          <div className="grid grid-cols-2 divide-x divide-border border-y border-border py-4 text-xs">
+            <div className="pr-4">
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted block mb-1">
+                Academic Year
+              </span>
+              <span className="text-sm text-text font-medium">{player.academic_year} Year</span>
             </div>
-            <div className="rounded-2xl bg-bg/70 border border-border px-3.5 py-3">
-              <span className="text-muted block mb-0.5">Sport</span>
-              <span className="text-text font-medium">{player.sport}</span>
+            <div className="pl-4">
+              <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted block mb-1">
+                Sport
+              </span>
+              <span className="text-sm text-text font-medium">{player.sport}</span>
             </div>
           </div>
 
           <div className="mt-6 lg:mt-auto pt-4 flex flex-col gap-3.5">
             {team || player.status === 'sold' ? (
-              <span className="frost self-start inline-flex items-center gap-2 border border-border rounded-full px-3.5 py-1.5 text-xs font-medium text-text">
+              <span className="self-start inline-flex items-center gap-2 text-xs font-medium text-text">
                 <span
                   aria-hidden="true"
                   className="w-2 h-2 rounded-full shrink-0"
@@ -192,7 +199,7 @@ export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({
                 <span>{team ? team.name : 'Drafted'}</span>
               </span>
             ) : (
-              <span className="frost self-start inline-flex items-center gap-2 border border-border rounded-full px-3.5 py-1.5 text-xs font-medium text-text">
+              <span className="self-start inline-flex items-center gap-2 text-xs font-medium text-text">
                 <span
                   aria-hidden="true"
                   className="w-2 h-2 rounded-full shrink-0 bg-accent-bright"
@@ -203,7 +210,7 @@ export const RosterScoutModal: React.FC<RosterScoutModalProps> = ({
 
             <Link
               to={profileHref}
-              className="group w-full h-12 rounded-full bg-btn-bg text-btn-fg hover:opacity-90 active:scale-[0.99] transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 flex items-center justify-between pl-6 pr-2 font-sans font-medium text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+              className="group w-full min-h-[48px] rounded-full bg-btn-bg text-btn-fg hover:opacity-90 active:scale-[0.985] transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 flex items-center justify-between pl-6 pr-2 font-sans font-medium text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
             >
               <span>View full profile</span>
               <span

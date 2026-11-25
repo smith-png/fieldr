@@ -11,7 +11,19 @@ export const PUBLIC_MAIN_NARROW =
   'flex-1 max-w-4xl mx-auto w-full px-6 md:px-16 lg:px-24 pt-10 sm:pt-14 pb-20 min-w-0'
 
 export const PUBLIC_PAGE_HEADER =
-  'flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-5 border-b border-border mb-8'
+  'pub-rule pub-enter flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-5 mb-8'
+
+export const PUBLIC_SECTION_HEADER =
+  'pub-rule flex flex-wrap items-baseline justify-between gap-3 pb-3.5'
+
+export const PUBLIC_KICKER =
+  'block font-dot text-[11px] sm:text-xs uppercase tracking-[0.18em] text-accent-bright mb-1.5'
+
+export const PUBLIC_FOLIO =
+  'font-mono text-xs tabular-nums text-muted select-none shrink-0'
+
+export const PUBLIC_META_ROW =
+  'flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-xs tabular-nums text-muted'
 
 export const PUBLIC_PAGE_TITLE =
   'font-syne font-extrabold text-3xl sm:text-4xl tracking-tight text-text break-words'
@@ -20,12 +32,12 @@ export const PUBLIC_SECTION_TITLE =
   'font-syne font-bold text-xl text-text tracking-tight'
 
 export const PUBLIC_CARD =
-  'bg-surface border border-border rounded-3xl p-6 sm:p-8 min-w-0'
+  'bg-surface border border-border rounded-2xl p-6 sm:p-8 min-w-0'
 
 export const PUBLIC_WELL = 'bg-bg border border-border rounded-2xl'
 
 export const PUBLIC_BACK_LINK =
-  'inline-flex items-center gap-2 px-3.5 py-2 rounded-full bg-surface border border-border text-xs font-medium text-muted hover:text-text hover:border-accent-bright/40 transition-colors'
+  'inline-flex items-center gap-2 min-h-[44px] px-3.5 py-2 rounded-full bg-surface border border-border text-xs font-medium text-muted hover:text-text hover:border-accent-bright/50 active:scale-[0.985] transition-[color,border-color,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright'
 
 export const PUBLIC_LABEL = 'block text-sm font-medium text-text mb-2'
 
@@ -41,10 +53,10 @@ export const PUBLIC_COUNT_PILL =
   'inline-flex items-center justify-center min-w-[28px] h-7 px-3 rounded-full bg-surface-2 border border-border text-xs font-mono tabular-nums text-muted shrink-0'
 
 export const PUBLIC_BTN_PRIMARY =
-  'inline-flex items-center justify-center gap-2 rounded-full bg-btn-bg text-btn-fg font-medium hover:opacity-90 active:scale-[0.98] transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 disabled:opacity-50 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright'
+  'inline-flex items-center justify-center gap-2 min-h-[44px] rounded-full bg-btn-bg text-btn-fg font-medium hover:opacity-90 active:scale-[0.985] transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 disabled:opacity-50 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright'
 
 export const PUBLIC_BTN_SECONDARY =
-  'inline-flex items-center justify-center gap-2 rounded-full bg-surface-2 border border-border text-text font-medium hover:bg-surface transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright'
+  'inline-flex items-center justify-center gap-2 min-h-[44px] rounded-full bg-surface-2 border border-border text-text font-medium hover:bg-surface hover:border-accent-bright/50 active:scale-[0.985] transition-[background-color,border-color,color,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright'
 
 export const PUBLIC_ERROR_BANNER =
   'p-3.5 rounded-2xl bg-error/10 border border-error/40 flex items-center gap-2.5 text-xs text-text'

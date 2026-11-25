@@ -35,7 +35,7 @@ const SportCard: React.FC<SportCardProps> = ({ slug, label, index, count, counts
       style={{ ['--sa-base' as string]: `${delay}s` } as React.CSSProperties}
       className={`sa-card ${
         seen ? 'sa-card-play' : ''
-      } group relative flex flex-col justify-between bg-surface dark:bg-[#0a0a0c] border border-border rounded-2xl p-4 md:p-7 hover:border-accent-bright transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright overflow-hidden`}
+      } pub-card-lift group relative flex flex-col justify-between bg-surface border border-border rounded-2xl p-4 md:p-7 hover:border-accent-bright focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright overflow-hidden`}
     >
       {/* Illustration + themed bottom gradient for legible text */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
@@ -44,11 +44,15 @@ const SportCard: React.FC<SportCardProps> = ({ slug, label, index, count, counts
       </div>
 
       <div className="flex items-center justify-between gap-4 z-10">
-        <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-surface/80 dark:bg-black/45 border border-border dark:border-white/15 font-mono text-xs font-medium text-text dark:text-zinc-200 tabular-nums">
+        <span className="font-mono text-xs font-medium tracking-[0.14em] text-text dark:text-on-media tabular-nums">
           {indexLabel}
         </span>
-        <div className="w-9 h-9 rounded-full bg-surface/80 dark:bg-black/45 border border-border dark:border-white/15 flex items-center justify-center text-text dark:text-zinc-200 group-hover:text-accent-bright dark:group-hover:text-white group-hover:border-accent-bright transition-colors shrink-0">
-          <ArrowUpRight size={18} weight="bold" />
+        <div className="w-9 h-9 rounded-full bg-surface/80 dark:bg-bg/55 border border-border flex items-center justify-center text-text dark:text-on-media group-hover:text-accent-bright dark:group-hover:text-on-media group-hover:border-accent-bright transition-colors shrink-0">
+          <ArrowUpRight
+            size={17}
+            weight="bold"
+            className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform duration-150 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0 motion-reduce:group-hover:translate-y-0"
+          />
         </div>
       </div>
 
@@ -56,15 +60,17 @@ const SportCard: React.FC<SportCardProps> = ({ slug, label, index, count, counts
       <div aria-hidden="true" className="h-16 md:my-4 md:h-40 pointer-events-none" />
 
       <div className="relative z-10">
-        <div className="sa-line absolute top-0 left-0 right-0 h-px bg-text/15 dark:bg-white/15" />
+        <div className="sa-line absolute top-0 left-0 right-0 h-px bg-text/15 dark:bg-on-media/20" />
         <div className="pt-3 md:pt-4 flex items-baseline justify-between gap-4 min-h-[2.75rem] md:min-h-[3rem]">
-          <h3 className="sa-text font-syne font-bold text-xl md:text-2xl text-text dark:text-white group-hover:text-accent-bright transition-colors tracking-tight">
+          <h3 className="sa-text font-syne font-bold text-xl md:text-2xl text-text dark:text-on-media group-hover:text-accent-bright transition-colors tracking-tight">
             {label}
           </h3>
           {countsLoaded && (
             <div className="sa-text flex items-baseline gap-1.5 shrink-0">
-              <span className="font-mono font-semibold text-sm text-text dark:text-white tabular-nums">{count}</span>
-              <span className="font-sans text-xs text-muted dark:text-zinc-300">athletes</span>
+              <span className="font-mono font-semibold text-sm text-text dark:text-on-media tabular-nums">
+                {count}
+              </span>
+              <span className="font-sans text-xs text-muted dark:text-on-media/75">athletes</span>
             </div>
           )}
         </div>
@@ -82,14 +88,20 @@ export const SportCardsGrid: React.FC<SportCardsGridProps> = ({
       id="rosters-section"
       className="w-full max-w-7xl mx-auto px-6 md:px-16 lg:px-24 py-16 md:py-24"
     >
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-10 pb-5 border-b border-border/60">
+      <div className="pub-rule flex flex-col md:flex-row md:items-end justify-between gap-4 mb-10 pb-5">
         <div>
-          <span className="font-sans text-[11px] sm:text-xs font-medium uppercase tracking-[0.2em] text-accent block mb-2">
+          <span className="block font-dot text-[11px] sm:text-xs uppercase tracking-[0.18em] text-accent-bright mb-1.5">
             TOURNAMENT SQUADS
           </span>
-          <h2 className="font-syne font-extrabold text-3xl sm:text-4xl text-text tracking-tight">
-            Explore
-          </h2>
+          <div className="flex items-baseline gap-3">
+            <span className="font-mono text-xs tabular-nums text-muted select-none">01</span>
+            <h2 className="font-syne font-extrabold text-3xl sm:text-4xl text-text tracking-tight">
+              Explore
+            </h2>
+          </div>
+        </div>
+        <div className="font-mono text-xs tabular-nums text-muted">
+          {String(SPORTS.length).padStart(2, '0')} sports
         </div>
       </div>
 

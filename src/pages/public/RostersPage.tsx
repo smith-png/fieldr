@@ -7,8 +7,10 @@ import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
 import { SportArt, useInViewOnce } from '../../components/home/SportArt'
 import {
-  PUBLIC_COUNT_PILL,
+  PUBLIC_FOLIO,
+  PUBLIC_KICKER,
   PUBLIC_MAIN,
+  PUBLIC_META_ROW,
   PUBLIC_PAGE_HEADER,
   PUBLIC_PAGE_SHELL,
   PUBLIC_PAGE_TITLE
@@ -43,6 +45,7 @@ interface RosterSportCardProps {
 const RosterSportCard: React.FC<RosterSportCardProps> = ({ slug, label, index, count }) => {
   const [ref, seen] = useInViewOnce<HTMLAnchorElement>(0.3)
   const delay = index * 0.12
+  const indexLabel = String(index + 1).padStart(2, '0')
 
   return (
     <Link
@@ -54,7 +57,7 @@ const RosterSportCard: React.FC<RosterSportCardProps> = ({ slug, label, index, c
       style={{ ['--sa-base' as string]: `${delay}s` } as React.CSSProperties}
       className={`sa-card ${
         seen ? 'sa-card-play' : ''
-      } group bg-surface border border-border hover:border-accent-bright rounded-3xl p-3 sm:p-5 flex flex-col gap-3 sm:gap-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright min-w-0`}
+      } pub-card-lift group bg-surface border border-border hover:border-accent-bright rounded-2xl p-3 sm:p-5 flex flex-col gap-3 sm:gap-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright min-w-0`}
     >
       <div className="relative w-full aspect-[16/7] sm:aspect-[16/10] rounded-2xl overflow-hidden bg-surface-2 border border-border">
         <SportArt slug={slug} play={seen} delay={delay} className="w-full h-full block" />
@@ -62,19 +65,26 @@ const RosterSportCard: React.FC<RosterSportCardProps> = ({ slug, label, index, c
 
       <div className="flex items-center justify-between gap-3 px-1">
         <div className="min-w-0">
-          <h2 className="sa-text font-syne font-bold text-lg sm:text-xl text-text group-hover:text-accent-bright transition-colors tracking-tight truncate">
-            {label}
-          </h2>
-          <span className="sa-text block text-xs font-mono text-muted tabular-nums">
+          <div className="sa-text flex items-baseline gap-2.5">
+            <span className={PUBLIC_FOLIO}>{indexLabel}</span>
+            <h2 className="font-syne font-bold text-lg sm:text-xl text-text group-hover:text-accent-bright transition-colors tracking-tight truncate">
+              {label}
+            </h2>
+          </div>
+          <span className="sa-text block text-xs font-mono text-muted tabular-nums mt-0.5 pl-6">
             {count} {count === 1 ? 'athlete' : 'athletes'}
           </span>
         </div>
 
         <span
           aria-hidden="true"
-          className="w-9 h-9 rounded-full bg-surface-2 border border-border flex items-center justify-center text-muted group-hover:text-accent-bright group-hover:border-accent-bright/40 transition-colors shrink-0"
+          className="w-9 h-9 rounded-full bg-surface-2 border border-border flex items-center justify-center text-muted group-hover:text-accent-bright group-hover:border-accent-bright/50 transition-colors shrink-0"
         >
-          <ArrowUpRight size={17} weight="regular" />
+          <ArrowUpRight
+            size={17}
+            weight="regular"
+            className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform duration-150 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0 motion-reduce:group-hover:translate-y-0"
+          />
         </span>
       </div>
     </Link>
@@ -163,10 +173,19 @@ export const RostersPage: React.FC = () => {
 
       <main className={PUBLIC_MAIN}>
         <header className={PUBLIC_PAGE_HEADER}>
-          <h1 className={PUBLIC_PAGE_TITLE}>Official Rosters</h1>
-          {activeSeason?.name && (
-            <span className={PUBLIC_COUNT_PILL}>{activeSeason.name}</span>
-          )}
+          <div className="min-w-0">
+            <span className={PUBLIC_KICKER}>TOURNAMENT SQUADS</span>
+            <h1 className={PUBLIC_PAGE_TITLE}>Official Rosters</h1>
+          </div>
+          <div className={PUBLIC_META_ROW}>
+            {activeSeason?.name && (
+              <>
+                <span className="text-text font-medium">{activeSeason.name}</span>
+                <span aria-hidden="true">·</span>
+              </>
+            )}
+            <span>{SPORTS.length} sports</span>
+          </div>
         </header>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">

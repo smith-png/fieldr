@@ -7,10 +7,10 @@ import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
 import {
   PUBLIC_BACK_LINK,
-  PUBLIC_BTN_PRIMARY,
   PUBLIC_CARD,
-  PUBLIC_COUNT_PILL,
+  PUBLIC_KICKER,
   PUBLIC_MAIN,
+  PUBLIC_META_ROW,
   PUBLIC_PAGE_HEADER,
   PUBLIC_PAGE_SHELL,
   PUBLIC_PAGE_TITLE,
@@ -18,7 +18,7 @@ import {
   PUBLIC_PILL_BAR_OUTER
 } from '../../components/public/publicStyles'
 import { RosterPlayerCard, RosterScoutModal } from '../../components/roster'
-import { SkeletonCard } from '../../components/ui'
+import { EmptyState, SkeletonCard } from '../../components/ui'
 import { getActiveSeason } from '../../lib/data/seasons'
 import { getPublicPlayersPaged } from '../../lib/data/players'
 import { getPublicTeams, getRolesForSport, getSports } from '../../lib/data/teams'
@@ -423,23 +423,22 @@ export const RosterSportPage: React.FC = () => {
         />
 
         <main className={`${PUBLIC_MAIN} flex items-center justify-center`}>
-          <div className={`${PUBLIC_CARD} max-w-md w-full text-center space-y-4`}>
-            <h1 className="font-syne font-extrabold text-2xl sm:text-3xl text-text tracking-tight">
-              Sport Not Found
-            </h1>
-            <p className="text-sm text-muted leading-relaxed">
-              No roster was found for &ldquo;{sport}&rdquo;.
-            </p>
-            <div className="pt-2">
+          <EmptyState
+            icon={Funnel}
+            statusLabel="NO RECORDS"
+            title="Sport Not Found"
+            description={`No roster was found for "${sport}".`}
+            action={
               <Link
                 to="/rosters"
-                className={`${PUBLIC_BTN_PRIMARY} px-5 py-2.5 text-sm`}
+                className="inline-flex items-center justify-center gap-2 min-h-[44px] px-5 py-2.5 rounded-full bg-btn-bg text-btn-fg text-xs font-medium hover:opacity-90 active:scale-[0.985] transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
               >
-                <ArrowLeft size={16} weight="regular" />
+                <ArrowLeft size={15} weight="regular" />
                 <span>Return to Rosters</span>
               </Link>
-            </div>
-          </div>
+            }
+            className="max-w-md w-full"
+          />
         </main>
 
         <SiteFooter />
@@ -475,19 +474,24 @@ export const RosterSportPage: React.FC = () => {
 
         {/* Page Heading */}
         <header className={PUBLIC_PAGE_HEADER}>
-          <h1 className={`${PUBLIC_PAGE_TITLE} capitalize`}>
-            {sportName || normalizedSport} Squad
-          </h1>
-          <span className={PUBLIC_COUNT_PILL}>
-            {players.length} / {totalCount} athletes
-          </span>
+          <div className="min-w-0">
+            <span className={PUBLIC_KICKER}>TOURNAMENT SQUADS</span>
+            <h1 className={`${PUBLIC_PAGE_TITLE} capitalize`}>
+              {sportName || normalizedSport} Squad
+            </h1>
+          </div>
+          <div className={PUBLIC_META_ROW}>
+            <span>
+              {players.length} / {totalCount} {totalCount === 1 ? 'athlete' : 'athletes'}
+            </span>
+          </div>
         </header>
 
         {/* Filters Section: single horizontally scrollable rows on mobile, never wrapping */}
-        <div className={`${PUBLIC_CARD} mb-8 space-y-4`}>
+        <div className={`${PUBLIC_CARD} mb-8 p-4 sm:p-5 space-y-3.5`}>
           {/* Academic Year Filter */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-4 min-w-0">
-            <span className="text-sm font-medium text-text shrink-0 sm:w-14">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0">
+            <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted shrink-0 sm:w-14">
               Year
             </span>
             <div className={`${PUBLIC_PILL_BAR_OUTER} flex-1 min-w-0`}>
@@ -497,7 +501,7 @@ export const RosterSportPage: React.FC = () => {
                     key={yr}
                     type="button"
                     onClick={() => handleSelectYear(yr)}
-                    className={`min-h-[34px] px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                    className={`relative hit-44 min-h-[36px] px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 active:scale-[0.985] transition-[background-color,color,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright ${
                       selectedYear === yr
                         ? 'bg-btn-bg text-btn-fg'
                         : 'text-muted hover:text-text'
@@ -511,8 +515,8 @@ export const RosterSportPage: React.FC = () => {
           </div>
 
           {/* Playing Role Filter - Loaded from sports table */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-4 min-w-0">
-            <span className="text-sm font-medium text-text shrink-0 sm:w-14">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 pt-3.5 border-t border-border min-w-0">
+            <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted shrink-0 sm:w-14">
               Role
             </span>
             <div className={`${PUBLIC_PILL_BAR_OUTER} flex-1 min-w-0`}>
@@ -522,7 +526,7 @@ export const RosterSportPage: React.FC = () => {
                     key={role}
                     type="button"
                     onClick={() => handleSelectRole(role)}
-                    className={`min-h-[34px] px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                    className={`relative hit-44 min-h-[36px] px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 active:scale-[0.985] transition-[background-color,color,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright ${
                       selectedRole === role
                         ? 'bg-btn-bg text-btn-fg'
                         : 'text-muted hover:text-text'
@@ -540,23 +544,31 @@ export const RosterSportPage: React.FC = () => {
         {showPlaceholderBoxes ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {Array.from({ length: 8 }).map((_, i) => (
-              <SkeletonCard key={i} className="rounded-3xl h-48" />
+              <SkeletonCard key={i} className="rounded-2xl h-48" />
             ))}
           </div>
         ) : players.length === 0 ? (
-          <div
-            className={`${PUBLIC_CARD} py-14 text-center max-w-lg mx-auto transition-opacity duration-150 ${
+          <EmptyState
+            icon={Funnel}
+            statusLabel="NO RECORDS"
+            title="No Athletes Found"
+            description="No athletes match the selected filters."
+            actionLabel={
+              selectedYear !== 'All' || selectedRole !== 'All' ? 'Reset filters' : undefined
+            }
+            onAction={
+              selectedYear !== 'All' || selectedRole !== 'All'
+                ? () => {
+                    setSelectedYear('All')
+                    setSelectedRole('All')
+                    updateFilterParams('All', 'All')
+                  }
+                : undefined
+            }
+            className={`max-w-lg mx-auto transition-opacity duration-150 ${
               isFilterLoading ? 'opacity-60' : 'opacity-100'
             }`}
-          >
-            <div className="w-12 h-12 rounded-full bg-surface-2 border border-border flex items-center justify-center mx-auto text-muted mb-4">
-              <Funnel size={22} weight="regular" />
-            </div>
-            <h3 className="font-syne font-bold text-xl text-text mb-1.5">No Athletes Found</h3>
-            <p className="text-sm text-muted">
-              No athletes match the selected filters.
-            </p>
-          </div>
+          />
         ) : (
           <>
             <div
@@ -579,7 +591,7 @@ export const RosterSportPage: React.FC = () => {
               {isLoadingMore && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                   {Array.from({ length: 4 }).map((_, i) => (
-                    <SkeletonCard key={i} className="rounded-3xl h-44" />
+                    <SkeletonCard key={i} className="rounded-2xl h-44" />
                   ))}
                 </div>
               )}

@@ -14,12 +14,15 @@ import {
   PUBLIC_BACK_LINK,
   PUBLIC_BTN_PRIMARY,
   PUBLIC_BTN_SECONDARY,
-  PUBLIC_CARD,
+  PUBLIC_FOLIO,
+  PUBLIC_KICKER,
   PUBLIC_MAIN_NARROW,
+  PUBLIC_META_ROW,
+  PUBLIC_PAGE_HEADER,
   PUBLIC_PAGE_SHELL,
   PUBLIC_PAGE_TITLE
 } from '../../components/public/publicStyles'
-import { SkeletonBlock } from '../../components/ui'
+import { EmptyState, SkeletonBlock } from '../../components/ui'
 import {
   formatRulesDate,
   getRulesDocuments,
@@ -111,74 +114,91 @@ export const RulesPage: React.FC = () => {
           </Link>
         </div>
 
-        <div className={PUBLIC_CARD}>
-          <div className="pb-5 mb-6 border-b border-border">
+        <header className={PUBLIC_PAGE_HEADER}>
+          <div className="min-w-0">
+            <span className={PUBLIC_KICKER}>OFFICIAL REGULATIONS</span>
             <h1 className={PUBLIC_PAGE_TITLE}>Auction Rules</h1>
           </div>
-
-          {isLoading ? (
-            <div className="space-y-3">
-              <SkeletonBlock className="h-16 w-full rounded-2xl" />
-              <SkeletonBlock className="h-16 w-full rounded-2xl" />
+          {!isLoading && (
+            <div className={PUBLIC_META_ROW}>
+              <span>
+                {documents.length} {documents.length === 1 ? 'document' : 'documents'}
+              </span>
             </div>
-          ) : documents.length === 0 ? (
-            <div className="py-12 px-6 rounded-2xl bg-bg border border-border text-center flex flex-col items-center justify-center gap-3">
-              <FilePdf size={36} weight="regular" className="text-muted" />
-              <p className="text-base text-muted font-sans">
-                Auction rules will be published soon.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {documents.map((doc) => {
-                const publicUrl = getRulesPublicUrl(doc.file_path)
-                const downloadFilename = getSafeRulesDownloadFilename(doc.title)
-                const downloadUrl =
-                  publicUrl === '#'
-                    ? '#'
-                    : `${publicUrl}${publicUrl.includes('?') ? '&' : '?'}download=${encodeURIComponent(downloadFilename)}`
+          )}
+        </header>
 
-                return (
-                  <div
-                    key={doc.id}
-                    className="rounded-2xl bg-bg border border-border px-4 py-3.5 sm:px-5 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                  >
+        {isLoading ? (
+          <div className="divide-y divide-border border-b border-border">
+            <div className="py-5">
+              <SkeletonBlock className="h-12 w-full rounded-2xl" />
+            </div>
+            <div className="py-5">
+              <SkeletonBlock className="h-12 w-full rounded-2xl" />
+            </div>
+          </div>
+        ) : documents.length === 0 ? (
+          <EmptyState
+            icon={FilePdf}
+            statusLabel="NO RECORDS"
+            title="Rules Pending"
+            description="Auction rules will be published soon."
+          />
+        ) : (
+          <ol className="divide-y divide-border border-b border-border">
+            {documents.map((doc, idx) => {
+              const publicUrl = getRulesPublicUrl(doc.file_path)
+              const downloadFilename = getSafeRulesDownloadFilename(doc.title)
+              const downloadUrl =
+                publicUrl === '#'
+                  ? '#'
+                  : `${publicUrl}${publicUrl.includes('?') ? '&' : '?'}download=${encodeURIComponent(downloadFilename)}`
+
+              return (
+                <li
+                  key={doc.id}
+                  className="pub-ledger-row rounded-2xl px-3 sm:px-4 py-4 sm:py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                >
+                  <div className="flex items-baseline gap-3.5 min-w-0 flex-1">
+                    <span className={PUBLIC_FOLIO}>
+                      {String(idx + 1).padStart(2, '0')}
+                    </span>
                     <div className="min-w-0 flex-1">
-                      <div className="font-syne font-bold text-base text-text break-words">
+                      <div className="font-syne font-bold text-base sm:text-lg text-text break-words leading-snug">
                         {doc.title}
                       </div>
                       {doc.created_at && (
-                        <div className="text-xs font-mono text-muted mt-0.5 tabular-nums">
+                        <div className="text-xs font-mono text-muted mt-1 tabular-nums">
                           {formatRulesDate(doc.created_at)}
                         </div>
                       )}
                     </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      <a
-                        href={publicUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`${PUBLIC_BTN_SECONDARY} px-4 py-2 text-xs`}
-                      >
-                        <ArrowSquareOut size={14} weight="regular" />
-                        <span>Open</span>
-                      </a>
-                      <a
-                        href={downloadUrl}
-                        download={downloadFilename}
-                        className={`${PUBLIC_BTN_PRIMARY} px-4 py-2 text-xs`}
-                      >
-                        <DownloadSimple size={14} weight="regular" />
-                        <span>Download</span>
-                      </a>
-                    </div>
                   </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
+
+                  <div className="flex items-center gap-2.5 shrink-0 pl-7 sm:pl-0">
+                    <a
+                      href={publicUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`${PUBLIC_BTN_SECONDARY} px-4 py-2 text-xs`}
+                    >
+                      <ArrowSquareOut size={14} weight="regular" />
+                      <span>Open</span>
+                    </a>
+                    <a
+                      href={downloadUrl}
+                      download={downloadFilename}
+                      className={`${PUBLIC_BTN_PRIMARY} px-4 py-2 text-xs`}
+                    >
+                      <DownloadSimple size={14} weight="regular" />
+                      <span>Download</span>
+                    </a>
+                  </div>
+                </li>
+              )
+            })}
+          </ol>
+        )}
       </main>
 
       <SiteFooter />

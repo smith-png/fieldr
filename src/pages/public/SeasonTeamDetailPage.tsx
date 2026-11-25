@@ -27,10 +27,14 @@ import {
   PUBLIC_BTN_SECONDARY,
   PUBLIC_CARD,
   PUBLIC_COUNT_PILL,
+  PUBLIC_FOLIO,
+  PUBLIC_KICKER,
   PUBLIC_MAIN_MEDIUM,
+  PUBLIC_META_ROW,
   PUBLIC_PAGE_SHELL,
   PUBLIC_PAGE_TITLE,
   PUBLIC_PILL_BAR,
+  PUBLIC_SECTION_HEADER,
   PUBLIC_SECTION_TITLE,
   PUBLIC_WELL
 } from '../../components/public/publicStyles'
@@ -926,14 +930,6 @@ export const SeasonTeamDetailPage: React.FC = () => {
 
   return (
     <div className={PUBLIC_PAGE_SHELL}>
-      <style>{`
-        .public-team-detail-tinted {
-          background-color: var(--surface);
-          background-color: color-mix(in srgb, var(--team-color) 4%, var(--surface));
-          border-color: var(--border);
-          border-color: color-mix(in srgb, var(--team-color) 65%, transparent);
-        }
-      `}</style>
       <HeaderBar onOpenMenu={() => setIsMenuOpen(true)} />
       <NavigationMenu
         isOpen={isMenuOpen}
@@ -960,7 +956,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
               <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 flex-1 w-full">
                 <SkeletonBlock className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl shrink-0" />
                 <div className="space-y-3 flex-1 w-full">
-                  <SkeletonBlock className="w-28 h-6 rounded-full" />
+                  <SkeletonBlock className="w-28 h-5 rounded-lg" />
                   <SkeletonBlock className="w-64 h-10 rounded-2xl" />
                   <SkeletonText width="w-40" />
                 </div>
@@ -971,7 +967,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
               <SkeletonBlock className="w-48 h-7 rounded-2xl" />
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                 {Array.from({ length: 6 }).map((_, idx) => (
-                  <SkeletonCard key={idx} className="rounded-3xl min-h-[150px]" />
+                  <SkeletonCard key={idx} className="rounded-2xl min-h-[150px]" />
                 ))}
               </div>
             </div>
@@ -981,20 +977,20 @@ export const SeasonTeamDetailPage: React.FC = () => {
             title="Failed to Load Franchise Details"
             description="We encountered an issue loading this team's roster."
             onRetry={() => void loadData({ force: true })}
-            className="rounded-3xl"
+            className="rounded-2xl"
           />
         ) : !team ? (
           <EmptyState
             icon={ShieldCheck}
+            statusLabel="NO RECORDS"
             title="Team Not Found"
             description="The requested team does not exist for this season."
             actionLabel="Return to Teams"
             onAction={() => navigate('/teams')}
-            className="rounded-3xl"
           />
         ) : (
-          <div className="flex flex-col gap-8">
-            {/* Team Header */}
+          <div className="flex flex-col gap-10">
+            {/* Team Header (Featured: corner registration ticks + 2px top team strip) */}
             {(() => {
               const teamColor = getValidTeamColor(team.color)
               return (
@@ -1004,15 +1000,13 @@ export const SeasonTeamDetailPage: React.FC = () => {
                       ? ({ '--team-color': teamColor } as React.CSSProperties)
                       : undefined
                   }
-                  className={`p-6 sm:p-8 rounded-3xl border-[1.5px] border-solid flex flex-col md:flex-row items-center justify-between gap-6 min-w-0 ${
-                    teamColor
-                      ? 'public-team-detail-tinted'
-                      : 'bg-surface border-border'
+                  className={`pub-corner-ticks pub-enter overflow-hidden p-6 sm:p-8 rounded-2xl border border-solid flex flex-col md:flex-row items-center justify-between gap-6 min-w-0 ${
+                    teamColor ? 'pub-team-card' : 'bg-surface border-border'
                   }`}
                 >
                   <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 flex-1 min-w-0">
                     <div
-                      className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl flex items-center justify-center overflow-hidden border border-border font-syne font-extrabold text-white text-2xl shrink-0"
+                      className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl flex items-center justify-center overflow-hidden border border-border font-syne font-extrabold text-on-accent text-2xl shrink-0"
                       style={{ backgroundColor: team.color || 'var(--accent)' }}
                     >
                       {team.logo_url ? (
@@ -1031,18 +1025,19 @@ export const SeasonTeamDetailPage: React.FC = () => {
                     </div>
 
                     <div className="flex-1 text-center sm:text-left min-w-0">
-                      <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-2">
-                        <span className="px-3 py-1 rounded-full text-xs font-mono font-semibold bg-surface-2 border border-border text-text">
-                          {team.short_code} · {team.sport}
-                        </span>
-                        <span className={PUBLIC_COUNT_PILL}>
-                          {teamPlayers.length} {teamPlayers.length === 1 ? 'player' : 'players'}
-                        </span>
-                      </div>
-
+                      <span className={PUBLIC_KICKER}>FRANCHISE ROSTER</span>
                       <h1 className={PUBLIC_PAGE_TITLE}>
                         {team.name}
                       </h1>
+                      <div className={`${PUBLIC_META_ROW} justify-center sm:justify-start mt-2.5`}>
+                        <span className="text-text font-semibold">{team.short_code}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>{team.sport}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>
+                          {teamPlayers.length} {teamPlayers.length === 1 ? 'player' : 'players'}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -1082,7 +1077,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
                       )}
 
                       <div className="text-center md:text-left">
-                        <span className="block text-xs text-muted">
+                        <span className="block font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
                           Owner
                         </span>
                         {ownerName && (
@@ -2204,20 +2199,26 @@ export const SeasonTeamDetailPage: React.FC = () => {
               )
             })()}
 
-            {/* Team Roster Squad */}
-            <section className="space-y-6">
-              <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-border">
-                <h2 className={`${PUBLIC_SECTION_TITLE} flex items-center gap-2.5`}>
-                  <Users size={20} weight="regular" className="text-accent-bright shrink-0" />
-                  <span>Squad Roster</span>
-                </h2>
-                <div className="flex items-center gap-2.5 shrink-0">
+            {/* Team Roster Squad (flat on --bg, no card-inside-card nesting) */}
+            <section className="space-y-8">
+              <div className={`${PUBLIC_SECTION_HEADER} items-center`}>
+                <div className="flex items-baseline gap-3">
+                  <span className={PUBLIC_FOLIO}>01</span>
+                  <h2 className={`${PUBLIC_SECTION_TITLE} flex items-center gap-2.5`}>
+                    <Users size={19} weight="regular" className="text-accent-bright shrink-0" />
+                    <span>Squad Roster</span>
+                  </h2>
+                </div>
+                <div className="flex items-center gap-4 shrink-0">
+                  <span className="font-mono text-xs tabular-nums text-muted">
+                    {teamPlayers.length} {teamPlayers.length === 1 ? 'player' : 'players'}
+                  </span>
                   {!ownerOverview && (
                     <button
                       type="button"
                       onClick={() => void handleSharePublicSquad()}
                       disabled={isSharingPublic}
-                      className={`relative hit-44 ${PUBLIC_BTN_PRIMARY} h-9 px-4 text-xs whitespace-nowrap shrink-0`}
+                      className={`${PUBLIC_BTN_PRIMARY} px-4 py-2 text-xs whitespace-nowrap shrink-0`}
                     >
                       {isSharingPublic ? (
                         <CircleNotch
@@ -2231,16 +2232,18 @@ export const SeasonTeamDetailPage: React.FC = () => {
                       <span>Share squad</span>
                     </button>
                   )}
-                  <span className={PUBLIC_COUNT_PILL}>{teamPlayers.length}</span>
                 </div>
               </div>
 
               {teamPlayers.length === 0 ? (
-                <div className={`${PUBLIC_CARD} py-12 text-center text-sm text-muted`}>
-                  No players drafted into this team roster yet.
-                </div>
+                <EmptyState
+                  icon={Users}
+                  statusLabel="AWAITING LOT"
+                  title="No Players Drafted"
+                  description="No players have been drafted into this team roster yet."
+                />
               ) : (
-                <div className="space-y-6">
+                <div className="space-y-9">
                   {(() => {
                     const orderedRoleKeys = [
                       ...sportRoles,
@@ -2267,14 +2270,20 @@ export const SeasonTeamDetailPage: React.FC = () => {
                       }))
                       .filter((g) => g.players.length > 0)
 
-                    return groups.map((group) => (
-                      <div key={group.role} className={`${PUBLIC_CARD} space-y-4`}>
-                        <div className="flex items-center justify-between gap-3 pb-3 border-b border-border">
-                          <h3 className="font-syne font-bold text-base text-text tracking-tight">
-                            {group.role}
-                          </h3>
-                          <span className={PUBLIC_COUNT_PILL}>
-                            {group.players.length}
+                    return groups.map((group, groupIndex) => (
+                      <div key={group.role} className="space-y-4">
+                        <div className="flex items-baseline justify-between gap-3 pb-2.5 border-b border-border">
+                          <div className="flex items-baseline gap-2.5">
+                            <span className={PUBLIC_FOLIO}>
+                              {String(groupIndex + 1).padStart(2, '0')}
+                            </span>
+                            <h3 className="font-syne font-bold text-base sm:text-lg text-text tracking-tight">
+                              {group.role}
+                            </h3>
+                          </div>
+                          <span className="font-mono text-xs tabular-nums text-muted">
+                            {group.players.length}{' '}
+                            {group.players.length === 1 ? 'player' : 'players'}
                           </span>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

@@ -8,10 +8,13 @@ import { SiteFooter } from '../../components/layout/SiteFooter'
 import {
   PUBLIC_BACK_LINK,
   PUBLIC_CARD,
-  PUBLIC_COUNT_PILL,
+  PUBLIC_FOLIO,
+  PUBLIC_KICKER,
   PUBLIC_MAIN_MEDIUM,
+  PUBLIC_META_ROW,
   PUBLIC_PAGE_SHELL,
   PUBLIC_PAGE_TITLE,
+  PUBLIC_SECTION_HEADER,
   PUBLIC_SECTION_TITLE
 } from '../../components/public/publicStyles'
 import {
@@ -187,11 +190,11 @@ export const PlayerProfilePage: React.FC = () => {
         </div>
 
         {isLoading ? (
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-8">
             <div className={`${PUBLIC_CARD} flex flex-col sm:flex-row items-center sm:items-start gap-6`}>
               <SkeletonBlock className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl shrink-0" />
               <div className="flex-1 space-y-3 w-full">
-                <SkeletonBlock className="w-24 h-6 rounded-full" />
+                <SkeletonBlock className="w-28 h-5 rounded-lg" />
                 <SkeletonBlock className="w-64 h-10 rounded-2xl" />
                 <SkeletonText width="w-40" />
                 <SkeletonText width="w-56" />
@@ -199,8 +202,8 @@ export const PlayerProfilePage: React.FC = () => {
             </div>
             <div className="space-y-4">
               <SkeletonBlock className="w-48 h-7 rounded-2xl" />
-              <SkeletonCard className="rounded-3xl min-h-[110px]" />
-              <SkeletonCard className="rounded-3xl min-h-[110px]" />
+              <SkeletonCard className="rounded-2xl min-h-[96px]" />
+              <SkeletonCard className="rounded-2xl min-h-[96px]" />
             </div>
           </div>
         ) : hasError ? (
@@ -208,21 +211,23 @@ export const PlayerProfilePage: React.FC = () => {
             title="Failed to Load Athlete Profile"
             description="We encountered an issue retrieving this athlete's records."
             onRetry={() => void loadData({ force: true })}
-            className="rounded-3xl"
+            className="rounded-2xl"
           />
         ) : !athlete ? (
           <EmptyState
             icon={User}
+            statusLabel="NO RECORDS"
             title="Athlete Profile Not Found"
             description={`No registered athlete corresponds to code "${code}".`}
             actionLabel="Return to Rosters"
-            onAction={() => window.location.href = '/rosters'}
-            className="rounded-3xl"
+            onAction={() => (window.location.href = '/rosters')}
           />
         ) : (
-          <div className="flex flex-col gap-6">
-            {/* Athlete Header Card */}
-            <section className={`${PUBLIC_CARD} flex flex-col sm:flex-row items-center sm:items-start gap-6`}>
+          <div className="flex flex-col gap-10">
+            {/* Athlete Header Card (Featured: corner registration ticks) */}
+            <section
+              className={`${PUBLIC_CARD} pub-corner-ticks pub-enter flex flex-col sm:flex-row items-center sm:items-start gap-6`}
+            >
               {/* Photo */}
               <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden bg-surface-2 border border-border shrink-0 flex items-center justify-center">
                 {athlete.photo_thumb_url || athlete.photo_url ? (
@@ -241,107 +246,130 @@ export const PlayerProfilePage: React.FC = () => {
               </div>
 
               <div className="flex-1 min-w-0 text-center sm:text-left">
-                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-2">
-                  <span className="px-3 py-1 rounded-full text-xs font-mono font-semibold bg-accent-bright/10 text-accent-bright border border-accent-bright/30 tabular-nums">
-                    ID #{formatAthleteCode(athlete.athlete_code)}
-                  </span>
-                  <span className={PUBLIC_COUNT_PILL}>
-                    {career.length} {career.length === 1 ? 'season' : 'seasons'}
-                  </span>
-                </div>
-
+                <span className={PUBLIC_KICKER}>ATHLETE DOSSIER</span>
                 <h1 className={PUBLIC_PAGE_TITLE}>
                   {athlete.name}
                 </h1>
-
-                {career.length > 0 && (
-                  <div className="font-syne font-bold text-lg sm:text-xl text-text mt-2 tracking-tight">
-                    {career[0].playing_role}
-                  </div>
-                )}
+                <div className={`${PUBLIC_META_ROW} justify-center sm:justify-start mt-2`}>
+                  <span className="text-accent-bright font-semibold">
+                    ID #{formatAthleteCode(athlete.athlete_code)}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span>
+                    {career.length} {career.length === 1 ? 'season' : 'seasons'}
+                  </span>
+                  {career.length > 0 && (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span className="text-text font-medium">{career[0].playing_role}</span>
+                    </>
+                  )}
+                </div>
               </div>
             </section>
 
-            {/* Career History Section */}
-            <section className={`${PUBLIC_CARD} space-y-5`}>
-              <div className="flex items-center justify-between gap-3 pb-4 border-b border-border">
-                <h2 className={`${PUBLIC_SECTION_TITLE} flex items-center gap-2.5`}>
-                  <Trophy size={20} weight="regular" className="text-accent-bright shrink-0" />
-                  <span>Tournament History</span>
-                </h2>
-                <span className={PUBLIC_COUNT_PILL}>{career.length}</span>
+            {/* Career History Section (flat on --bg with vertical 1px timeline spine) */}
+            <section className="space-y-6">
+              <div className={PUBLIC_SECTION_HEADER}>
+                <div className="flex items-baseline gap-3">
+                  <span className={PUBLIC_FOLIO}>01</span>
+                  <h2 className={`${PUBLIC_SECTION_TITLE} flex items-center gap-2.5`}>
+                    <Trophy size={19} weight="regular" className="text-accent-bright shrink-0" />
+                    <span>Tournament History</span>
+                  </h2>
+                </div>
+                <span className="font-mono text-xs tabular-nums text-muted">
+                  {career.length} {career.length === 1 ? 'season' : 'seasons'}
+                </span>
               </div>
 
               {career.length === 0 ? (
-                <div className="p-8 text-center rounded-2xl bg-bg border border-border text-sm text-muted">
-                  No tournament registrations recorded for this athlete.
-                </div>
+                <EmptyState
+                  icon={Calendar}
+                  statusLabel="NO RECORDS"
+                  title="No Tournament History"
+                  description="No tournament registrations have been recorded for this athlete yet."
+                />
               ) : (
-                <div className="grid grid-cols-1 gap-3.5">
+                <ol className="relative pl-7">
+                  {/* Vertical 1px timeline spine */}
+                  <span
+                    aria-hidden="true"
+                    className="absolute left-[6px] top-5 bottom-5 w-px bg-border"
+                  />
+
                   {career.map((entry) => (
-                    <div
+                    <li
                       key={entry.player_id}
-                      className="p-5 rounded-2xl bg-bg border border-border hover:border-accent-bright/40 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                      className="relative border-b border-border last:border-b-0"
                     >
-                      <div className="flex items-start gap-3.5 min-w-0">
-                        <div className="w-10 h-10 rounded-2xl bg-surface-2 border border-border flex items-center justify-center shrink-0 text-accent-bright">
-                          <Calendar size={18} weight="regular" />
-                        </div>
+                      {/* Sage active node or hollow past node */}
+                      <span
+                        aria-hidden="true"
+                        className={`absolute -left-7 top-6 w-3.5 h-3.5 rounded-full ring-4 ring-bg ${
+                          entry.is_season_active
+                            ? 'bg-accent-bright'
+                            : 'bg-bg border-2 border-border'
+                        }`}
+                      />
+
+                      <div className="pub-ledger-row rounded-2xl px-3 sm:px-4 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-syne font-bold text-base text-text">
+                          <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                            <span className="font-syne font-bold text-base sm:text-lg text-text tracking-tight">
                               {entry.season_name}
                             </span>
                             {entry.is_season_active && (
-                              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-accent-bright/10 text-accent-bright border border-accent-bright/30">
-                                Active
+                              <span className="font-dot text-[11px] uppercase tracking-[0.16em] text-accent-bright">
+                                ACTIVE
                               </span>
                             )}
                           </div>
 
-                          <div className="font-syne font-bold text-base text-text mt-1 tracking-tight">
+                          <div className="text-sm font-medium text-text mt-1">
                             {entry.playing_role}
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-2.5 text-xs text-muted mt-1.5">
-                            <span className="font-medium text-text">{entry.sport}</span>
+                          <div className={`${PUBLIC_META_ROW} mt-1.5`}>
+                            <span className="text-text">{entry.sport}</span>
                             <span aria-hidden="true">·</span>
-                            <span className="font-mono">{entry.academic_year} Year</span>
+                            <span>{entry.academic_year} Year</span>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Team Assignment */}
-                      <div className="flex items-center gap-3 self-start sm:self-center shrink-0">
-                        {entry.team_name ? (
-                          <Link
-                            to={`/season/${entry.season_id}/teams/${entry.team_id}`}
-                            onMouseEnter={() =>
-                              prefetchRoute(`/season/${entry.season_id}/teams/${entry.team_id}`)
-                            }
-                            onFocus={() =>
-                              prefetchRoute(`/season/${entry.season_id}/teams/${entry.team_id}`)
-                            }
-                            onTouchStart={() =>
-                              prefetchRoute(`/season/${entry.season_id}/teams/${entry.team_id}`)
-                            }
-                            className="px-4 py-2 rounded-full bg-surface border border-border hover:border-accent-bright text-xs font-medium text-text flex items-center gap-2 transition-colors"
-                          >
-                            <span
-                              className="w-2.5 h-2.5 rounded-full shrink-0"
-                              style={{ backgroundColor: entry.team_color || 'currentColor' }}
-                            />
-                            <span>{entry.team_name}</span>
-                          </Link>
-                        ) : (
-                          <span className="px-3.5 py-1.5 rounded-full bg-surface-2 border border-border text-xs text-muted">
-                            Available Pool
-                          </span>
-                        )}
+                        {/* Team Assignment */}
+                        <div className="flex items-center gap-3 self-start sm:self-center shrink-0">
+                          {entry.team_name ? (
+                            <Link
+                              to={`/season/${entry.season_id}/teams/${entry.team_id}`}
+                              onMouseEnter={() =>
+                                prefetchRoute(`/season/${entry.season_id}/teams/${entry.team_id}`)
+                              }
+                              onFocus={() =>
+                                prefetchRoute(`/season/${entry.season_id}/teams/${entry.team_id}`)
+                              }
+                              onTouchStart={() =>
+                                prefetchRoute(`/season/${entry.season_id}/teams/${entry.team_id}`)
+                              }
+                              className="inline-flex items-center gap-2 min-h-[44px] px-4 py-2 rounded-full bg-surface border border-border hover:border-accent-bright active:scale-[0.985] text-xs font-medium text-text transition-[border-color,transform] duration-150 motion-reduce:transition-none motion-reduce:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                            >
+                              <span
+                                aria-hidden="true"
+                                className="w-2.5 h-2.5 rounded-full shrink-0"
+                                style={{ backgroundColor: entry.team_color || 'var(--accent-bright)' }}
+                              />
+                              <span>{entry.team_name}</span>
+                            </Link>
+                          ) : (
+                            <span className="font-mono text-xs text-muted">
+                              Available Pool
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    </li>
                   ))}
-                </div>
+                </ol>
               )}
             </section>
           </div>

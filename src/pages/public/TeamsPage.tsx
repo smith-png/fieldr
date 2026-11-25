@@ -7,15 +7,17 @@ import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
 import {
   PUBLIC_BTN_PRIMARY,
-  PUBLIC_CARD,
-  PUBLIC_COUNT_PILL,
+  PUBLIC_FOLIO,
+  PUBLIC_KICKER,
   PUBLIC_MAIN,
+  PUBLIC_META_ROW,
   PUBLIC_PAGE_HEADER,
   PUBLIC_PAGE_SHELL,
   PUBLIC_PAGE_TITLE,
+  PUBLIC_SECTION_HEADER,
   PUBLIC_SECTION_TITLE
 } from '../../components/public/publicStyles'
-import { SkeletonCard } from '../../components/ui'
+import { EmptyState, SkeletonCard } from '../../components/ui'
 import { getActiveSeason } from '../../lib/data/seasons'
 import { getPublicPlayersBySeason } from '../../lib/data/players'
 import { getPublicTeams } from '../../lib/data/teams'
@@ -156,18 +158,6 @@ export const TeamsPage: React.FC = () => {
 
   return (
     <div className={PUBLIC_PAGE_SHELL}>
-      <style>{`
-        .public-team-card-tinted {
-          background-color: var(--surface);
-          background-color: color-mix(in srgb, var(--team-color) 4%, var(--surface));
-          border-color: var(--border);
-          border-color: color-mix(in srgb, var(--team-color) 65%, transparent);
-        }
-        .public-team-card-tinted:hover,
-        .public-team-card-tinted:focus-visible {
-          border-color: var(--team-color);
-        }
-      `}</style>
       <HeaderBar onOpenMenu={() => setIsMenuOpen(true)} />
       <NavigationMenu
         isOpen={isMenuOpen}
@@ -176,20 +166,27 @@ export const TeamsPage: React.FC = () => {
 
       <main className={PUBLIC_MAIN}>
         <header className={PUBLIC_PAGE_HEADER}>
-          <h1 className={PUBLIC_PAGE_TITLE}>Registered Teams</h1>
+          <div className="min-w-0">
+            <span className={PUBLIC_KICKER}>FRANCHISE DIRECTORY</span>
+            <h1 className={PUBLIC_PAGE_TITLE}>Registered Teams</h1>
+          </div>
           <div
             aria-hidden={isLoading ? true : undefined}
-            className={`flex flex-wrap items-center gap-2 min-h-[1.75rem] ${
+            className={`${PUBLIC_META_ROW} min-h-[1.5rem] ${
               isLoading ? 'opacity-0' : 'opacity-100'
             }`}
           >
             {activeSeason?.name && (
-              <span className={PUBLIC_COUNT_PILL}>{activeSeason.name}</span>
+              <>
+                <span className="text-text font-medium">{activeSeason.name}</span>
+                <span aria-hidden="true">·</span>
+              </>
             )}
-            <span className={PUBLIC_COUNT_PILL}>
+            <span>
               {teams.length} {teams.length === 1 ? 'team' : 'teams'}
             </span>
-            <span className={PUBLIC_COUNT_PILL}>
+            <span aria-hidden="true">·</span>
+            <span>
               {players.length} {players.length === 1 ? 'player' : 'players'}
             </span>
           </div>
@@ -198,39 +195,42 @@ export const TeamsPage: React.FC = () => {
         {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {Array.from({ length: 6 }).map((_, i) => (
-              <SkeletonCard key={i} className="rounded-3xl h-56" />
+              <SkeletonCard key={i} className="rounded-2xl h-56" />
             ))}
           </div>
         ) : !activeSeason || teams.length === 0 ? (
-          <div className={`${PUBLIC_CARD} py-14 text-center max-w-lg mx-auto`}>
-            <div className="w-12 h-12 rounded-full bg-surface-2 border border-border flex items-center justify-center mx-auto text-muted mb-4">
-              <Shield size={24} weight="regular" />
-            </div>
-            <h3 className="font-syne font-bold text-xl text-text mb-1.5">
-              No Active Teams
-            </h3>
-            <p className="text-sm text-muted leading-relaxed mb-6">
-              No teams have been registered for the current season yet.
-            </p>
-            <Link
-              to="/rosters"
-              onMouseEnter={() => prefetchRoute('/rosters')}
-              onFocus={() => prefetchRoute('/rosters')}
-              onTouchStart={() => prefetchRoute('/rosters')}
-              className={`${PUBLIC_BTN_PRIMARY} px-5 py-2.5 text-xs`}
-            >
-              Browse Player Rosters
-            </Link>
-          </div>
+          <EmptyState
+            icon={Shield}
+            statusLabel="AWAITING LOT"
+            title="No Active Teams"
+            description="No teams have been registered for the current season yet."
+            action={
+              <Link
+                to="/rosters"
+                onMouseEnter={() => prefetchRoute('/rosters')}
+                onFocus={() => prefetchRoute('/rosters')}
+                onTouchStart={() => prefetchRoute('/rosters')}
+                className={`${PUBLIC_BTN_PRIMARY} px-5 py-2.5 text-xs`}
+              >
+                Browse Player Rosters
+              </Link>
+            }
+            className="max-w-lg mx-auto"
+          />
         ) : (
-          <div className="space-y-10">
-            {groupedSports.map((group) => (
-              <section key={group.sport} className="space-y-4">
-                <div className="flex items-center justify-between gap-3 pb-3 border-b border-border">
-                  <h2 className={PUBLIC_SECTION_TITLE}>
-                    {group.sport}
-                  </h2>
-                  <span className={PUBLIC_COUNT_PILL}>
+          <div className="space-y-12">
+            {groupedSports.map((group, groupIndex) => (
+              <section key={group.sport} className="space-y-5">
+                <div className={PUBLIC_SECTION_HEADER}>
+                  <div className="flex items-baseline gap-3">
+                    <span className={PUBLIC_FOLIO}>
+                      {String(groupIndex + 1).padStart(2, '0')}
+                    </span>
+                    <h2 className={PUBLIC_SECTION_TITLE}>
+                      {group.sport}
+                    </h2>
+                  </div>
+                  <span className="font-mono text-xs tabular-nums text-muted">
                     {group.teams.length} {group.teams.length === 1 ? 'team' : 'teams'}
                   </span>
                 </div>
@@ -252,9 +252,9 @@ export const TeamsPage: React.FC = () => {
                             ? ({ '--team-color': teamColor } as React.CSSProperties)
                             : undefined
                         }
-                        className={`group relative overflow-hidden rounded-3xl border-[1.5px] border-solid p-6 transition-[border-color] duration-150 flex flex-col justify-between min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright ${
+                        className={`pub-card-lift group relative overflow-hidden rounded-2xl border border-solid p-6 flex flex-col justify-between min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright ${
                           teamColor
-                            ? 'public-team-card-tinted'
+                            ? 'pub-team-card'
                             : 'bg-surface border-border hover:border-accent-bright focus-visible:border-accent-bright'
                         }`}
                       >
@@ -275,7 +275,7 @@ export const TeamsPage: React.FC = () => {
                                 />
                               ) : (
                                 <div
-                                  className="w-13 h-13 rounded-2xl border border-border flex items-center justify-center font-syne font-bold text-base text-white shrink-0"
+                                  className="w-13 h-13 rounded-2xl border border-border flex items-center justify-center font-syne font-bold text-base text-on-accent shrink-0"
                                   style={{ backgroundColor: team.color || 'var(--accent-bright)' }}
                                 >
                                   {team.short_code}
@@ -291,14 +291,16 @@ export const TeamsPage: React.FC = () => {
                               </div>
                             </div>
 
-                            <span className="font-mono text-xs px-3 py-1 rounded-full bg-surface-2 border border-border text-muted shrink-0">
+                            <span className="font-mono text-xs tracking-[0.12em] uppercase text-muted tabular-nums shrink-0 pt-0.5">
                               {team.short_code}
                             </span>
                           </div>
 
                           {/* Owner Info */}
                           <div className="py-3 border-y border-border flex items-center justify-between gap-2 text-xs">
-                            <span className="text-muted shrink-0">Owner</span>
+                            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-muted shrink-0">
+                              Owner
+                            </span>
                             <span className="text-text font-medium truncate">
                               {team.owner_display_name || 'Unassigned'}
                             </span>
@@ -315,7 +317,7 @@ export const TeamsPage: React.FC = () => {
                           </div>
                           <span className="inline-flex items-center gap-1 text-xs font-medium text-accent-bright shrink-0">
                             <span>View Squad</span>
-                            <CaretRight size={14} weight="regular" className="group-hover:translate-x-0.5 transition-transform motion-reduce:transition-none motion-reduce:group-hover:translate-x-0" />
+                            <CaretRight size={14} weight="regular" className="group-hover:translate-x-0.5 transition-transform duration-150 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0" />
                           </span>
                         </div>
                       </Link>
