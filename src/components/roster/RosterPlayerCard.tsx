@@ -38,7 +38,7 @@ const RosterPlayerCardInner: React.FC<RosterPlayerCardProps> = ({
           ? ({ '--team-color': teamColor } as React.CSSProperties)
           : undefined
       }
-      className={`group bg-surface border-[1.5px] border-solid rounded-3xl p-5 text-left transition-colors flex flex-col justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright min-w-0 ${
+      className={`group bg-surface border-[1.5px] border-solid rounded-3xl p-4 sm:p-5 text-left transition-colors flex flex-col justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright min-w-0 ${
         handleClick ? 'cursor-pointer' : ''
       } ${
         teamColor
@@ -48,7 +48,7 @@ const RosterPlayerCardInner: React.FC<RosterPlayerCardProps> = ({
           : 'border-border hover:border-accent-bright'
       }`}
     >
-      <div className="flex items-start gap-3.5 mb-4 min-w-0">
+      <div className="flex items-start gap-3.5 mb-3 sm:mb-4 min-w-0">
         {(player.photo_thumb_url || player.photo_url) && !photoFailed ? (
           <div className="relative w-13 h-13 rounded-2xl overflow-hidden bg-surface-2 border border-border shrink-0">
             <PhotoPlaceholder />
@@ -125,7 +125,7 @@ const RosterPlayerCardInner: React.FC<RosterPlayerCardProps> = ({
         </div>
       )}
 
-      <div className="pt-3 border-t border-border flex items-center justify-between gap-2 text-xs text-muted">
+      <div className="pt-2.5 sm:pt-3 border-t border-border flex items-center justify-between gap-2 text-xs text-muted">
         <span className="text-text font-medium truncate">{player.academic_year} Year</span>
         {handleClick && (
           <span className="text-xs font-medium text-accent-bright group-hover:underline shrink-0">

@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowUpRight } from '@phosphor-icons/react'
 import { SPORTS, type SportSlug } from '../../lib/sports'
 import { prefetchRoute } from '../../lib/queryCache'
 import type { Sport } from '../../types'
+import { SportArt, useInViewOnce } from './SportArt'
 
 interface SportCardsGridProps {
   playerCounts: Record<SportSlug, number>
@@ -11,71 +12,78 @@ interface SportCardsGridProps {
   countsLoaded?: boolean
 }
 
-interface SportPhotoConfig {
-  src: string
-  alt: string
-  objectPosition: string
-  width: number
-  height: number
+interface SportCardProps {
+  slug: SportSlug
+  label: string
+  index: number
+  count: number
+  countsLoaded: boolean
 }
 
-const sportPhotos: Record<SportSlug, SportPhotoConfig> = {
-  cricket: {
-    src: '/images/rosters/cricket.jpg',
-    alt: 'Close-up of a cricket ball with stitched seam resting on grass',
-    objectPosition: '70% 70%',
-    width: 900,
-    height: 602
-  },
-  futsal: {
-    src: '/images/rosters/futsal.jpg',
-    alt: 'Worn futsal ball resting beside a white line on grass',
-    objectPosition: '50% 50%',
-    width: 1000,
-    height: 1250
-  },
-  volleyball: {
-    src: '/images/rosters/volleyball.jpg',
-    alt: 'Volleyball resting on a court line in a dark gym',
-    objectPosition: '50% 50%',
-    width: 1000,
-    height: 1250
-  }
+const SportCard: React.FC<SportCardProps> = ({ slug, label, index, count, countsLoaded }) => {
+  const [ref, seen] = useInViewOnce<HTMLAnchorElement>(0.3)
+  const indexLabel = String(index + 1).padStart(2, '0')
+  const delay = index * 0.12
+
+  return (
+    <Link
+      ref={ref}
+      to={`/rosters/${slug}`}
+      onMouseEnter={() => prefetchRoute(`/rosters/${slug}`)}
+      onFocus={() => prefetchRoute(`/rosters/${slug}`)}
+      onTouchStart={() => prefetchRoute(`/rosters/${slug}`)}
+      style={{ ['--sa-base' as string]: `${delay}s` } as React.CSSProperties}
+      className={`sa-card ${
+        seen ? 'sa-card-play' : ''
+      } group relative flex flex-col justify-between bg-[#0a0a0c] border border-border rounded-2xl p-4 md:p-7 hover:border-accent-bright transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright overflow-hidden`}
+    >
+      {/* Illustration + bottom gradient for legible text */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+        <SportArt slug={slug} play={seen} delay={delay} className="w-full h-full block" />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0"
+          style={{
+            background:
+              'linear-gradient(to top, rgba(10, 10, 12, 0.82) 0%, rgba(10, 10, 12, 0.36) 38%, rgba(10, 10, 12, 0) 70%)'
+          }}
+        />
+      </div>
+
+      <div className="flex items-center justify-between gap-4 z-10">
+        <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-black/45 border border-white/15 font-mono text-xs font-medium text-zinc-200 tabular-nums">
+          {indexLabel}
+        </span>
+        <div className="w-9 h-9 rounded-full bg-black/45 border border-white/15 flex items-center justify-center text-zinc-200 group-hover:text-white group-hover:border-accent-bright transition-colors shrink-0">
+          <ArrowUpRight size={18} weight="bold" />
+        </div>
+      </div>
+
+      {/* Height spacer: compact on phones, a little taller from md up */}
+      <div aria-hidden="true" className="h-16 md:my-4 md:h-40 pointer-events-none" />
+
+      <div className="relative z-10">
+        <div className="sa-line absolute top-0 left-0 right-0 h-px bg-white/15" />
+        <div className="pt-3 md:pt-4 flex items-baseline justify-between gap-4 min-h-[2.75rem] md:min-h-[3rem]">
+          <h3 className="sa-text font-syne font-bold text-xl md:text-2xl text-white group-hover:text-accent-bright transition-colors tracking-tight">
+            {label}
+          </h3>
+          {countsLoaded && (
+            <div className="sa-text flex items-baseline gap-1.5 shrink-0">
+              <span className="font-mono font-semibold text-sm text-white tabular-nums">{count}</span>
+              <span className="font-sans text-xs text-zinc-300">athletes</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </Link>
+  )
 }
 
 export const SportCardsGrid: React.FC<SportCardsGridProps> = ({
   playerCounts,
   countsLoaded = true
 }) => {
-  const [shouldReduceMotion, setShouldReduceMotion] = useState<boolean>(() =>
-    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
-      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      : false
-  )
-  const [loadedMap, setLoadedMap] = useState<Record<string, boolean>>({})
-  const [errorMap, setErrorMap] = useState<Record<string, boolean>>({})
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const onChange = () => setShouldReduceMotion(mq.matches)
-    onChange()
-    if (typeof mq.addEventListener === 'function') {
-      mq.addEventListener('change', onChange)
-      return () => mq.removeEventListener('change', onChange)
-    }
-    mq.addListener(onChange)
-    return () => mq.removeListener(onChange)
-  }, [])
-
-  const handleImageLoaded = (slug: SportSlug) => {
-    setLoadedMap((prev) => (prev[slug] ? prev : { ...prev, [slug]: true }))
-  }
-
-  const handleImageError = (slug: SportSlug) => {
-    setErrorMap((prev) => (prev[slug] ? prev : { ...prev, [slug]: true }))
-  }
-
   return (
     <section
       id="rosters-section"
@@ -92,102 +100,18 @@ export const SportCardsGrid: React.FC<SportCardsGridProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
-        {SPORTS.map((sport, index) => {
-          const slug = sport.slug as SportSlug
-          const photo = sportPhotos[slug]
-          const isLoaded = Boolean(loadedMap[slug])
-          const hasError = Boolean(errorMap[slug])
-          const count = playerCounts[slug] ?? 0
-          const indexLabel = String(index + 1).padStart(2, '0')
-
-          return (
-            <Link
-              key={sport.slug}
-              to={`/rosters/${sport.slug}`}
-              onMouseEnter={() => prefetchRoute(`/rosters/${sport.slug}`)}
-              onFocus={() => prefetchRoute(`/rosters/${sport.slug}`)}
-              onTouchStart={() => prefetchRoute(`/rosters/${sport.slug}`)}
-              className="group relative flex flex-col justify-between bg-[#0a0a0c] border border-border rounded-2xl p-6 sm:p-7 hover:border-accent-bright transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright overflow-hidden"
-            >
-              {/* Full-bleed Photo Background & Subtle Bottom Gradient Overlay */}
-              <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-                {!hasError && (
-                  <img
-                    ref={(node) => {
-                      if (node && node.complete && node.naturalWidth > 0 && !loadedMap[slug]) {
-                        handleImageLoaded(slug)
-                      }
-                    }}
-                    src={photo.src}
-                    alt={photo.alt}
-                    width={photo.width}
-                    height={photo.height}
-                    loading="lazy"
-                    decoding="async"
-                    onLoad={() => handleImageLoaded(slug)}
-                    onError={() => handleImageError(slug)}
-                    style={{
-                      objectPosition: photo.objectPosition,
-                      transitionProperty: shouldReduceMotion ? 'none' : 'opacity, transform',
-                      transitionDuration: shouldReduceMotion ? '0ms' : '300ms, 600ms',
-                      transitionTimingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)'
-                    }}
-                    className={`w-full h-full object-cover origin-center ${
-                      isLoaded ? 'opacity-100' : 'opacity-0'
-                    } ${
-                      shouldReduceMotion
-                        ? ''
-                        : 'group-hover:scale-105 group-active:scale-105'
-                    }`}
-                  />
-                )}
-                <div
-                  aria-hidden="true"
-                  className="absolute inset-0"
-                  style={{
-                    background:
-                      'linear-gradient(to top, rgba(10, 10, 12, 0.78) 0%, rgba(10, 10, 12, 0.34) 36%, rgba(10, 10, 12, 0) 68%)'
-                  }}
-                />
-              </div>
-
-              {/* Card Top Row: Monospace Index Chip & Round Icon Button */}
-              <div className="flex items-center justify-between gap-4 z-10">
-                <span className="inline-flex items-center justify-center px-3 py-1 rounded-full bg-black/45 border border-white/15 font-mono text-xs font-medium text-zinc-200 tabular-nums">
-                  {indexLabel}
-                </span>
-                <div className="w-9 h-9 rounded-full bg-black/45 border border-white/15 flex items-center justify-center text-zinc-200 group-hover:text-white group-hover:border-accent-bright transition-colors shrink-0">
-                  <ArrowUpRight size={18} weight="bold" />
-                </div>
-              </div>
-
-              {/* Reserved Card Height Spacer */}
-              <div aria-hidden="true" className="my-8 h-48 sm:h-52 pointer-events-none" />
-
-              {/* Card Bottom Row: Hairline with Syne Sport Name & Monospace Athlete Count */}
-              <div className="pt-4 border-t border-white/15 flex items-baseline justify-between gap-4 z-10 min-h-[3rem]">
-                <h3 className="font-syne font-bold text-2xl text-white group-hover:text-accent-bright transition-colors tracking-tight">
-                  {sport.label}
-                </h3>
-                {countsLoaded && (
-                  <div className="flex items-baseline gap-1.5 shrink-0">
-                    <span className="font-mono font-semibold text-sm text-white tabular-nums">
-                      {count}
-                    </span>
-                    <span className="font-sans text-xs text-zinc-300">
-                      athletes
-                    </span>
-                  </div>
-                )}
-              </div>
-            </Link>
-          )
-        })}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
+        {SPORTS.map((sport, index) => (
+          <SportCard
+            key={sport.slug}
+            slug={sport.slug as SportSlug}
+            label={sport.label}
+            index={index}
+            count={playerCounts[sport.slug as SportSlug] ?? 0}
+            countsLoaded={countsLoaded}
+          />
+        ))}
       </div>
     </section>
   )
 }
-
-
-

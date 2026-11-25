@@ -299,3 +299,66 @@ button, input, select, textarea {
     font-size: 16px;
   }
 }
+
+/* ---- Sport illustrations: one-time build-in (SportArt) ---- */
+.sa .sa-fade,
+.sa .sa-rise,
+.sa .sa-pop {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.sa .sa-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+.sa-play .sa-fade {
+  animation: sa-fade 0.5s ease-out calc(var(--sa-base, 0s) + var(--d, 0s)) forwards;
+}
+.sa-play .sa-draw {
+  animation: sa-draw 0.7s cubic-bezier(0.22, 1, 0.36, 1) calc(var(--sa-base, 0s) + var(--d, 0s)) forwards;
+}
+.sa-play .sa-rise {
+  transform-origin: 50% 100%;
+  animation: sa-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) calc(var(--sa-base, 0s) + var(--d, 0s)) forwards;
+}
+.sa-play .sa-pop {
+  animation: sa-pop 0.6s cubic-bezier(0.34, 1.4, 0.64, 1) calc(var(--sa-base, 0s) + var(--d, 0s)) forwards;
+}
+@keyframes sa-fade { to { opacity: 1; } }
+@keyframes sa-draw { to { stroke-dashoffset: 0; } }
+@keyframes sa-rise {
+  from { opacity: 0; transform: scaleY(0.2); }
+  to { opacity: 1; transform: scaleY(1); }
+}
+@keyframes sa-pop {
+  from { opacity: 0; transform: translateY(-16px) scale(0.85); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Card text builds in after the art */
+.sa-card .sa-line {
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+.sa-card .sa-text {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.sa-card.sa-card-play .sa-line {
+  animation: sa-line 0.6s cubic-bezier(0.22, 1, 0.36, 1) calc(var(--sa-base, 0s) + 0.9s) forwards;
+}
+.sa-card.sa-card-play .sa-text {
+  animation: sa-text 0.45s ease-out calc(var(--sa-base, 0s) + 1.05s) forwards;
+}
+@keyframes sa-line { to { transform: scaleX(1); } }
+@keyframes sa-text { to { opacity: 1; transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .sa .sa-fade,
+  .sa .sa-rise,
+  .sa .sa-pop { opacity: 1 !important; transform: none !important; animation: none !important; }
+  .sa .sa-draw { stroke-dashoffset: 0 !important; animation: none !important; }
+  .sa-card .sa-line,
+  .sa-card .sa-text { opacity: 1 !important; transform: none !important; animation: none !important; }
+}
