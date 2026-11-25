@@ -380,16 +380,28 @@ export const NavigationMenu: React.FC<NavigationMenuProps> = ({
                     Sign out
                   </button>
                 ) : (
-                  <Link
-                    to="/owner-login"
-                    onClick={handleClose}
-                    onMouseEnter={() => prefetchRoute('/owner-login')}
-                    onFocus={() => prefetchRoute('/owner-login')}
-                    onTouchStart={() => prefetchRoute('/owner-login')}
-                    className="w-full inline-flex items-center justify-center h-11 px-5 rounded-full bg-btn-bg text-btn-fg hover:opacity-90 font-sans text-[11px] font-medium uppercase tracking-[0.18em] transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
-                  >
-                    Team owner sign in
-                  </Link>
+                  <div className="flex flex-col gap-2">
+                      <Link
+                        to="/owner-login"
+                        onClick={handleClose}
+                        onMouseEnter={() => prefetchRoute('/owner-login')}
+                        onFocus={() => prefetchRoute('/owner-login')}
+                        onTouchStart={() => prefetchRoute('/owner-login')}
+                        className="w-full inline-flex items-center justify-center h-11 px-5 rounded-full bg-btn-bg text-btn-fg hover:opacity-90 font-sans text-[11px] font-medium uppercase tracking-[0.18em] transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                      >
+                        Team owner sign in
+                      </Link>
+                    <Link
+                      to="/login"
+                      onClick={handleClose}
+                      onMouseEnter={() => prefetchRoute('/login')}
+                      onFocus={() => prefetchRoute('/login')}
+                      onTouchStart={() => prefetchRoute('/login')}
+                      className="w-full inline-flex items-center justify-center h-9 px-4 rounded-full bg-surface/70 hover:bg-surface-2 border border-border/80 font-sans text-[10px] font-medium uppercase tracking-[0.18em] text-muted hover:text-text transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
+                    >
+                      Admin login
+                    </Link>
+                  </div>
                 )}
               </div>
             )}
