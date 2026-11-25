@@ -29,6 +29,8 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
     }
   }, [word])
 
+  // Pinned scroll-linked intro: at the top of the page, wheel / swipe / keys drive the letters and the
+  // sheen (progress 0 to 1) while the page itself stays put. Once finished, normal scrolling resumes.
   useEffect(() => {
     if (typeof window === 'undefined') return
     const el = wordRef.current
@@ -38,81 +40,127 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
       typeof window.matchMedia === 'function'
         ? window.matchMedia('(prefers-reduced-motion: reduce)')
         : null
+    if (mq?.matches) return
 
+    const DISTANCE = 560 // virtual scroll distance (px) for the whole sequence
+    const SHEEN_START = 18
+    const SHEEN_END = 125 // band fully past the last letter
+
+    let progress = window.scrollY > 0 ? 1 : 0
     let rafId: number | null = null
-    let listening = false
+    let lastOffTop = 0
+    let touchY: number | null = null
 
-    const updatePosition = () => {
+    const render = () => {
       rafId = null
-      const y = window.scrollY
-      const pos = Math.min(100, 18 + (y / 420) * 74)
-      el.style.setProperty('--sheen-pos', `${pos.toFixed(1)}%`)
-
-      // Letters float upward one after another, left to right
-      const overall = Math.min(1, Math.max(0, y / Math.max(window.innerHeight * 0.45, 240)))
-      const chars = el.querySelectorAll<HTMLElement>('[data-hero-char]')
-      chars.forEach((c, i) => {
-        const raw = Math.min(1, Math.max(0, (overall - i * 0.09) / 0.5))
+      el.style.setProperty(
+        '--sheen-pos',
+        `${(SHEEN_START + progress * (SHEEN_END - SHEEN_START)).toFixed(1)}%`
+      )
+      el.querySelectorAll<HTMLElement>('[data-hero-char]').forEach((c, i) => {
+        const raw = Math.min(1, Math.max(0, (progress - i * 0.08) / 0.6))
         const eased = 1 - Math.pow(1 - raw, 2)
         c.style.setProperty('--float', eased.toFixed(3))
       })
     }
+    const schedule = () => {
+      if (rafId === null) rafId = window.requestAnimationFrame(render)
+    }
+    const setProgress = (next: number) => {
+      const clamped = Math.min(1, Math.max(0, next))
+      if (clamped === progress) return
+      progress = clamped
+      schedule()
+    }
 
+    const modalOpen = (target: EventTarget | null) =>
+      Boolean(document.querySelector('[aria-modal="true"]')) ||
+      (target instanceof Element && Boolean(target.closest('[role="dialog"]')))
+
+    // Returns true when the movement was consumed by the intro (so the page must not scroll)
+    const consume = (delta: number): boolean => {
+      if (window.scrollY > 0) return false
+      if (delta > 0 && progress < 1) {
+        setProgress(progress + delta / DISTANCE)
+        return true
+      }
+      // Only reverse after the page has rested at the top, so fast flicks upward do not rewind it
+      if (delta < 0 && progress > 0 && Date.now() - lastOffTop > 400) {
+        setProgress(progress + delta / DISTANCE)
+        return true
+      }
+      return false
+    }
+
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || modalOpen(e.target)) return
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? window.innerHeight : 1
+      if (consume(e.deltaY * unit)) e.preventDefault()
+    }
+
+    const onTouchStart = (e: TouchEvent) => {
+      touchY = e.touches.length === 1 ? e.touches[0].clientY : null
+    }
+    const onTouchMove = (e: TouchEvent) => {
+      if (touchY === null || e.touches.length !== 1 || modalOpen(e.target)) return
+      const y = e.touches[0].clientY
+      const delta = touchY - y
+      touchY = y
+      if (consume(delta) && e.cancelable) e.preventDefault()
+    }
+    const onTouchEnd = () => {
+      touchY = null
+    }
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || modalOpen(e.target)) return
+      const t = e.target
+      if (
+        t instanceof HTMLElement &&
+        (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))
+      ) {
+        return
+      }
+      let delta = 0
+      if (e.key === 'ArrowDown') delta = 80
+      else if (e.key === 'ArrowUp') delta = -80
+      else if (e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey)) delta = DISTANCE * 0.6
+      else if (e.key === 'PageUp' || (e.key === ' ' && e.shiftKey)) delta = -DISTANCE * 0.6
+      else if (e.key === 'End') delta = DISTANCE
+      else if (e.key === 'Home') delta = -DISTANCE
+      if (delta !== 0 && consume(delta)) e.preventDefault()
+    }
+
+    // Any other way of leaving the top (anchor jump, Rosters button, scrollbar) completes the intro
     const onScroll = () => {
-      if (rafId === null) {
-        rafId = window.requestAnimationFrame(updatePosition)
+      if (window.scrollY > 0) {
+        lastOffTop = Date.now()
+        if (progress < 1) setProgress(1)
       }
     }
 
-    const start = () => {
-      if (listening) return
-      listening = true
-      updatePosition()
-      window.addEventListener('scroll', onScroll, { passive: true })
-    }
+    render()
+    window.addEventListener('wheel', onWheel, { passive: false })
+    window.addEventListener('touchstart', onTouchStart, { passive: true })
+    window.addEventListener('touchmove', onTouchMove, { passive: false })
+    window.addEventListener('touchend', onTouchEnd, { passive: true })
+    window.addEventListener('touchcancel', onTouchEnd, { passive: true })
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('scroll', onScroll, { passive: true })
 
-    const stop = () => {
-      if (listening) {
-        window.removeEventListener('scroll', onScroll)
-        listening = false
-      }
-      if (rafId !== null) {
-        window.cancelAnimationFrame(rafId)
-        rafId = null
-      }
+    return () => {
+      window.removeEventListener('wheel', onWheel)
+      window.removeEventListener('touchstart', onTouchStart)
+      window.removeEventListener('touchmove', onTouchMove)
+      window.removeEventListener('touchend', onTouchEnd)
+      window.removeEventListener('touchcancel', onTouchEnd)
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('scroll', onScroll)
+      if (rafId !== null) window.cancelAnimationFrame(rafId)
       el.style.removeProperty('--sheen-pos')
       el.querySelectorAll<HTMLElement>('[data-hero-char]').forEach((c) => {
         c.style.removeProperty('--float')
       })
-    }
-
-    const syncMotionPref = () => {
-      if (mq?.matches) {
-        stop()
-      } else {
-        start()
-      }
-    }
-
-    syncMotionPref()
-
-    if (mq) {
-      if (typeof mq.addEventListener === 'function') {
-        mq.addEventListener('change', syncMotionPref)
-      } else {
-        mq.addListener(syncMotionPref)
-      }
-    }
-
-    return () => {
-      stop()
-      if (mq) {
-        if (typeof mq.removeEventListener === 'function') {
-          mq.removeEventListener('change', syncMotionPref)
-        } else {
-          mq.removeListener(syncMotionPref)
-        }
-      }
     }
   }, [])
 

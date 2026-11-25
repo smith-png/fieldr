@@ -237,7 +237,7 @@ button, input, select, textarea {
 .hero-char {
   display: inline-block;
   will-change: transform;
-  transform: translate3d(0, calc(var(--float, 0) * -0.09em), 0);
+  transform: translate3d(0, calc(var(--float, 0) * -0.04em), 0);
   background-image: linear-gradient(
     112deg,
     var(--text) 0%,
