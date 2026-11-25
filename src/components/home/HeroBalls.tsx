@@ -1,11 +1,11 @@
 import React from 'react'
 
-const BALL_CLASS = 'w-8 h-8 sm:w-9 sm:h-9 shrink-0'
+const BALL_CLASS = 'w-7 h-7 sm:w-9 sm:h-9 shrink-0'
 
 export const HeroBalls: React.FC = () => (
   <div
     aria-hidden="true"
-    className="flex items-center justify-center gap-4 sm:gap-5 mt-5 sm:mt-6 select-none"
+    className="relative z-10 flex items-center justify-center gap-3 sm:gap-5 mt-4 sm:mt-6 select-none"
   >
     <svg viewBox="0 0 40 40" fill="none" className={BALL_CLASS}>
       <circle cx="20" cy="20" r="18" fill="var(--error)" />

@@ -446,6 +446,11 @@ export const HomePage: React.FC = () => {
     return parts
   }, [hasLoadedSeason, hasLoadedCounts, activeSeason?.name, totalAthletes, cachedTeamsCount])
 
+  const heroYear = useMemo(() => {
+    const match = activeSeason?.name?.match(/\b(20\d{2})\b/)
+    return match ? match[1] : '2026'
+  }, [activeSeason?.name])
+
   const playHeroIntro = animateHeroEntrance && !shouldReduceMotion
 
   return (
@@ -468,75 +473,81 @@ export const HomePage: React.FC = () => {
         )}
       </Suspense>
 
-      {/* Main Hero Container wrapped in ErrorBoundary */}
-      <ErrorBoundary name="HeroSection" fallback={null}>
-        <main className="relative z-10 flex flex-col px-6 md:px-16 lg:px-24 pt-6 sm:pt-8 lg:pt-10 pb-10 sm:pb-12 lg:pb-14 max-w-7xl mx-auto w-full">
-          {/* 1. Top Row with 1px hairline under it */}
-          <div className="flex items-center justify-between gap-4 pb-3 sm:pb-3.5 border-b border-border/60 min-h-[2rem]">
-            <div className="flex items-center gap-2.5 font-sans text-[11px] sm:text-xs font-medium uppercase tracking-[0.2em] text-muted shrink-0">
-              <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
-              <span>LIVE PLAYER AUCTION</span>
-            </div>
-            <span className="font-sans text-[11px] sm:text-xs font-medium uppercase tracking-[0.18em] text-text truncate text-right min-h-[1rem]">
-              {hasLoadedSeason && activeSeason?.name ? activeSeason.name : ''}
-            </span>
-          </div>
-
-          {/* 2. Center: single hollow Syne ExtraBold word that fades to a sage fill, plus small decorative balls */}
-          <div className="flex flex-col items-center py-8 sm:py-10 lg:py-12">
-            <HeroWord word={HERO_WORD} playIntro={playHeroIntro} />
-            <HeroBalls />
-          </div>
-
-          {/* 3. Bottom Row with 1px hairline above it */}
-          <div className="pt-5 border-t border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="min-h-[1.25rem] flex items-center flex-wrap font-sans text-[11px] sm:text-xs font-medium uppercase tracking-[0.16em] text-muted">
-              {dataLineParts.map((part, idx) => (
-                <React.Fragment key={idx}>
-                  {idx > 0 && (
-                    <span aria-hidden="true" className="mx-2 text-muted/60 font-mono">
-                      //
-                    </span>
-                  )}
-                  {part}
-                </React.Fragment>
-              ))}
+      {/* Hero Fold: on mobile (<640px) fills 100svh minus header with ticker anchored at bottom */}
+      <div className="hero-mobile-fold flex flex-col">
+        {/* Main Hero Container wrapped in ErrorBoundary */}
+        <ErrorBoundary name="HeroSection" fallback={null}>
+          <main className="relative z-10 flex-1 sm:flex-initial flex flex-col px-6 md:px-16 lg:px-24 pt-5 sm:pt-8 lg:pt-10 pb-2 sm:pb-12 lg:pb-14 max-w-7xl mx-auto w-full">
+            {/* 1. Top Row (hairline hidden on mobile, preserved on sm+) */}
+            <div className="relative z-10 shrink-0 flex items-center justify-between gap-4 pb-0 sm:pb-3.5 sm:border-b sm:border-border/60 min-h-[2rem]">
+              <div className="flex items-center gap-2.5 font-sans text-[11px] sm:text-xs font-medium uppercase tracking-[0.2em] text-muted shrink-0">
+                <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
+                <span>LIVE PLAYER AUCTION</span>
+              </div>
+              <span className="sm:hidden font-sans text-[11px] font-medium uppercase tracking-[0.18em] text-text tabular-nums text-right shrink-0">
+                {heroYear}
+              </span>
+              <span className="hidden sm:inline font-sans text-xs font-medium uppercase tracking-[0.18em] text-text truncate text-right min-h-[1rem]">
+                {hasLoadedSeason && activeSeason?.name ? activeSeason.name : ''}
+              </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:flex items-center gap-3 w-full sm:w-auto shrink-0">
-              <button
-                type="button"
-                onClick={handleScrollToRosters}
-                className="min-h-[44px] px-6 py-2.5 rounded-full bg-btn-bg text-btn-fg font-sans font-semibold text-xs sm:text-sm hover:opacity-90 transition-opacity motion-reduce:transition-none inline-flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright whitespace-nowrap"
-              >
-                <span>Rosters</span>
-                <ArrowDown size={15} weight="bold" />
-              </button>
-              <Link
-                to="/teams"
-                onMouseEnter={() => prefetchRoute('/teams')}
-                onFocus={() => prefetchRoute('/teams')}
-                onTouchStart={() => prefetchRoute('/teams')}
-                className="min-h-[44px] px-6 py-2.5 rounded-full bg-surface/85 hover:bg-surface-2 text-text border border-border font-sans font-semibold text-xs sm:text-sm transition-colors motion-reduce:transition-none inline-flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright whitespace-nowrap"
-              >
-                <span>Teams</span>
-                <ArrowUpRight size={15} weight="bold" />
-              </Link>
+            {/* 2. Center: solid Syne 800 wordmark + sage echo + faint stadium arc + sport balls */}
+            <div className="relative flex-1 sm:flex-initial flex flex-col items-center justify-center py-6 sm:py-10 lg:py-12">
+              <HeroWord word={HERO_WORD} playIntro={playHeroIntro} />
+              <HeroBalls />
             </div>
-          </div>
-        </main>
-      </ErrorBoundary>
 
-      {/* Stadium Dot-Matrix Ticker wrapped in ErrorBoundary */}
-      <ErrorBoundary name="TickerSection" fallback={null}>
-        <div className="relative z-10">
-          <TickerStrip
-            items={carouselItems ?? undefined}
-            speed={tickerSpeed}
-            disableSelfFetch
-          />
-        </div>
-      </ErrorBoundary>
+            {/* 3. Bottom Row (hairline and secondary metadata hidden on mobile, preserved on sm+) */}
+            <div className="relative z-10 shrink-0 pt-0 sm:pt-5 sm:border-t sm:border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="hidden sm:flex min-h-[1.25rem] items-center flex-wrap font-sans text-[11px] sm:text-xs font-medium uppercase tracking-[0.16em] text-muted">
+                {dataLineParts.map((part, idx) => (
+                  <React.Fragment key={idx}>
+                    {idx > 0 && (
+                      <span aria-hidden="true" className="mx-2 text-muted/60 font-mono">
+                        //
+                      </span>
+                    )}
+                    {part}
+                  </React.Fragment>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-2 sm:flex items-center gap-3 w-full sm:w-auto shrink-0">
+                <button
+                  type="button"
+                  onClick={handleScrollToRosters}
+                  className="h-[52px] sm:h-auto sm:min-h-[44px] px-6 sm:py-2.5 rounded-full bg-btn-bg text-btn-fg font-sans font-semibold text-sm hover:opacity-90 active:scale-[0.985] transition-[opacity,transform] motion-reduce:transition-none inline-flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright whitespace-nowrap"
+                >
+                  <span>Rosters</span>
+                  <ArrowDown size={15} weight="bold" />
+                </button>
+                <Link
+                  to="/teams"
+                  onMouseEnter={() => prefetchRoute('/teams')}
+                  onFocus={() => prefetchRoute('/teams')}
+                  onTouchStart={() => prefetchRoute('/teams')}
+                  className="h-[52px] sm:h-auto sm:min-h-[44px] px-6 sm:py-2.5 rounded-full bg-surface/85 hover:bg-surface-2 text-text border border-border font-sans font-semibold text-sm active:scale-[0.985] transition-[background-color,transform] motion-reduce:transition-none inline-flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright whitespace-nowrap"
+                >
+                  <span>Teams</span>
+                  <ArrowUpRight size={15} weight="bold" />
+                </Link>
+              </div>
+            </div>
+          </main>
+        </ErrorBoundary>
+
+        {/* Stadium Dot-Matrix Ticker wrapped in ErrorBoundary */}
+        <ErrorBoundary name="TickerSection" fallback={null}>
+          <div className="relative z-10 shrink-0">
+            <TickerStrip
+              items={carouselItems ?? undefined}
+              speed={tickerSpeed}
+              disableSelfFetch
+            />
+          </div>
+        </ErrorBoundary>
+      </div>
 
       {/* Rosters Section wrapped in ErrorBoundary */}
       <ErrorBoundary name="RostersSection" fallback={null}>
