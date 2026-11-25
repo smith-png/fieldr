@@ -935,3 +935,128 @@ button, input, select, textarea {
   }
 }
 
+/* Home page: Meet the athletes playing card deck */
+.athlete-card-perspective {
+  perspective: 1100px;
+}
+
+.athlete-card-3d {
+  transform-style: preserve-3d;
+}
+
+.athlete-card-face {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.athlete-card-face-back {
+  transform: rotateY(180deg);
+}
+
+.athlete-card-back-bg {
+  background-color: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  background-image:
+    radial-gradient(
+      circle at 20% 18%,
+      color-mix(in srgb, var(--accent-bright) 24%, transparent) 0%,
+      transparent 54%
+    ),
+    radial-gradient(
+      circle at 82% 84%,
+      color-mix(in srgb, var(--accent) 26%, transparent) 0%,
+      transparent 56%
+    ),
+    repeating-linear-gradient(
+      45deg,
+      color-mix(in srgb, var(--accent-bright) 10%, transparent) 0px,
+      color-mix(in srgb, var(--accent-bright) 10%, transparent) 1px,
+      transparent 1px,
+      transparent 12px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      color-mix(in srgb, var(--accent) 9%, transparent) 0px,
+      color-mix(in srgb, var(--accent) 9%, transparent) 1px,
+      transparent 1px,
+      transparent 12px
+    );
+}
+
+.athlete-card-scrim-top {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--surface) 88%, transparent) 0%,
+    color-mix(in srgb, var(--surface) 44%, transparent) 58%,
+    transparent 100%
+  );
+}
+
+.athlete-card-scrim-bottom {
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--surface) 95%, transparent) 0%,
+    color-mix(in srgb, var(--surface) 80%, transparent) 44%,
+    color-mix(in srgb, var(--surface) 24%, transparent) 78%,
+    transparent 100%
+  );
+}
+
+@keyframes athleteFoilSweep {
+  0% {
+    opacity: 0;
+    transform: translate3d(-140%, 0, 0) skewX(-22deg);
+  }
+  20% {
+    opacity: 0.9;
+  }
+  72% {
+    opacity: 0.72;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(240%, 0, 0) skewX(-22deg);
+  }
+}
+
+.athlete-card-foil {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--accent-bright) 28%, transparent) 30%,
+    rgba(var(--hero-shine-rgb), 0.56) 50%,
+    color-mix(in srgb, var(--accent-bright) 24%, transparent) 70%,
+    transparent 100%
+  );
+  animation: athleteFoilSweep 820ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: transform, opacity;
+}
+
+@keyframes athleteCardBreathe {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -2px, 0);
+  }
+}
+
+.athlete-card-breathe {
+  animation: athleteCardBreathe 4.4s ease-in-out var(--breathe-delay, 0s) infinite;
+  will-change: transform;
+}
+
+.athlete-card-breathe-paused {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .athlete-card-breathe,
+  .athlete-card-foil {
+    animation: none !important;
+  }
+  .athlete-card-foil {
+    display: none !important;
+  }
+}
+
+

@@ -8,6 +8,7 @@ import { HeroBalls } from '../../components/home/HeroBalls'
 import { TickerStrip } from '../../components/home/TickerStrip'
 import { SportCardsGrid } from '../../components/home/SportCardsGrid'
 import { QuickLinks } from '../../components/home/QuickLinks'
+import { AthleteDeck } from '../../components/home/AthleteDeck'
 import { SiteFooter } from '../../components/layout/SiteFooter'
 import { ErrorBoundary } from '../../components/layout/ErrorBoundary'
 import {
@@ -565,6 +566,16 @@ export const HomePage: React.FC = () => {
       <ErrorBoundary name="QuickLinksSection" fallback={null}>
         <div className="relative z-10">
           <QuickLinks />
+        </div>
+      </ErrorBoundary>
+
+      {/* Meet the athletes interactive card hand */}
+      <ErrorBoundary name="AthleteDeckSection" fallback={null}>
+        <div className="relative z-10">
+          <AthleteDeck
+            activeSeasonId={activeSeason?.id ?? null}
+            seasonLoaded={hasLoadedSeason}
+          />
         </div>
       </ErrorBoundary>
 
