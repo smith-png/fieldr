@@ -4,7 +4,20 @@ import './index.css';
 import {initRegistrationStatusStore} from './lib/registrationStatusStore';
 import {installPreloadErrorHandler} from './lib/lazyWithRetry';
 
+const LEGACY_SW_CLEANUP_KEY = 'fieldr_legacy_sw_cleaned_v1';
+
 async function cleanupLegacyServiceWorkers(): Promise<void> {
+  try {
+    if (
+      typeof window !== 'undefined' &&
+      window.localStorage.getItem(LEGACY_SW_CLEANUP_KEY) === '1'
+    ) {
+      return;
+    }
+  } catch {
+    // Ignore localStorage read errors in restricted environments
+  }
+
   try {
     if (
       typeof navigator !== 'undefined' &&
@@ -35,6 +48,14 @@ async function cleanupLegacyServiceWorkers(): Promise<void> {
     }
   } catch {
     // Ignore Cache Storage cleanup errors in restricted environments
+  }
+
+  try {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(LEGACY_SW_CLEANUP_KEY, '1');
+    }
+  } catch {
+    // Ignore localStorage write errors in restricted environments
   }
 }
 

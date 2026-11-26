@@ -1,4 +1,4 @@
-import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowDown, ArrowUpRight } from '@phosphor-icons/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
@@ -8,7 +8,6 @@ import { HeroBalls } from '../../components/home/HeroBalls'
 import { TickerStrip } from '../../components/home/TickerStrip'
 import { SportCardsGrid } from '../../components/home/SportCardsGrid'
 import { QuickLinks } from '../../components/home/QuickLinks'
-import { AthleteDeck } from '../../components/home/AthleteDeck'
 import { SiteFooter } from '../../components/layout/SiteFooter'
 import { ErrorBoundary } from '../../components/layout/ErrorBoundary'
 import {
@@ -41,6 +40,24 @@ const loadNavigationMenu = () =>
   }))
 
 const LazyNavigationMenu = lazyWithRetry(loadNavigationMenu)
+
+const loadAthleteDeck = () =>
+  import('../../components/home/AthleteDeck').then((m) => ({
+    default: m.AthleteDeck
+  }))
+
+const LazyAthleteDeck = lazyWithRetry(loadAthleteDeck)
+
+const AthleteDeckPlaceholder: React.FC = () => (
+  <section
+    aria-hidden="true"
+    className="w-full max-w-7xl mx-auto px-6 md:px-16 lg:px-24 pb-16 md:pb-24"
+  >
+    <div className="h-[88px] sm:h-[96px] mb-8" />
+    <div className="h-[388px] sm:h-[364px] md:h-[388px] lg:h-[408px]" />
+    <div className="mt-5 h-11" />
+  </section>
+)
 
 const DEFAULT_COUNTS: Record<SportSlug, number> = {
   cricket: 0,
@@ -159,6 +176,8 @@ export const HomePage: React.FC = () => {
     )
   )
   const [sports, setSports] = useState<Sport[]>(initialSports)
+  const athleteDeckTriggerRef = useRef<HTMLDivElement>(null)
+  const [shouldMountAthleteDeck, setShouldMountAthleteDeck] = useState(false)
   const [shouldReduceMotion, setShouldReduceMotion] = useState<boolean>(() =>
     typeof window !== 'undefined' && typeof window.matchMedia === 'function'
       ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -205,6 +224,52 @@ export const HomePage: React.FC = () => {
       window.clearTimeout(timer)
     }
   }, [])
+
+  useEffect(() => {
+    if (shouldMountAthleteDeck || typeof window === 'undefined') return
+    let cancelled = false
+    const activate = () => {
+      if (!cancelled) setShouldMountAthleteDeck(true)
+    }
+
+    const el = athleteDeckTriggerRef.current
+    let observer: IntersectionObserver | null = null
+    if (el && typeof IntersectionObserver !== 'undefined') {
+      observer = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((entry) => entry.isIntersecting)) {
+            activate()
+            observer?.disconnect()
+          }
+        },
+        { rootMargin: '400px 0px' }
+      )
+      observer.observe(el)
+    }
+
+    const win = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number
+      cancelIdleCallback?: (id: number) => void
+    }
+    let idleId: number | null = null
+    let timeoutId: number | null = null
+    if (typeof win.requestIdleCallback === 'function') {
+      idleId = win.requestIdleCallback(activate, { timeout: 2500 })
+    } else {
+      timeoutId = window.setTimeout(activate, 1800)
+    }
+
+    return () => {
+      cancelled = true
+      observer?.disconnect()
+      if (idleId !== null && typeof win.cancelIdleCallback === 'function') {
+        win.cancelIdleCallback(idleId)
+      }
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId)
+      }
+    }
+  }, [shouldMountAthleteDeck])
 
   const handleOpenMenu = useCallback(() => {
     setHasOpenedMenu(true)
@@ -563,13 +628,19 @@ export const HomePage: React.FC = () => {
         </div>
       </ErrorBoundary>
 
-      {/* Meet the athletes interactive card hand */}
+      {/* Meet the athletes interactive card hand (lazy-loaded near viewport or on idle) */}
       <ErrorBoundary name="AthleteDeckSection" fallback={null}>
-        <div className="relative z-10">
-          <AthleteDeck
-            activeSeasonId={activeSeason?.id ?? null}
-            seasonLoaded={hasLoadedSeason}
-          />
+        <div ref={athleteDeckTriggerRef} className="relative z-10">
+          {shouldMountAthleteDeck ? (
+            <Suspense fallback={<AthleteDeckPlaceholder />}>
+              <LazyAthleteDeck
+                activeSeasonId={activeSeason?.id ?? null}
+                seasonLoaded={hasLoadedSeason}
+              />
+            </Suspense>
+          ) : (
+            <AthleteDeckPlaceholder />
+          )}
         </div>
       </ErrorBoundary>
 

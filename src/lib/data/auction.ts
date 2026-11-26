@@ -465,11 +465,6 @@ const supabaseAuctionService: AuctionService = {
 
     markLocalMutation(['auction'])
     return data as ProjectorState
-  },
-
-  // Admin auction realtime is handled by the shared AdminRealtimeProvider.
-  subscribeToAuctionRealtime(_seasonId: string, _onUpdate: () => void): () => void {
-    return () => {}
   }
 }
 
@@ -513,8 +508,6 @@ export const auctionUndoLastSale = (seasonId: string) =>
   auctionService.auctionUndoLastSale(seasonId)
 export const auctionBackToIdle = (seasonId: string) =>
   auctionService.auctionBackToIdle(seasonId)
-export const subscribeToAuctionRealtime = (seasonId: string, onUpdate: () => void) =>
-  auctionService.subscribeToAuctionRealtime(seasonId, onUpdate)
 
 export interface AuctionQueueEntry {
   season_id: string

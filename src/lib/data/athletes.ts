@@ -463,11 +463,6 @@ const supabaseAthletesService: AthletesService = {
 
 export const athletesService: AthletesService = supabaseAthletesService
 
-// Deprecated: athletes is synced via the shared AdminRealtimeProvider ("admin-sync" broadcast).
-export function subscribeToAthletes(_onUpdate: () => void): () => void {
-  return () => {}
-}
-
 export const getAllAthletes = () => athletesService.getAllAthletes()
 export const getAthletesPaged = (params: AthletesPagedParams) =>
   athletesService.getAthletesPaged(params)

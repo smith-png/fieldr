@@ -267,7 +267,6 @@ export interface AuctionService {
   ): Promise<void>
   auctionUndoLastSale(seasonId: string): Promise<void>
   auctionBackToIdle(seasonId: string): Promise<ProjectorState>
-  subscribeToAuctionRealtime(seasonId: string, onUpdate: () => void): () => void
 }
 
 export interface LogsService {

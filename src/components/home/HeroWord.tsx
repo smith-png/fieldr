@@ -82,6 +82,7 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
     let touchTime = 0
     let touchVelocity = 0 // px/ms, positive = scrolling down
     let touchLocked = false // true when preventDefault took over scrolling during this touch
+    let inputListenersAttached = false
 
     const progressFromScrollY = (y: number) =>
       PIN_PROGRESS + Math.min(1, Math.max(0, y) / SCROLL_DISTANCE) * (1 - PIN_PROGRESS)
@@ -115,6 +116,7 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
       } else {
         setProgress(PIN_PROGRESS)
       }
+      syncInputListeners()
     }
     const stopMomentum = () => {
       if (momentumRafId !== null) {
@@ -213,6 +215,7 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
             window.scrollTo(0, 0)
             lastOffTop = Date.now()
             setProgress(PIN_PROGRESS)
+            syncInputListeners()
             momentumRafId = null
             return
           }
@@ -296,6 +299,7 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
       touchY = null
       touchVelocity = 0
       touchLocked = false
+      syncInputListeners()
       if (shouldCoast) startTouchMomentum(releaseV)
     }
 
@@ -325,6 +329,31 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
       if (delta !== 0 && consume(delta)) e.preventDefault()
     }
 
+    const attachInputListeners = () => {
+      if (inputListenersAttached) return
+      inputListenersAttached = true
+      window.addEventListener('wheel', onWheel, { passive: false })
+      window.addEventListener('touchmove', onTouchMove, { passive: false })
+      window.addEventListener('keydown', onKeyDown)
+    }
+
+    const detachInputListeners = () => {
+      if (!inputListenersAttached) return
+      inputListenersAttached = false
+      window.removeEventListener('wheel', onWheel)
+      window.removeEventListener('touchmove', onTouchMove)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+
+    const syncInputListeners = () => {
+      const shouldAttach = window.scrollY <= 0 || progress < PIN_PROGRESS || touchLocked
+      if (shouldAttach) {
+        attachInputListeners()
+      } else {
+        detachInputListeners()
+      }
+    }
+
     // Drives 50..100% from real scrollY, reverses 100..50% when scrolling back up,
     // and finishes immediately on anchor jumps, Rosters button, or scrollbar drags from top.
     const onScroll = () => {
@@ -334,11 +363,13 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
         if (progress < PIN_PROGRESS) {
           forceFinished = true
           setProgress(1)
+          syncInputListeners()
           return
         }
         if (forceFinished) {
           if (y >= SCROLL_DISTANCE) forceFinished = false
           if (progress < 1) setProgress(1)
+          syncInputListeners()
           return
         }
         setProgress(progressFromScrollY(y))
@@ -348,25 +379,22 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
           setProgress(PIN_PROGRESS)
         }
       }
+      syncInputListeners()
     }
 
     render()
-    window.addEventListener('wheel', onWheel, { passive: false })
+    syncInputListeners()
     window.addEventListener('touchstart', onTouchStart, { passive: true })
-    window.addEventListener('touchmove', onTouchMove, { passive: false })
     window.addEventListener('touchend', onTouchEnd, { passive: true })
     window.addEventListener('touchcancel', onTouchEnd, { passive: true })
-    window.addEventListener('keydown', onKeyDown)
     window.addEventListener('scroll', onScroll, { passive: true })
 
     return () => {
       stopMomentum()
-      window.removeEventListener('wheel', onWheel)
+      detachInputListeners()
       window.removeEventListener('touchstart', onTouchStart)
-      window.removeEventListener('touchmove', onTouchMove)
       window.removeEventListener('touchend', onTouchEnd)
       window.removeEventListener('touchcancel', onTouchEnd)
-      window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('scroll', onScroll)
       if (rafId !== null) window.cancelAnimationFrame(rafId)
       el.style.removeProperty('--sheen-pos')

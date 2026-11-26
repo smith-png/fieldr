@@ -9,7 +9,9 @@ import React, {
 } from 'react'
 import type { AuthUser } from '../types'
 import {
+  clearCachedUserRole,
   getCurrentUser,
+  getUserFromSession,
   signIn as apiSignIn,
   signOut as apiSignOut
 } from './data/auth'
@@ -69,6 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!mounted) return
 
       if (event === 'SIGNED_OUT' || !session?.user) {
+        clearCachedUserRole()
         updateUser(null)
         finishInitialLoad()
         return
@@ -84,7 +87,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        const curr = await getCurrentUser()
+        const curr = await getUserFromSession(session, {
+          forceRoleRefresh: event === 'USER_UPDATED'
+        })
         if (mounted && curr) {
           updateUser(curr)
         }
