@@ -671,8 +671,9 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
             <div className="flex items-center gap-2.5 flex-wrap min-w-0">
               <h2 className={ADMIN_CARD_TITLE}>Idle Screen</h2>
               {isIdleLive && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-surface-2 border border-accent-bright text-accent-bright text-xs font-medium">
-                  Live on stage
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-accent-bright/15 border border-accent-bright/35 text-accent-bright text-xs font-medium">
+                  <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-accent-bright shrink-0" />
+                  <span>Live on stage</span>
                 </span>
               )}
             </div>
@@ -797,8 +798,9 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className={ADMIN_CARD_TITLE}>Teams &amp; Purses</h2>
                   {isCard2Live && (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-surface-2 border border-accent-bright text-accent-bright text-xs font-medium">
-                      {isTeamAutoLive ? 'Live · Auto' : 'Live · Single'}
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-accent-bright/15 border border-accent-bright/35 text-accent-bright text-xs font-medium">
+                      <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-accent-bright shrink-0" />
+                      <span>{isTeamAutoLive ? 'Live · Auto' : 'Live · Single'}</span>
                     </span>
                   )}
                 </div>
@@ -993,8 +995,9 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className={ADMIN_CARD_TITLE}>Player Spotlight</h2>
                   {isCard3Live && (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-surface-2 border border-accent-bright text-accent-bright text-xs font-medium">
-                      {isPlayerAutoLive ? 'Live · Auto' : 'Live · Single'}
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-accent-bright/15 border border-accent-bright/35 text-accent-bright text-xs font-medium">
+                      <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-accent-bright shrink-0" />
+                      <span>{isPlayerAutoLive ? 'Live · Auto' : 'Live · Single'}</span>
                     </span>
                   )}
                 </div>

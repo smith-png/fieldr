@@ -171,7 +171,10 @@ export const OwnerLoginPage: React.FC = () => {
           </form>
 
           <div className="mt-6 pt-4 border-t border-border flex items-center justify-end text-xs text-muted">
-            <Link to="/teams" className="hover:text-text transition-colors">
+            <Link
+              to="/teams"
+              className="hover:text-text rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright transition-colors"
+            >
               Public Teams
             </Link>
           </div>

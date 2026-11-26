@@ -94,7 +94,7 @@ export const SportCardsGrid: React.FC<SportCardsGridProps> = ({
             TOURNAMENT SQUADS
           </span>
           <div className="flex items-baseline gap-3">
-            <span className="font-mono text-xs tabular-nums text-muted select-none">01</span>
+            <span className="font-mono text-xs font-medium tabular-nums text-muted select-none">01</span>
             <h2 className="font-syne font-extrabold text-3xl sm:text-4xl text-text tracking-tight">
               Explore
             </h2>

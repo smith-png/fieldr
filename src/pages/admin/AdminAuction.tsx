@@ -807,7 +807,13 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
             <h1 className="font-syne font-extrabold text-2xl sm:text-3xl text-text tracking-tight whitespace-nowrap">
               Auction Room
             </h1>
-            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-2 border border-border font-mono text-xs uppercase tracking-[0.14em] font-semibold text-text shrink-0">
+            <span
+              className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border font-mono text-xs uppercase tracking-[0.14em] font-semibold shrink-0 ${
+                isAuctionActive
+                  ? 'bg-accent-bright/15 border-accent-bright/40 text-accent-bright'
+                  : 'bg-surface-2 border-border text-text'
+              }`}
+            >
               <span
                 aria-hidden="true"
                 className={`w-2 h-2 rounded-full shrink-0 ${stageStatusDotClass}`}
@@ -878,7 +884,11 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
               />
               <span className="font-mono text-xs uppercase tracking-[0.14em] font-semibold text-muted">
                 STAGE STATUS:{' '}
-                <strong className="text-text font-bold">
+                <strong
+                  className={
+                    isAuctionActive ? 'text-accent-bright font-bold' : 'text-text font-bold'
+                  }
+                >
                   {isAuctionActive
                     ? 'LIVE AUCTION'
                     : isSoldState

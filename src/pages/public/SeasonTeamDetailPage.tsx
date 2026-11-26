@@ -1490,11 +1490,20 @@ export const SeasonTeamDetailPage: React.FC = () => {
                       <span className="block text-[11px] font-mono uppercase tracking-[0.16em] text-accent-bright font-semibold mb-1">
                         CONFIDENTIAL FRANCHISE PORTAL
                       </span>
-                      <h2 className="font-syne font-bold text-2xl sm:text-3xl text-text tracking-tight">
-                        Owner Panel
-                      </h2>
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <h2 className="font-syne font-bold text-2xl sm:text-3xl text-text tracking-tight">
+                          Owner Panel
+                        </h2>
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-accent-bright/15 border border-accent-bright/35 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-accent-bright shrink-0">
+                          <span
+                            aria-hidden="true"
+                            className="w-1.5 h-1.5 rounded-full bg-accent-bright shrink-0"
+                          />
+                          <span>LIVE</span>
+                        </span>
+                      </div>
                       {updatedTimeLabel && (
-                        <span className="block font-mono text-[11px] text-muted mt-1 tabular-nums">
+                        <span className="block font-mono text-[11px] text-muted font-medium mt-1 tabular-nums">
                           Updated {updatedTimeLabel}
                         </span>
                       )}

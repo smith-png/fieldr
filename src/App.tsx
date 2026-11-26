@@ -91,6 +91,7 @@ const ReelsPage = lazy(() =>
 const ReelSubmitPage = lazy(() =>
   import('./pages/public/ReelSubmitPage').then((m) => ({ default: m.ReelSubmitPage }))
 )
+const HoloPage = lazy(() => import('./features/holo'))
 
 export default function App() {
   if (!isSupabaseConfigured) {
@@ -294,6 +295,14 @@ export default function App() {
                       allowedRoles={['admin', 'projector']}
                       preloadComponent={projectorRouteComponent}
                     />
+                  }
+                />
+                <Route
+                  path="/holo"
+                  element={
+                    <Suspense fallback={<div className="fixed inset-0 h-dvh w-dvw bg-[#090a0c]" />}>
+                      <HoloPage />
+                    </Suspense>
                   }
                 />
                 <Route path="*" element={<Navigate to="/" replace />} />

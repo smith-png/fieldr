@@ -70,7 +70,7 @@ export const QuickLinks: React.FC = () => (
           JUMP STRAIGHT IN
         </span>
         <div className="flex items-baseline gap-3">
-          <span className="font-mono text-xs tabular-nums text-muted select-none">03</span>
+          <span className="font-mono text-xs font-medium tabular-nums text-muted select-none">03</span>
           <h2
             id="quick-links-heading"
             className="font-syne font-extrabold text-3xl sm:text-4xl text-text tracking-tight"

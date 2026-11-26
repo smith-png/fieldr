@@ -341,7 +341,7 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
             DRAW A CARD
           </span>
           <div className="flex items-baseline gap-3">
-            <span className="font-mono text-xs tabular-nums text-muted select-none">02</span>
+            <span className="font-mono text-xs font-medium tabular-nums text-muted select-none">02</span>
             <h2
               id="athlete-deck-heading"
               className="font-syne font-extrabold text-3xl sm:text-4xl text-text tracking-tight"

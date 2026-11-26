@@ -483,7 +483,7 @@ export const HomePage: React.FC = () => {
             {/* 1. Top Row (hairline hidden on mobile, preserved on sm+) */}
             <div className="relative z-10 shrink-0 flex items-center justify-between gap-4 pb-0 sm:pb-3.5 sm:border-b sm:border-border/60 min-h-[2rem]">
               <div className="flex items-center gap-2.5 font-sans text-[11px] sm:text-xs font-medium uppercase tracking-[0.2em] text-muted shrink-0">
-                <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
+                <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-accent-bright shrink-0" />
                 <span>LIVE PLAYER AUCTION</span>
               </div>
               <span className="sm:hidden font-sans text-[11px] font-medium uppercase tracking-[0.18em] text-text tabular-nums text-right shrink-0">
@@ -519,7 +519,7 @@ export const HomePage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleScrollToRosters}
-                  className="h-[52px] sm:h-auto sm:min-h-[44px] px-6 sm:py-2.5 rounded-full bg-btn-bg text-btn-fg font-sans font-semibold text-sm hover:opacity-90 active:scale-[0.985] transition-[opacity,transform] motion-reduce:transition-none inline-flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright whitespace-nowrap"
+                  className="h-[52px] sm:h-auto sm:min-h-[44px] px-6 sm:py-2.5 rounded-full bg-btn-bg text-btn-fg font-sans font-semibold text-sm hover:opacity-90 active:scale-[0.985] transition-[opacity,transform] motion-reduce:transition-none inline-flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright focus-visible:ring-offset-2 focus-visible:ring-offset-bg whitespace-nowrap"
                 >
                   <span>Rosters</span>
                   <ArrowDown size={15} weight="bold" />

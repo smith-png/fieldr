@@ -2,13 +2,14 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import {fileURLToPath} from 'url';
+import {wgslVitePlugin} from 'vgpu/client';
 import {defineConfig} from 'vite';
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [react(), tailwindcss(), wgslVitePlugin()],
     resolve: {
       alias: {
         '@': path.resolve(rootDir, '.'),

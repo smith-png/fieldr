@@ -421,7 +421,7 @@ export const ReelsPage: React.FC = () => {
                           href={item.reel_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="relative hit-44 inline-flex items-center gap-1.5 text-xs font-medium text-accent-bright hover:underline shrink-0"
+                          className="relative hit-44 inline-flex items-center gap-1.5 text-xs font-medium text-accent-bright hover:underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright shrink-0"
                         >
                           <span>Watch reel</span>
                           <ArrowSquareOut size={14} weight="regular" />

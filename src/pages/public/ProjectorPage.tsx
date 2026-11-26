@@ -1891,7 +1891,14 @@ export const ProjectorPage: React.FC = () => {
                     </AnimatePresence>
 
                     {/* Stage Header Pill */}
-                    <div className="w-full flex items-center justify-center relative z-10">
+                    <div className="w-full flex items-center justify-center gap-2.5 flex-wrap relative z-10">
+                      <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-accent-bright/15 border border-accent-bright/35 font-mono text-xs sm:text-sm font-semibold uppercase tracking-[0.14em] text-accent-bright">
+                        <span
+                          aria-hidden="true"
+                          className="w-2 h-2 rounded-full bg-accent-bright shrink-0"
+                        />
+                        <span>LIVE</span>
+                      </span>
                       <span className="inline-flex items-center px-4 py-1.5 rounded-full bg-surface-2 text-sm sm:text-base font-medium text-muted">
                         {leadingTeam ? 'Current bid' : 'Opening bid'}
                       </span>

@@ -429,7 +429,7 @@ export const TickerStrip: React.FC<TickerStripProps> = ({
           >
             <TickerItemText text={text} reducedMotion={shouldReduceMotion} />
             <span
-              className="mx-4 md:mx-6 text-accent select-none"
+              className="mx-4 md:mx-6 text-accent-bright/60 select-none"
               aria-hidden="true"
             >
               /

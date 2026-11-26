@@ -518,7 +518,7 @@ export const RegisterPage: React.FC = () => {
                   to="/help"
                   onMouseEnter={() => prefetchRoute('/help')}
                   onFocus={() => prefetchRoute('/help')}
-                  className="text-xs font-medium text-accent-bright hover:underline whitespace-nowrap shrink-0"
+                  className="text-xs font-medium text-accent-bright hover:underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright whitespace-nowrap shrink-0"
                 >
                   Photo size guidance
                 </Link>
@@ -772,7 +772,7 @@ export const RegisterPage: React.FC = () => {
                     to="/help"
                     onMouseEnter={() => prefetchRoute('/help')}
                     onFocus={() => prefetchRoute('/help')}
-                    className="text-xs font-medium text-accent-bright hover:underline"
+                    className="text-xs font-medium text-accent-bright hover:underline rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright"
                   >
                     Photo size guidance
                   </Link>
