@@ -52,7 +52,7 @@ const supabaseStorageService: StorageService = {
       .from('fieldr-assets')
       .upload(origPath, original.blob, {
         contentType: original.contentType,
-        upsert: true,
+        upsert: false,
         cacheControl: LONG_CACHE_SECONDS
       })
 
@@ -71,7 +71,7 @@ const supabaseStorageService: StorageService = {
         .from('fieldr-assets')
         .upload(thumbPath, thumbBlob, {
           contentType: 'image/jpeg',
-          upsert: true,
+          upsert: false,
           cacheControl: LONG_CACHE_SECONDS
         })
 

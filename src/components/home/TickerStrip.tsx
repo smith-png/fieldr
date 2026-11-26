@@ -441,7 +441,7 @@ export const TickerStrip: React.FC<TickerStripProps> = ({
   )
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-6 md:px-16 lg:px-24 py-6 md:py-8">
+    <div className="w-full px-2 py-6 md:py-8">
       <div
         ref={containerRef}
         role="region"

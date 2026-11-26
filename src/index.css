@@ -808,8 +808,20 @@ button, input, select, textarea {
 .ticker-strip-surface > .ticker-strip-mask {
   position: relative;
   z-index: 0;
-  -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 9%, #000 91%, transparent 100%);
-  mask-image: linear-gradient(to right, transparent 0%, #000 9%, #000 91%, transparent 100%);
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 24px,
+    #000 calc(100% - 24px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 24px,
+    #000 calc(100% - 24px),
+    transparent 100%
+  );
 }
 
 .ticker-strip-surface .ticker-strip-track {
@@ -983,6 +995,11 @@ button, input, select, textarea {
   transform: rotateY(180deg) translateZ(0.5px);
 }
 
+.athlete-card-back-lockup {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
 .athlete-card-back-mark {
   --athlete-card-mark: var(--accent-bright);
   color: var(--athlete-card-mark);
@@ -1016,6 +1033,14 @@ button, input, select, textarea {
   border: 1px solid var(--athlete-card-inner-line);
   pointer-events: none;
   z-index: 6;
+}
+
+.athlete-card-rim-framed::after {
+  display: none;
+}
+
+.athlete-card-photo-border {
+  border: 1px solid var(--athlete-card-inner-line);
 }
 
 .athlete-card-rim-active {

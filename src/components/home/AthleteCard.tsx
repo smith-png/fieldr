@@ -25,17 +25,24 @@ export const AthleteCardBack: React.FC<AthleteCardBackProps> = ({
     aria-hidden={ariaHidden}
     className={`athlete-card-back-bg athlete-card-rim rounded-2xl overflow-hidden flex items-center justify-center ${className}`}
   >
-    <svg
-      viewBox="19 16 27 32"
-      fill="none"
+    <div
       aria-hidden="true"
-      className="athlete-card-back-mark relative z-10 w-[22%] h-auto pointer-events-none"
+      className="athlete-card-back-lockup relative z-10 w-full flex flex-col items-center justify-center gap-2 pointer-events-none"
     >
-      <path
-        d="M19 16H46V23.5H28.5V29.5H41V36.5H28.5V48H19V16Z"
-        fill="currentColor"
-      />
-    </svg>
+      <svg
+        viewBox="19 16 27 32"
+        fill="none"
+        className="athlete-card-back-mark w-[17%] h-auto"
+      >
+        <path
+          d="M19 16H46V23.5H28.5V29.5H41V36.5H28.5V48H19V16Z"
+          fill="currentColor"
+        />
+      </svg>
+      <span className="font-syne font-extrabold syne-display text-sm sm:text-base tracking-tight text-text leading-none">
+        Fieldr
+      </span>
+    </div>
     {label && (
       <span className="pointer-events-none absolute inset-x-4 bottom-5 z-10 flex justify-center">
         <span className="px-3 py-1 rounded-full bg-surface/85 border border-border font-dot text-[10px] sm:text-[11px] uppercase tracking-[0.16em] text-text">
@@ -168,7 +175,7 @@ export const AthleteCard: React.FC<AthleteCardProps> = React.memo(
           >
             {/* CARD FRONT */}
             <div
-              className={`athlete-card-face athlete-card-rim absolute inset-0 rounded-2xl overflow-hidden bg-surface transition-colors duration-200 ${
+              className={`athlete-card-face athlete-card-rim athlete-card-rim-framed absolute inset-0 rounded-2xl overflow-hidden bg-surface transition-colors duration-200 ${
                 isCenter ? 'athlete-card-rim-active' : ''
               }`}
             >
@@ -181,69 +188,77 @@ export const AthleteCard: React.FC<AthleteCardProps> = React.memo(
                 onClick={onSelect}
                 aria-label={accessibleLabel}
                 aria-expanded={isCenter ? isOpen : undefined}
-                className="group relative block w-full h-full text-left rounded-[14px] overflow-hidden bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright focus-visible:ring-inset cursor-pointer disabled:cursor-default"
+                className="group relative block w-full h-full p-2 sm:p-2.5 text-left rounded-[14px] overflow-hidden bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright focus-visible:ring-inset cursor-pointer disabled:cursor-default"
               >
-                {/* Full-bleed portrait photo or silhouette placeholder */}
-                <PhotoPlaceholder />
-                {showPhoto ? (
-                  <img
-                    src={photoSrc}
-                    alt=""
-                    aria-hidden="true"
-                    width={250}
-                    height={350}
-                    loading="lazy"
-                    decoding="async"
-                    referrerPolicy="no-referrer"
-                    onError={() => setFailedSrc(photoSrc)}
-                    className="relative z-[1] w-full h-full object-cover object-top"
-                  />
-                ) : (
+                {/* Inset portrait photo or silhouette placeholder framed by the card background */}
+                <div className="relative w-full h-full rounded-[8px] sm:rounded-[6px] overflow-hidden bg-surface-2">
+                  <PhotoPlaceholder />
+                  {showPhoto ? (
+                    <img
+                      src={photoSrc}
+                      alt=""
+                      aria-hidden="true"
+                      width={250}
+                      height={350}
+                      loading="lazy"
+                      decoding="async"
+                      referrerPolicy="no-referrer"
+                      onError={() => setFailedSrc(photoSrc)}
+                      className="relative z-[1] w-full h-full object-cover object-top"
+                    />
+                  ) : (
+                    <div
+                      aria-hidden="true"
+                      className="relative z-[1] w-full h-full flex items-center justify-center"
+                    >
+                      <span className="font-syne font-bold text-4xl text-muted/40 tracking-tight">
+                        {getInitials(player.name)}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Theme-aware top and bottom readability scrims */}
                   <div
                     aria-hidden="true"
-                    className="relative z-[1] w-full h-full flex items-center justify-center"
-                  >
-                    <span className="font-syne font-bold text-4xl text-muted/40 tracking-tight">
-                      {getInitials(player.name)}
+                    className="athlete-card-scrim-top pointer-events-none absolute inset-x-0 top-0 h-20 z-[2]"
+                  />
+                  <div
+                    aria-hidden="true"
+                    className="athlete-card-scrim-bottom pointer-events-none absolute inset-x-0 bottom-0 h-32 z-[2]"
+                  />
+
+                  {/* Top corner playing-card indices: sport (left) & role (right) in dot font */}
+                  <div className="pointer-events-none absolute inset-x-3 top-2.5 z-[4] flex items-start justify-between gap-2">
+                    <span className="font-dot text-[10px] sm:text-[11px] uppercase tracking-[0.14em] text-accent-bright leading-tight shrink-0">
+                      {player.sport}
+                    </span>
+                    <span className="font-dot text-[10px] sm:text-[11px] uppercase tracking-[0.1em] text-muted leading-tight text-right truncate">
+                      {player.playing_role}
                     </span>
                   </div>
-                )}
 
-                {/* Theme-aware top and bottom readability scrims */}
-                <div
-                  aria-hidden="true"
-                  className="athlete-card-scrim-top pointer-events-none absolute inset-x-0 top-0 h-20 z-[2]"
-                />
-                <div
-                  aria-hidden="true"
-                  className="athlete-card-scrim-bottom pointer-events-none absolute inset-x-0 bottom-0 h-32 z-[2]"
-                />
-
-                {/* Top corner playing-card indices: sport (left) & role (right) in dot font */}
-                <div className="pointer-events-none absolute inset-x-4 top-3.5 z-[4] flex items-start justify-between gap-2">
-                  <span className="font-dot text-[10px] sm:text-[11px] uppercase tracking-[0.14em] text-accent-bright leading-tight shrink-0">
-                    {player.sport}
-                  </span>
-                  <span className="font-dot text-[10px] sm:text-[11px] uppercase tracking-[0.1em] text-muted leading-tight text-right truncate">
-                    {player.playing_role}
-                  </span>
-                </div>
-
-                {/* Bottom card identity: mono code + Syne bold name */}
-                <div className="pointer-events-none absolute inset-x-4 bottom-4 z-[4] flex flex-col gap-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-[11px] font-semibold tracking-[0.14em] text-accent-bright uppercase tabular-nums">
-                      #{formattedCode}
-                    </span>
-                    {isCenter && interactive && !isOpen && (
-                      <span className="font-dot text-[10px] uppercase tracking-[0.12em] text-muted">
-                        TAP
+                  {/* Bottom card identity: mono code + Syne bold name */}
+                  <div className="pointer-events-none absolute inset-x-3 bottom-3 z-[4] flex flex-col gap-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-[11px] font-semibold tracking-[0.14em] text-accent-bright uppercase tabular-nums">
+                        #{formattedCode}
                       </span>
-                    )}
+                      {isCenter && interactive && !isOpen && (
+                        <span className="font-dot text-[10px] uppercase tracking-[0.12em] text-muted">
+                          TAP
+                        </span>
+                      )}
+                    </div>
+                    <span className="font-syne font-bold text-lg sm:text-xl text-text leading-tight tracking-tight line-clamp-2">
+                      {player.name}
+                    </span>
                   </div>
-                  <span className="font-syne font-bold text-lg sm:text-xl text-text leading-tight tracking-tight line-clamp-2">
-                    {player.name}
-                  </span>
+
+                  {/* Subtle 1px inner border in card accent colour at low opacity */}
+                  <span
+                    aria-hidden="true"
+                    className="athlete-card-photo-border pointer-events-none absolute inset-0 rounded-[inherit] z-[5]"
+                  />
                 </div>
 
                 {/* Holographic sage foil sheen sweep when card becomes centered */}
@@ -251,7 +266,7 @@ export const AthleteCard: React.FC<AthleteCardProps> = React.memo(
                   <span
                     key={sheenTrigger}
                     aria-hidden="true"
-                    className="athlete-card-foil pointer-events-none absolute inset-y-0 -left-1/3 w-2/3 z-[5]"
+                    className="athlete-card-foil pointer-events-none absolute inset-y-0 -left-1/3 w-2/3 z-[6]"
                   />
                 )}
               </button>
