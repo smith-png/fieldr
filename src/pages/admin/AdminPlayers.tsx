@@ -52,6 +52,7 @@ import {
   Button,
   Dialog,
   EmptyState,
+  ErrorState,
   Pagination,
   SkeletonBlock,
   SkeletonTableRow
@@ -185,12 +186,12 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
   const isAthleteRegisteredForSport = useCallback(
     (athleteId: string | undefined, athleteCode: number | undefined, targetSport: string): boolean => {
       if (!targetSport) return false
-      return seasonPlayersList.some(
+      return (Array.isArray(seasonPlayersList) ? seasonPlayersList : []).some(
         (p) =>
           (!editingPlayer || p.id !== editingPlayer.id) &&
           ((athleteId && p.athlete_id === athleteId) ||
             (athleteCode !== undefined && p.athlete_code === athleteCode)) &&
-          p.sport.toLowerCase() === targetSport.toLowerCase()
+          (p?.sport || '').toLowerCase() === targetSport.toLowerCase()
       )
     },
     [seasonPlayersList, editingPlayer]
@@ -264,10 +265,13 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
     }
   }, [selectedSport, sports])
 
+  const [loadError, setLoadError] = useState<string | null>(null)
+
   // Load paged players: show skeleton ONLY on first load or when activeSeasonId changes
   const loadPagedPlayers = useCallback(
     async (options?: { force?: boolean }) => {
       if (!activeSeasonId) {
+        setLoadError(null)
         setIsLoading(false)
         return
       }
@@ -280,9 +284,10 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
 
       if (cached && !options?.force) {
         loadedSeasonIdRef.current = activeSeasonId
-        setPagedPlayers(cached.data.players)
-        setTotalPages(cached.data.totalPages)
-        setTotalCount(cached.data.totalCount)
+        setPagedPlayers(Array.isArray(cached.data?.players) ? cached.data.players : [])
+        setTotalPages(cached.data?.totalPages || 1)
+        setTotalCount(cached.data?.totalCount || 0)
+        setLoadError(null)
         setIsLoading(false)
         if (isQueryFresh(cacheKey) && !shouldRevalidateQuery(cacheKey)) {
           return
@@ -296,6 +301,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
         if (isInitialOrSeasonSwitch) {
           setIsLoading(true)
         }
+        setLoadError(null)
         const res = await getPlayersPaged({
           seasonId: activeSeasonId,
           page: currentPage,
@@ -307,17 +313,23 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
         })
         if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
         loadedSeasonIdRef.current = activeSeasonId
-        setPagedPlayers(res.players)
-        setTotalPages(res.totalPages)
-        setTotalCount(res.totalCount)
+        const safePlayers = Array.isArray(res?.players) ? res.players : []
+        setPagedPlayers(safePlayers)
+        setTotalPages(res?.totalPages || 1)
+        setTotalCount(res?.totalCount || 0)
+        setLoadError(null)
         setCachedQuery(cacheKey, {
-          players: res.players,
-          totalPages: res.totalPages,
-          totalCount: res.totalCount
+          players: safePlayers,
+          totalPages: res?.totalPages || 1,
+          totalCount: res?.totalCount || 0
         })
       } catch (err: unknown) {
         if (isMountedRef.current && reqId === latestReqIdRef.current) {
-          showToast(getErrorMessage(err, 'Failed to load players'), 'error')
+          const msg = getErrorMessage(err, 'Failed to load players')
+          if (isInitialOrSeasonSwitch) {
+            setLoadError(msg)
+          }
+          showToast(msg, 'error')
         }
       } finally {
         if (isMountedRef.current && reqId === latestReqIdRef.current) {
@@ -728,6 +740,17 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                 Array.from({ length: 6 }).map((_, i) => (
                   <SkeletonTableRow key={i} columns={8} />
                 ))
+              ) : loadError && pagedPlayers.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="p-6">
+                    <ErrorState
+                      title="Could not load players"
+                      message={loadError}
+                      onRetry={() => void loadPagedPlayers({ force: true })}
+                      isRetrying={isLoading}
+                    />
+                  </td>
+                </tr>
               ) : pagedPlayers.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="p-6">
@@ -1262,7 +1285,7 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                       className="rounded border-border bg-bg text-accent-bright accent-accent-bright"
                     />
                     <span>
-                      Refund purchase price ({assignmentPlayer.purchase_price.toLocaleString()} PTS)
+                      Refund purchase price ({Number(assignmentPlayer?.purchase_price ?? 0).toLocaleString()} PTS)
                     </span>
                   </label>
                 )}
@@ -1302,14 +1325,14 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                     className={`${ADMIN_SELECT} w-full`}
                   >
                     <option value="">Select a team...</option>
-                    {teams
+                    {(Array.isArray(teams) ? teams : [])
                       .filter(
                         (t) =>
-                          t.sport.toLowerCase() === assignmentPlayer.sport.toLowerCase()
+                          (t?.sport || '').toLowerCase() === (assignmentPlayer?.sport || '').toLowerCase()
                       )
                       .map((t) => (
                         <option key={t.id} value={t.id}>
-                          {t.name} ({t.current_purse.toLocaleString()} PTS)
+                          {t.name} ({Number(t?.current_purse ?? 0).toLocaleString()} PTS)
                         </option>
                       ))}
                   </select>

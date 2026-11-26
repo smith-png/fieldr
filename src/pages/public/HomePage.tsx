@@ -31,6 +31,7 @@ import { getSports } from '../../lib/data/teams'
 import { hasDataChanged, publicCache } from '../../lib/publicCache'
 import { prefetchRoute } from '../../lib/queryCache'
 import { matchesSport } from '../../lib/utils'
+import { lazyWithRetry } from '../../lib/lazyWithRetry'
 import type { Season, Sport } from '../../types'
 import type { SportSlug } from '../../lib/sports'
 
@@ -39,7 +40,7 @@ const loadNavigationMenu = () =>
     default: m.NavigationMenu
   }))
 
-const LazyNavigationMenu = React.lazy(loadNavigationMenu)
+const LazyNavigationMenu = lazyWithRetry(loadNavigationMenu)
 
 const DEFAULT_COUNTS: Record<SportSlug, number> = {
   cricket: 0,

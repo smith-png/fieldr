@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../lib/AuthContext'
+import { ErrorState } from '../ui/ErrorState'
 import {
   AdminShellSkeleton,
   AdminTableSkeleton,
@@ -30,11 +31,15 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({
     () => preloadComponent?.getCached() ?? null
   )
   const [loadError, setLoadError] = useState<Error | null>(null)
+  const [retryTick, setRetryTick] = useState(0)
+
+  const userRole = user?.role
 
   useEffect(() => {
     if (!preloadComponent || LoadedComponent) return
-    if (isLoading || !user || !allowedRoles.includes(user.role)) return
+    if (isLoading || !userRole || !allowedRoles.includes(userRole)) return
     let cancelled = false
+    setLoadError(null)
     preloadComponent
       .load()
       .then((Comp) => {
@@ -50,11 +55,7 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({
     return () => {
       cancelled = true
     }
-  }, [preloadComponent, LoadedComponent, isLoading, user, allowedRoles])
-
-  if (loadError) {
-    throw loadError
-  }
+  }, [preloadComponent, LoadedComponent, isLoading, userRole, allowedRoles, retryTick])
 
   if (isLoading) {
     if (location.pathname.startsWith('/projector')) {
@@ -69,20 +70,37 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({
     )
   }
 
-  if (!user) {
+  if (!user || !userRole) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
-  if (!allowedRoles.includes(user.role)) {
+  if (!allowedRoles.includes(userRole)) {
     // If owner tries to access admin or any restricted route, send to /teams
-    if (user.role === 'owner') {
+    if (userRole === 'owner') {
       return <Navigate to="/teams" replace />
     }
     // If projector tries to access admin, send to /projector
-    if (user.role === 'projector') {
+    if (userRole === 'projector') {
       return <Navigate to="/projector" replace />
     }
     return <Navigate to="/login" replace />
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-dvh bg-bg text-text flex items-center justify-center p-6">
+        <div className="max-w-md w-full">
+          <ErrorState
+            title="Could not load this view"
+            message={loadError.message || 'Failed to load page assets. Please try again.'}
+            onRetry={() => {
+              setLoadError(null)
+              setRetryTick((t) => t + 1)
+            }}
+          />
+        </div>
+      </div>
+    )
   }
 
   if (preloadComponent) {

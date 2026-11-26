@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react'
+import React, { Suspense, useEffect, useMemo, useState } from 'react'
 import { FloppyDisk, Plus, Trash, WarningCircle } from '@phosphor-icons/react'
 import {
   DEFAULT_REEL_CLOSED_MESSAGE,
@@ -11,6 +11,7 @@ import {
 } from '../../lib/data'
 import { useToast } from '../../lib/ToastContext'
 import { getErrorMessage } from '../../lib/errors'
+import { lazyWithRetry } from '../../lib/lazyWithRetry'
 import { Button, SkeletonBlock } from '../ui'
 import {
   ADMIN_CARD,
@@ -24,7 +25,7 @@ import {
 } from './adminStyles'
 import type { ReelSettings } from '../../types'
 
-const MarkdownContent = lazy(() =>
+const MarkdownContent = lazyWithRetry(() =>
   import('../common/MarkdownContent').then((m) => ({ default: m.MarkdownContent }))
 )
 

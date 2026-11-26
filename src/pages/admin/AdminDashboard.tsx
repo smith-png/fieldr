@@ -12,7 +12,7 @@ import {
   Television,
   Users
 } from '@phosphor-icons/react'
-import { Button, EmptyState } from '../../components/ui'
+import { Button, EmptyState, ErrorState } from '../../components/ui'
 import {
   ADMIN_CARD,
   ADMIN_CARD_HEADER,
@@ -66,14 +66,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onGoToTab
 }) => {
   const toast = useToast()
-  const totalPurse = teams.reduce((acc, t) => acc + (t.current_purse || 0), 0)
-  const soldPlayers = players.filter((p) => p.status === 'sold')
-  const availablePlayers = players.filter((p) => p.status === 'available')
+  const safeTeams = Array.isArray(teams) ? teams : []
+  const safePlayers = Array.isArray(players) ? players : []
+  const safeTransactions = Array.isArray(transactions) ? transactions : []
+  const totalPurse = safeTeams.reduce((acc, t) => acc + Number(t?.current_purse ?? 0), 0)
+  const soldPlayers = safePlayers.filter((p) => p?.status === 'sold')
+  const availablePlayers = safePlayers.filter((p) => p?.status === 'available')
 
   // Owner Announcements state
   const [announcementText, setAnnouncementText] = useState('')
   const [recentAnnouncements, setRecentAnnouncements] = useState<OwnerAnnouncementRow[]>([])
   const [isLoadingAnnouncements, setIsLoadingAnnouncements] = useState(false)
+  const [announcementsError, setAnnouncementsError] = useState<string | null>(null)
   const [isSendingAnnouncement, setIsSendingAnnouncement] = useState(false)
   const [hidingAnnouncementId, setHidingAnnouncementId] = useState<string | null>(null)
 
@@ -91,9 +95,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const reqId = ++latestReqIdRef.current
     if (!supabase || !activeSeason?.id) {
       setRecentAnnouncements([])
+      setAnnouncementsError(null)
       return
     }
     setIsLoadingAnnouncements(true)
+    setAnnouncementsError(null)
     try {
       const { data, error } = await supabase
         .from('owner_announcements')
@@ -106,13 +112,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
       if (error) {
         logError('Failed to load owner announcements:', error.message)
+        setAnnouncementsError(error.message || 'Could not load recent announcements.')
         return
       }
 
-      setRecentAnnouncements((data as OwnerAnnouncementRow[]) || [])
+      setRecentAnnouncements(Array.isArray(data) ? (data as OwnerAnnouncementRow[]) : [])
+      setAnnouncementsError(null)
     } catch (err) {
       if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
       logError('Failed to load owner announcements:', err)
+      setAnnouncementsError(
+        err instanceof Error ? err.message : 'Could not load recent announcements.'
+      )
     } finally {
       if (isMountedRef.current && reqId === latestReqIdRef.current) {
         setIsLoadingAnnouncements(false)
@@ -236,7 +247,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
               <div className="flex items-end justify-between gap-2">
                 <div className="font-syne font-bold text-3xl text-text tabular-nums">
-                  {teams.length}
+                  {safeTeams.length}
                 </div>
                 <button
                   type="button"
@@ -258,7 +269,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
               <div>
                 <div className="font-syne font-bold text-3xl text-text tabular-nums">
-                  {players.length}
+                  {safePlayers.length}
                 </div>
                 <div className="text-xs text-muted mt-1.5 flex items-center gap-2 flex-wrap">
                   <span className="text-accent-bright font-medium tabular-nums">
@@ -292,7 +303,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </span>
               </div>
               <div className="font-syne font-bold text-3xl text-text tabular-nums">
-                {transactions.length}
+                {safeTransactions.length}
               </div>
             </div>
           </div>
@@ -442,7 +453,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             )}
           </div>
 
-          {recentAnnouncements.length === 0 ? (
+          {announcementsError && recentAnnouncements.length === 0 ? (
+            <ErrorState
+              title="Could not load announcements"
+              message={announcementsError}
+              onRetry={() => void loadAnnouncements()}
+              isRetrying={isLoadingAnnouncements}
+              className="py-6"
+            />
+          ) : recentAnnouncements.length === 0 ? (
             <p className={`${ADMIN_WELL} px-4 py-4 text-xs text-muted text-center`}>
               No announcements sent for this season yet.
             </p>
@@ -517,7 +536,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </Button>
         </div>
 
-        {transactions.length === 0 ? (
+        {safeTransactions.length === 0 ? (
           <EmptyState
             icon={Coins}
             title="No transactions recorded yet"
@@ -537,8 +556,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {transactions.slice(0, 6).map((tx) => {
-                    const team = teams.find((t) => t.id === tx.team_id)
+                  {safeTransactions.slice(0, 6).map((tx) => {
+                    const team = safeTeams.find((t) => t.id === tx.team_id)
                     const isDebit = tx.type === 'deduct' || tx.type === 'purchase'
                     const isCredit = tx.type === 'add' || tx.type === 'refund'
                     return (
@@ -567,10 +586,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </td>
                         <td className="py-3.5 px-4 text-right font-mono font-semibold tabular-nums text-text whitespace-nowrap">
                           {isDebit ? '-' : '+'}
-                          {Math.abs(tx.amount).toLocaleString()}
+                          {Math.abs(Number(tx?.amount ?? 0)).toLocaleString()}
                         </td>
                         <td className="py-3.5 px-4 text-right font-mono tabular-nums text-points font-semibold whitespace-nowrap">
-                          {tx.balance_after.toLocaleString()}
+                          {Number(tx?.balance_after ?? 0).toLocaleString()}
                         </td>
                         <td className="py-3.5 px-4 text-muted text-xs truncate max-w-xs">
                           {tx.reason || 'Manual ledger action'}

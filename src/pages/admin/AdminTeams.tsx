@@ -664,7 +664,7 @@ export const AdminTeams: React.FC<AdminTeamsProps> = ({
                           <span>Current Purse</span>
                         </div>
                         <div className="font-mono text-sm font-bold text-points tabular-nums whitespace-nowrap">
-                          {team.current_purse.toLocaleString()} PTS
+                          {Number(team?.current_purse ?? 0).toLocaleString()} PTS
                         </div>
                       </div>
                     </div>

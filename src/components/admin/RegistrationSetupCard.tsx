@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Check,
   Copy,
@@ -17,8 +17,9 @@ import {
 } from '../../lib/data'
 import { useToast } from '../../lib/ToastContext'
 import { getErrorMessage } from '../../lib/errors'
+import { lazyWithRetry } from '../../lib/lazyWithRetry'
 import { Button, SkeletonBlock } from '../ui'
-const MarkdownContent = lazy(() =>
+const MarkdownContent = lazyWithRetry(() =>
   import('../common/MarkdownContent').then((m) => ({ default: m.MarkdownContent }))
 )
 import {

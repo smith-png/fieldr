@@ -1,5 +1,5 @@
 import { logError } from '../../lib/logger'
-import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowCounterClockwise,
   ArrowDown,
@@ -15,6 +15,7 @@ import {
 } from '@phosphor-icons/react'
 import { useToast } from '../../lib/ToastContext'
 import { getErrorMessage } from '../../lib/errors'
+import { lazyWithRetry } from '../../lib/lazyWithRetry'
 import {
   DEFAULT_AUCTION_SETTINGS,
   DEFAULT_PRIMARY_ICON,
@@ -52,47 +53,47 @@ import {
 import FooterMark from '../../components/layout/FooterMark'
 import { normalizeConfettiFallSpeed } from '../../components/projector/ProjectorConfetti'
 
-const SecuredSequence = lazy(() =>
+const SecuredSequence = lazyWithRetry(() =>
   import('../../components/projector/SecuredSequence').then((m) => ({
     default: m.SecuredSequence
   }))
 )
-const CreditsSetupCard = lazy(() =>
+const CreditsSetupCard = lazyWithRetry(() =>
   import('../../components/admin/CreditsSetupCard').then((m) => ({
     default: m.CreditsSetupCard
   }))
 )
-const HandbookSetupCard = lazy(() =>
+const HandbookSetupCard = lazyWithRetry(() =>
   import('../../components/admin/HandbookSetupCard').then((m) => ({
     default: m.HandbookSetupCard
   }))
 )
-const RegistrationSetupCard = lazy(() =>
+const RegistrationSetupCard = lazyWithRetry(() =>
   import('../../components/admin/RegistrationSetupCard').then((m) => ({
     default: m.RegistrationSetupCard
   }))
 )
-const ReelsSetupCard = lazy(() =>
+const ReelsSetupCard = lazyWithRetry(() =>
   import('../../components/admin/ReelsSetupCard').then((m) => ({
     default: m.ReelsSetupCard
   }))
 )
-const ReelSubmissionsCard = lazy(() =>
+const ReelSubmissionsCard = lazyWithRetry(() =>
   import('../../components/admin/ReelSubmissionsCard').then((m) => ({
     default: m.ReelSubmissionsCard
   }))
 )
-const PhotoOptimizerCard = lazy(() =>
+const PhotoOptimizerCard = lazyWithRetry(() =>
   import('../../components/admin/PhotoOptimizerCard').then((m) => ({
     default: m.PhotoOptimizerCard
   }))
 )
-const RulesSetupCard = lazy(() =>
+const RulesSetupCard = lazyWithRetry(() =>
   import('../../components/admin/RulesSetupCard').then((m) => ({
     default: m.RulesSetupCard
   }))
 )
-const MarkdownContent = lazy(() =>
+const MarkdownContent = lazyWithRetry(() =>
   import('../../components/common/MarkdownContent').then((m) => ({
     default: m.MarkdownContent
   }))

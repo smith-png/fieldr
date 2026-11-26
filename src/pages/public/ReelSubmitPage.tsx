@@ -1,10 +1,11 @@
-import React, { Suspense, lazy, useEffect, useRef, useState } from 'react'
+import React, { Suspense, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, CheckCircle, Info, Lock, Plus, Trash, WarningCircle } from '@phosphor-icons/react'
 import { HeaderBar } from '../../components/layout/HeaderBar'
 import { NavigationMenu } from '../../components/layout/NavigationMenu'
 import { SiteFooter } from '../../components/layout/SiteFooter'
-const MarkdownContent = lazy(() =>
+import { lazyWithRetry } from '../../lib/lazyWithRetry'
+const MarkdownContent = lazyWithRetry(() =>
   import('../../components/common/MarkdownContent').then((m) => ({
     default: m.MarkdownContent
   }))

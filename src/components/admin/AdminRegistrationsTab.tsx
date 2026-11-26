@@ -31,7 +31,7 @@ import {
 import { ACADEMIC_YEARS, getAcademicYearLabel } from '../../lib/academicYears'
 import { useToast } from '../../lib/ToastContext'
 import { getErrorMessage } from '../../lib/errors'
-import { Button, Dialog, EmptyState, Pagination, SkeletonBlock } from '../ui'
+import { Button, Dialog, EmptyState, ErrorState, Pagination, SkeletonBlock } from '../ui'
 import {
   ADMIN_CARD,
   ADMIN_CARD_HEADER,
@@ -92,6 +92,7 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   // Selection for bulk approve
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -168,14 +169,17 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
         } else {
           setIsLoading(true)
         }
+        setLoadError(null)
         const rows = await listAdminRegistrations()
         if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
-        setRegistrations(rows)
+        const safeRows = Array.isArray(rows) ? rows : []
+        setRegistrations(safeRows)
+        setLoadError(null)
         if (options?.resetPage) {
           setCurrentPage(1)
         }
 
-        const pendingRows = rows.filter((r) => r.status === 'pending')
+        const pendingRows = safeRows.filter((r) => r.status === 'pending')
         onPendingCountChange(pendingRows.length)
 
         // Batch-fetch signed URLs for all pending photos & thumbnails in one storage request
@@ -205,7 +209,9 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
         })
       } catch (err: unknown) {
         if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
-        showToast(getErrorMessage(err, 'Failed to load registrations'), 'error')
+        const msg = getErrorMessage(err, 'Failed to load registrations')
+        setLoadError(msg)
+        showToast(msg, 'error')
       } finally {
         if (isMountedRef.current && reqId === latestReqIdRef.current) {
           setIsLoading(false)
@@ -727,6 +733,13 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
             />
           ))}
         </div>
+      ) : loadError && registrations.length === 0 ? (
+        <ErrorState
+          title="Could not load registrations"
+          message={loadError}
+          onRetry={() => void loadRegistrations({ manual: true })}
+          isRetrying={isLoading || isRefreshing}
+        />
       ) : subView === 'pending' ? (
         pendingList.length === 0 ? (
           <EmptyState

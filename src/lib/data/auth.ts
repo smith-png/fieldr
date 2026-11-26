@@ -7,16 +7,22 @@ const supabaseAuthService: AuthService = {
   async getCurrentUser(): Promise<AuthUser | null> {
     if (!supabase) return null
 
-    const {
-      data: { session }
-    } = await supabase.auth.getSession()
+    const { data, error: sessionError } = await supabase.auth.getSession()
+    if (sessionError) {
+      throw new AppError(sessionError.message || 'Failed to restore session')
+    }
+    const session = data?.session
     if (!session?.user) return null
 
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', session.user.id)
-      .single()
+      .maybeSingle()
+
+    if (profileError) {
+      throw new AppError(profileError.message || 'Failed to load user profile')
+    }
 
     return {
       id: session.user.id,
@@ -29,7 +35,7 @@ const supabaseAuthService: AuthService = {
     if (!supabase) throw new AppError('Supabase not configured')
 
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error || !data.user) {
+    if (error || !data?.user) {
       throw new AppError(error?.message || 'Authentication failed')
     }
 
@@ -37,7 +43,7 @@ const supabaseAuthService: AuthService = {
       .from('profiles')
       .select('role')
       .eq('id', data.user.id)
-      .single()
+      .maybeSingle()
 
     return {
       id: data.user.id,

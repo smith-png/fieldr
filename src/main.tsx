@@ -2,6 +2,7 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import {initRegistrationStatusStore} from './lib/registrationStatusStore';
+import {installPreloadErrorHandler} from './lib/lazyWithRetry';
 
 async function cleanupLegacyServiceWorkers(): Promise<void> {
   try {
@@ -37,6 +38,7 @@ async function cleanupLegacyServiceWorkers(): Promise<void> {
   }
 }
 
+installPreloadErrorHandler();
 void cleanupLegacyServiceWorkers();
 initRegistrationStatusStore();
 

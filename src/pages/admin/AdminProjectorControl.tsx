@@ -151,15 +151,17 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
 }) => {
   const { success, error } = useToast()
 
+  const safeTeams = Array.isArray(teams) ? teams : []
+
   const availableSports = useMemo(
-    () => (sportsProp && sportsProp.length > 0 ? sportsProp : DEFAULT_SPORTS),
+    () => (Array.isArray(sportsProp) && sportsProp.length > 0 ? sportsProp : DEFAULT_SPORTS),
     [sportsProp]
   )
 
   const resolveSportName = (raw?: string | null): string => {
     if (!raw) return availableSports[0]?.name || 'Cricket'
     const matched = availableSports.find(
-      (s) => s.name.trim().toLowerCase() === raw.trim().toLowerCase()
+      (s) => (s?.name || '').trim().toLowerCase() === raw.trim().toLowerCase()
     )
     return matched ? matched.name : availableSports[0]?.name || 'Cricket'
   }
@@ -177,7 +179,7 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
   const [broadcastInput, setBroadcastInput] = useState('')
   const [isBroadcastPending, setIsBroadcastPending] = useState(false)
   const [broadcastError, setBroadcastError] = useState<string | null>(null)
-  const activeBroadcastMessage = (projectorState.broadcast_message || '').trim()
+  const activeBroadcastMessage = (projectorState?.broadcast_message || '').trim()
 
   const handleAnnounceBroadcast = async () => {
     const trimmed = broadcastInput.trim()
@@ -221,42 +223,46 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
 
   // Card 2 (Teams and Purses) state
   const [teamSport, setTeamSport] = useState<string>(() =>
-    projectorState.mode === PROJECTOR_MODES.ROSTER_AUTO ||
-    projectorState.mode === PROJECTOR_MODES.ROSTER
-      ? resolveSportName(projectorState.auto_sport)
+    projectorState?.mode === PROJECTOR_MODES.ROSTER_AUTO ||
+    projectorState?.mode === PROJECTOR_MODES.ROSTER
+      ? resolveSportName(projectorState?.auto_sport)
       : availableSports[0]?.name || 'Cricket'
   )
   const [teamMode, setTeamMode] = useState<'auto' | 'single'>(() =>
-    projectorState.mode === PROJECTOR_MODES.ROSTER ? 'single' : 'auto'
+    projectorState?.mode === PROJECTOR_MODES.ROSTER ? 'single' : 'auto'
   )
   const [teamAnimation, setTeamAnimation] = useState<'fade' | 'slide' | 'zoom'>(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const saved = window.localStorage.getItem('fieldr_projector_team_animation')
-      if (saved === 'slide' || saved === 'zoom' || saved === 'fade') return saved
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const saved = window.localStorage.getItem('fieldr_projector_team_animation')
+        if (saved === 'slide' || saved === 'zoom' || saved === 'fade') return saved
+      }
+    } catch {
+      // Ignore storage access errors in private/restricted browsers
     }
     return 'fade'
   })
   const [teamInterval, setTeamInterval] = useState<number>(() =>
-    projectorState.auto_interval_seconds
+    projectorState?.auto_interval_seconds
       ? clampInterval(projectorState.auto_interval_seconds)
       : PROJECTOR_AUTO_INTERVAL.DEFAULT
   )
 
   const teamSportTeams = useMemo(
     () =>
-      teams.filter(
-        (t) => (t.sport || '').trim().toLowerCase() === teamSport.trim().toLowerCase()
+      safeTeams.filter(
+        (t) => (t?.sport || '').trim().toLowerCase() === teamSport.trim().toLowerCase()
       ),
-    [teams, teamSport]
+    [safeTeams, teamSport]
   )
 
   const [selectedTeamId, setSelectedTeamId] = useState<string>(() => {
-    if (projectorState.team_id) {
-      const current = teams.find((t) => t.id === projectorState.team_id)
+    if (projectorState?.team_id) {
+      const current = safeTeams.find((t) => t.id === projectorState.team_id)
       if (current) return current.id
     }
-    const initialSportTeams = teams.filter(
-      (t) => (t.sport || '').trim().toLowerCase() === teamSport.trim().toLowerCase()
+    const initialSportTeams = safeTeams.filter(
+      (t) => (t?.sport || '').trim().toLowerCase() === teamSport.trim().toLowerCase()
     )
     return initialSportTeams[0]?.id || ''
   })
@@ -895,8 +901,12 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
                   onChange={(val) => {
                     const anim = val as 'fade' | 'slide' | 'zoom'
                     setTeamAnimation(anim)
-                    if (typeof window !== 'undefined' && window.localStorage) {
-                      window.localStorage.setItem('fieldr_projector_team_animation', anim)
+                    try {
+                      if (typeof window !== 'undefined' && window.localStorage) {
+                        window.localStorage.setItem('fieldr_projector_team_animation', anim)
+                      }
+                    } catch {
+                      // Ignore storage write errors in private/restricted browsers
                     }
                   }}
                   ariaLabel="Teams and Purses Animation"

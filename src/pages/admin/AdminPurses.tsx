@@ -35,6 +35,8 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
   onRefresh
 }) => {
   const { success, error } = useToast()
+  const safeTeams = Array.isArray(teams) ? teams : []
+  const safeTransactions = Array.isArray(transactions) ? transactions : []
 
   // Global reset modal
   const [isResetModalOpen, setIsResetModalOpen] = useState(false)
@@ -77,7 +79,7 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
         txReason.trim() || undefined
       )
       success(
-        `Purse updated for "${selectedTeam.name}". New Balance: ${res.newBalance.toLocaleString()} PTS`
+        `Purse updated for "${selectedTeam.name}". New Balance: ${Number(res?.newBalance ?? 0).toLocaleString()} PTS`
       )
       setSelectedTeam(null)
       await onRefresh()
@@ -118,7 +120,7 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
   }
 
   const teamTransactions = historyTeam
-    ? transactions.filter((tx) => tx.team_id === historyTeam.id)
+    ? safeTransactions.filter((tx) => tx?.team_id === historyTeam.id)
     : []
 
   return (
@@ -138,7 +140,7 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
       </div>
 
       {/* Purses Table */}
-      {teams.length === 0 ? (
+      {safeTeams.length === 0 ? (
         <EmptyState
           icon={ShieldCheck}
           title="No teams available"
@@ -164,7 +166,7 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {teams.map((team) => (
+                {safeTeams.map((team) => (
                   <tr key={team.id} className="hover:bg-surface-2/50 transition-colors">
                     {/* Team */}
                     <td className="py-3.5 px-4 whitespace-nowrap">
@@ -191,13 +193,13 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
 
                     {/* Starting Purse */}
                     <td className="py-3.5 px-4 text-right font-mono text-xs sm:text-sm tabular-nums text-muted whitespace-nowrap">
-                      {team.starting_purse.toLocaleString()} PTS
+                      {Number(team?.starting_purse ?? 0).toLocaleString()} PTS
                     </td>
 
                     {/* Current Balance */}
                     <td className="py-3.5 px-4 text-right whitespace-nowrap">
                       <span className="font-mono font-bold text-sm text-points tabular-nums">
-                        {team.current_purse.toLocaleString()} PTS
+                        {Number(team?.current_purse ?? 0).toLocaleString()} PTS
                       </span>
                     </td>
 
@@ -273,7 +275,7 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
             <div className={`${ADMIN_WELL} p-4 flex items-center justify-between text-xs`}>
               <span className="text-muted">Current Balance</span>
               <span className="font-mono font-bold text-sm text-points tabular-nums">
-                {selectedTeam.current_purse.toLocaleString()} PTS
+                {Number(selectedTeam?.current_purse ?? 0).toLocaleString()} PTS
               </span>
             </div>
 
@@ -344,7 +346,7 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
         <div className="space-y-4">
           <p className="text-sm text-muted leading-relaxed">
             Resets starting and current purse for{' '}
-            <strong className="text-text">all {teams.length} teams</strong> in this season. Every
+            <strong className="text-text">all {safeTeams.length} teams</strong> in this season. Every
             change is logged.
           </p>
 
@@ -437,10 +439,10 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
                     <div className="text-right shrink-0">
                       <span className="font-mono font-semibold tabular-nums text-text text-sm block">
                         {isDebit ? '-' : '+'}
-                        {Math.abs(tx.amount).toLocaleString()} PTS
+                        {Math.abs(Number(tx?.amount ?? 0)).toLocaleString()} PTS
                       </span>
                       <span className="text-[11px] font-mono tabular-nums text-points">
-                        Bal: {tx.balance_after.toLocaleString()} PTS
+                        Bal: {Number(tx?.balance_after ?? 0).toLocaleString()} PTS
                       </span>
                     </div>
                   </div>

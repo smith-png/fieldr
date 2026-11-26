@@ -124,7 +124,7 @@ function getCachedTeamDetail(
         ? publicCache.activeSeason.value
         : null
     const cachedSportRoles =
-      publicCache.rosterSportInfo.get(foundTeam.sport.toLowerCase())?.roles || []
+      publicCache.rosterSportInfo.get((foundTeam.sport || '').toLowerCase())?.roles || []
     return {
       season: knownSeason,
       team: foundTeam,
@@ -139,11 +139,12 @@ function getCachedTeamDetail(
 export const SeasonTeamDetailPage: React.FC = () => {
   const { id, teamId } = useParams<{ id: string; teamId: string }>()
   const navigate = useNavigate()
-  const { user, logout } = useAuth()
+  const { user, isLoading: isAuthLoading, logout } = useAuth()
   const toast = useToast()
   const initialCached = getCachedTeamDetail(id, teamId)
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [ownerOverviewError, setOwnerOverviewError] = useState<string | null>(null)
   const [activeSeason, setActiveSeason] = useState<Season | null>(
     publicCache.activeSeason.value
   )
@@ -520,6 +521,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
     const reqId = ++overviewReqIdRef.current
     if (!user || user.role !== 'owner' || !teamId || !supabase) {
       setOwnerOverview(null)
+      setOwnerOverviewError(null)
       setOverviewUpdatedAt(null)
       setOwnerMaxSquadSize(null)
       setOwnerMinAvailableBase(null)
@@ -529,6 +531,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
     }
     try {
       setIsLoadingOverview(true)
+      setOwnerOverviewError(null)
       const [overviewRes, settingsRes] = await Promise.all([
         supabase.rpc('owner_team_overview'),
         id ? getAuctionSettings(id).catch(() => null) : Promise.resolve(null)
@@ -540,13 +543,15 @@ export const SeasonTeamDetailPage: React.FC = () => {
         logError('owner_team_overview error:', error)
         setOwnerOverview(null)
         setOverviewUpdatedAt(null)
+        setOwnerOverviewError(error.message || 'Could not load owner overview.')
         return
       }
       const items = Array.isArray(data) ? data : data ? [data] : []
       const matched = items.find(
-        (item: any) => String(item.team_id || item.id) === String(teamId)
+        (item: any) => item && String(item.team_id || item.id) === String(teamId)
       )
       setOwnerOverview(matched || null)
+      setOwnerOverviewError(null)
       setOverviewUpdatedAt(matched ? new Date() : null)
 
       const rawSettingsMax = settingsRes?.max_squad_size
@@ -652,6 +657,9 @@ export const SeasonTeamDetailPage: React.FC = () => {
       logError('Failed to load owner overview:', err)
       setOwnerOverview(null)
       setOverviewUpdatedAt(null)
+      setOwnerOverviewError(
+        err instanceof Error ? err.message : 'Could not load owner overview.'
+      )
     } finally {
       if (isMountedRef.current && reqId === overviewReqIdRef.current) {
         setIsLoadingOverview(false)
@@ -660,16 +668,19 @@ export const SeasonTeamDetailPage: React.FC = () => {
   }
 
   useEffect(() => {
+    if (isAuthLoading) return
     if (user?.role === 'owner' && teamId) {
       setOwnerOverview(null)
+      setOwnerOverviewError(null)
       setOverviewUpdatedAt(null)
       setOwnerMaxSquadSize(null)
       setOwnerMinAvailableBase(null)
       setOwnerPublicBaseById(null)
       setOwnerPlayerMetaById({})
-      fetchOwnerOverview()
+      void fetchOwnerOverview()
     } else {
       setOwnerOverview(null)
+      setOwnerOverviewError(null)
       setOverviewUpdatedAt(null)
       setOwnerMaxSquadSize(null)
       setOwnerMinAvailableBase(null)
@@ -677,7 +688,7 @@ export const SeasonTeamDetailPage: React.FC = () => {
       setOwnerPlayerMetaById({})
       setIsLoadingOverview(false)
     }
-  }, [user?.role, user?.id, id, teamId])
+  }, [isAuthLoading, user?.role, user?.id, id, teamId])
 
   const loadData = async (options?: { force?: boolean }) => {
     if (!id || !teamId) return
@@ -742,17 +753,20 @@ export const SeasonTeamDetailPage: React.FC = () => {
         return
       }
 
+      const teamSportLower = (foundTeam.sport || '').toLowerCase()
       const matchedSport = Array.isArray(allSports)
         ? allSports.find(
             (sp) =>
-              sp.id.toLowerCase() === foundTeam.sport.toLowerCase() ||
-              sp.name.toLowerCase() === foundTeam.sport.toLowerCase()
+              (sp?.id || '').toLowerCase() === teamSportLower ||
+              (sp?.name || '').toLowerCase() === teamSportLower
           )
         : undefined
       const roles =
-        matchedSport && matchedSport.roles.length > 0
+        matchedSport && Array.isArray(matchedSport.roles) && matchedSport.roles.length > 0
           ? matchedSport.roles
-          : await getRolesForSport(foundTeam.sport)
+          : foundTeam.sport
+            ? await getRolesForSport(foundTeam.sport)
+            : []
       if (!isMountedRef.current || reqId !== detailReqIdRef.current) return
 
       const nextEntry: SeasonTeamDetailCacheEntry = {
@@ -1171,6 +1185,13 @@ export const SeasonTeamDetailPage: React.FC = () => {
                   </div>
                 </div>
               </div>
+            ) : ownerOverviewError && !ownerOverview ? (
+              <ErrorState
+                title="Could not load owner overview"
+                message={ownerOverviewError}
+                onRetry={() => void fetchOwnerOverview()}
+                isRetrying={isLoadingOverview}
+              />
             ) : ownerOverview && (() => {
               const rawPlayers =
                 ownerOverview.players ??
@@ -1181,7 +1202,8 @@ export const SeasonTeamDetailPage: React.FC = () => {
               let list: any[] = []
               if (typeof rawPlayers === 'string') {
                 try {
-                  list = JSON.parse(rawPlayers)
+                  const parsed = JSON.parse(rawPlayers)
+                  list = Array.isArray(parsed) ? parsed : []
                 } catch {
                   list = []
                 }
@@ -1189,17 +1211,17 @@ export const SeasonTeamDetailPage: React.FC = () => {
                 list = rawPlayers
               }
 
-              const boughtPlayers = list.map((p: any, index: number) => {
-                const rawPhoto = p.photo_thumb_url ?? p.photo_url ?? null
+              const boughtPlayers = list.filter(Boolean).map((p: any, index: number) => {
+                const rawPhoto = p?.photo_thumb_url ?? p?.photo_url ?? null
                 const photoUrl =
                   typeof rawPhoto === 'string' && rawPhoto.trim() ? rawPhoto.trim() : null
                 const rawSoldAt =
-                  p.sold_at ?? p.purchased_at ?? p.sale_at ?? p.bought_at ?? p.created_at ?? null
+                  p?.sold_at ?? p?.purchased_at ?? p?.sale_at ?? p?.bought_at ?? p?.created_at ?? null
                 const parsedSoldAt =
                   rawSoldAt && !Number.isNaN(new Date(rawSoldAt).getTime())
                     ? new Date(rawSoldAt)
                     : null
-                const rawPurseAfter = p.purse_after ?? p.balance_after ?? null
+                const rawPurseAfter = p?.purse_after ?? p?.balance_after ?? null
                 const explicitPurseAfter =
                   rawPurseAfter !== null &&
                   rawPurseAfter !== undefined &&
@@ -1208,10 +1230,10 @@ export const SeasonTeamDetailPage: React.FC = () => {
                     : null
                 return {
                   index,
-                  athlete_code: formatAthleteCode(p.athlete_code ?? p.player_code ?? p.code ?? p.id),
-                  name: String(p.name || p.player_name || 'Unnamed Player'),
-                  playing_role: String(p.playing_role || p.role || 'Player'),
-                  purchase_price: Number(p.purchase_price ?? p.price ?? p.amount ?? 0),
+                  athlete_code: formatAthleteCode(p?.athlete_code ?? p?.player_code ?? p?.code ?? p?.id),
+                  name: String(p?.name || p?.player_name || 'Unnamed Player'),
+                  playing_role: String(p?.playing_role || p?.role || 'Player'),
+                  purchase_price: Number(p?.purchase_price ?? p?.price ?? p?.amount ?? 0),
                   photo_url: photoUrl,
                   sold_at: parsedSoldAt,
                   purse_after: explicitPurseAfter

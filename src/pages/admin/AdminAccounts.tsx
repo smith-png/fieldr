@@ -7,8 +7,9 @@ import {
   setCachedQuery,
   shouldRevalidateQuery
 } from '../../lib/queryCache'
+import { useAuth } from '../../lib/AuthContext'
 import { useToast } from '../../lib/ToastContext'
-import { Button, Dialog, SkeletonBlock, SkeletonTableRow } from '../../components/ui'
+import { Button, Dialog, ErrorState, SkeletonBlock, SkeletonTableRow } from '../../components/ui'
 import {
   ADMIN_CARD,
   ADMIN_CARD_HEADER,
@@ -179,15 +180,23 @@ function decodeJwtSessionId(accessToken: string | null | undefined): string | nu
 }
 
 export const AdminAccounts: React.FC = () => {
+  const { user, isLoading: isAuthLoading } = useAuth()
+  const isAdminReady = !isAuthLoading && user?.role === 'admin'
   const { success, error: showError } = useToast()
 
   const cached = getCachedQuery<AccountsCachePayload>(ACCOUNTS_CACHE_KEY)
 
-  const [accounts, setAccounts] = useState<AdminAccountRow[]>(() => cached?.data.accounts || [])
-  const [sessions, setSessions] = useState<AdminSessionRow[]>(() => cached?.data.sessions || [])
+  const [accounts, setAccounts] = useState<AdminAccountRow[]>(() =>
+    Array.isArray(cached?.data?.accounts) ? cached.data.accounts : []
+  )
+  const [sessions, setSessions] = useState<AdminSessionRow[]>(() =>
+    Array.isArray(cached?.data?.sessions) ? cached.data.sessions : []
+  )
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(() => !cached)
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
+  const [sessionsError, setSessionsError] = useState<string | null>(null)
+  const [accountsError, setAccountsError] = useState<string | null>(null)
 
   const [accountToDelete, setAccountToDelete] = useState<AdminAccountRow | null>(null)
   const [isDeleting, setIsDeleting] = useState<boolean>(false)
@@ -209,7 +218,7 @@ export const AdminAccounts: React.FC = () => {
     try {
       const { data } = await supabase.auth.getSession()
       if (!isMountedRef.current) return
-      setCurrentSessionId(decodeJwtSessionId(data.session?.access_token))
+      setCurrentSessionId(decodeJwtSessionId(data?.session?.access_token))
     } catch {
       // Leave currentSessionId unchanged on transient read failure
     }
@@ -220,8 +229,8 @@ export const AdminAccounts: React.FC = () => {
       const reqId = ++latestReqIdRef.current
       const existingCache = getCachedQuery<AccountsCachePayload>(ACCOUNTS_CACHE_KEY)
       if (existingCache && !options?.force) {
-        setAccounts(existingCache.data.accounts)
-        setSessions(existingCache.data.sessions)
+        setAccounts(Array.isArray(existingCache.data?.accounts) ? existingCache.data.accounts : [])
+        setSessions(Array.isArray(existingCache.data?.sessions) ? existingCache.data.sessions : [])
         setIsLoading(false)
         if (isQueryFresh(ACCOUNTS_CACHE_KEY) && !shouldRevalidateQuery(ACCOUNTS_CACHE_KEY)) {
           return
@@ -231,6 +240,8 @@ export const AdminAccounts: React.FC = () => {
       if (!supabase) {
         setIsLoading(false)
         setIsRefreshing(false)
+        setAccountsError('Accounts service is unavailable.')
+        setSessionsError('Accounts service is unavailable.')
         showError('Accounts service is unavailable.')
         return
       }
@@ -241,6 +252,8 @@ export const AdminAccounts: React.FC = () => {
         } else {
           setIsLoading(true)
         }
+        setAccountsError(null)
+        setSessionsError(null)
 
         const [accountsRes, sessionsRes, sessionRes] = await Promise.all([
           supabase.rpc('admin_list_accounts'),
@@ -250,27 +263,37 @@ export const AdminAccounts: React.FC = () => {
 
         if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
 
-        setCurrentSessionId(decodeJwtSessionId(sessionRes.data.session?.access_token))
+        setCurrentSessionId(decodeJwtSessionId(sessionRes?.data?.session?.access_token))
 
-        let nextAccounts = existingCache?.data.accounts || []
-        let nextSessions = existingCache?.data.sessions || []
+        let nextAccounts = Array.isArray(existingCache?.data?.accounts)
+          ? existingCache.data.accounts
+          : []
+        let nextSessions = Array.isArray(existingCache?.data?.sessions)
+          ? existingCache.data.sessions
+          : []
 
         if (accountsRes.error) {
-          showError(accountsRes.error.message || 'Failed to load accounts')
+          const msg = accountsRes.error.message || 'Failed to load accounts'
+          if (!existingCache) setAccountsError(msg)
+          showError(msg)
         } else {
           nextAccounts = Array.isArray(accountsRes.data)
             ? (accountsRes.data as Array<Record<string, unknown>>).map(mapAccountRow)
             : []
           setAccounts(nextAccounts)
+          setAccountsError(null)
         }
 
         if (sessionsRes.error) {
-          showError(sessionsRes.error.message || 'Failed to load admin sessions')
+          const msg = sessionsRes.error.message || 'Failed to load admin sessions'
+          if (!existingCache) setSessionsError(msg)
+          showError(msg)
         } else {
           nextSessions = Array.isArray(sessionsRes.data)
             ? (sessionsRes.data as Array<Record<string, unknown>>).map(mapSessionRow)
             : []
           setSessions(nextSessions)
+          setSessionsError(null)
         }
 
         if (!accountsRes.error && !sessionsRes.error) {
@@ -282,6 +305,10 @@ export const AdminAccounts: React.FC = () => {
       } catch (err: unknown) {
         if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
         const msg = err instanceof Error ? err.message : 'Failed to load accounts'
+        if (!existingCache) {
+          setAccountsError(msg)
+          setSessionsError(msg)
+        }
         showError(msg)
       } finally {
         if (isMountedRef.current && reqId === latestReqIdRef.current) {
@@ -294,15 +321,16 @@ export const AdminAccounts: React.FC = () => {
   )
 
   useEffect(() => {
+    if (!isAdminReady) return
     void resolveCurrentSessionId()
     void loadData()
-  }, [loadData, resolveCurrentSessionId])
+  }, [isAdminReady, loadData, resolveCurrentSessionId])
 
   const sortedAccounts = useMemo(() => {
-    return accounts.slice().sort((a, b) => {
-      const rankDiff = getRoleSortRank(a.role) - getRoleSortRank(b.role)
+    return (Array.isArray(accounts) ? accounts : []).slice().sort((a, b) => {
+      const rankDiff = getRoleSortRank(a?.role || '') - getRoleSortRank(b?.role || '')
       if (rankDiff !== 0) return rankDiff
-      return a.login_id.localeCompare(b.login_id, undefined, { sensitivity: 'base' })
+      return (a?.login_id || '').localeCompare(b?.login_id || '', undefined, { sensitivity: 'base' })
     })
   }, [accounts])
 
@@ -311,14 +339,14 @@ export const AdminAccounts: React.FC = () => {
     : null
 
   const sortedSessions = useMemo(() => {
-    return sessions.slice().sort((a, b) => {
+    return (Array.isArray(sessions) ? sessions : []).slice().sort((a, b) => {
       if (normalizedCurrentSessionId) {
-        const aIsCurrent = a.session_id.trim().toLowerCase() === normalizedCurrentSessionId
-        const bIsCurrent = b.session_id.trim().toLowerCase() === normalizedCurrentSessionId
+        const aIsCurrent = (a?.session_id || '').trim().toLowerCase() === normalizedCurrentSessionId
+        const bIsCurrent = (b?.session_id || '').trim().toLowerCase() === normalizedCurrentSessionId
         if (aIsCurrent !== bIsCurrent) return aIsCurrent ? -1 : 1
       }
-      const aTime = new Date(a.last_active_at || a.created_at || 0).getTime()
-      const bTime = new Date(b.last_active_at || b.created_at || 0).getTime()
+      const aTime = new Date(a?.last_active_at || a?.created_at || 0).getTime()
+      const bTime = new Date(b?.last_active_at || b?.created_at || 0).getTime()
       return bTime - aTime
     })
   }, [sessions, normalizedCurrentSessionId])
@@ -438,6 +466,16 @@ export const AdminAccounts: React.FC = () => {
                 </div>
               ))}
             </div>
+          ) : sessionsError && sortedSessions.length === 0 ? (
+            <div className="p-4">
+              <ErrorState
+                title="Could not load admin sessions"
+                message={sessionsError}
+                onRetry={() => void loadData({ force: true })}
+                isRetrying={isRefreshing || isLoading}
+                className="py-6"
+              />
+            </div>
           ) : sortedSessions.length === 0 ? (
             <div className="px-5 py-6 text-sm text-muted text-center">No active sessions</div>
           ) : (
@@ -445,7 +483,7 @@ export const AdminAccounts: React.FC = () => {
               {sortedSessions.map((session) => {
                 const isCurrent =
                   Boolean(normalizedCurrentSessionId) &&
-                  session.session_id.trim().toLowerCase() === normalizedCurrentSessionId
+                  (session?.session_id || '').trim().toLowerCase() === normalizedCurrentSessionId
 
                 return (
                   <li
@@ -505,6 +543,18 @@ export const AdminAccounts: React.FC = () => {
                   Array.from({ length: 6 }).map((_, i) => (
                     <SkeletonTableRow key={i} columns={6} />
                   ))
+                ) : accountsError && sortedAccounts.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-4">
+                      <ErrorState
+                        title="Could not load accounts"
+                        message={accountsError}
+                        onRetry={() => void loadData({ force: true })}
+                        isRetrying={isRefreshing || isLoading}
+                        className="py-6"
+                      />
+                    </td>
+                  </tr>
                 ) : sortedAccounts.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-10 px-5 text-center text-sm text-muted">
@@ -513,8 +563,8 @@ export const AdminAccounts: React.FC = () => {
                   </tr>
                 ) : (
                   sortedAccounts.map((account) => {
-                    const isOwner = account.role.trim().toLowerCase() === 'owner'
-                    const teamName = (account.team_name || '').trim()
+                    const isOwner = (account?.role || '').trim().toLowerCase() === 'owner'
+                    const teamName = (account?.team_name || '').trim()
                     const isUnlinkedOwner = isOwner && !account.team_id && !teamName
 
                     return (
@@ -589,12 +639,22 @@ export const AdminAccounts: React.FC = () => {
                 </div>
               </div>
             ))
+          ) : accountsError && sortedAccounts.length === 0 ? (
+            <div className="p-4">
+              <ErrorState
+                title="Could not load accounts"
+                message={accountsError}
+                onRetry={() => void loadData({ force: true })}
+                isRetrying={isRefreshing || isLoading}
+                className="py-6"
+              />
+            </div>
           ) : sortedAccounts.length === 0 ? (
             <div className="px-4 py-10 text-center text-sm text-muted">No accounts</div>
           ) : (
             sortedAccounts.map((account) => {
-              const isOwner = account.role.trim().toLowerCase() === 'owner'
-              const teamName = (account.team_name || '').trim()
+              const isOwner = (account?.role || '').trim().toLowerCase() === 'owner'
+              const teamName = (account?.team_name || '').trim()
               const isUnlinkedOwner = isOwner && !account.team_id && !teamName
 
               return (

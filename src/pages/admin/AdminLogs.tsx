@@ -14,7 +14,7 @@ import {
   shouldRevalidateQuery
 } from '../../lib/queryCache'
 import { useToast } from '../../lib/ToastContext'
-import { Button, EmptyState, SkeletonTableRow } from '../../components/ui'
+import { Button, EmptyState, ErrorState, SkeletonTableRow } from '../../components/ui'
 import {
   ADMIN_CARD,
   ADMIN_INPUT,
@@ -115,15 +115,16 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
   const cacheKey = activeSeason?.id ? `admin:logs:${activeSeason.id}` : ''
   const cachedLogs = cacheKey ? getCachedQuery<ActivityLogEntry[]>(cacheKey) : null
 
-  const [entries, setEntries] = useState<ActivityLogEntry[]>(
-    () => cachedLogs?.data || []
+  const [entries, setEntries] = useState<ActivityLogEntry[]>(() =>
+    Array.isArray(cachedLogs?.data) ? cachedLogs.data : []
   )
   const [isLoading, setIsLoading] = useState<boolean>(
     () => Boolean(activeSeason?.id && !cachedLogs)
   )
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false)
   const [hasMore, setHasMore] = useState<boolean>(
-    () => (cachedLogs?.data.length || 0) === LOG_PAGE_SIZE
+    () => (Array.isArray(cachedLogs?.data) ? cachedLogs.data.length : 0) === LOG_PAGE_SIZE
   )
 
   // Client-side filters
@@ -147,6 +148,7 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
       if (!activeSeason?.id) {
         setEntries([])
         setHasMore(false)
+        setLoadError(null)
         setIsLoading(false)
         return
       }
@@ -154,8 +156,10 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
       const key = `admin:logs:${activeSeason.id}`
       const cached = getCachedQuery<ActivityLogEntry[]>(key)
       if (cached && !options?.force) {
-        setEntries(cached.data)
-        setHasMore(cached.data.length === LOG_PAGE_SIZE)
+        const cachedRows = Array.isArray(cached.data) ? cached.data : []
+        setEntries(cachedRows)
+        setHasMore(cachedRows.length === LOG_PAGE_SIZE)
+        setLoadError(null)
         setIsLoading(false)
         if (isQueryFresh(key) && !shouldRevalidateQuery(key)) {
           return
@@ -166,15 +170,21 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
         if (!cached) {
           setIsLoading(true)
         }
+        setLoadError(null)
         const rows = await getAdminActivityLog(activeSeason.id, LOG_PAGE_SIZE, 0)
         if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
-        setEntries(rows)
-        setHasMore(rows.length === LOG_PAGE_SIZE)
-        setCachedQuery(key, rows)
+        const safeRows = Array.isArray(rows) ? rows : []
+        setEntries(safeRows)
+        setHasMore(safeRows.length === LOG_PAGE_SIZE)
+        setLoadError(null)
+        setCachedQuery(key, safeRows)
       } catch (err: unknown) {
         if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
         const msg =
           err instanceof Error ? err.message : 'Failed to load activity log'
+        if (!cached) {
+          setLoadError(msg)
+        }
         error(msg)
       } finally {
         if (isMountedRef.current && reqId === latestReqIdRef.current) {
@@ -226,9 +236,13 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
 
   const sortedTeams = useMemo(
     () =>
-      teams
+      (Array.isArray(teams) ? teams : [])
         .slice()
-        .sort((a, b) => a.name.localeCompare(b.name) || a.sport.localeCompare(b.sport)),
+        .sort(
+          (a, b) =>
+            (a?.name || '').localeCompare(b?.name || '') ||
+            (a?.sport || '').localeCompare(b?.sport || '')
+        ),
     [teams]
   )
 
@@ -430,6 +444,13 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
               </table>
             </div>
           </div>
+        ) : loadError && entries.length === 0 ? (
+          <ErrorState
+            title="Could not load activity log"
+            message={loadError}
+            onRetry={() => void loadInitialLogs({ force: true })}
+            isRetrying={isLoading}
+          />
         ) : entries.length === 0 ? (
           <EmptyState
             icon={ClockCounterClockwise}

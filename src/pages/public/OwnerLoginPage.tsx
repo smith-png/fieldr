@@ -16,7 +16,7 @@ import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/data/client'
 
 export const OwnerLoginPage: React.FC = () => {
-  const { user, refreshUser } = useAuth()
+  const { user, isLoading, refreshUser } = useAuth()
   const navigate = useNavigate()
 
   const [loginId, setLoginId] = useState('')
@@ -26,7 +26,7 @@ export const OwnerLoginPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // If already authenticated as owner, go straight to teams
-  if (user && user.role === 'owner') {
+  if (!isLoading && user?.role === 'owner') {
     return <Navigate to="/teams" replace />
   }
 
@@ -53,7 +53,7 @@ export const OwnerLoginPage: React.FC = () => {
         password
       })
 
-      if (error || !data.user) {
+      if (error || !data?.user) {
         setErrorMsg(error?.message || 'Invalid Login ID or password')
         return
       }

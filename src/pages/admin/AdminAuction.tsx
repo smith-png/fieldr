@@ -140,11 +140,11 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
 
   // Ensure selectedSportName is valid when sports list loads
   useEffect(() => {
-    if (sports.length > 0) {
+    if (Array.isArray(sports) && sports.length > 0) {
       const exists = sports.some(
-        (s) => s.name.toLowerCase() === selectedSportName.toLowerCase()
+        (s) => (s?.name || '').toLowerCase() === (selectedSportName || '').toLowerCase()
       )
-      if (!exists) {
+      if (!exists && sports[0]?.name) {
         setSelectedSportName(sports[0].name)
       }
     }
@@ -209,23 +209,23 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
   const refreshStageAfterBid = useCallback(async () => {
     if (!activeSeason?.id) return
     const reqId = ++stageReqIdRef.current
-    const knownPlayerId = projectorStateRef.current.player_id || null
+    const knownPlayerId = projectorStateRef.current?.player_id || null
     try {
       const [freshState, bids] = await Promise.all([
         getProjectorState(activeSeason.id),
         knownPlayerId ? getAuctionBidsForPlayer(knownPlayerId) : Promise.resolve([] as AuctionBid[])
       ])
       if (!isMountedRef.current || reqId !== stageReqIdRef.current) return
-      if ((freshState.player_id || null) !== knownPlayerId) {
+      if ((freshState?.player_id || null) !== knownPlayerId) {
         await fetchLiveAuctionState()
         return
       }
       const current = projectorStateRef.current
-      if (current.updated_at && freshState.updated_at && freshState.updated_at < current.updated_at) {
+      if (current?.updated_at && freshState?.updated_at && freshState.updated_at < current.updated_at) {
         return
       }
-      setProjectorState(freshState)
-      setPlayerBids(bids)
+      if (freshState) setProjectorState(freshState)
+      setPlayerBids(Array.isArray(bids) ? bids : [])
     } catch {
       await fetchLiveAuctionState()
     }
@@ -247,19 +247,19 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
   }, [activeSeason?.id, fetchLiveAuctionState])
 
   // Resolve stage player and leading team
-  const stagePlayerId = projectorState.player_id || projectorState.sale_player_id || null
+  const stagePlayerId = projectorState?.player_id || projectorState?.sale_player_id || null
   const stagePlayer = useMemo(
-    () => (stagePlayerId ? players.find((p) => p.id === stagePlayerId) || null : null),
+    () => (stagePlayerId ? (Array.isArray(players) ? players : []).find((p) => p.id === stagePlayerId) || null : null),
     [players, stagePlayerId]
   )
 
   const leadingTeamId =
-    projectorState.mode === 'sold'
-      ? projectorState.sale_team_id || projectorState.team_id || stagePlayer?.team_id || null
-      : projectorState.team_id || null
+    projectorState?.mode === 'sold'
+      ? projectorState?.sale_team_id || projectorState?.team_id || stagePlayer?.team_id || null
+      : projectorState?.team_id || null
 
   const leadingTeam = useMemo(
-    () => (leadingTeamId ? teams.find((t) => t.id === leadingTeamId) || null : null),
+    () => (leadingTeamId ? (Array.isArray(teams) ? teams : []).find((t) => t.id === leadingTeamId) || null : null),
     [teams, leadingTeamId]
   )
 

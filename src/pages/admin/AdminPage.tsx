@@ -1,11 +1,15 @@
-import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
+import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AdminLayout } from './AdminLayout'
 import {
   AdminCardsSkeleton,
   AdminDashboardSkeleton,
-  AdminTableSkeleton
+  AdminTableSkeleton,
+  ErrorState
 } from '../../components/ui'
+import { useAuth } from '../../lib/AuthContext'
+import { getErrorMessage } from '../../lib/errors'
+import { lazyWithRetry } from '../../lib/lazyWithRetry'
 import {
   REALTIME_DEBOUNCE_MS,
   getPlayers,
@@ -30,41 +34,49 @@ import {
 } from '../../lib/queryCache'
 import type { AdminTab, Player, ProjectorState, PurseTransaction, Season, Sport, Team } from '../../types'
 
-const AdminDashboard = lazy(() =>
+const AdminDashboard = lazyWithRetry(() =>
   import('./AdminDashboard').then((m) => ({ default: m.AdminDashboard }))
 )
-const AdminSeasons = lazy(() =>
+const AdminSeasons = lazyWithRetry(() =>
   import('./AdminSeasons').then((m) => ({ default: m.AdminSeasons }))
 )
-const AdminTeams = lazy(() =>
+const AdminTeams = lazyWithRetry(() =>
   import('./AdminTeams').then((m) => ({ default: m.AdminTeams }))
 )
-const AdminAuction = lazy(() =>
+const AdminAuction = lazyWithRetry(() =>
   import('./AdminAuction').then((m) => ({ default: m.AdminAuction }))
 )
-const AdminAthletes = lazy(() =>
+const AdminAthletes = lazyWithRetry(() =>
   import('./AdminAthletes').then((m) => ({ default: m.AdminAthletes }))
 )
-const AdminPlayers = lazy(() =>
+const AdminPlayers = lazyWithRetry(() =>
   import('./AdminPlayers').then((m) => ({ default: m.AdminPlayers }))
 )
-const AdminPurses = lazy(() =>
+const AdminPurses = lazyWithRetry(() =>
   import('./AdminPurses').then((m) => ({ default: m.AdminPurses }))
 )
-const AdminLogs = lazy(() =>
+const AdminLogs = lazyWithRetry(() =>
   import('./AdminLogs').then((m) => ({ default: m.AdminLogs }))
 )
-const AdminAccounts = lazy(() =>
+const AdminAccounts = lazyWithRetry(() =>
   import('./AdminAccounts').then((m) => ({ default: m.AdminAccounts }))
 )
-const AdminProjectorControl = lazy(() =>
+const AdminProjectorControl = lazyWithRetry(() =>
   import('./AdminProjectorControl').then((m) => ({ default: m.AdminProjectorControl }))
 )
-const AdminSetup = lazy(() =>
+const AdminSetup = lazyWithRetry(() =>
   import('./AdminSetup').then((m) => ({ default: m.AdminSetup }))
 )
 
 const ADMIN_BUNDLE_CACHE_KEY = 'admin:bundle'
+
+const DEFAULT_PROJECTOR_STATE: ProjectorState = {
+  season_id: '',
+  mode: 'idle',
+  player_id: null,
+  team_id: null,
+  updated_at: new Date().toISOString()
+}
 
 interface AdminCachedBundle {
   seasons: Season[]
@@ -87,6 +99,8 @@ const renderTabSkeleton = (tab: AdminTab) => {
 export const AdminPage: React.FC = () => {
   const location = useLocation()
   const navigate = useNavigate()
+  const { user, isLoading: isAuthLoading } = useAuth()
+  const isAdminReady = !isAuthLoading && user?.role === 'admin'
 
   const cachedBundle = getCachedQuery<AdminCachedBundle>(ADMIN_BUNDLE_CACHE_KEY)
 
@@ -94,6 +108,7 @@ export const AdminPage: React.FC = () => {
     location.pathname === '/admin/logs' ? 'logs' : 'dashboard'
   )
   const [isLoading, setIsLoading] = useState(() => !cachedBundle)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const hasLoadedOnceRef = useRef(Boolean(cachedBundle))
   const latestLoadReqIdRef = useRef(0)
   const isMountedRef = useRef(true)
@@ -107,9 +122,9 @@ export const AdminPage: React.FC = () => {
 
   // Prefetch likely next admin tabs 1 second after dashboard renders
   useEffect(() => {
-    if (isLoading) return
+    if (isLoading || !isAdminReady) return
     return scheduleLikelyAdminPrefetch()
-  }, [isLoading])
+  }, [isLoading, isAdminReady])
 
   useEffect(() => {
     if (location.pathname === '/admin/logs') {
@@ -131,25 +146,26 @@ export const AdminPage: React.FC = () => {
     }
   }
 
-  const [seasons, setSeasons] = useState<Season[]>(() => cachedBundle?.data.seasons || [])
-  const [activeSeason, setActiveSeason] = useState<Season | null>(
-    () => cachedBundle?.data.activeSeason || null
+  const [seasons, setSeasons] = useState<Season[]>(() =>
+    Array.isArray(cachedBundle?.data?.seasons) ? cachedBundle.data.seasons : []
   )
-  const [sports, setSports] = useState<Sport[]>(() => cachedBundle?.data.sports || [])
-  const [teams, setTeams] = useState<Team[]>(() => cachedBundle?.data.teams || [])
-  const [players, setPlayers] = useState<Player[]>(() => cachedBundle?.data.players || [])
-  const [transactions, setTransactions] = useState<PurseTransaction[]>(
-    () => cachedBundle?.data.transactions || []
+  const [activeSeason, setActiveSeason] = useState<Season | null>(
+    () => cachedBundle?.data?.activeSeason ?? null
+  )
+  const [sports, setSports] = useState<Sport[]>(() =>
+    Array.isArray(cachedBundle?.data?.sports) ? cachedBundle.data.sports : []
+  )
+  const [teams, setTeams] = useState<Team[]>(() =>
+    Array.isArray(cachedBundle?.data?.teams) ? cachedBundle.data.teams : []
+  )
+  const [players, setPlayers] = useState<Player[]>(() =>
+    Array.isArray(cachedBundle?.data?.players) ? cachedBundle.data.players : []
+  )
+  const [transactions, setTransactions] = useState<PurseTransaction[]>(() =>
+    Array.isArray(cachedBundle?.data?.transactions) ? cachedBundle.data.transactions : []
   )
   const [projectorState, setProjectorState] = useState<ProjectorState>(
-    () =>
-      cachedBundle?.data.projectorState || {
-        season_id: '',
-        mode: 'idle',
-        player_id: null,
-        team_id: null,
-        updated_at: new Date().toISOString()
-      }
+    () => cachedBundle?.data?.projectorState || DEFAULT_PROJECTOR_STATE
   )
 
   const loadAllData = useCallback(async () => {
@@ -157,21 +173,32 @@ export const AdminPage: React.FC = () => {
     if (!hasLoadedOnceRef.current) {
       setIsLoading(true)
     }
+    setLoadError(null)
 
     try {
-      const [allSeasons, allSports] = await Promise.all([getSeasons(), getSports()])
+      const [rawSeasons, rawSports] = await Promise.all([getSeasons(), getSports()])
       if (!isMountedRef.current || reqId !== latestLoadReqIdRef.current) return
 
-      const active = allSeasons.find((s) => s.is_active) || allSeasons[0] || null
+      const allSeasons = Array.isArray(rawSeasons) ? rawSeasons : []
+      const allSports = Array.isArray(rawSports) ? rawSports : []
+      const active = allSeasons.find((s) => s?.is_active) || allSeasons[0] || null
 
       if (active) {
-        const [allTeams, allPlayers, allTx, pState] = await Promise.all([
+        const [rawTeams, rawPlayers, rawTx, pState] = await Promise.all([
           getTeams(active.id),
           getPlayers(active.id),
           getPurseTransactions(active.id),
           getProjectorState(active.id)
         ])
         if (!isMountedRef.current || reqId !== latestLoadReqIdRef.current) return
+
+        const allTeams = Array.isArray(rawTeams) ? rawTeams : []
+        const allPlayers = Array.isArray(rawPlayers) ? rawPlayers : []
+        const allTx = Array.isArray(rawTx) ? rawTx : []
+        const safeProjectorState = pState || {
+          ...DEFAULT_PROJECTOR_STATE,
+          season_id: active.id
+        }
 
         setSeasons(allSeasons)
         setActiveSeason((prev) =>
@@ -189,7 +216,7 @@ export const AdminPage: React.FC = () => {
         setTeams(allTeams)
         setPlayers(allPlayers)
         setTransactions(allTx)
-        setProjectorState(pState)
+        setProjectorState(safeProjectorState)
         setCachedQuery<AdminCachedBundle>(ADMIN_BUNDLE_CACHE_KEY, {
           seasons: allSeasons,
           activeSeason: active,
@@ -197,7 +224,7 @@ export const AdminPage: React.FC = () => {
           teams: allTeams,
           players: allPlayers,
           transactions: allTx,
-          projectorState: pState
+          projectorState: safeProjectorState
         })
       } else {
         setSeasons(allSeasons)
@@ -210,26 +237,29 @@ export const AdminPage: React.FC = () => {
           teams: [],
           players: [],
           transactions: [],
-          projectorState: {
-            season_id: '',
-            mode: 'idle',
-            player_id: null,
-            team_id: null,
-            updated_at: new Date().toISOString()
-          }
+          projectorState: DEFAULT_PROJECTOR_STATE
         })
       }
-    } catch {
-      // fallback
+      hasLoadedOnceRef.current = true
+      setLoadError(null)
+    } catch (err: unknown) {
+      if (isMountedRef.current && reqId === latestLoadReqIdRef.current) {
+        if (!hasLoadedOnceRef.current) {
+          setLoadError(
+            getErrorMessage(err, 'Failed to load admin data. Check your connection and try again.')
+          )
+        }
+      }
     } finally {
       if (isMountedRef.current && reqId === latestLoadReqIdRef.current) {
-        hasLoadedOnceRef.current = true
         setIsLoading(false)
       }
     }
   }, [])
 
   useEffect(() => {
+    if (!isAdminReady) return
+
     if (isQueryFresh(ADMIN_BUNDLE_CACHE_KEY)) {
       if (shouldRevalidateQuery(ADMIN_BUNDLE_CACHE_KEY)) {
         void loadAllData()
@@ -254,7 +284,7 @@ export const AdminPage: React.FC = () => {
       if (storageTimer) clearTimeout(storageTimer)
       storageTimer = setTimeout(() => {
         storageTimer = null
-        loadAllData()
+        void loadAllData()
       }, REALTIME_DEBOUNCE_MS)
     }
 
@@ -263,20 +293,20 @@ export const AdminPage: React.FC = () => {
       if (storageTimer) clearTimeout(storageTimer)
       window.removeEventListener('storage', handleStorageChange)
     }
-  }, [loadAllData])
+  }, [isAdminReady, loadAllData])
 
   useEffect(() => {
-    if (!activeSeason?.id) return
+    if (!isAdminReady || !activeSeason?.id) return
     const seasonId = activeSeason.id
 
     const unsubProjector = subscribeToProjector(seasonId, (nextState) => {
-      setProjectorState(nextState)
+      if (nextState) setProjectorState(nextState)
     })
     const unsubPlayers = subscribeToPlayers(seasonId, (nextPlayers) => {
-      setPlayers(nextPlayers)
+      setPlayers(Array.isArray(nextPlayers) ? nextPlayers : [])
     })
     const unsubTeams = subscribeToTeams(seasonId, (nextTeams) => {
-      setTeams(nextTeams)
+      setTeams(Array.isArray(nextTeams) ? nextTeams : [])
     })
 
     return () => {
@@ -284,7 +314,7 @@ export const AdminPage: React.FC = () => {
       unsubPlayers()
       unsubTeams()
     }
-  }, [activeSeason?.id])
+  }, [isAdminReady, activeSeason?.id])
 
   const handleSwitchSeason = async (seasonId: string) => {
     try {
@@ -304,8 +334,15 @@ export const AdminPage: React.FC = () => {
       seasons={seasons}
       onSwitchSeason={handleSwitchSeason}
     >
-      {isLoading ? (
+      {isAuthLoading || isLoading ? (
         renderTabSkeleton(currentTab)
+      ) : loadError && !hasLoadedOnceRef.current ? (
+        <ErrorState
+          title="Could not load admin data"
+          message={loadError}
+          onRetry={() => void loadAllData()}
+          isRetrying={isLoading}
+        />
       ) : (
         <Suspense fallback={renderTabSkeleton(currentTab)}>
           {currentTab === 'dashboard' && (

@@ -40,6 +40,7 @@ import {
   Button,
   Dialog,
   EmptyState,
+  ErrorState,
   Pagination,
   SkeletonTableRow
 } from '../../components/ui'
@@ -82,8 +83,8 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
   createRequestTrigger = 0
 }) => {
   const { showToast } = useToast()
-  const { user } = useAuth()
-  const isAdmin = user?.role === 'admin'
+  const { user, isLoading: isAuthLoading } = useAuth()
+  const isAdmin = !isAuthLoading && user?.role === 'admin'
 
   // Section tabs: Directory vs Self-Registrations (admin-only)
   const [activeTab, setActiveTab] = useState<'directory' | 'registrations'>('directory')
@@ -97,10 +98,13 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
     totalPages: number
     totalCount: number
   }>('admin:athletes:1:15:')
-  const [totalPages, setTotalPages] = useState(() => initialCache?.data.totalPages || 1)
-  const [totalCount, setTotalCount] = useState(() => initialCache?.data.totalCount || 0)
-  const [athletes, setAthletes] = useState<Athlete[]>(() => initialCache?.data.athletes || [])
+  const [totalPages, setTotalPages] = useState(() => initialCache?.data?.totalPages || 1)
+  const [totalCount, setTotalCount] = useState(() => initialCache?.data?.totalCount || 0)
+  const [athletes, setAthletes] = useState<Athlete[]>(() =>
+    Array.isArray(initialCache?.data?.athletes) ? initialCache.data.athletes : []
+  )
   const [isLoading, setIsLoading] = useState(() => !initialCache)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const hasLoadedOnceRef = useRef(Boolean(initialCache))
   const latestReqIdRef = useRef(0)
   const detailReqIdRef = useRef(0)
@@ -179,9 +183,10 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
 
       if (cached && !options?.force) {
         hasLoadedOnceRef.current = true
-        setAthletes(cached.data.athletes)
-        setTotalPages(cached.data.totalPages)
-        setTotalCount(cached.data.totalCount)
+        setAthletes(Array.isArray(cached.data?.athletes) ? cached.data.athletes : [])
+        setTotalPages(cached.data?.totalPages || 1)
+        setTotalCount(cached.data?.totalCount || 0)
+        setLoadError(null)
         setIsLoading(false)
         if (isQueryFresh(cacheKey) && !shouldRevalidateQuery(cacheKey)) {
           return
@@ -193,6 +198,7 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
         if (!hasLoadedOnceRef.current && !cached) {
           setIsLoading(true)
         }
+        setLoadError(null)
         const res = await getAthletesPaged({
           page: currentPage,
           pageSize,
@@ -200,17 +206,23 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
         })
         if (!isMountedRef.current || reqId !== latestReqIdRef.current) return
         hasLoadedOnceRef.current = true
-        setAthletes(res.athletes)
-        setTotalPages(res.totalPages)
-        setTotalCount(res.totalCount)
+        const safeAthletes = Array.isArray(res?.athletes) ? res.athletes : []
+        setAthletes(safeAthletes)
+        setTotalPages(res?.totalPages || 1)
+        setTotalCount(res?.totalCount || 0)
+        setLoadError(null)
         setCachedQuery(cacheKey, {
-          athletes: res.athletes,
-          totalPages: res.totalPages,
-          totalCount: res.totalCount
+          athletes: safeAthletes,
+          totalPages: res?.totalPages || 1,
+          totalCount: res?.totalCount || 0
         })
       } catch (err: unknown) {
         if (isMountedRef.current && reqId === latestReqIdRef.current) {
-          showToast(getErrorMessage(err, 'Failed to load athletes'), 'error')
+          const msg = getErrorMessage(err, 'Failed to load athletes')
+          if (!hasLoadedOnceRef.current && !cached) {
+            setLoadError(msg)
+          }
+          showToast(msg, 'error')
         }
       } finally {
         if (isMountedRef.current && reqId === latestReqIdRef.current) {
@@ -222,8 +234,9 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
   )
 
   useEffect(() => {
+    if (isAuthLoading) return
     void loadAthletes()
-  }, [loadAthletes])
+  }, [isAuthLoading, loadAthletes])
 
   const openAthleteDetail = useCallback(
     async (athlete: Athlete, options?: { silent?: boolean }) => {
@@ -716,6 +729,17 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
                       Array.from({ length: 6 }).map((_, i) => (
                         <SkeletonTableRow key={i} columns={6} />
                       ))
+                    ) : loadError && athletes.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-6">
+                          <ErrorState
+                            title="Could not load athletes"
+                            message={loadError}
+                            onRetry={() => void loadAthletes({ force: true })}
+                            isRetrying={isLoading}
+                          />
+                        </td>
+                      </tr>
                     ) : athletes.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="p-6">
