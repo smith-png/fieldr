@@ -11,18 +11,9 @@ Fieldr handles the full lifecycle of a seasonal multi-sport tournament (Cricket,
 ```text
 fieldr-main/
 ├── public/
-│   └── images/               # Brand flame animations (dark/light/sport variants), PWA icons, roster banners
-├── supabase/
-│   ├── schema.sql            # Core relational schema (seasons, teams, players, auctions, purses)
-│   ├── migration_v2.sql      # Season & multi-sport expansion
-│   ├── migration_v3.sql      # Reels, credits, handbook, and rulebook tables
-│   ├── migration_v4_sports_roles.sql
-│   └── patch_security_realtime.sql  # RLS policies & Supabase Realtime publication setup
+│   └── images/               # Brand flame animations (dark/light/colour variants) and icons
 ├── docs/
-│   ├── PROJECT_REFERENCE.md  # Domain architecture & data flow documentation
-│   ├── STYLE_PROPOSAL.md     # Visual system, typography, and sport color tokens
-│   ├── OPTIMIZATION_REPORT.md
-│   └── DEMO_MODE_REMOVAL.md
+│   └── PROJECT_REFERENCE.md  # Domain architecture, data flow and live database reference
 └── src/
     ├── pages/
     │   ├── public/           # Spectator & participant surfaces
