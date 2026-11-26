@@ -30,7 +30,8 @@ import {
 } from '../../lib/data'
 import { ACADEMIC_YEARS, getAcademicYearLabel } from '../../lib/academicYears'
 import { useToast } from '../../lib/ToastContext'
-import { getErrorMessage } from '../../lib/errors'
+import { useAdminRealtimeTopics } from '../../hooks/useAdminRealtime'
+import { CONFLICT_TOAST_MESSAGE, getErrorMessage, isStaleConflictError } from '../../lib/errors'
 import { Button, Dialog, EmptyState, ErrorState, Pagination, SkeletonBlock } from '../ui'
 import {
   ADMIN_CARD,
@@ -226,6 +227,10 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
     void loadRegistrations()
   }, [loadRegistrations])
 
+  useAdminRealtimeTopics(['registrations'], () => {
+    void loadRegistrations({ manual: true })
+  })
+
   const pendingList = useMemo(
     () => registrations.filter((r) => r.status === 'pending'),
     [registrations]
@@ -342,7 +347,12 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
       )
       await Promise.all([loadRegistrations({ manual: true }), onApprovedOrChanged()])
     } catch (err: unknown) {
-      showToast(getErrorMessage(err, 'Approval failed'), 'error')
+      if (isStaleConflictError(err)) {
+        showToast(CONFLICT_TOAST_MESSAGE, 'error')
+        await Promise.all([loadRegistrations({ manual: true }), onApprovedOrChanged()])
+      } else {
+        showToast(getErrorMessage(err, 'Approval failed'), 'error')
+      }
     } finally {
       setBusyId(null)
     }
@@ -459,7 +469,13 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
       setEditTarget(null)
       await Promise.all([loadRegistrations({ manual: true }), onApprovedOrChanged()])
     } catch (err: unknown) {
-      showToast(getErrorMessage(err, 'Failed to approve registration'), 'error')
+      if (isStaleConflictError(err)) {
+        showToast(CONFLICT_TOAST_MESSAGE, 'error')
+        setEditTarget(null)
+        await Promise.all([loadRegistrations({ manual: true }), onApprovedOrChanged()])
+      } else {
+        showToast(getErrorMessage(err, 'Failed to approve registration'), 'error')
+      }
     } finally {
       setIsSavingEditApprove(false)
     }
@@ -476,7 +492,14 @@ export const AdminRegistrationsTab: React.FC<AdminRegistrationsTabProps> = ({
       setRejectReason('')
       await loadRegistrations({ manual: true })
     } catch (err: unknown) {
-      showToast(getErrorMessage(err, 'Failed to reject registration'), 'error')
+      if (isStaleConflictError(err)) {
+        showToast(CONFLICT_TOAST_MESSAGE, 'error')
+        setRejectTarget(null)
+        setRejectReason('')
+        await loadRegistrations({ manual: true })
+      } else {
+        showToast(getErrorMessage(err, 'Failed to reject registration'), 'error')
+      }
     } finally {
       setIsRejecting(false)
     }

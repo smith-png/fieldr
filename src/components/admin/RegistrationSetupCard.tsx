@@ -1,4 +1,4 @@
-import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Check,
   Copy,
@@ -17,6 +17,7 @@ import {
 } from '../../lib/data'
 import { useToast } from '../../lib/ToastContext'
 import { getErrorMessage } from '../../lib/errors'
+import { useAdminRealtimeTopics } from '../../hooks/useAdminRealtime'
 import { lazyWithRetry } from '../../lib/lazyWithRetry'
 import { Button, SkeletonBlock } from '../ui'
 const MarkdownContent = lazyWithRetry(() =>
@@ -124,17 +125,26 @@ export const RegistrationSetupCard: React.FC<RegistrationSetupCardProps> = ({
     []
   )
 
-  useEffect(() => {
-    let mounted = true
+  const isDirtyRef = useRef(false)
+  const isMountedRef = useRef(true)
 
-    async function load() {
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  const loadRegistrationSettings = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const silent = Boolean(options?.silent)
       try {
-        setIsLoading(true)
+        if (!silent) setIsLoading(true)
         const [loaded, allSeasons] = await Promise.all([
           getAdminRegistrationSettings(),
           getSeasons()
         ])
-        if (!mounted) return
+        if (!isMountedRef.current) return
         setSavedSettings(loaded)
         applySettings(loaded, sports)
 
@@ -146,19 +156,25 @@ export const RegistrationSetupCard: React.FC<RegistrationSetupCardProps> = ({
           ) || null
         setTargetSeason(nonRehearsalActive)
       } catch (err: unknown) {
-        if (mounted) {
+        if (isMountedRef.current && !silent) {
           showToast(getErrorMessage(err, 'Failed to load registration settings'), 'error')
         }
       } finally {
-        if (mounted) setIsLoading(false)
+        if (isMountedRef.current && !silent) setIsLoading(false)
       }
-    }
+    },
+    [applySettings, showToast, sports]
+  )
 
-    void load()
-    return () => {
-      mounted = false
+  useEffect(() => {
+    void loadRegistrationSettings()
+  }, [loadRegistrationSettings])
+
+  useAdminRealtimeTopics(['registrations', 'seasons'], () => {
+    if (!isDirtyRef.current) {
+      void loadRegistrationSettings({ silent: true })
     }
-  }, [applySettings, showToast, sports])
+  })
 
   // Keep targetSeason synced if prop activeSeason updates
   useEffect(() => {
@@ -224,6 +240,8 @@ export const RegistrationSetupCard: React.FC<RegistrationSetupCardProps> = ({
     instructionsMd,
     confirmationMessage
   ])
+
+  isDirtyRef.current = isDirty
 
   const statusPill = useMemo(() => {
     if (!targetSeason) {

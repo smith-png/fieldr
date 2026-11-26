@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useMemo, useState } from 'react'
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FloppyDisk, Plus, Trash, WarningCircle } from '@phosphor-icons/react'
 import {
   DEFAULT_REEL_CLOSED_MESSAGE,
@@ -11,6 +11,7 @@ import {
 } from '../../lib/data'
 import { useToast } from '../../lib/ToastContext'
 import { getErrorMessage } from '../../lib/errors'
+import { useAdminRealtimeTopics } from '../../hooks/useAdminRealtime'
 import { lazyWithRetry } from '../../lib/lazyWithRetry'
 import { Button, SkeletonBlock } from '../ui'
 import {
@@ -166,38 +167,56 @@ export const ReelsSetupCard: React.FC = () => {
   const [categoriesText, setCategoriesText] = useState('General')
   const [hostsText, setHostsText] = useState('')
 
-  const applyLoaded = (s: ReelSettings) => {
+  const applyLoaded = useCallback((s: ReelSettings) => {
     setSaved(s)
     setDraft(s)
     setOpensLocal(isoToLocalInputValue(s.opens_at))
     setClosesLocal(isoToLocalInputValue(s.closes_at))
     setCategoriesText(s.categories.join('\n'))
     setHostsText(s.allowed_hosts.join('\n'))
-  }
+  }, [])
+
+  const isDirtyRef = useRef(false)
+  const isMountedRef = useRef(true)
 
   useEffect(() => {
-    let mounted = true
-    void (async () => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  const loadReelSettings = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const silent = Boolean(options?.silent)
       try {
         const loaded = await getAdminReelSettings()
-        if (mounted) applyLoaded(loaded)
+        if (isMountedRef.current) applyLoaded(loaded)
       } catch (err: unknown) {
-        if (mounted) {
+        if (isMountedRef.current && !silent) {
           setLoadError(
             getErrorMessage(
               err,
-              'Could not load reel settings. Run the reel SQL in the Supabase SQL Editor first.'
+              'Could not load reel settings.'
             )
           )
         }
       } finally {
-        if (mounted) setIsLoading(false)
+        if (isMountedRef.current && !silent) setIsLoading(false)
       }
-    })()
-    return () => {
-      mounted = false
+    },
+    [applyLoaded]
+  )
+
+  useEffect(() => {
+    void loadReelSettings()
+  }, [loadReelSettings])
+
+  useAdminRealtimeTopics(['reels'], () => {
+    if (!isDirtyRef.current) {
+      void loadReelSettings({ silent: true })
     }
-  }, [])
+  })
 
   const set = (patch: Partial<ReelSettings>) => setDraft((prev) => ({ ...prev, ...patch }))
 
@@ -224,6 +243,8 @@ export const ReelsSetupCard: React.FC = () => {
     const strip = (s: ReelSettings) => JSON.stringify({ ...s, updated_at: null })
     return strip(effective) !== strip(saved)
   }, [effective, saved])
+
+  isDirtyRef.current = isDirty
 
   const weightTotal = draft.criteria.reduce((sum, c) => sum + (Number(c.weight) || 0), 0)
 

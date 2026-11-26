@@ -14,6 +14,7 @@ import {
   isRealtimeSuppressed,
   formatAthleteCode
 } from './client'
+import { broadcastAdminSync } from '../adminRealtime'
 import type { AuctionService } from './types'
 
 export const DEFAULT_AUCTION_SETTINGS: Omit<AuctionSettings, 'season_id'> = {
@@ -208,6 +209,7 @@ const supabaseAuctionService: AuctionService = {
     }
 
     markLocalMutation(['auction'])
+    broadcastAdminSync('auction_settings', 'update')
     return normalizeAuctionSettings(settings.season_id, data as Record<string, unknown>)
   },
 
@@ -348,12 +350,17 @@ const supabaseAuctionService: AuctionService = {
     markLocalMutation(['auction'])
   },
 
-  async auctionPlaceBid(teamId: string, amount: number): Promise<void> {
+  async auctionPlaceBid(
+    teamId: string,
+    amount: number,
+    expectedPlayerId?: string | null
+  ): Promise<void> {
     if (!supabase) throw new AppError('Supabase not configured')
     markLocalMutation(['auction'])
     const { error } = await supabase.rpc('auction_place_bid', {
       p_team_id: teamId,
-      p_amount: amount
+      p_amount: amount,
+      p_expected_player_id: expectedPlayerId ?? null
     })
     if (error) {
       logError('Supabase auction_place_bid error:', error.message, error)
@@ -362,11 +369,17 @@ const supabaseAuctionService: AuctionService = {
     markLocalMutation(['auction'])
   },
 
-  async auctionClearBid(seasonId: string): Promise<void> {
+  async auctionClearBid(
+    seasonId: string,
+    expectedPlayerId?: string | null,
+    expectedBid?: number | null
+  ): Promise<void> {
     if (!supabase) throw new AppError('Supabase not configured')
     markLocalMutation(['auction'])
     const { error } = await supabase.rpc('auction_clear_bid', {
-      p_season_id: seasonId
+      p_season_id: seasonId,
+      p_expected_player_id: expectedPlayerId ?? null,
+      p_expected_bid: expectedBid ?? null
     })
     if (error) {
       logError('Supabase auction_clear_bid error:', error.message, error)
@@ -375,11 +388,17 @@ const supabaseAuctionService: AuctionService = {
     markLocalMutation(['auction'])
   },
 
-  async auctionSecure(seasonId: string): Promise<void> {
+  async auctionSecure(
+    seasonId: string,
+    expectedPlayerId?: string | null,
+    expectedBid?: number | null
+  ): Promise<void> {
     if (!supabase) throw new AppError('Supabase not configured')
     markLocalMutation(['auction', 'players', 'teams'])
     const { error } = await supabase.rpc('auction_secure', {
-      p_season_id: seasonId
+      p_season_id: seasonId,
+      p_expected_player_id: expectedPlayerId ?? null,
+      p_expected_bid: expectedBid ?? null
     })
     if (error) {
       logError('Supabase auction_secure error:', error.message, error)
@@ -388,11 +407,17 @@ const supabaseAuctionService: AuctionService = {
     markLocalMutation(['auction', 'players', 'teams'])
   },
 
-  async auctionMarkUnsold(seasonId: string): Promise<void> {
+  async auctionMarkUnsold(
+    seasonId: string,
+    expectedPlayerId?: string | null,
+    expectedBid?: number | null
+  ): Promise<void> {
     if (!supabase) throw new AppError('Supabase not configured')
     markLocalMutation(['auction', 'players'])
     const { error } = await supabase.rpc('auction_mark_unsold', {
-      p_season_id: seasonId
+      p_season_id: seasonId,
+      p_expected_player_id: expectedPlayerId ?? null,
+      p_expected_bid: expectedBid ?? null
     })
     if (error) {
       logError('Supabase auction_mark_unsold error:', error.message, error)
@@ -442,101 +467,9 @@ const supabaseAuctionService: AuctionService = {
     return data as ProjectorState
   },
 
-  subscribeToAuctionRealtime(seasonId: string, onUpdate: () => void): () => void {
-    if (!supabase || !seasonId) return () => {}
-
-    let active = true
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null
-
-    const scheduleUpdate = () => {
-      if (!active || isRealtimeSuppressed('auction')) return
-      if (debounceTimer) clearTimeout(debounceTimer)
-      debounceTimer = setTimeout(() => {
-        debounceTimer = null
-        if (!active || isRealtimeSuppressed('auction')) return
-        onUpdate()
-      }, REALTIME_DEBOUNCE_MS)
-    }
-
-    const channel = supabase
-      .channel(`admin_auction_live_${seasonId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'projector_state',
-          filter: `season_id=eq.${seasonId}`
-        },
-        () => scheduleUpdate()
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'players',
-          filter: `season_id=eq.${seasonId}`
-        },
-        () => scheduleUpdate()
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'teams',
-          filter: `season_id=eq.${seasonId}`
-        },
-        () => scheduleUpdate()
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'auction_bids'
-        },
-        () => scheduleUpdate()
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'auction_sales'
-        },
-        () => scheduleUpdate()
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'auction_settings',
-          filter: `season_id=eq.${seasonId}`
-        },
-        () => scheduleUpdate()
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'auction_queue',
-          filter: `season_id=eq.${seasonId}`
-        },
-        () => scheduleUpdate()
-      )
-      .subscribe()
-
-    return () => {
-      active = false
-      if (debounceTimer) clearTimeout(debounceTimer)
-      if (supabase) {
-        supabase.removeChannel(channel)
-      }
-    }
+  // Admin auction realtime is handled by the shared AdminRealtimeProvider.
+  subscribeToAuctionRealtime(_seasonId: string, _onUpdate: () => void): () => void {
+    return () => {}
   }
 }
 
@@ -556,14 +489,26 @@ export const getRecentAuctionSales = (seasonId: string, limit?: number) =>
   auctionService.getRecentAuctionSales(seasonId, limit)
 export const auctionBringToStage = (playerId: string) =>
   auctionService.auctionBringToStage(playerId)
-export const auctionPlaceBid = (teamId: string, amount: number) =>
-  auctionService.auctionPlaceBid(teamId, amount)
-export const auctionClearBid = (seasonId: string) =>
-  auctionService.auctionClearBid(seasonId)
-export const auctionSecure = (seasonId: string) =>
-  auctionService.auctionSecure(seasonId)
-export const auctionMarkUnsold = (seasonId: string) =>
-  auctionService.auctionMarkUnsold(seasonId)
+export const auctionPlaceBid = (
+  teamId: string,
+  amount: number,
+  expectedPlayerId?: string | null
+) => auctionService.auctionPlaceBid(teamId, amount, expectedPlayerId)
+export const auctionClearBid = (
+  seasonId: string,
+  expectedPlayerId?: string | null,
+  expectedBid?: number | null
+) => auctionService.auctionClearBid(seasonId, expectedPlayerId, expectedBid)
+export const auctionSecure = (
+  seasonId: string,
+  expectedPlayerId?: string | null,
+  expectedBid?: number | null
+) => auctionService.auctionSecure(seasonId, expectedPlayerId, expectedBid)
+export const auctionMarkUnsold = (
+  seasonId: string,
+  expectedPlayerId?: string | null,
+  expectedBid?: number | null
+) => auctionService.auctionMarkUnsold(seasonId, expectedPlayerId, expectedBid)
 export const auctionUndoLastSale = (seasonId: string) =>
   auctionService.auctionUndoLastSale(seasonId)
 export const auctionBackToIdle = (seasonId: string) =>

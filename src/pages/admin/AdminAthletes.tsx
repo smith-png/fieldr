@@ -21,10 +21,10 @@ import {
   getAthletesPaged,
   getPendingRegistrationsCount,
   markLocalMutation,
-  subscribeToAthletes,
   updateAthlete,
   uploadPlayerPhotos
 } from '../../lib/data'
+import { useAdminRealtimeTopics } from '../../hooks/useAdminRealtime'
 import { useAuth } from '../../lib/AuthContext'
 import { ACADEMIC_YEARS, getAcademicYearLabel } from '../../lib/academicYears'
 import { validateImageFile } from '../../lib/imageCompression'
@@ -109,6 +109,8 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
   const latestReqIdRef = useRef(0)
   const detailReqIdRef = useRef(0)
   const isMountedRef = useRef(true)
+  const onRealtimeUpdateRef = useRef(onRealtimeUpdate)
+  onRealtimeUpdateRef.current = onRealtimeUpdate
 
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -270,26 +272,30 @@ export const AdminAthletes: React.FC<AdminAthletesProps> = ({
     [showToast]
   )
 
-  // Debounced (500ms) realtime subscription for external changes; cancelled on unmount
-  const onRealtimeUpdateRef = useRef(onRealtimeUpdate)
-  onRealtimeUpdateRef.current = onRealtimeUpdate
-  const loadAthletesRef = useRef(loadAthletes)
-  loadAthletesRef.current = loadAthletes
-  const openAthleteDetailRef = useRef(openAthleteDetail)
-  openAthleteDetailRef.current = openAthleteDetail
-
-  useEffect(() => {
-    const unsubscribe = subscribeToAthletes(() => {
-      void loadAthletesRef.current({ force: true })
+  // Subscribe via shared admin realtime hub (athletes via admin-sync broadcast, players via DB realtime)
+  useAdminRealtimeTopics(
+    ['athletes', 'players'],
+    () => {
+      void loadAthletes({ force: true })
       if (selectedAthleteRef.current) {
-        void openAthleteDetailRef.current(selectedAthleteRef.current, { silent: true })
+        void openAthleteDetail(selectedAthleteRef.current, { silent: true })
       }
-      onRealtimeUpdateRef.current?.()
-    })
-    return () => {
-      unsubscribe()
-    }
-  }, [])
+      onRealtimeUpdate?.()
+    },
+    isAdmin
+  )
+
+  useAdminRealtimeTopics(
+    ['registrations'],
+    () => {
+      getPendingRegistrationsCount()
+        .then((count) => {
+          if (isMountedRef.current) setPendingRegistrationsCount(count)
+        })
+        .catch(() => {})
+    },
+    isAdmin
+  )
 
   const openCreateForm = useCallback(() => {
     setEditingAthlete(null)

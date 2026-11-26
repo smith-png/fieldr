@@ -1,6 +1,6 @@
 import type { PurseTransaction, PurseTransactionType } from '../../types'
 import { AppError } from '../errors'
-import { supabase, markLocalMutation } from './client'
+import { supabase, markLocalMutation, resolveCurrentAdminActor } from './client'
 import type { PursesService } from './types'
 
 const PURSE_TX_COLS =
@@ -32,13 +32,16 @@ const supabasePursesService: PursesService = {
     teamId: string,
     type: PurseTransactionType,
     amount: number,
-    reason?: string
+    reason?: string,
+    createdBy?: string
   ): Promise<PurseTransaction> {
     if (amount < 0 && (type === 'add' || type === 'deduct')) {
       throw new AppError('Transaction amount must be positive')
     }
 
     if (!supabase) throw new AppError('Supabase not configured')
+
+    const actor = await resolveCurrentAdminActor(createdBy)
 
     markLocalMutation(['teams', 'auction'])
     const { data: newBalance, error: rpcErr } = await supabase.rpc(
@@ -49,7 +52,7 @@ const supabasePursesService: PursesService = {
         p_type: type,
         p_amount: amount,
         p_reason: reason || `Purse ${type} action`,
-        p_created_by: 'admin'
+        p_created_by: actor
       }
     )
 
@@ -74,7 +77,7 @@ const supabasePursesService: PursesService = {
         balance_after: typeof newBalance === 'number' ? newBalance : 0,
         reason,
         created_at: new Date().toISOString(),
-        created_by: 'admin'
+        created_by: actor
       }
     }
     return latestTx
@@ -114,14 +117,16 @@ export async function executePurseTransaction(
   teamId: string,
   type: PurseTransactionType,
   amount: number,
-  reason?: string
+  reason?: string,
+  createdBy?: string
 ): Promise<{ newBalance: number; transaction: PurseTransaction }> {
   const transaction = await pursesService.executePurseTransaction(
     seasonId,
     teamId,
     type,
     amount,
-    reason
+    reason,
+    createdBy
   )
   return {
     newBalance: transaction.balance_after,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useRef, useState } from 'react'
 import {
   ArrowsClockwise,
   Minus,
@@ -7,7 +7,9 @@ import {
   ShieldCheck
 } from '@phosphor-icons/react'
 import type { PurseTransaction, PurseTransactionType, Season, Team } from '../../types'
+import { useAuth } from '../../lib/AuthContext'
 import { executePurseTransaction, resetAllPurses } from '../../lib/data'
+import { CONFLICT_TOAST_MESSAGE, getErrorMessage, isStaleConflictError } from '../../lib/errors'
 import { useToast } from '../../lib/ToastContext'
 import { Button, Dialog, EmptyState } from '../../components/ui'
 import {
@@ -35,6 +37,7 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
   onRefresh
 }) => {
   const { success, error } = useToast()
+  const { user } = useAuth()
   const safeTeams = Array.isArray(teams) ? teams : []
   const safeTransactions = Array.isArray(transactions) ? transactions : []
 
@@ -48,11 +51,13 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
   const [txAmount, setTxAmount] = useState('')
   const [txReason, setTxReason] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const inFlightRef = useRef(false)
 
   // Selected team history view
   const [historyTeam, setHistoryTeam] = useState<Team | null>(null)
 
   const openTxModal = (team: Team, type: PurseTransactionType) => {
+    if (inFlightRef.current || isSubmitting) return
     setSelectedTeam(team)
     setTxType(type)
     setTxAmount(type === 'set' ? String(team.current_purse) : '')
@@ -61,7 +66,7 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
 
   const handleExecuteTransaction = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!activeSeason || !selectedTeam) return
+    if (!activeSeason || !selectedTeam || inFlightRef.current || isSubmitting) return
 
     const amountNum = Number(txAmount)
     if (isNaN(amountNum) || amountNum < 0) {
@@ -69,14 +74,16 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
       return
     }
 
+    inFlightRef.current = true
+    setIsSubmitting(true)
     try {
-      setIsSubmitting(true)
       const res = await executePurseTransaction(
         activeSeason.id,
         selectedTeam.id,
         txType,
         amountNum,
-        txReason.trim() || undefined
+        txReason.trim() || undefined,
+        user?.email
       )
       success(
         `Purse updated for "${selectedTeam.name}". New Balance: ${Number(res?.newBalance ?? 0).toLocaleString()} PTS`
@@ -84,16 +91,22 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
       setSelectedTeam(null)
       await onRefresh()
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Transaction failed'
-      error(msg)
+      if (isStaleConflictError(err)) {
+        error(CONFLICT_TOAST_MESSAGE)
+        setSelectedTeam(null)
+        await onRefresh()
+      } else {
+        error(getErrorMessage(err, 'Transaction failed'))
+      }
     } finally {
+      inFlightRef.current = false
       setIsSubmitting(false)
     }
   }
 
   const handleGlobalReset = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!activeSeason) return
+    if (!activeSeason || inFlightRef.current || isSubmitting) return
 
     const amountNum = Number(globalStartingAmount)
     if (isNaN(amountNum) || amountNum < 0) {
@@ -101,8 +114,9 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
       return
     }
 
+    inFlightRef.current = true
+    setIsSubmitting(true)
     try {
-      setIsSubmitting(true)
       await resetAllPurses(
         activeSeason.id,
         amountNum,
@@ -112,9 +126,15 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
       setIsResetModalOpen(false)
       await onRefresh()
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Global reset failed'
-      error(msg)
+      if (isStaleConflictError(err)) {
+        error(CONFLICT_TOAST_MESSAGE)
+        setIsResetModalOpen(false)
+        await onRefresh()
+      } else {
+        error(getErrorMessage(err, 'Global reset failed'))
+      }
     } finally {
+      inFlightRef.current = false
       setIsSubmitting(false)
     }
   }
@@ -132,6 +152,7 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
           variant="secondary"
           size="sm"
           leftIcon={ArrowsClockwise}
+          disabled={isSubmitting}
           onClick={() => setIsResetModalOpen(true)}
           className="rounded-full self-start sm:self-auto"
         >
@@ -211,6 +232,7 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
                           variant="secondary"
                           size="sm"
                           leftIcon={Plus}
+                          disabled={isSubmitting}
                           onClick={() => openTxModal(team, 'add')}
                           className="rounded-full text-accent-bright"
                         >
@@ -222,6 +244,7 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
                           variant="secondary"
                           size="sm"
                           leftIcon={Minus}
+                          disabled={isSubmitting}
                           onClick={() => openTxModal(team, 'deduct')}
                           className="rounded-full text-error"
                         >
@@ -233,6 +256,7 @@ export const AdminPurses: React.FC<AdminPursesProps> = ({
                           variant="secondary"
                           size="sm"
                           leftIcon={PencilSimple}
+                          disabled={isSubmitting}
                           onClick={() => openTxModal(team, 'set')}
                           className="rounded-full"
                         >

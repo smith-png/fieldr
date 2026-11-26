@@ -18,13 +18,10 @@ import {
   getSeasons,
   getSports,
   getTeams,
-  isRealtimeSuppressed,
   markLocalMutation,
-  setActiveSeason as apiSetActiveSeason,
-  subscribeToPlayers,
-  subscribeToProjector,
-  subscribeToTeams
+  setActiveSeason as apiSetActiveSeason
 } from '../../lib/data'
+import { AdminRealtimeProvider, useAdminRealtimeTopics } from '../../hooks/useAdminRealtime'
 import {
   getCachedQuery,
   isQueryFresh,
@@ -94,6 +91,36 @@ const renderTabSkeleton = (tab: AdminTab) => {
     return <AdminTableSkeleton rows={6} columns={6} />
   }
   return <AdminCardsSkeleton count={6} />
+}
+
+interface AdminRealtimeBridgeProps {
+  seasonId: string | null
+  enabled: boolean
+  onRefreshProjector: () => void
+  onRefreshPlayers: () => void
+  onRefreshTeams: () => void
+  onRefreshTransactions: () => void
+  onRefreshSeasons: () => void
+  onRefreshSports: () => void
+}
+
+const AdminRealtimeBridge: React.FC<AdminRealtimeBridgeProps> = ({
+  seasonId,
+  enabled,
+  onRefreshProjector,
+  onRefreshPlayers,
+  onRefreshTeams,
+  onRefreshTransactions,
+  onRefreshSeasons,
+  onRefreshSports
+}) => {
+  useAdminRealtimeTopics(['projector_state'], onRefreshProjector, enabled && Boolean(seasonId))
+  useAdminRealtimeTopics(['players'], onRefreshPlayers, enabled && Boolean(seasonId))
+  useAdminRealtimeTopics(['teams'], onRefreshTeams, enabled && Boolean(seasonId))
+  useAdminRealtimeTopics(['purse_transactions'], onRefreshTransactions, enabled && Boolean(seasonId))
+  useAdminRealtimeTopics(['seasons'], onRefreshSeasons, enabled)
+  useAdminRealtimeTopics(['sports'], onRefreshSports, enabled)
+  return null
 }
 
 export const AdminPage: React.FC = () => {
@@ -273,14 +300,6 @@ export const AdminPage: React.FC = () => {
       if (e.key !== null && e.key !== 'fieldr_seasons_updated_at') {
         return
       }
-      if (
-        isRealtimeSuppressed('players') ||
-        isRealtimeSuppressed('athletes') ||
-        isRealtimeSuppressed('teams') ||
-        isRealtimeSuppressed('auction')
-      ) {
-        return
-      }
       if (storageTimer) clearTimeout(storageTimer)
       storageTimer = setTimeout(() => {
         storageTimer = null
@@ -295,26 +314,91 @@ export const AdminPage: React.FC = () => {
     }
   }, [isAdminReady, loadAllData])
 
-  useEffect(() => {
-    if (!isAdminReady || !activeSeason?.id) return
-    const seasonId = activeSeason.id
+  const activeSeasonIdRef = useRef<string | null>(activeSeason?.id ?? null)
+  activeSeasonIdRef.current = activeSeason?.id ?? null
 
-    const unsubProjector = subscribeToProjector(seasonId, (nextState) => {
-      if (nextState) setProjectorState(nextState)
-    })
-    const unsubPlayers = subscribeToPlayers(seasonId, (nextPlayers) => {
-      setPlayers(Array.isArray(nextPlayers) ? nextPlayers : [])
-    })
-    const unsubTeams = subscribeToTeams(seasonId, (nextTeams) => {
-      setTeams(Array.isArray(nextTeams) ? nextTeams : [])
-    })
-
-    return () => {
-      unsubProjector()
-      unsubPlayers()
-      unsubTeams()
+  const refreshProjectorOnly = useCallback(async () => {
+    const seasonId = activeSeasonIdRef.current
+    if (!seasonId) return
+    try {
+      const next = await getProjectorState(seasonId)
+      if (isMountedRef.current && activeSeasonIdRef.current === seasonId && next) {
+        setProjectorState(next)
+      }
+    } catch {
+      // Keep current state on transient error
     }
-  }, [isAdminReady, activeSeason?.id])
+  }, [])
+
+  const refreshPlayersOnly = useCallback(async () => {
+    const seasonId = activeSeasonIdRef.current
+    if (!seasonId) return
+    try {
+      const next = await getPlayers(seasonId)
+      if (isMountedRef.current && activeSeasonIdRef.current === seasonId) {
+        setPlayers(Array.isArray(next) ? next : [])
+      }
+    } catch {
+      // Keep current state on transient error
+    }
+  }, [])
+
+  const refreshTeamsOnly = useCallback(async () => {
+    const seasonId = activeSeasonIdRef.current
+    if (!seasonId) return
+    try {
+      const next = await getTeams(seasonId)
+      if (isMountedRef.current && activeSeasonIdRef.current === seasonId) {
+        setTeams(Array.isArray(next) ? next : [])
+      }
+    } catch {
+      // Keep current state on transient error
+    }
+  }, [])
+
+  const refreshTransactionsOnly = useCallback(async () => {
+    const seasonId = activeSeasonIdRef.current
+    if (!seasonId) return
+    try {
+      const [nextTx, nextTeams] = await Promise.all([
+        getPurseTransactions(seasonId),
+        getTeams(seasonId)
+      ])
+      if (isMountedRef.current && activeSeasonIdRef.current === seasonId) {
+        setTransactions(Array.isArray(nextTx) ? nextTx : [])
+        setTeams(Array.isArray(nextTeams) ? nextTeams : [])
+      }
+    } catch {
+      // Keep current state on transient error
+    }
+  }, [])
+
+  const refreshSeasonsOnly = useCallback(async () => {
+    try {
+      const rawSeasons = await getSeasons()
+      if (!isMountedRef.current) return
+      const allSeasons = Array.isArray(rawSeasons) ? rawSeasons : []
+      const nextActive = allSeasons.find((s) => s?.is_active) || allSeasons[0] || null
+      setSeasons(allSeasons)
+      if ((nextActive?.id ?? null) !== activeSeasonIdRef.current) {
+        void loadAllData()
+      } else if (nextActive) {
+        setActiveSeason(nextActive)
+      }
+    } catch {
+      // Keep current state on transient error
+    }
+  }, [loadAllData])
+
+  const refreshSportsOnly = useCallback(async () => {
+    try {
+      const rawSports = await getSports()
+      if (!isMountedRef.current) return
+      setSports(Array.isArray(rawSports) ? rawSports : [])
+    } catch {
+      // Keep current state on transient error
+    }
+  }, [])
 
   const handleSwitchSeason = async (seasonId: string) => {
     try {
@@ -327,13 +411,28 @@ export const AdminPage: React.FC = () => {
   }
 
   return (
-    <AdminLayout
-      currentTab={currentTab}
-      onSelectTab={handleSelectTab}
-      activeSeason={activeSeason}
-      seasons={seasons}
-      onSwitchSeason={handleSwitchSeason}
+    <AdminRealtimeProvider
+      seasonId={activeSeason?.id ?? null}
+      user={user}
+      enabled={isAdminReady}
     >
+      <AdminRealtimeBridge
+        seasonId={activeSeason?.id ?? null}
+        enabled={isAdminReady}
+        onRefreshProjector={refreshProjectorOnly}
+        onRefreshPlayers={refreshPlayersOnly}
+        onRefreshTeams={refreshTeamsOnly}
+        onRefreshTransactions={refreshTransactionsOnly}
+        onRefreshSeasons={refreshSeasonsOnly}
+        onRefreshSports={refreshSportsOnly}
+      />
+      <AdminLayout
+        currentTab={currentTab}
+        onSelectTab={handleSelectTab}
+        activeSeason={activeSeason}
+        seasons={seasons}
+        onSwitchSeason={handleSwitchSeason}
+      >
       {isAuthLoading || isLoading ? (
         renderTabSkeleton(currentTab)
       ) : loadError && !hasLoadedOnceRef.current ? (
@@ -442,6 +541,7 @@ export const AdminPage: React.FC = () => {
           )}
         </Suspense>
       )}
-    </AdminLayout>
+      </AdminLayout>
+    </AdminRealtimeProvider>
   )
 }

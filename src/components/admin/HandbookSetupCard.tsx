@@ -13,6 +13,8 @@ import { useAuth } from '../../lib/AuthContext'
 import { useToast } from '../../lib/ToastContext'
 import { getErrorMessage } from '../../lib/errors'
 import { supabase } from '../../lib/data'
+import { broadcastAdminSync } from '../../lib/adminRealtime'
+import { useAdminRealtimeTopics } from '../../hooks/useAdminRealtime'
 import { MAX_PDF_BYTES, formatDocumentDate, validatePdfFile } from '../../lib/utils'
 import { Button, Dialog, EmptyState, ErrorState } from '../ui'
 
@@ -86,6 +88,7 @@ export const HandbookSetupCard: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState<boolean>(false)
   const isMountedRef = useRef(true)
   const latestReqIdRef = useRef(0)
+  const savedCodeRef = useRef('')
 
   useEffect(() => {
     isMountedRef.current = true
@@ -134,9 +137,13 @@ export const HandbookSetupCard: React.FC = () => {
           typeof settingsRes.data?.access_code === 'string'
             ? settingsRes.data.access_code
             : ''
+        const previousSaved = savedCodeRef.current
+        savedCodeRef.current = currentCode
         setSavedCode(currentCode)
         if (!silent) {
           setCodeInput(currentCode)
+        } else {
+          setCodeInput((prev) => (prev === previousSaved ? currentCode : prev))
         }
 
         setHandbooks(Array.isArray(listRes.data) ? (listRes.data as HandbookRow[]) : [])
@@ -159,6 +166,10 @@ export const HandbookSetupCard: React.FC = () => {
   useEffect(() => {
     void loadHandbookAdminData()
   }, [loadHandbookAdminData])
+
+  useAdminRealtimeTopics(['handbooks'], () => {
+    void loadHandbookAdminData({ silent: true })
+  })
 
   const handleGenerateCode = () => {
     setCodeInput(generateAccessCode())
@@ -194,8 +205,10 @@ export const HandbookSetupCard: React.FC = () => {
         }
       }
 
+      savedCodeRef.current = nextCode
       setSavedCode(nextCode)
       setCodeInput(nextCode)
+      broadcastAdminSync('handbooks', 'update')
       showToast(
         nextCode
           ? 'Handbook access code saved'
@@ -300,6 +313,7 @@ export const HandbookSetupCard: React.FC = () => {
       setHandbooks((prev) => [inserted as HandbookRow, ...prev])
       setUploadTitle('')
       clearSelectedFile()
+      broadcastAdminSync('handbooks', 'create')
       showToast('Handbook uploaded', 'success')
     } catch (err) {
       showToast(getErrorMessage(err, 'Failed to upload handbook'), 'error')
@@ -336,6 +350,7 @@ export const HandbookSetupCard: React.FC = () => {
 
       setHandbooks((prev) => prev.filter((h) => h.id !== handbookToDelete.id))
       setHandbookToDelete(null)
+      broadcastAdminSync('handbooks', 'delete')
       showToast('Handbook deleted', 'success')
     } catch (err) {
       showToast(getErrorMessage(err, 'Failed to delete handbook'), 'error')

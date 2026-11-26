@@ -10,7 +10,7 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null
 
-export const REALTIME_DEBOUNCE_MS = 500
+export const REALTIME_DEBOUNCE_MS = 300
 
 export type RealtimeScope = 'players' | 'athletes' | 'teams' | 'auction'
 
@@ -33,6 +33,31 @@ export function markLocalMutation(
 
 export function isRealtimeSuppressed(scope: RealtimeScope): boolean {
   return Date.now() < (localMutationUntil[scope] || 0)
+}
+
+export async function resolveCurrentAdminActor(explicitActor?: string): Promise<string> {
+  if (explicitActor && explicitActor.trim().length > 0) {
+    return explicitActor.trim()
+  }
+  if (!supabase) return 'admin'
+  try {
+    const { data } = await supabase.auth.getSession()
+    const authUser = data.session?.user
+    if (!authUser) return 'admin'
+    const meta = authUser.user_metadata as Record<string, unknown> | undefined
+    const displayName =
+      (typeof meta?.full_name === 'string' && meta.full_name.trim()) ||
+      (typeof meta?.display_name === 'string' && meta.display_name.trim()) ||
+      (typeof meta?.name === 'string' && meta.name.trim()) ||
+      ''
+    if (displayName) return displayName
+    if (typeof authUser.email === 'string' && authUser.email.trim()) {
+      return authUser.email.trim()
+    }
+  } catch {
+    // Fall back to default label if session lookup fails
+  }
+  return 'admin'
 }
 
 export function formatAthleteCode(code: number | string | undefined | null): string {

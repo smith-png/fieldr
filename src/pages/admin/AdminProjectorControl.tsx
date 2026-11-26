@@ -41,6 +41,7 @@ import {
   getAutoSlideshowTeams
 } from '../../hooks/useAutoSlideshow'
 import { useToast } from '../../lib/ToastContext'
+import { CONFLICT_TOAST_MESSAGE, isStaleConflictError } from '../../lib/errors'
 import { Button, Dialog, Spinner } from '../../components/ui'
 import {
   ADMIN_CARD_HEADER,
@@ -179,15 +180,17 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
   const [broadcastInput, setBroadcastInput] = useState('')
   const [isBroadcastPending, setIsBroadcastPending] = useState(false)
   const [broadcastError, setBroadcastError] = useState<string | null>(null)
+  const broadcastInFlightRef = useRef(false)
   const activeBroadcastMessage = (projectorState?.broadcast_message || '').trim()
 
   const handleAnnounceBroadcast = async () => {
     const trimmed = broadcastInput.trim()
-    if (!trimmed || isBroadcastPending) return
+    if (!trimmed || isBroadcastPending || broadcastInFlightRef.current) return
     if (!activeSeason) {
       setBroadcastError('No active season')
       return
     }
+    broadcastInFlightRef.current = true
     try {
       setIsBroadcastPending(true)
       setBroadcastError(null)
@@ -195,28 +198,43 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
       setBroadcastInput('')
       await onRefresh()
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to announce broadcast'
-      setBroadcastError(msg)
+      if (isStaleConflictError(err)) {
+        setBroadcastError(CONFLICT_TOAST_MESSAGE)
+        error(CONFLICT_TOAST_MESSAGE)
+        await onRefresh()
+      } else {
+        const msg = err instanceof Error ? err.message : 'Failed to announce broadcast'
+        setBroadcastError(msg)
+      }
     } finally {
+      broadcastInFlightRef.current = false
       setIsBroadcastPending(false)
     }
   }
 
   const handleClearBroadcast = async () => {
-    if (!activeBroadcastMessage || isBroadcastPending) return
+    if (!activeBroadcastMessage || isBroadcastPending || broadcastInFlightRef.current) return
     if (!activeSeason) {
       setBroadcastError('No active season')
       return
     }
+    broadcastInFlightRef.current = true
     try {
       setIsBroadcastPending(true)
       setBroadcastError(null)
       await setBroadcastMessage(activeSeason.id, null)
       await onRefresh()
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to clear broadcast'
-      setBroadcastError(msg)
+      if (isStaleConflictError(err)) {
+        setBroadcastError(CONFLICT_TOAST_MESSAGE)
+        error(CONFLICT_TOAST_MESSAGE)
+        await onRefresh()
+      } else {
+        const msg = err instanceof Error ? err.message : 'Failed to clear broadcast'
+        setBroadcastError(msg)
+      }
     } finally {
+      broadcastInFlightRef.current = false
       setIsBroadcastPending(false)
     }
   }
@@ -372,6 +390,7 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
   }, [playerCodeInput, playerSport, activeSeason?.id, error])
 
   const [isUpdating, setIsUpdating] = useState(false)
+  const updatingInFlightRef = useRef(false)
 
   // Auction stage guard
   const isAuctionModeOnStage =
@@ -393,6 +412,7 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
   } | null>(null)
 
   const executeOrConfirm = (label: string, action: () => Promise<void>) => {
+    if (updatingInFlightRef.current || isUpdating) return
     if (isAuctionModeOnStage) {
       setPendingAction({ label, run: action })
       return
@@ -413,11 +433,13 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
     mode: ProjectorMode,
     options?: { playerId?: string | null; teamId?: string | null }
   ) => {
+    if (updatingInFlightRef.current) return
     if (!activeSeason) {
       error('No active season')
       return
     }
 
+    updatingInFlightRef.current = true
     try {
       setIsUpdating(true)
       const nextState: ProjectorState = {
@@ -434,19 +456,27 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
       success(`Projector scene switched to ${mode.toUpperCase()}`)
       await onRefresh()
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to update projector scene'
-      error(msg)
+      if (isStaleConflictError(err)) {
+        error(CONFLICT_TOAST_MESSAGE)
+        await onRefresh()
+      } else {
+        const msg = err instanceof Error ? err.message : 'Failed to update projector scene'
+        error(msg)
+      }
     } finally {
+      updatingInFlightRef.current = false
       setIsUpdating(false)
     }
   }
 
   const performBroadcastPlayer = async () => {
+    if (updatingInFlightRef.current) return
     if (!activeSeason) {
       error('No active season')
       return
     }
 
+    updatingInFlightRef.current = true
     try {
       setIsUpdating(true)
       if (typeof window !== 'undefined' && window.localStorage) {
@@ -492,27 +522,41 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
       }
       await onRefresh()
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to broadcast player'
-      error(msg)
+      if (isStaleConflictError(err)) {
+        error(CONFLICT_TOAST_MESSAGE)
+        await onRefresh()
+      } else {
+        const msg = err instanceof Error ? err.message : 'Failed to broadcast player'
+        error(msg)
+      }
     } finally {
+      updatingInFlightRef.current = false
       setIsUpdating(false)
     }
   }
 
   const handleStopAuto = async () => {
+    if (updatingInFlightRef.current) return
     if (!activeSeason) {
       error('No active season')
       return
     }
+    updatingInFlightRef.current = true
     try {
       setIsUpdating(true)
       await stopProjectorAuto(activeSeason.id)
       success('Auto slideshow stopped. Projector returned to Idle.')
       await onRefresh()
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to stop auto slideshow'
-      error(msg)
+      if (isStaleConflictError(err)) {
+        error(CONFLICT_TOAST_MESSAGE)
+        await onRefresh()
+      } else {
+        const msg = err instanceof Error ? err.message : 'Failed to stop auto slideshow'
+        error(msg)
+      }
     } finally {
+      updatingInFlightRef.current = false
       setIsUpdating(false)
     }
   }
@@ -529,11 +573,13 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
       : null
 
   const performBroadcastTeams = async () => {
+    if (updatingInFlightRef.current) return
     if (!activeSeason) {
       error('No active season')
       return
     }
 
+    updatingInFlightRef.current = true
     try {
       setIsUpdating(true)
       if (typeof window !== 'undefined' && window.localStorage) {
@@ -581,9 +627,15 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
       }
       await onRefresh()
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to broadcast teams'
-      error(msg)
+      if (isStaleConflictError(err)) {
+        error(CONFLICT_TOAST_MESSAGE)
+        await onRefresh()
+      } else {
+        const msg = err instanceof Error ? err.message : 'Failed to broadcast teams'
+        error(msg)
+      }
     } finally {
+      updatingInFlightRef.current = false
       setIsUpdating(false)
     }
   }

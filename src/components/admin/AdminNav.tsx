@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Calendar,
@@ -25,6 +25,7 @@ import {
 import { BrandMark } from '../layout/BrandMark'
 import { prefetchAdminTab, prefetchRoute } from '../../lib/queryCache'
 import type { ThemePreference } from '../../lib/theme'
+import type { OnlineAdmin } from '../../lib/adminRealtime'
 import type { AdminTab, Season } from '../../types'
 
 export interface AdminNavItem {
@@ -96,6 +97,7 @@ export interface AdminNavProps {
   onToggleQuickTheme: () => void
   onSignOut: () => void
   userEmail?: string
+  onlineAdmins?: OnlineAdmin[]
 }
 
 export const AdminNav: React.FC<AdminNavProps> = ({
@@ -112,10 +114,24 @@ export const AdminNav: React.FC<AdminNavProps> = ({
   onSetPreference,
   onToggleQuickTheme,
   onSignOut,
-  userEmail
+  userEmail,
+  onlineAdmins = []
 }) => {
   const isDesktopSidebar = !onCloseMobile
   const collapsed = isCollapsed && isDesktopSidebar
+  const [isPresenceExpanded, setIsPresenceExpanded] = useState(false)
+
+  const onlineCount = onlineAdmins.length > 0 ? onlineAdmins.length : userEmail ? 1 : 0
+  const onlineNamesList =
+    onlineAdmins.length > 0
+      ? onlineAdmins.map((admin) => admin.name || admin.email || 'Admin')
+      : userEmail
+        ? [userEmail]
+        : []
+  const presenceTooltip =
+    onlineNamesList.length > 0
+      ? `Admins online (${onlineCount}): ${onlineNamesList.join(', ')}`
+      : 'Admins online: 0'
 
   const renderNavItem = (item: AdminNavItem) => {
     const isActive = currentTab === item.id
@@ -377,12 +393,88 @@ export const AdminNav: React.FC<AdminNavProps> = ({
         ))}
       </nav>
 
-      {/* Bottom Actions: Theme, Sign out, and Launch Projector Pill pinned to bottom */}
+      {/* Bottom Actions: Admins Online Presence, Theme, Sign out, and Launch Projector Pill */}
       <div
         className={`mt-auto border-t flex flex-col gap-2 shrink-0 ${
           isDesktopSidebar ? `pt-3.5 ${desktopHairline}` : 'pt-3 border-border/60'
         }`}
       >
+        {/* Admins Online Presence Indicator (admin routes only) */}
+        {onlineCount > 0 && (
+          collapsed ? (
+            <div
+              title={presenceTooltip}
+              aria-label={presenceTooltip}
+              className="w-10 h-8 mx-auto rounded-full bg-surface/50 dark:bg-surface/40 border border-[color:color-mix(in_srgb,var(--accent-bright)_16%,transparent)] flex items-center justify-center gap-1.5 text-[11px] font-mono text-muted select-none"
+            >
+              <span
+                aria-hidden="true"
+                className="w-2 h-2 rounded-full bg-accent-bright shrink-0"
+              />
+              <span className="tabular-nums text-text font-medium">{onlineCount}</span>
+            </div>
+          ) : (
+            <div
+              className={
+                isDesktopSidebar
+                  ? 'rounded-2xl bg-surface/50 dark:bg-surface/40 border border-[color:color-mix(in_srgb,var(--accent-bright)_16%,transparent)] px-3 py-2'
+                  : 'rounded-xl bg-surface-2/80 border border-border/60 px-3 py-2'
+              }
+            >
+              <button
+                type="button"
+                onClick={() => setIsPresenceExpanded((prev) => !prev)}
+                aria-expanded={isPresenceExpanded}
+                title={presenceTooltip}
+                className="w-full flex items-center justify-between gap-2 text-left text-xs text-muted hover:text-text transition-colors"
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  <span
+                    aria-hidden="true"
+                    className="w-2 h-2 rounded-full bg-accent-bright shrink-0"
+                  />
+                  <span className="truncate font-medium text-text">
+                    Admins online: <span className="font-mono tabular-nums">{onlineCount}</span>
+                  </span>
+                </span>
+                <CaretDown
+                  size={12}
+                  weight="regular"
+                  className={`shrink-0 text-muted transition-transform duration-150 ${
+                    isPresenceExpanded ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+              {isPresenceExpanded && onlineNamesList.length > 0 && (
+                <ul className="mt-2 pt-2 border-t border-border/50 space-y-1">
+                  {onlineAdmins.length > 0 ? (
+                    onlineAdmins.map((admin) => (
+                      <li
+                        key={admin.id}
+                        className="text-[11px] text-muted truncate flex items-center gap-1.5"
+                        title={admin.email ? `${admin.name} (${admin.email})` : admin.name}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="w-1.5 h-1.5 rounded-full bg-accent-bright/70 shrink-0"
+                        />
+                        <span className="truncate text-text/90">
+                          {admin.name}
+                          {admin.email && admin.email.toLowerCase() === (userEmail || '').toLowerCase()
+                            ? ' (you)'
+                            : ''}
+                        </span>
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-[11px] text-muted truncate">{userEmail} (you)</li>
+                  )}
+                </ul>
+              )}
+            </div>
+          )
+        )}
+
         {collapsed ? (
           <>
             <button

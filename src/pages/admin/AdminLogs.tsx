@@ -7,6 +7,7 @@ import {
 } from '@phosphor-icons/react'
 import type { ActivityLogEntry, Season, Team } from '../../types'
 import { getAdminActivityLog } from '../../lib/data'
+import { useAdminRealtimeTopics } from '../../hooks/useAdminRealtime'
 import {
   getCachedQuery,
   isQueryFresh,
@@ -199,6 +200,14 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
     setTeamFilter('all')
     void loadInitialLogs()
   }, [activeSeason?.id, loadInitialLogs])
+
+  useAdminRealtimeTopics(
+    ['purse_transactions', 'players', 'projector_state'],
+    () => {
+      void loadInitialLogs({ force: true })
+    },
+    Boolean(activeSeason?.id)
+  )
 
   const handleLoadMore = async () => {
     if (!activeSeason?.id || isLoadingMore || isLoading) return
@@ -420,7 +429,7 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
         {isLoading ? (
           <div className={ADMIN_TABLE_SHELL}>
             <div className="max-h-[600px] overflow-y-auto overflow-x-auto thin-scrollbar">
-              <table className="w-full min-w-[780px] text-left border-collapse text-xs font-sans">
+              <table className="w-full min-w-[860px] text-left border-collapse text-xs font-sans">
                 <thead className="sticky top-0 z-10 bg-surface-2 border-b border-border text-muted uppercase tracking-wider text-[11px] font-mono">
                   <tr>
                     <th className="py-3.5 px-4 font-normal whitespace-nowrap">Time</th>
@@ -433,12 +442,13 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
                     <th className="py-3.5 px-4 font-normal text-right whitespace-nowrap">
                       Balance
                     </th>
+                    <th className="py-3.5 px-4 font-normal whitespace-nowrap">Admin</th>
                     <th className="py-3.5 px-4 font-normal">Note</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {Array.from({ length: 8 }).map((_, i) => (
-                    <SkeletonTableRow key={i} columns={7} />
+                    <SkeletonTableRow key={i} columns={8} />
                   ))}
                 </tbody>
               </table>
@@ -464,7 +474,7 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
         ) : (
           <div className={ADMIN_TABLE_SHELL}>
             <div className="max-h-[600px] overflow-y-auto overflow-x-auto thin-scrollbar">
-              <table className="w-full min-w-[780px] text-left border-collapse text-xs sm:text-sm font-sans">
+              <table className="w-full min-w-[860px] text-left border-collapse text-xs sm:text-sm font-sans">
                 <thead className="sticky top-0 z-10 bg-surface-2 border-b border-border text-muted uppercase tracking-wider text-[11px] font-mono">
                   <tr>
                     <th className="py-3.5 px-4 font-normal whitespace-nowrap">Time</th>
@@ -477,6 +487,7 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
                     <th className="py-3.5 px-4 font-normal text-right whitespace-nowrap">
                       Balance
                     </th>
+                    <th className="py-3.5 px-4 font-normal whitespace-nowrap">Admin</th>
                     <th className="py-3.5 px-4 font-normal">Note</th>
                   </tr>
                 </thead>
@@ -484,6 +495,7 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
                   {filteredEntries.map((row, idx) => {
                     const hasPlayer = Boolean(row.player_name && row.player_name.trim())
                     const hasTeam = Boolean(row.team_name && row.team_name.trim())
+                    const hasActor = Boolean(row.actor && row.actor.trim())
                     const hasNote = Boolean(row.note && row.note.trim())
                     const hasAmount = row.amount !== null && row.amount !== undefined
                     const hasBalance =
@@ -511,6 +523,12 @@ export const AdminLogs: React.FC<AdminLogsProps> = ({ activeSeason, teams }) => 
                         </td>
                         <td className="py-3.5 px-4 text-right font-mono tabular-nums font-semibold text-points whitespace-nowrap">
                           {hasBalance ? Number(row.balance_after).toLocaleString() : '—'}
+                        </td>
+                        <td
+                          className="py-3.5 px-4 text-xs text-muted max-w-[180px] truncate whitespace-nowrap"
+                          title={hasActor ? row.actor || undefined : undefined}
+                        >
+                          {hasActor ? row.actor : '—'}
                         </td>
                         <td
                           className="py-3.5 px-4 text-xs text-muted max-w-xs truncate"

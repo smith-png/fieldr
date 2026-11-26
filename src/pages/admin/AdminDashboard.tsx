@@ -26,6 +26,7 @@ import {
   ADMIN_WELL
 } from '../../components/admin/adminStyles'
 import { supabase } from '../../lib/data/client'
+import { useAdminRealtimeTopics } from '../../hooks/useAdminRealtime'
 import { useToast } from '../../lib/ToastContext'
 import type { AdminTab, Player, PurseTransaction, Season, Team } from '../../types'
 
@@ -83,6 +84,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const isMountedRef = useRef(true)
   const latestReqIdRef = useRef(0)
+  const announcementInFlightRef = useRef(false)
 
   useEffect(() => {
     isMountedRef.current = true
@@ -135,9 +137,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     void loadAnnouncements()
   }, [loadAnnouncements])
 
+  useAdminRealtimeTopics(
+    ['owner_announcements'],
+    () => {
+      void loadAnnouncements()
+    },
+    Boolean(activeSeason?.id)
+  )
+
   const handleSendAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!supabase || !activeSeason?.id || isSendingAnnouncement) return
+    if (!supabase || !activeSeason?.id || isSendingAnnouncement || announcementInFlightRef.current) {
+      return
+    }
 
     const trimmed = announcementText.trim()
     if (!trimmed) return
@@ -146,6 +158,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       return
     }
 
+    announcementInFlightRef.current = true
     setIsSendingAnnouncement(true)
     try {
       const { error } = await supabase.from('owner_announcements').insert({
@@ -166,13 +179,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       logError('Failed to send announcement:', err)
       toast.error('Could not send announcement.')
     } finally {
+      announcementInFlightRef.current = false
       setIsSendingAnnouncement(false)
     }
   }
 
   const handleHideAnnouncement = async (announcementId: string) => {
-    if (!supabase || !activeSeason?.id || hidingAnnouncementId) return
+    if (!supabase || !activeSeason?.id || hidingAnnouncementId || announcementInFlightRef.current) {
+      return
+    }
 
+    announcementInFlightRef.current = true
     setHidingAnnouncementId(announcementId)
     try {
       const { error } = await supabase
@@ -196,6 +213,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       logError('Failed to hide announcement:', err)
       toast.error('Could not hide announcement.')
     } finally {
+      announcementInFlightRef.current = false
       setHidingAnnouncementId(null)
     }
   }

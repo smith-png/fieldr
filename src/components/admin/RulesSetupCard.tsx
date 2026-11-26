@@ -18,6 +18,7 @@ import {
   getRulesPublicUrl,
   uploadRulesPdf
 } from '../../lib/data/rules'
+import { useAdminRealtimeTopics } from '../../hooks/useAdminRealtime'
 import { Button, Dialog, EmptyState, ErrorState } from '../ui'
 import { validatePdfFile } from '../../lib/utils'
 import type { RulesDocument } from '../../types'
@@ -87,6 +88,10 @@ export const RulesSetupCard: React.FC = () => {
   useEffect(() => {
     void loadDocuments()
   }, [loadDocuments])
+
+  useAdminRealtimeTopics(['rules'], () => {
+    void loadDocuments({ silent: true })
+  })
 
   const clearSelectedFile = () => {
     setSelectedPdf(null)

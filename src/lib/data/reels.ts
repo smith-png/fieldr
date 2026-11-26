@@ -15,6 +15,7 @@ import type {
 import { AppError } from '../errors'
 import { isRecord } from '../utils'
 import { supabase } from './client'
+import { broadcastAdminSync } from '../adminRealtime'
 
 export const DEFAULT_REEL_CONFIRMATION =
   'Submitted. Your reel link has been received.'
@@ -233,6 +234,7 @@ export async function saveReelSettings(settings: ReelSettings): Promise<ReelSett
     .single()
   if (error) throw new AppError(error.message, { original: error })
   invalidateReelSettingsCache()
+  broadcastAdminSync('reels', 'settings_update')
   return parseReelSettings(data)
 }
 
@@ -387,6 +389,7 @@ export async function updateReelSubmission(
     .select('*')
     .single()
   if (error) throw new AppError(error.message, { original: error })
+  broadcastAdminSync('reels', 'submission_update')
   return parseSubmission(data as Record<string, unknown>)
 }
 
@@ -396,6 +399,7 @@ export async function deleteReelSubmissions(ids: string[]): Promise<void> {
   if (unique.length === 0) return
   const { error } = await supabase.from('reel_submissions').delete().in('id', unique)
   if (error) throw new AppError(error.message, { original: error })
+  broadcastAdminSync('reels', 'submission_delete')
 }
 
 function csvCell(value: string): string {

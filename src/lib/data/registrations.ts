@@ -10,6 +10,7 @@ import { AppError } from '../errors'
 import { isRecord } from '../utils'
 import { THUMB_MAX_WIDTH, THUMB_QUALITY, createThumbnailBlob } from '../imageCompression'
 import { markLocalMutation, supabase } from './client'
+import { broadcastAdminSync } from '../adminRealtime'
 import { invalidateRegistrationStatus } from '../registrationStatusStore'
 
 export const REGISTRATION_PENDING_BUCKET = 'registration-pending'
@@ -436,6 +437,7 @@ export async function saveAdminRegistrationSettings(
   }
 
   invalidatePublicRegistrationConfigCache()
+  broadcastAdminSync('registrations', 'settings_update')
 
   return {
     is_open: Boolean(data.is_open),
@@ -664,6 +666,8 @@ export async function approveRegistration(
   }
 
   markLocalMutation(['athletes', 'players'])
+  broadcastAdminSync('registrations', 'approve')
+  broadcastAdminSync('athletes', 'approve_registration')
 
   return {
     athlete_id: String(rpcData.athlete_id || ''),
@@ -690,6 +694,7 @@ export async function rejectRegistration(
   if (error) {
     throw new AppError(error.message, { original: error })
   }
+  broadcastAdminSync('registrations', 'reject')
 }
 
 function isStorageNotFoundError(err: unknown): boolean {
@@ -782,6 +787,7 @@ export async function clearRegistrationHistory(
 
   const { deletedCount, storagePaths } = parseClearRpcResult(data)
   const filesRemoved = await removePendingRegistrationPaths(storagePaths)
+  broadcastAdminSync('registrations', 'clear_history')
 
   return { deletedCount, filesRemoved }
 }
@@ -810,6 +816,7 @@ export async function deleteReviewedRegistrationEntry(
     (p): p is string => Boolean(p)
   )
   const filesRemoved = await removePendingRegistrationPaths(paths)
+  broadcastAdminSync('registrations', 'delete_entry')
 
   return { filesRemoved }
 }
@@ -829,6 +836,7 @@ export async function purgeRejectedAndIncompleteRegistrations(): Promise<{
 
   const { deletedCount, storagePaths } = parseClearRpcResult(data)
   const filesRemoved = await removePendingRegistrationPaths(storagePaths)
+  broadcastAdminSync('registrations', 'purge')
 
   return { deletedCount, filesRemoved }
 }

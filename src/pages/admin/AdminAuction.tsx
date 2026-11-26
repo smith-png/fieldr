@@ -52,9 +52,10 @@ import {
   queueAddPlayer,
   queueClear,
   queueMove,
-  queueRemove,
-  subscribeToAuctionRealtime
+  queueRemove
 } from '../../lib/data'
+import { useAdminRealtimeTopics } from '../../hooks/useAdminRealtime'
+import { getErrorMessage } from '../../lib/errors'
 import { useToast } from '../../lib/ToastContext'
 import { getValidTeamColor } from '../../lib/utils'
 import { Button, Dialog, EmptyState } from '../../components/ui'
@@ -116,14 +117,16 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
   // Bid input field
   const [bidAmountInput, setBidAmountInput] = useState<string>('')
 
-  // Pending state to prevent double taps
+  // Pending state + synchronous mutex to prevent double taps
   const [isPending, setIsPending] = useState<boolean>(false)
+  const actionInFlightRef = useRef<boolean>(false)
 
   // Confirmation dialogs
   const [isSecureConfirmOpen, setIsSecureConfirmOpen] = useState<boolean>(false)
   const [isUnsoldConfirmOpen, setIsUnsoldConfirmOpen] = useState<boolean>(false)
   const [isUndoSaleConfirmOpen, setIsUndoSaleConfirmOpen] = useState<boolean>(false)
   const [isClearQueueConfirmOpen, setIsClearQueueConfirmOpen] = useState<boolean>(false)
+  const [pendingReplacePlayer, setPendingReplacePlayer] = useState<Player | null>(null)
 
   // Keep props synced if parent refreshes
   useEffect(() => {
@@ -204,19 +207,23 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
 
   // Light refresh after a bid or a cleared bid: only the stage state and the bid list
   // change, so skip the full players/teams/transactions reload. Falls back to the
-  // full refresh if the stage moved to another player or the quick fetch fails.
+  // full refresh if the stage moved to another player/mode or the quick fetch fails.
   const stageReqIdRef = useRef(0)
   const refreshStageAfterBid = useCallback(async () => {
     if (!activeSeason?.id) return
     const reqId = ++stageReqIdRef.current
     const knownPlayerId = projectorStateRef.current?.player_id || null
+    const knownMode = projectorStateRef.current?.mode || null
     try {
       const [freshState, bids] = await Promise.all([
         getProjectorState(activeSeason.id),
         knownPlayerId ? getAuctionBidsForPlayer(knownPlayerId) : Promise.resolve([] as AuctionBid[])
       ])
       if (!isMountedRef.current || reqId !== stageReqIdRef.current) return
-      if ((freshState?.player_id || null) !== knownPlayerId) {
+      if (
+        (freshState?.player_id || null) !== knownPlayerId ||
+        (freshState?.mode || null) !== knownMode
+      ) {
         await fetchLiveAuctionState()
         return
       }
@@ -231,20 +238,79 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
     }
   }, [activeSeason?.id, fetchLiveAuctionState])
 
-  // Initial load and 500ms-debounced realtime subscription (cleaned up on unmount)
+  // Targeted debounced refetches for shared admin realtime topics
+  const refreshQueueOnly = useCallback(async () => {
+    if (!activeSeason?.id) return
+    try {
+      const freshQueue = await getAuctionQueue(activeSeason.id)
+      if (isMountedRef.current) setQueueEntries(freshQueue)
+    } catch {
+      // Keep current queue on transient error
+    }
+  }, [activeSeason?.id])
+
+  const refreshSettingsOnly = useCallback(async () => {
+    if (!activeSeason?.id) return
+    try {
+      const freshSettings = await getAuctionSettings(activeSeason.id)
+      if (isMountedRef.current) setAuctionSettings(freshSettings)
+    } catch {
+      // Keep current settings on transient error
+    }
+  }, [activeSeason?.id])
+
+  const refreshRosterAndPursesOnly = useCallback(async () => {
+    if (!activeSeason?.id) return
+    try {
+      const [freshPlayers, freshTeams, freshSales] = await Promise.all([
+        getPlayers(activeSeason.id),
+        getTeams(activeSeason.id),
+        getRecentAuctionSales(activeSeason.id, 10)
+      ])
+      if (!isMountedRef.current) return
+      setPlayers(freshPlayers)
+      setTeams(freshTeams)
+      setRecentSales(freshSales)
+    } catch {
+      // Keep current state on transient error
+    }
+  }, [activeSeason?.id])
+
+  // Initial load on season change
   useEffect(() => {
     if (!activeSeason?.id) return
-
-    fetchLiveAuctionState()
-
-    const unsubscribe = subscribeToAuctionRealtime(activeSeason.id, () => {
-      fetchLiveAuctionState()
-    })
-
-    return () => {
-      unsubscribe()
-    }
+    void fetchLiveAuctionState()
   }, [activeSeason?.id, fetchLiveAuctionState])
+
+  // Subscribe to the single shared admin realtime hub (debounced ~300ms per topic)
+  useAdminRealtimeTopics(
+    ['projector_state'],
+    () => {
+      void refreshStageAfterBid()
+    },
+    Boolean(activeSeason?.id)
+  )
+  useAdminRealtimeTopics(
+    ['players', 'teams', 'purse_transactions'],
+    () => {
+      void refreshRosterAndPursesOnly()
+    },
+    Boolean(activeSeason?.id)
+  )
+  useAdminRealtimeTopics(
+    ['auction_queue'],
+    () => {
+      void refreshQueueOnly()
+    },
+    Boolean(activeSeason?.id)
+  )
+  useAdminRealtimeTopics(
+    ['auction_settings'],
+    () => {
+      void refreshSettingsOnly()
+    },
+    Boolean(activeSeason?.id)
+  )
 
   // Resolve stage player and leading team
   const stagePlayerId = projectorState?.player_id || projectorState?.sale_player_id || null
@@ -445,19 +511,52 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
   const parsedBidAmount = Number(bidAmountInput)
   const isBidAmountValid = !isNaN(parsedBidAmount) && parsedBidAmount > 0
 
-  // Handlers for all auction actions
-  const handleBringToStage = async (player: Player) => {
-    if (isPending) return
+  const handleActionFailure = async (err: unknown, fallbackMessage: string) => {
+    const message = getErrorMessage(err, fallbackMessage)
+    if (message.trim().startsWith('Stale:')) {
+      setIsSecureConfirmOpen(false)
+      setIsUnsoldConfirmOpen(false)
+      setIsUndoSaleConfirmOpen(false)
+      setIsClearQueueConfirmOpen(false)
+      setPendingReplacePlayer(null)
+      error('Another admin changed the stage. Check the screen and try again.')
+      await Promise.all([fetchLiveAuctionState(), onRefresh()])
+      return
+    }
+    error(message)
+  }
+
+  const hasActiveStageBid =
+    projectorState.mode === 'auction' &&
+    Boolean(stagePlayer) &&
+    (Boolean(projectorState.team_id) ||
+      (projectorState.current_bid != null && Number(projectorState.current_bid) > 0))
+
+  // Handlers for all auction actions (synchronous ref lock + disabled button state)
+  const executeBringToStage = async (player: Player) => {
+    if (actionInFlightRef.current || isPending) return
+    actionInFlightRef.current = true
+    setIsPending(true)
     try {
-      setIsPending(true)
       await auctionBringToStage(player.id)
+      setPendingReplacePlayer(null)
       await Promise.all([fetchLiveAuctionState(), onRefresh()])
       success(`${player.name} brought to stage`)
     } catch (err: unknown) {
-      error(err instanceof Error ? err.message : 'Failed to bring player to stage')
+      await handleActionFailure(err, 'Failed to bring player to stage')
     } finally {
+      actionInFlightRef.current = false
       setIsPending(false)
     }
+  }
+
+  const handleBringToStage = (player: Player) => {
+    if (actionInFlightRef.current || isPending) return
+    if (hasActiveStageBid && stagePlayer?.id !== player.id) {
+      setPendingReplacePlayer(player)
+      return
+    }
+    void executeBringToStage(player)
   }
 
   const handleAddIncrement = (inc: number) => {
@@ -467,42 +566,54 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
   }
 
   const handlePlaceBid = async (team: Team) => {
-    if (isPending) return
+    if (actionInFlightRef.current || isPending) return
     if (!isBidAmountValid) {
       error('Please enter a valid bid amount')
       return
     }
+    const expectedPlayerId = stagePlayer?.id ?? projectorState.player_id ?? null
+    actionInFlightRef.current = true
+    setIsPending(true)
     try {
-      setIsPending(true)
-      await auctionPlaceBid(team.id, parsedBidAmount)
+      await auctionPlaceBid(team.id, parsedBidAmount, expectedPlayerId)
       await refreshStageAfterBid()
       success(`Bid placed: ${team.short_code} at ${parsedBidAmount.toLocaleString()} PTS`)
     } catch (err: unknown) {
-      error(err instanceof Error ? err.message : 'Failed to place bid')
+      await handleActionFailure(err, 'Failed to place bid')
     } finally {
+      actionInFlightRef.current = false
       setIsPending(false)
     }
   }
 
   const handleClearBid = async () => {
-    if (!activeSeason || isPending) return
+    if (!activeSeason || actionInFlightRef.current || isPending) return
+    const expectedPlayerId = stagePlayer?.id ?? projectorState.player_id ?? null
+    const expectedBid =
+      projectorState.current_bid != null ? Number(projectorState.current_bid) : null
+    actionInFlightRef.current = true
+    setIsPending(true)
     try {
-      setIsPending(true)
-      await auctionClearBid(activeSeason.id)
+      await auctionClearBid(activeSeason.id, expectedPlayerId, expectedBid)
       await refreshStageAfterBid()
       success('Current bid cleared')
     } catch (err: unknown) {
-      error(err instanceof Error ? err.message : 'Failed to clear bid')
+      await handleActionFailure(err, 'Failed to clear bid')
     } finally {
+      actionInFlightRef.current = false
       setIsPending(false)
     }
   }
 
   const handleConfirmSecure = async () => {
-    if (!activeSeason || isPending) return
+    if (!activeSeason || actionInFlightRef.current || isPending) return
+    const expectedPlayerId = stagePlayer?.id ?? projectorState.player_id ?? null
+    const expectedBid =
+      projectorState.current_bid != null ? Number(projectorState.current_bid) : null
+    actionInFlightRef.current = true
+    setIsPending(true)
     try {
-      setIsPending(true)
-      await auctionSecure(activeSeason.id)
+      await auctionSecure(activeSeason.id, expectedPlayerId, expectedBid)
       setIsSecureConfirmOpen(false)
       await Promise.all([fetchLiveAuctionState(), onRefresh()])
       success(
@@ -511,75 +622,87 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
           : 'Player sale secured'
       )
     } catch (err: unknown) {
-      error(err instanceof Error ? err.message : 'Failed to secure sale')
+      await handleActionFailure(err, 'Failed to secure sale')
     } finally {
+      actionInFlightRef.current = false
       setIsPending(false)
     }
   }
 
   const handleConfirmMarkUnsold = async () => {
-    if (!activeSeason || isPending) return
+    if (!activeSeason || actionInFlightRef.current || isPending) return
+    const expectedPlayerId = stagePlayer?.id ?? projectorState.player_id ?? null
+    const expectedBid =
+      projectorState.current_bid != null ? Number(projectorState.current_bid) : null
+    actionInFlightRef.current = true
+    setIsPending(true)
     try {
-      setIsPending(true)
-      await auctionMarkUnsold(activeSeason.id)
+      await auctionMarkUnsold(activeSeason.id, expectedPlayerId, expectedBid)
       setIsUnsoldConfirmOpen(false)
       await Promise.all([fetchLiveAuctionState(), onRefresh()])
       success(stagePlayer ? `Marked ${stagePlayer.name} as unsold` : 'Player marked unsold')
     } catch (err: unknown) {
-      error(err instanceof Error ? err.message : 'Failed to mark player unsold')
+      await handleActionFailure(err, 'Failed to mark player unsold')
     } finally {
+      actionInFlightRef.current = false
       setIsPending(false)
     }
   }
 
   const handleBackToIdle = async () => {
-    if (!activeSeason || isPending) return
+    if (!activeSeason || actionInFlightRef.current || isPending) return
+    actionInFlightRef.current = true
+    setIsPending(true)
     try {
-      setIsPending(true)
       await auctionBackToIdle(activeSeason.id)
       await Promise.all([fetchLiveAuctionState(), onRefresh()])
       success('Stage reset to idle')
     } catch (err: unknown) {
-      error(err instanceof Error ? err.message : 'Failed to reset stage to idle')
+      await handleActionFailure(err, 'Failed to reset stage to idle')
     } finally {
+      actionInFlightRef.current = false
       setIsPending(false)
     }
   }
 
   const handleConfirmUndoLastSale = async () => {
-    if (!activeSeason || isPending) return
+    if (!activeSeason || actionInFlightRef.current || isPending) return
+    actionInFlightRef.current = true
+    setIsPending(true)
     try {
-      setIsPending(true)
       await auctionUndoLastSale(activeSeason.id)
       setIsUndoSaleConfirmOpen(false)
       await Promise.all([fetchLiveAuctionState(), onRefresh()])
       success('Last sale reversed')
     } catch (err: unknown) {
-      error(err instanceof Error ? err.message : 'Failed to undo last sale')
+      await handleActionFailure(err, 'Failed to undo last sale')
     } finally {
+      actionInFlightRef.current = false
       setIsPending(false)
     }
   }
 
   // Queue RPC handlers
   const handleQueueAddSinglePlayer = async (player: Player) => {
-    if (isPending) return
+    if (actionInFlightRef.current || isPending) return
+    actionInFlightRef.current = true
+    setIsPending(true)
     try {
-      setIsPending(true)
       await queueAddPlayer(player.id)
       setAddPlayerSearch('')
-      await fetchLiveAuctionState()
+      await refreshQueueOnly()
       success(`Added ${player.name} to queue`)
     } catch (err: unknown) {
-      error(err instanceof Error ? err.message : 'Failed to add player to queue')
+      await handleActionFailure(err, 'Failed to add player to queue')
     } finally {
+      actionInFlightRef.current = false
       setIsPending(false)
     }
   }
 
   const handleQueueBulkAdd = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!activeSeason || isPending) return
+    if (!activeSeason || actionInFlightRef.current || isPending) return
 
     const codes = bulkCodesInput
       .split(',')
@@ -614,10 +737,11 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
       }
     }
 
+    actionInFlightRef.current = true
+    setIsPending(true)
     try {
-      setIsPending(true)
       const res = await queueAddByCodes(activeSeason.id, selectedSportName, codes)
-      await fetchLiveAuctionState()
+      await refreshQueueOnly()
 
       const hasDetailedRpcBreakdown =
         res.notFound.length > 0 ||
@@ -665,22 +789,25 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
         error(summary)
       }
     } catch (err: unknown) {
-      error(err instanceof Error ? err.message : 'Failed to bulk add players to queue')
+      await handleActionFailure(err, 'Failed to bulk add players to queue')
     } finally {
+      actionInFlightRef.current = false
       setIsPending(false)
     }
   }
 
   const handleQueueRemovePlayer = async (playerId: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    if (isPending) return
+    if (actionInFlightRef.current || isPending) return
+    actionInFlightRef.current = true
+    setIsPending(true)
     try {
-      setIsPending(true)
       await queueRemove(playerId)
-      await fetchLiveAuctionState()
+      await refreshQueueOnly()
     } catch (err: unknown) {
-      error(err instanceof Error ? err.message : 'Failed to remove player from queue')
+      await handleActionFailure(err, 'Failed to remove player from queue')
     } finally {
+      actionInFlightRef.current = false
       setIsPending(false)
     }
   }
@@ -691,29 +818,33 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
     e: React.MouseEvent
   ) => {
     e.stopPropagation()
-    if (isPending) return
+    if (actionInFlightRef.current || isPending) return
+    actionInFlightRef.current = true
+    setIsPending(true)
     try {
-      setIsPending(true)
       await queueMove(playerId, direction)
-      await fetchLiveAuctionState()
+      await refreshQueueOnly()
     } catch (err: unknown) {
-      error(err instanceof Error ? err.message : 'Failed to reorder queue')
+      await handleActionFailure(err, 'Failed to reorder queue')
     } finally {
+      actionInFlightRef.current = false
       setIsPending(false)
     }
   }
 
   const handleConfirmClearQueue = async () => {
-    if (!activeSeason || isPending) return
+    if (!activeSeason || actionInFlightRef.current || isPending) return
+    actionInFlightRef.current = true
+    setIsPending(true)
     try {
-      setIsPending(true)
       await queueClear(activeSeason.id, selectedSportName)
       setIsClearQueueConfirmOpen(false)
-      await fetchLiveAuctionState()
+      await refreshQueueOnly()
       success(`Cleared ${selectedSportName} queue`)
     } catch (err: unknown) {
-      error(err instanceof Error ? err.message : 'Failed to clear queue')
+      await handleActionFailure(err, 'Failed to clear queue')
     } finally {
+      actionInFlightRef.current = false
       setIsPending(false)
     }
   }
@@ -1996,6 +2127,48 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
               className="min-h-[48px]"
             >
               Clear Queue
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* CONFIRM DIALOG: REPLACE STAGE PLAYER WITH BID */}
+      <Dialog
+        isOpen={Boolean(pendingReplacePlayer)}
+        onClose={() => !isPending && setPendingReplacePlayer(null)}
+        title="Replace Player on Stage"
+        size="sm"
+      >
+        <div className="space-y-5">
+          <p className="text-sm text-text leading-relaxed">
+            Another player is on stage with a bid. Replace them?
+          </p>
+
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border">
+            <Button
+              type="button"
+              variant="secondary"
+              size="lg"
+              disabled={isPending}
+              onClick={() => setPendingReplacePlayer(null)}
+              className="min-h-[48px]"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              size="lg"
+              isLoading={isPending}
+              disabled={isPending}
+              onClick={() => {
+                if (pendingReplacePlayer) {
+                  void executeBringToStage(pendingReplacePlayer)
+                }
+              }}
+              className="min-h-[48px]"
+            >
+              Replace
             </Button>
           </div>
         </div>

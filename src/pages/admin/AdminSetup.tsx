@@ -14,7 +14,12 @@ import {
   X
 } from '@phosphor-icons/react'
 import { useToast } from '../../lib/ToastContext'
-import { getErrorMessage } from '../../lib/errors'
+import {
+  CONFLICT_TOAST_MESSAGE,
+  getErrorMessage,
+  isStaleConflictError
+} from '../../lib/errors'
+import { useAdminRealtimeTopics } from '../../hooks/useAdminRealtime'
 import { lazyWithRetry } from '../../lib/lazyWithRetry'
 import {
   DEFAULT_AUCTION_SETTINGS,
@@ -197,6 +202,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [itemText, setItemText] = useState('')
   const [isSavingCarousel, setIsSavingCarousel] = useState(false)
+  const carouselInFlightRef = useRef(false)
 
   // Ticker Speed State (1..10, default 5)
   const [savedTickerSpeed, setSavedTickerSpeed] = useState<number>(DEFAULT_TICKER_SPEED)
@@ -356,7 +362,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
   }, [effectiveSeason?.id, loadAuctionSettingsForSeason])
 
   // Load Carousel Items
-  const loadCarousel = async () => {
+  const loadCarousel = useCallback(async () => {
     try {
       setIsLoadingCarousel(true)
       setCarouselError(null)
@@ -370,10 +376,10 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
     } finally {
       setIsLoadingCarousel(false)
     }
-  }
+  }, [showToast])
 
   // Load Site Settings
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     try {
       const settings = await getSiteSettings()
       setSiteSettings(settings)
@@ -398,7 +404,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
       logError('Failed to load site settings:', err)
       showToast(`Failed to load site settings: ${getErrorMessage(err)}`, 'error')
     }
-  }
+  }, [selectedPageKey, showToast])
 
   // Load Sports & Role Usage Counts
   const loadSportsAndUsage = useCallback(
@@ -432,6 +438,18 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
     ])
   }, [])
 
+  useAdminRealtimeTopics(['carousel_items'], () => {
+    void loadCarousel()
+  })
+
+  useAdminRealtimeTopics(['site_settings'], () => {
+    void loadSettings()
+  })
+
+  useAdminRealtimeTopics(['sports'], () => {
+    void loadSportsAndUsage()
+  })
+
   // Refresh role usage counts when selectedSportId changes
   const handleSelectSport = async (sportId: string) => {
     setSelectedSportId(sportId)
@@ -461,7 +479,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
   // Handle Carousel Save
   const handleSaveCarouselItem = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (isSavingCarousel) return
+    if (isSavingCarousel || carouselInFlightRef.current) return
 
     const trimmed = itemText.trim()
     if (!trimmed) {
@@ -473,6 +491,7 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
       return
     }
 
+    carouselInFlightRef.current = true
     try {
       setIsSavingCarousel(true)
       if (editingItem) {
@@ -492,14 +511,21 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
       await loadCarousel()
     } catch (err) {
       logError('Failed to save carousel item:', err)
-      showToast(`Failed to save carousel item: ${getErrorMessage(err)}`, 'error')
+      if (isStaleConflictError(err)) {
+        showToast(CONFLICT_TOAST_MESSAGE, 'error')
+        await loadCarousel()
+      } else {
+        showToast(`Failed to save carousel item: ${getErrorMessage(err)}`, 'error')
+      }
     } finally {
+      carouselInFlightRef.current = false
       setIsSavingCarousel(false)
     }
   }
 
   // Handle Toggle Active
   const handleToggleActive = async (item: CarouselItem) => {
+    if (carouselInFlightRef.current || isSavingCarousel) return
     if (item.active) {
       const activeCount = carouselItems.filter((i) => i.active).length
       if (activeCount <= 1) {
@@ -508,6 +534,8 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
       }
     }
 
+    carouselInFlightRef.current = true
+    setIsSavingCarousel(true)
     const prevItems = [...carouselItems]
     setCarouselItems((prev) =>
       prev.map((i) => (i.id === item.id ? { ...i, active: !i.active } : i))
@@ -520,12 +548,21 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
     } catch (err) {
       logError('Failed to update carousel item:', err)
       setCarouselItems(prevItems)
-      showToast(`Failed to update carousel item: ${getErrorMessage(err)}`, 'error')
+      if (isStaleConflictError(err)) {
+        showToast(CONFLICT_TOAST_MESSAGE, 'error')
+        await loadCarousel()
+      } else {
+        showToast(`Failed to update carousel item: ${getErrorMessage(err)}`, 'error')
+      }
+    } finally {
+      carouselInFlightRef.current = false
+      setIsSavingCarousel(false)
     }
   }
 
   // Handle Delete
   const handleDeleteCarouselItem = async (item: CarouselItem) => {
+    if (carouselInFlightRef.current || isSavingCarousel) return
     if (item.active) {
       const activeCount = carouselItems.filter((i) => i.active).length
       if (activeCount <= 1) {
@@ -534,6 +571,8 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
       }
     }
 
+    carouselInFlightRef.current = true
+    setIsSavingCarousel(true)
     const prevItems = [...carouselItems]
     setCarouselItems((prev) => prev.filter((i) => i.id !== item.id))
 
@@ -544,15 +583,26 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
     } catch (err) {
       logError('Failed to delete carousel item:', err)
       setCarouselItems(prevItems)
-      showToast(`Failed to delete carousel item: ${getErrorMessage(err)}`, 'error')
+      if (isStaleConflictError(err)) {
+        showToast(CONFLICT_TOAST_MESSAGE, 'error')
+        await loadCarousel()
+      } else {
+        showToast(`Failed to delete carousel item: ${getErrorMessage(err)}`, 'error')
+      }
+    } finally {
+      carouselInFlightRef.current = false
+      setIsSavingCarousel(false)
     }
   }
 
   // Handle Move Up / Down with single neighbor swap and rollback
   const handleMove = async (index: number, direction: 'up' | 'down') => {
+    if (carouselInFlightRef.current || isSavingCarousel) return
     const targetIndex = direction === 'up' ? index - 1 : index + 1
     if (targetIndex < 0 || targetIndex >= carouselItems.length) return
 
+    carouselInFlightRef.current = true
+    setIsSavingCarousel(true)
     const prevItems = [...carouselItems]
     const itemA = carouselItems[index]
     const itemB = carouselItems[targetIndex]
@@ -574,7 +624,15 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
     } catch (err) {
       logError('Failed to reorder carousel items:', err)
       setCarouselItems(prevItems)
-      showToast(`Failed to reorder carousel items: ${getErrorMessage(err)}`, 'error')
+      if (isStaleConflictError(err)) {
+        showToast(CONFLICT_TOAST_MESSAGE, 'error')
+        await loadCarousel()
+      } else {
+        showToast(`Failed to reorder carousel items: ${getErrorMessage(err)}`, 'error')
+      }
+    } finally {
+      carouselInFlightRef.current = false
+      setIsSavingCarousel(false)
     }
   }
 
@@ -1047,6 +1105,16 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
     bidIncrements,
     parsedMaxSquad
   ])
+
+  useAdminRealtimeTopics(
+    ['auction_settings'],
+    () => {
+      if (effectiveSeason?.id && !isAuctionFormDirty) {
+        void loadAuctionSettingsForSeason(effectiveSeason.id)
+      }
+    },
+    Boolean(effectiveSeason?.id)
+  )
 
   const handleAddIncrementChip = () => {
     setIncrementError(null)

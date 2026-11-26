@@ -3,6 +3,7 @@ import type { CreditKind, CreditPerson } from '../../types'
 import { AppError } from '../errors'
 import { resizeAndCompressImage } from '../imageCompression'
 import { supabase } from './client'
+import { broadcastAdminSync } from '../adminRealtime'
 
 const CREDITS_BUCKET = 'credits'
 const CREDITS_SELECT_COLUMNS =
@@ -133,6 +134,7 @@ export async function createCreditPerson(
     throw new AppError(error.message, { code: error.code, original: error })
   }
 
+  broadcastAdminSync('credits', 'create')
   return data as CreditPerson
 }
 
@@ -204,6 +206,7 @@ export async function updateCreditPerson(
     throw new AppError(error.message, { code: error.code, original: error })
   }
 
+  broadcastAdminSync('credits', 'update')
   return data as CreditPerson
 }
 
@@ -221,6 +224,7 @@ export async function deleteCreditPerson(
   if (photoUrl) {
     await deleteCreditPhotoFromBucket(photoUrl)
   }
+  broadcastAdminSync('credits', 'delete')
 }
 
 export async function reorderCreditsPeople(
@@ -238,4 +242,5 @@ export async function reorderCreditsPeople(
       throw new AppError(error.message, { code: error.code, original: error })
     }
   }
+  broadcastAdminSync('credits', 'reorder')
 }

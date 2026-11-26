@@ -25,6 +25,7 @@ import {
   type ValidatedSeasonBackup
 } from '../../lib/seasonBackup'
 import { useToast } from '../../lib/ToastContext'
+import { CONFLICT_TOAST_MESSAGE, isStaleConflictError } from '../../lib/errors'
 import { Button, Dialog } from '../../components/ui'
 import {
   ADMIN_CARD,
@@ -61,6 +62,8 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
   const [endDate, setEndDate] = useState('')
   const [description, setDescription] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [activatingSeasonId, setActivatingSeasonId] = useState<string | null>(null)
+  const activateInFlightRef = useRef(false)
 
   // Rename modal state
   const [seasonToRename, setSeasonToRename] = useState<Season | null>(null)
@@ -118,13 +121,24 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
   }
 
   const handleSetActive = async (id: string, seasonName: string) => {
+    if (activateInFlightRef.current || activatingSeasonId) return
+    activateInFlightRef.current = true
+    setActivatingSeasonId(id)
     try {
       await setActiveSeason(id)
       success(`"${seasonName}" is now the active tournament`)
       await onRefresh()
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to set active season'
-      error(msg)
+      if (isStaleConflictError(err)) {
+        error(CONFLICT_TOAST_MESSAGE)
+        await onRefresh()
+      } else {
+        const msg = err instanceof Error ? err.message : 'Failed to set active season'
+        error(msg)
+      }
+    } finally {
+      activateInFlightRef.current = false
+      setActivatingSeasonId(null)
     }
   }
 
@@ -135,7 +149,7 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
 
   const handleRenameSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!seasonToRename) return
+    if (!seasonToRename || isRenaming) return
     const trimmed = renameInput.trim()
     if (trimmed.length < 1 || trimmed.length > 60) {
       error('Season name must be between 1 and 60 characters')
@@ -150,8 +164,14 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
       setRenameInput('')
       await onRefresh()
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to rename season'
-      error(msg)
+      if (isStaleConflictError(err)) {
+        setSeasonToRename(null)
+        error(CONFLICT_TOAST_MESSAGE)
+        await onRefresh()
+      } else {
+        const msg = err instanceof Error ? err.message : 'Failed to rename season'
+        error(msg)
+      }
     } finally {
       setIsRenaming(false)
     }
@@ -184,7 +204,7 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
   }
 
   const confirmDelete = async () => {
-    if (!seasonToDelete) return
+    if (!seasonToDelete || isDeleting) return
     if (confirmationName.trim() !== seasonToDelete.name.trim()) return
 
     try {
@@ -194,8 +214,14 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
       setSeasonToDelete(null)
       await onRefresh()
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to delete season'
-      error(msg)
+      if (isStaleConflictError(err)) {
+        setSeasonToDelete(null)
+        error(CONFLICT_TOAST_MESSAGE)
+        await onRefresh()
+      } else {
+        const msg = err instanceof Error ? err.message : 'Failed to delete season'
+        error(msg)
+      }
     } finally {
       setIsDeleting(false)
     }
@@ -449,6 +475,8 @@ export const AdminSeasons: React.FC<AdminSeasonsProps> = ({
                         variant="secondary"
                         size="sm"
                         onClick={() => handleSetActive(season.id, season.name)}
+                        disabled={Boolean(activatingSeasonId)}
+                        isLoading={activatingSeasonId === season.id}
                         className="rounded-full"
                       >
                         Set as Active

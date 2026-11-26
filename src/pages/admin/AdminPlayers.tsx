@@ -40,8 +40,9 @@ import {
   updatePlayer
 } from '../../lib/data'
 import { useToast } from '../../lib/ToastContext'
+import { useAdminRealtimeTopics } from '../../hooks/useAdminRealtime'
 import { getAcademicYearLabel } from '../../lib/academicYears'
-import { getErrorMessage } from '../../lib/errors'
+import { CONFLICT_TOAST_MESSAGE, getErrorMessage, isStaleConflictError } from '../../lib/errors'
 import {
   getCachedQuery,
   isQueryFresh,
@@ -153,6 +154,10 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
   const [assignTeamId, setAssignTeamId] = useState<string>('')
   const [assignPrice, setAssignPrice] = useState<string>('')
   const [unassignRefund, setUnassignRefund] = useState<boolean>(true)
+  const [isAssigning, setIsAssigning] = useState<boolean>(false)
+  const [isDeleting, setIsDeleting] = useState<boolean>(false)
+  const assignInFlightRef = useRef<boolean>(false)
+  const deleteInFlightRef = useRef<boolean>(false)
 
   // Register Player Form Fields (Editable: Sport, Role, Starting Points only)
   const [sport, setSport] = useState('')
@@ -470,9 +475,20 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
     }
   }
 
+  // Subscribe to shared admin realtime hub so paged players stay synced across admins
+  useAdminRealtimeTopics(
+    ['players', 'athletes'],
+    () => {
+      void loadPagedPlayers({ force: true })
+    },
+    Boolean(activeSeasonId)
+  )
+
   // Delete Player
   const handleDeletePlayer = async () => {
-    if (!deleteConfirmPlayer) return
+    if (!deleteConfirmPlayer || deleteInFlightRef.current || isDeleting) return
+    deleteInFlightRef.current = true
+    setIsDeleting(true)
     try {
       markLocalMutation(['players', 'athletes', 'auction'])
       await deletePlayer(deleteConfirmPlayer.id)
@@ -480,16 +496,27 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
       setDeleteConfirmPlayer(null)
       await Promise.all([loadPagedPlayers({ force: true }), onRefresh()])
     } catch (err: unknown) {
-      showToast(getErrorMessage(err, 'Failed to delete player'), 'error')
+      if (isStaleConflictError(err)) {
+        showToast(CONFLICT_TOAST_MESSAGE, 'error')
+        setDeleteConfirmPlayer(null)
+        await Promise.all([loadPagedPlayers({ force: true }), onRefresh()])
+      } else {
+        showToast(getErrorMessage(err, 'Failed to delete player'), 'error')
+      }
+    } finally {
+      deleteInFlightRef.current = false
+      setIsDeleting(false)
     }
   }
 
   // Handle Team Assignment
   const handleExecuteAssign = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!assignmentPlayer || !assignTeamId) return
+    if (!assignmentPlayer || !assignTeamId || assignInFlightRef.current || isAssigning) return
 
     const priceNum = assignPrice ? parseInt(assignPrice, 10) : undefined
+    assignInFlightRef.current = true
+    setIsAssigning(true)
     try {
       markLocalMutation(['players', 'teams', 'auction'])
       await assignPlayerToTeam(assignmentPlayer.id, assignTeamId, priceNum)
@@ -499,21 +526,43 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
       setAssignPrice('')
       await Promise.all([loadPagedPlayers({ force: true }), onRefresh()])
     } catch (err: unknown) {
-      showToast(getErrorMessage(err, 'Assignment failed'), 'error')
+      if (isStaleConflictError(err)) {
+        showToast(CONFLICT_TOAST_MESSAGE, 'error')
+        setAssignmentPlayer(null)
+        setAssignTeamId('')
+        setAssignPrice('')
+        await Promise.all([loadPagedPlayers({ force: true }), onRefresh()])
+      } else {
+        showToast(getErrorMessage(err, 'Assignment failed'), 'error')
+      }
+    } finally {
+      assignInFlightRef.current = false
+      setIsAssigning(false)
     }
   }
 
   // Handle Unassignment
   const handleExecuteUnassign = async () => {
-    if (!assignmentPlayer) return
+    if (!assignmentPlayer || assignInFlightRef.current || isAssigning) return
+    assignInFlightRef.current = true
+    setIsAssigning(true)
     try {
       markLocalMutation(['players', 'teams', 'auction'])
       await unassignPlayerFromTeam(assignmentPlayer.id, unassignRefund)
       showToast('Player unassigned and returned to available pool', 'success')
       setAssignmentPlayer(null)
-      await Promise.all([loadPagedPlayers(), onRefresh()])
+      await Promise.all([loadPagedPlayers({ force: true }), onRefresh()])
     } catch (err: unknown) {
-      showToast(getErrorMessage(err, 'Unassignment failed'), 'error')
+      if (isStaleConflictError(err)) {
+        showToast(CONFLICT_TOAST_MESSAGE, 'error')
+        setAssignmentPlayer(null)
+        await Promise.all([loadPagedPlayers({ force: true }), onRefresh()])
+      } else {
+        showToast(getErrorMessage(err, 'Unassignment failed'), 'error')
+      }
+    } finally {
+      assignInFlightRef.current = false
+      setIsAssigning(false)
     }
   }
 
@@ -1304,6 +1353,8 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                     variant="danger"
                     size="sm"
                     leftIcon={UserMinus}
+                    disabled={isAssigning}
+                    isLoading={isAssigning}
                     onClick={handleExecuteUnassign}
                     className="rounded-full px-4"
                   >
@@ -1367,6 +1418,8 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                     variant="primary"
                     size="sm"
                     leftIcon={UserPlus}
+                    disabled={isAssigning || !assignTeamId}
+                    isLoading={isAssigning}
                     className="rounded-full px-4"
                   >
                     Assign to Team
@@ -1410,6 +1463,8 @@ export const AdminPlayers: React.FC<AdminPlayersProps> = ({
                 type="button"
                 variant="danger"
                 size="sm"
+                disabled={isDeleting}
+                isLoading={isDeleting}
                 onClick={handleDeletePlayer}
                 className="rounded-full px-4"
               >

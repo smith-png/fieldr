@@ -191,7 +191,8 @@ export interface PursesService {
     teamId: string,
     type: PurseTransactionType,
     amount: number,
-    reason?: string
+    reason?: string,
+    createdBy?: string
   ): Promise<PurseTransaction>
   resetAllPurses(seasonId: string, startingPurse: number, reason?: string): Promise<void>
 }
@@ -244,10 +245,26 @@ export interface AuctionService {
   getAuctionBidsForPlayer(playerId: string): Promise<AuctionBid[]>
   getRecentAuctionSales(seasonId: string, limit?: number): Promise<AuctionSale[]>
   auctionBringToStage(playerId: string): Promise<void>
-  auctionPlaceBid(teamId: string, amount: number): Promise<void>
-  auctionClearBid(seasonId: string): Promise<void>
-  auctionSecure(seasonId: string): Promise<void>
-  auctionMarkUnsold(seasonId: string): Promise<void>
+  auctionPlaceBid(
+    teamId: string,
+    amount: number,
+    expectedPlayerId?: string | null
+  ): Promise<void>
+  auctionClearBid(
+    seasonId: string,
+    expectedPlayerId?: string | null,
+    expectedBid?: number | null
+  ): Promise<void>
+  auctionSecure(
+    seasonId: string,
+    expectedPlayerId?: string | null,
+    expectedBid?: number | null
+  ): Promise<void>
+  auctionMarkUnsold(
+    seasonId: string,
+    expectedPlayerId?: string | null,
+    expectedBid?: number | null
+  ): Promise<void>
   auctionUndoLastSale(seasonId: string): Promise<void>
   auctionBackToIdle(seasonId: string): Promise<ProjectorState>
   subscribeToAuctionRealtime(seasonId: string, onUpdate: () => void): () => void

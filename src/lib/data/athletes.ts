@@ -6,10 +6,9 @@ import {
   supabase,
   formatAthleteCode,
   parseAthleteCode,
-  REALTIME_DEBOUNCE_MS,
-  markLocalMutation,
-  isRealtimeSuppressed
+  markLocalMutation
 } from './client'
+import { broadcastAdminSync } from '../adminRealtime'
 import { deletePlayerPhotoAssets } from './storage'
 import type { AthletesPagedParams, AthletesPagedResult, AthletesService } from './types'
 
@@ -347,6 +346,7 @@ const supabaseAthletesService: AthletesService = {
 
     if (error) throw new AppError(error.message, { original: error })
     markLocalMutation(['athletes', 'players'])
+    broadcastAdminSync('athletes', 'create')
     return {
       ...(created as Athlete),
       entries_count: 0
@@ -415,6 +415,7 @@ const supabaseAthletesService: AthletesService = {
     }
 
     markLocalMutation(['athletes', 'players'])
+    broadcastAdminSync('athletes', 'update')
     return updated as Athlete
   },
 
@@ -450,6 +451,7 @@ const supabaseAthletesService: AthletesService = {
     }
 
     markLocalMutation(['athletes', 'players'])
+    broadcastAdminSync('athletes', 'delete')
     if (athleteToDelete) {
       await deletePlayerPhotoAssets(
         athleteToDelete.photo_url,
@@ -461,51 +463,9 @@ const supabaseAthletesService: AthletesService = {
 
 export const athletesService: AthletesService = supabaseAthletesService
 
-export function subscribeToAthletes(onUpdate: () => void): () => void {
-  let debounceTimer: ReturnType<typeof setTimeout> | null = null
-  let active = true
-
-  const scheduleUpdate = () => {
-    if (!active || isRealtimeSuppressed('athletes')) return
-    if (debounceTimer) clearTimeout(debounceTimer)
-    debounceTimer = setTimeout(() => {
-      debounceTimer = null
-      if (!active || isRealtimeSuppressed('athletes')) return
-      onUpdate()
-    }, REALTIME_DEBOUNCE_MS)
-  }
-
-  if (!supabase) return () => {}
-
-  const channel = supabase
-    .channel('admin_athletes_realtime')
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'athletes'
-      },
-      () => scheduleUpdate()
-    )
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'players'
-      },
-      () => scheduleUpdate()
-    )
-    .subscribe()
-
-  return () => {
-    active = false
-    if (debounceTimer) clearTimeout(debounceTimer)
-    if (supabase) {
-      supabase.removeChannel(channel)
-    }
-  }
+// Deprecated: athletes is synced via the shared AdminRealtimeProvider ("admin-sync" broadcast).
+export function subscribeToAthletes(_onUpdate: () => void): () => void {
+  return () => {}
 }
 
 export const getAllAthletes = () => athletesService.getAllAthletes()

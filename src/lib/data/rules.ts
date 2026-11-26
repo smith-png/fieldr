@@ -3,6 +3,7 @@ import type { RulesDocument } from '../../types'
 import { AppError } from '../errors'
 import { formatDocumentDate } from '../utils'
 import { supabase } from './client'
+import { broadcastAdminSync } from '../adminRealtime'
 
 const RULES_BUCKET = 'rules'
 const RULES_SELECT_COLUMNS = 'id, title, file_path, created_at'
@@ -81,6 +82,7 @@ export async function uploadRulesPdf(file: File, title: string): Promise<RulesDo
     throw new AppError(insertError.message, { original: insertError })
   }
 
+  broadcastAdminSync('rules', 'upload')
   return inserted as RulesDocument
 }
 
@@ -103,4 +105,5 @@ export async function deleteRulesDocument(document: RulesDocument): Promise<void
   if (deleteError) {
     throw new AppError(deleteError.message, { original: deleteError })
   }
+  broadcastAdminSync('rules', 'delete')
 }

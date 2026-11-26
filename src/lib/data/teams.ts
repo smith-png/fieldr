@@ -6,8 +6,10 @@ import {
   DEFAULT_SPORTS,
   REALTIME_DEBOUNCE_MS,
   markLocalMutation,
-  isRealtimeSuppressed
+  isRealtimeSuppressed,
+  resolveCurrentAdminActor
 } from './client'
+import { broadcastAdminSync } from '../adminRealtime'
 import type { TeamsService } from './types'
 import { getActiveSeason } from './seasons'
 
@@ -100,6 +102,7 @@ const supabaseTeamsService: TeamsService = {
       .single()
 
     if (error) throw new AppError(error.message, { original: error })
+    broadcastAdminSync('sports', 'add_role')
     return data as Sport
   },
 
@@ -140,6 +143,7 @@ const supabaseTeamsService: TeamsService = {
     if (!rpcError) {
       const updatedRoles = [...found.roles]
       updatedRoles[roleIdx] = trimmed
+      broadcastAdminSync('sports', 'rename_role')
       return {
         sport: { ...found, roles: updatedRoles },
         updatedPlayersCount: typeof rpcCount === 'number' ? rpcCount : 0
@@ -176,6 +180,7 @@ const supabaseTeamsService: TeamsService = {
 
     if (playersErr) throw new AppError(playersErr.message, { original: playersErr })
 
+    broadcastAdminSync('sports', 'rename_role')
     return {
       sport: updatedSportData as Sport,
       updatedPlayersCount: count ?? 0
@@ -201,6 +206,7 @@ const supabaseTeamsService: TeamsService = {
       .single()
 
     if (error) throw new AppError(error.message, { original: error })
+    broadcastAdminSync('sports', 'reorder_roles')
     return data as Sport
   },
 
@@ -239,6 +245,7 @@ const supabaseTeamsService: TeamsService = {
       .single()
 
     if (error) throw new AppError(error.message, { original: error })
+    broadcastAdminSync('sports', 'delete_role')
     return data as Sport
   },
 
@@ -283,6 +290,7 @@ const supabaseTeamsService: TeamsService = {
 
     if (error) throw new AppError(error.message, { original: error })
 
+    const actor = await resolveCurrentAdminActor()
     await supabase.from('purse_transactions').insert([
       {
         season_id: teamData.season_id,
@@ -291,7 +299,7 @@ const supabaseTeamsService: TeamsService = {
         amount: data.starting_purse,
         balance_after: data.starting_purse,
         reason: 'Initial team purse',
-        created_by: 'admin'
+        created_by: actor
       }
     ])
 
@@ -389,6 +397,7 @@ const supabaseTeamsService: TeamsService = {
 
     const createdTeams = (data as Team[]) || []
     if (createdTeams.length > 0) {
+      const actor = await resolveCurrentAdminActor()
       const txInserts = createdTeams.map((t) => ({
         season_id: t.season_id,
         team_id: t.id,
@@ -396,7 +405,7 @@ const supabaseTeamsService: TeamsService = {
         amount: t.starting_purse,
         balance_after: t.starting_purse,
         reason: 'Initial team purse',
-        created_by: 'admin'
+        created_by: actor
       }))
       await supabase.from('purse_transactions').insert(txInserts)
     }

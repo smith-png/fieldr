@@ -17,6 +17,7 @@ import {
 import { getAcademicYearLabel } from '../../lib/academicYears'
 import { useToast } from '../../lib/ToastContext'
 import { getErrorMessage } from '../../lib/errors'
+import { useAdminRealtimeTopics } from '../../hooks/useAdminRealtime'
 import { Button, Dialog, EmptyState, Pagination, SkeletonBlock } from '../ui'
 import {
   ADMIN_CARD,
@@ -78,21 +79,32 @@ export const ReelSubmissionsCard: React.FC = () => {
   const [clearAction, setClearAction] = useState<ClearAction | null>(null)
   const [isClearing, setIsClearing] = useState(false)
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = Boolean(options?.silent)
     try {
-      setIsLoading(true)
+      if (!silent) {
+        setIsLoading(true)
+      }
       setLoadError(null)
       setRows(await listReelSubmissions())
     } catch (err: unknown) {
-      setLoadError(getErrorMessage(err, 'Could not load submissions.'))
+      if (!silent) {
+        setLoadError(getErrorMessage(err, 'Could not load submissions.'))
+      }
     } finally {
-      setIsLoading(false)
+      if (!silent) {
+        setIsLoading(false)
+      }
     }
   }, [])
 
   useEffect(() => {
     void load()
   }, [load])
+
+  useAdminRealtimeTopics(['reels'], () => {
+    void load({ silent: true })
+  })
 
   const counts = useMemo(() => {
     const c = { all: rows.length, pending: 0, approved: 0, rejected: 0 }

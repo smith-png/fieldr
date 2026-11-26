@@ -22,6 +22,7 @@ import {
   updateCreditPerson,
   uploadCreditPhoto
 } from '../../lib/data'
+import { useAdminRealtimeTopics } from '../../hooks/useAdminRealtime'
 import { Button, Dialog, EmptyState, ErrorState } from '../ui'
 import { CreditAvatar } from '../credits/CreditsSection'
 import type { CreditKind, CreditPerson } from '../../types'
@@ -101,6 +102,10 @@ export const CreditsSetupCard: React.FC = () => {
   useEffect(() => {
     void loadCredits()
   }, [loadCredits])
+
+  useAdminRealtimeTopics(['credits'], () => {
+    void loadCredits({ silent: true })
+  })
 
   // Revoke object URL on unmount or when preview changes
   useEffect(() => {

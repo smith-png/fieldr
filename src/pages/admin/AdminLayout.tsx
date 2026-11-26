@@ -10,6 +10,7 @@ import { ADMIN_NAV_TABS, AdminNav } from '../../components/admin/AdminNav'
 import { BrandMark } from '../../components/layout/BrandMark'
 import { Button } from '../../components/ui'
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock'
+import { useAdminRealtime } from '../../hooks/useAdminRealtime'
 import { useAuth } from '../../lib/AuthContext'
 import { triggerConfetti } from '../../lib/data'
 import { prefetchAdminTab } from '../../lib/queryCache'
@@ -35,6 +36,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   children
 }) => {
   const { user, logout } = useAuth()
+  const { onlineAdmins } = useAdminRealtime()
   const { preference, resolvedTheme, setPreference } = useTheme()
   const navigate = useNavigate()
 
@@ -176,6 +178,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           onToggleQuickTheme={handleToggleQuickTheme}
           onSignOut={handleSignOut}
           userEmail={user?.email}
+          onlineAdmins={onlineAdmins}
         />
       </aside>
 
@@ -323,6 +326,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               onToggleQuickTheme={handleToggleQuickTheme}
               onSignOut={handleSignOut}
               userEmail={user?.email}
+              onlineAdmins={onlineAdmins}
             />
           </div>
         </div>
