@@ -17,29 +17,6 @@ export class AppError extends Error {
 
 export const CONFLICT_TOAST_MESSAGE = 'Already updated by another admin'
 
-const STALE_CONFLICT_PATTERNS = [
-  /\bstale\b/i,
-  /\bconflict\b/i,
-  /\bconcurrent/i,
-  /\boutdated\b/i,
-  /\bstate mismatch\b/i,
-  /already\s+(?:been\s+)?(?:sold|unsold|updated|changed|assigned|unassigned|queued|cleared|reversed|reviewed|approved|rejected|removed|deleted|active|on stage|not on stage)/i,
-  /no player\s+(?:is\s+)?(?:currently\s+)?on stage/i,
-  /not currently on stage/i,
-  /stage is not/i,
-  /not in\s+(?:an?\s+)?(?:active\s+)?auction/i,
-  /no active bid/i,
-  /no leading team/i,
-  /no bid to clear/i,
-  /no sale to undo/i,
-  /bid must be (?:higher|greater)/i,
-  /higher than (?:the )?current/i,
-  /must exceed (?:the )?current/i,
-  /player is not available/i,
-  /player is not sold/i,
-  /registration is not pending/i
-]
-
 function extractErrorCode(err: unknown): string | undefined {
   if (!err || typeof err !== 'object') return undefined
   const rec = err as Record<string, unknown>
@@ -56,9 +33,9 @@ export function isStaleConflictError(err: unknown): boolean {
   if (code === '40001' || code === '40P01' || code === 'P0002') {
     return true
   }
-  const message = getErrorMessage(err, '')
+  const message = getErrorMessage(err, '').trim()
   if (!message) return false
-  return STALE_CONFLICT_PATTERNS.some((pattern) => pattern.test(message))
+  return message.startsWith('Stale:')
 }
 
 export function getErrorMessage(err: unknown, fallbackMessage = 'An unexpected error occurred'): string {

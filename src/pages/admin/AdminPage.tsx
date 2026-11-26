@@ -8,6 +8,7 @@ import {
   ErrorState
 } from '../../components/ui'
 import { useAuth } from '../../lib/AuthContext'
+import { useToast } from '../../lib/ToastContext'
 import { getErrorMessage } from '../../lib/errors'
 import { lazyWithRetry } from '../../lib/lazyWithRetry'
 import {
@@ -66,6 +67,8 @@ const AdminSetup = lazyWithRetry(() =>
 )
 
 const ADMIN_BUNDLE_CACHE_KEY = 'admin:bundle'
+const SYNC_FAILURE_TOAST_COOLDOWN_MS = 30_000
+const SYNC_FAILURE_TOAST_MESSAGE = 'Could not sync. Showing last known data.'
 
 const DEFAULT_PROJECTOR_STATE: ProjectorState = {
   season_id: '',
@@ -96,6 +99,7 @@ const renderTabSkeleton = (tab: AdminTab) => {
 interface AdminRealtimeBridgeProps {
   seasonId: string | null
   enabled: boolean
+  skipAuctionTopics: boolean
   onRefreshProjector: () => void
   onRefreshPlayers: () => void
   onRefreshTeams: () => void
@@ -107,6 +111,7 @@ interface AdminRealtimeBridgeProps {
 const AdminRealtimeBridge: React.FC<AdminRealtimeBridgeProps> = ({
   seasonId,
   enabled,
+  skipAuctionTopics,
   onRefreshProjector,
   onRefreshPlayers,
   onRefreshTeams,
@@ -114,10 +119,11 @@ const AdminRealtimeBridge: React.FC<AdminRealtimeBridgeProps> = ({
   onRefreshSeasons,
   onRefreshSports
 }) => {
-  useAdminRealtimeTopics(['projector_state'], onRefreshProjector, enabled && Boolean(seasonId))
-  useAdminRealtimeTopics(['players'], onRefreshPlayers, enabled && Boolean(seasonId))
-  useAdminRealtimeTopics(['teams'], onRefreshTeams, enabled && Boolean(seasonId))
-  useAdminRealtimeTopics(['purse_transactions'], onRefreshTransactions, enabled && Boolean(seasonId))
+  const auctionTopicsEnabled = enabled && Boolean(seasonId) && !skipAuctionTopics
+  useAdminRealtimeTopics(['projector_state'], onRefreshProjector, auctionTopicsEnabled)
+  useAdminRealtimeTopics(['players'], onRefreshPlayers, auctionTopicsEnabled)
+  useAdminRealtimeTopics(['teams'], onRefreshTeams, auctionTopicsEnabled)
+  useAdminRealtimeTopics(['purse_transactions'], onRefreshTransactions, auctionTopicsEnabled)
   useAdminRealtimeTopics(['seasons'], onRefreshSeasons, enabled)
   useAdminRealtimeTopics(['sports'], onRefreshSports, enabled)
   return null
@@ -127,6 +133,7 @@ export const AdminPage: React.FC = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, isLoading: isAuthLoading } = useAuth()
+  const { error: showErrorToast } = useToast()
   const isAdminReady = !isAuthLoading && user?.role === 'admin'
 
   const cachedBundle = getCachedQuery<AdminCachedBundle>(ADMIN_BUNDLE_CACHE_KEY)
@@ -137,8 +144,19 @@ export const AdminPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(() => !cachedBundle)
   const [loadError, setLoadError] = useState<string | null>(null)
   const hasLoadedOnceRef = useRef(Boolean(cachedBundle))
+  const lastSyncErrorToastAtRef = useRef<number>(0)
   const latestLoadReqIdRef = useRef(0)
   const isMountedRef = useRef(true)
+
+  const notifyBackgroundSyncFailure = useCallback(() => {
+    if (!hasLoadedOnceRef.current) return
+    const now = Date.now()
+    if (now - lastSyncErrorToastAtRef.current < SYNC_FAILURE_TOAST_COOLDOWN_MS) {
+      return
+    }
+    lastSyncErrorToastAtRef.current = now
+    showErrorToast(SYNC_FAILURE_TOAST_MESSAGE)
+  }, [showErrorToast])
 
   useEffect(() => {
     isMountedRef.current = true
@@ -275,6 +293,8 @@ export const AdminPage: React.FC = () => {
           setLoadError(
             getErrorMessage(err, 'Failed to load admin data. Check your connection and try again.')
           )
+        } else {
+          notifyBackgroundSyncFailure()
         }
       }
     } finally {
@@ -282,7 +302,7 @@ export const AdminPage: React.FC = () => {
         setIsLoading(false)
       }
     }
-  }, [])
+  }, [notifyBackgroundSyncFailure])
 
   useEffect(() => {
     if (!isAdminReady) return
@@ -326,9 +346,9 @@ export const AdminPage: React.FC = () => {
         setProjectorState(next)
       }
     } catch {
-      // Keep current state on transient error
+      if (isMountedRef.current) notifyBackgroundSyncFailure()
     }
-  }, [])
+  }, [notifyBackgroundSyncFailure])
 
   const refreshPlayersOnly = useCallback(async () => {
     const seasonId = activeSeasonIdRef.current
@@ -339,9 +359,9 @@ export const AdminPage: React.FC = () => {
         setPlayers(Array.isArray(next) ? next : [])
       }
     } catch {
-      // Keep current state on transient error
+      if (isMountedRef.current) notifyBackgroundSyncFailure()
     }
-  }, [])
+  }, [notifyBackgroundSyncFailure])
 
   const refreshTeamsOnly = useCallback(async () => {
     const seasonId = activeSeasonIdRef.current
@@ -352,9 +372,9 @@ export const AdminPage: React.FC = () => {
         setTeams(Array.isArray(next) ? next : [])
       }
     } catch {
-      // Keep current state on transient error
+      if (isMountedRef.current) notifyBackgroundSyncFailure()
     }
-  }, [])
+  }, [notifyBackgroundSyncFailure])
 
   const refreshTransactionsOnly = useCallback(async () => {
     const seasonId = activeSeasonIdRef.current
@@ -369,9 +389,28 @@ export const AdminPage: React.FC = () => {
         setTeams(Array.isArray(nextTeams) ? nextTeams : [])
       }
     } catch {
-      // Keep current state on transient error
+      if (isMountedRef.current) notifyBackgroundSyncFailure()
     }
-  }, [])
+  }, [notifyBackgroundSyncFailure])
+
+  const refreshAuctionSlices = useCallback(async () => {
+    const seasonId = activeSeasonIdRef.current
+    if (!seasonId) return
+    try {
+      const [nextPlayers, nextTeams, nextTx] = await Promise.all([
+        getPlayers(seasonId),
+        getTeams(seasonId),
+        getPurseTransactions(seasonId)
+      ])
+      if (isMountedRef.current && activeSeasonIdRef.current === seasonId) {
+        setPlayers(Array.isArray(nextPlayers) ? nextPlayers : [])
+        setTeams(Array.isArray(nextTeams) ? nextTeams : [])
+        setTransactions(Array.isArray(nextTx) ? nextTx : [])
+      }
+    } catch {
+      if (isMountedRef.current) notifyBackgroundSyncFailure()
+    }
+  }, [notifyBackgroundSyncFailure])
 
   const refreshSeasonsOnly = useCallback(async () => {
     try {
@@ -386,9 +425,9 @@ export const AdminPage: React.FC = () => {
         setActiveSeason(nextActive)
       }
     } catch {
-      // Keep current state on transient error
+      if (isMountedRef.current) notifyBackgroundSyncFailure()
     }
-  }, [loadAllData])
+  }, [loadAllData, notifyBackgroundSyncFailure])
 
   const refreshSportsOnly = useCallback(async () => {
     try {
@@ -396,17 +435,17 @@ export const AdminPage: React.FC = () => {
       if (!isMountedRef.current) return
       setSports(Array.isArray(rawSports) ? rawSports : [])
     } catch {
-      // Keep current state on transient error
+      if (isMountedRef.current) notifyBackgroundSyncFailure()
     }
-  }, [])
+  }, [notifyBackgroundSyncFailure])
 
   const handleSwitchSeason = async (seasonId: string) => {
     try {
       markLocalMutation(['players', 'teams', 'auction'])
       await apiSetActiveSeason(seasonId)
       await loadAllData()
-    } catch {
-      // ignore
+    } catch (err: unknown) {
+      showErrorToast(getErrorMessage(err, 'Failed to switch season'))
     }
   }
 
@@ -419,6 +458,7 @@ export const AdminPage: React.FC = () => {
       <AdminRealtimeBridge
         seasonId={activeSeason?.id ?? null}
         enabled={isAdminReady}
+        skipAuctionTopics={currentTab === 'auction'}
         onRefreshProjector={refreshProjectorOnly}
         onRefreshPlayers={refreshPlayersOnly}
         onRefreshTeams={refreshTeamsOnly}
@@ -486,7 +526,7 @@ export const AdminPage: React.FC = () => {
               players={players}
               teams={teams}
               projectorState={projectorState}
-              onRefresh={loadAllData}
+              onRefresh={refreshAuctionSlices}
             />
           )}
 

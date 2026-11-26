@@ -32,8 +32,10 @@ interface AdminRealtimeProviderProps {
   children: React.ReactNode
 }
 
-function getAdminDisplayName(user: AuthUser): string {
-  const email = (user.email || '').trim()
+const HIDDEN_RESYNC_THRESHOLD_MS = 20_000
+
+function getAdminDisplayName(emailRaw: string): string {
+  const email = emailRaw.trim()
   if (email.includes('@')) {
     const localPart = email.split('@')[0]?.trim()
     if (localPart) return localPart
@@ -51,6 +53,7 @@ export function AdminRealtimeProvider({
 
   const listenersRef = useRef<Map<AdminRealtimeTopic, Set<() => void>>>(new Map())
   const timersRef = useRef<Map<AdminRealtimeTopic, ReturnType<typeof setTimeout>>>(new Map())
+  const allTopicsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const emitTopic = useCallback((topic: AdminRealtimeTopic) => {
     const existingTimer = timersRef.current.get(topic)
@@ -73,6 +76,34 @@ export function AdminRealtimeProvider({
     }, REALTIME_DEBOUNCE_MS)
 
     timersRef.current.set(topic, timer)
+  }, [])
+
+  const emitAllTopics = useCallback(() => {
+    if (allTopicsTimerRef.current) {
+      clearTimeout(allTopicsTimerRef.current)
+    }
+
+    allTopicsTimerRef.current = setTimeout(() => {
+      allTopicsTimerRef.current = null
+      for (const timer of timersRef.current.values()) {
+        clearTimeout(timer)
+      }
+      timersRef.current.clear()
+
+      const uniqueListeners = new Set<() => void>()
+      for (const listeners of listenersRef.current.values()) {
+        for (const listener of listeners) {
+          uniqueListeners.add(listener)
+        }
+      }
+      for (const listener of Array.from(uniqueListeners)) {
+        try {
+          listener()
+        } catch {
+          // Keep other subscribers running if one callback throws
+        }
+      }
+    }, REALTIME_DEBOUNCE_MS)
   }, [])
 
   const subscribe = useCallback(
@@ -105,6 +136,10 @@ export function AdminRealtimeProvider({
   useEffect(() => {
     const timers = timersRef.current
     return () => {
+      if (allTopicsTimerRef.current) {
+        clearTimeout(allTopicsTimerRef.current)
+        allTopicsTimerRef.current = null
+      }
       for (const timer of timers.values()) {
         clearTimeout(timer)
       }
@@ -112,9 +147,42 @@ export function AdminRealtimeProvider({
     }
   }, [])
 
+  // Resync all topics once when returning to a tab hidden for >20s or regaining connectivity
+  useEffect(() => {
+    if (!enabled || typeof window === 'undefined' || typeof document === 'undefined') return
+
+    let hiddenAt: number | null = document.visibilityState === 'hidden' ? Date.now() : null
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now()
+      } else if (document.visibilityState === 'visible') {
+        if (hiddenAt !== null && Date.now() - hiddenAt > HIDDEN_RESYNC_THRESHOLD_MS) {
+          emitAllTopics()
+        }
+        hiddenAt = null
+      }
+    }
+
+    const handleOnline = () => {
+      emitAllTopics()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('online', handleOnline)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('online', handleOnline)
+    }
+  }, [enabled, emitAllTopics])
+
   // Channel 1: Single postgres_changes channel for all realtime-enabled tables used in admin
   useEffect(() => {
     if (!enabled || !supabase) return
+
+    let isActive = true
+    let hasSubscribedBefore = false
 
     const channelName = seasonId ? `admin_db_sync_${seasonId}` : 'admin_db_sync_global'
     let channel = supabase
@@ -170,26 +238,40 @@ export function AdminRealtimeProvider({
         )
     }
 
-    channel.subscribe()
+    channel.subscribe((status) => {
+      if (!isActive) return
+      if (status === 'SUBSCRIBED') {
+        if (hasSubscribedBefore) {
+          emitAllTopics()
+        } else {
+          hasSubscribedBefore = true
+        }
+      }
+    })
 
     return () => {
+      isActive = false
       if (supabase) {
         void supabase.removeChannel(channel)
       }
     }
-  }, [enabled, seasonId, emitTopic])
+  }, [enabled, seasonId, emitTopic, emitAllTopics])
+
+  const userId = user?.id ?? null
+  const userEmail = user?.email ?? ''
 
   // Channel 2: Single admin-sync Broadcast + Presence channel (admin routes only)
   useEffect(() => {
-    if (!enabled || !supabase || !user?.id) {
+    if (!enabled || !supabase || !userId) {
       setOnlineAdmins([])
       return
     }
 
     let isActive = true
-    const presenceKey = user.id
-    const initialEmail = (user.email || '').trim()
-    const initialName = getAdminDisplayName(user)
+    let hasSubscribedBefore = false
+    const presenceKey = userId
+    const initialEmail = userEmail.trim()
+    const initialName = getAdminDisplayName(initialEmail)
 
     const channel = supabase.channel(ADMIN_SYNC_CHANNEL_NAME, {
       config: {
@@ -238,6 +320,11 @@ export function AdminRealtimeProvider({
       .subscribe(async (status) => {
         if (!isActive) return
         if (status === 'SUBSCRIBED') {
+          if (hasSubscribedBefore) {
+            emitAllTopics()
+          } else {
+            hasSubscribedBefore = true
+          }
           setActiveAdminSyncChannel(channel)
           let resolvedName = initialName
           let resolvedEmail = initialEmail
@@ -261,7 +348,7 @@ export function AdminRealtimeProvider({
           if (!isActive) return
           try {
             await channel.track({
-              user_id: user.id,
+              user_id: userId,
               email: resolvedEmail,
               name: resolvedName,
               online_at: new Date().toISOString()
@@ -284,7 +371,7 @@ export function AdminRealtimeProvider({
         void supabase.removeChannel(channel)
       }
     }
-  }, [enabled, user, emitTopic])
+  }, [enabled, userId, userEmail, emitTopic, emitAllTopics])
 
   const contextValue = useMemo<AdminRealtimeContextValue>(
     () => ({

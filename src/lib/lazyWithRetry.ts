@@ -5,6 +5,8 @@ export const CHUNK_RELOAD_FLAG = 'fieldr_chunk_reload_attempted'
 const CHUNK_ERROR_PATTERNS = [
   'failed to fetch dynamically imported module',
   'importing a module script failed',
+  'error loading dynamically imported module',
+  'failed to load module script',
   'chunkloaderror',
   'unable to preload css'
 ]
@@ -73,9 +75,7 @@ export function triggerChunkReloadOnce(): boolean {
 
 export async function retryDynamicImport<T>(importer: () => Promise<T>): Promise<T> {
   try {
-    const mod = await importer()
-    clearChunkReloadFlag()
-    return mod
+    return await importer()
   } catch (err) {
     if (isChunkLoadError(err) && triggerChunkReloadOnce()) {
       // Keep the promise pending while the browser reloads so ErrorBoundary does not flash.

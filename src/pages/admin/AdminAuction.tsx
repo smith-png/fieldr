@@ -540,7 +540,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
     try {
       await auctionBringToStage(player.id)
       setPendingReplacePlayer(null)
-      await Promise.all([fetchLiveAuctionState(), onRefresh()])
+      await fetchLiveAuctionState()
       success(`${player.name} brought to stage`)
     } catch (err: unknown) {
       await handleActionFailure(err, 'Failed to bring player to stage')
@@ -615,7 +615,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
     try {
       await auctionSecure(activeSeason.id, expectedPlayerId, expectedBid)
       setIsSecureConfirmOpen(false)
-      await Promise.all([fetchLiveAuctionState(), onRefresh()])
+      await fetchLiveAuctionState()
       success(
         stagePlayer && leadingTeam
           ? `Secured ${stagePlayer.name} for ${leadingTeam.name}`
@@ -639,7 +639,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
     try {
       await auctionMarkUnsold(activeSeason.id, expectedPlayerId, expectedBid)
       setIsUnsoldConfirmOpen(false)
-      await Promise.all([fetchLiveAuctionState(), onRefresh()])
+      await fetchLiveAuctionState()
       success(stagePlayer ? `Marked ${stagePlayer.name} as unsold` : 'Player marked unsold')
     } catch (err: unknown) {
       await handleActionFailure(err, 'Failed to mark player unsold')
@@ -672,7 +672,7 @@ export const AdminAuction: React.FC<AdminAuctionProps> = ({
     try {
       await auctionUndoLastSale(activeSeason.id)
       setIsUndoSaleConfirmOpen(false)
-      await Promise.all([fetchLiveAuctionState(), onRefresh()])
+      await fetchLiveAuctionState()
       success('Last sale reversed')
     } catch (err: unknown) {
       await handleActionFailure(err, 'Failed to undo last sale')
