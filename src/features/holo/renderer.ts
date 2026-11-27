@@ -4,6 +4,7 @@ import { createScene } from './scene';
 
 export interface CreateRendererOptions {
   onFirstInteraction?: () => void;
+  onBurstRelease?: (strength: number) => void;
 }
 
 const IDLE_DELAY_MS = 1500;
@@ -238,6 +239,7 @@ export function createRenderer(
           if (!motion.matches) {
             vibrateAndroid(40);
           }
+          options?.onBurstRelease?.(storedCharge);
         }
       }
 

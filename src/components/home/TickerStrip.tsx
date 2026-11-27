@@ -312,20 +312,28 @@ export const TickerStrip: React.FC<TickerStripProps> = ({
       }
     }
 
+    let rafId: number | null = null
+    const scheduleUpdate = () => {
+      if (rafId !== null) return
+      rafId = window.requestAnimationFrame(() => {
+        rafId = null
+        updateDimensions()
+      })
+    }
+
     updateDimensions()
 
-    const observer = new ResizeObserver(() => {
-      updateDimensions()
-    })
+    const observer = new ResizeObserver(scheduleUpdate)
 
     observer.observe(containerRef.current)
     observer.observe(singleCycleRef.current)
 
-    window.addEventListener('resize', updateDimensions)
+    window.addEventListener('resize', scheduleUpdate)
 
     return () => {
+      if (rafId !== null) window.cancelAnimationFrame(rafId)
       observer.disconnect()
-      window.removeEventListener('resize', updateDimensions)
+      window.removeEventListener('resize', scheduleUpdate)
     }
   }, [hasContent, safeItems])
 

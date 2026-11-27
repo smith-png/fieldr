@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPoi
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft } from '@phosphor-icons/react';
 import { FIELDR_MARK_PATH } from './logoMask';
+import { createEnergyReleaseController, type EnergyReleaseController } from './energyRelease';
 import { createRenderer } from './renderer';
 
 const FALLBACK_CHARGE_DURATION_MS = 1600;
@@ -43,9 +44,10 @@ function prefersReducedMotion(): boolean {
 
 interface FallbackCardProps {
   onFirstInteraction: () => void;
+  onBurstRelease: (element: HTMLElement, strength: number) => void;
 }
 
-function GraphiteFallbackCard({ onFirstInteraction }: FallbackCardProps) {
+function GraphiteFallbackCard({ onFirstInteraction, onBurstRelease }: FallbackCardProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const [sheen, setSheen] = useState({ x: 50, y: 38, active: false });
@@ -189,6 +191,9 @@ function GraphiteFallbackCard({ onFirstInteraction }: FallbackCardProps) {
         setChargeLevel(0);
 
         if (storedCharge >= FALLBACK_BURST_THRESHOLD && !prefersReducedMotion()) {
+          if (cardRef.current) {
+            onBurstRelease(cardRef.current, storedCharge);
+          }
           if (burstTimerRef.current !== null) window.clearTimeout(burstTimerRef.current);
           if (burstRafRef.current !== null) window.cancelAnimationFrame(burstRafRef.current);
           setBurstExpanding(false);
@@ -205,7 +210,7 @@ function GraphiteFallbackCard({ onFirstInteraction }: FallbackCardProps) {
         }
       }
     },
-    [releaseCardCapture, stopChargeLoop],
+    [onBurstRelease, releaseCardCapture, stopChargeLoop],
   );
 
   const handleCardCancel = useCallback(
@@ -249,7 +254,7 @@ function GraphiteFallbackCard({ onFirstInteraction }: FallbackCardProps) {
       ref={stageRef}
       onPointerMove={handlePointerMove}
       onPointerLeave={handleStageLeave}
-      className="relative flex h-full w-full items-center justify-center touch-none select-none px-6"
+      className="relative z-10 flex h-full w-full items-center justify-center touch-none select-none px-6"
     >
       <div
         aria-hidden="true"
@@ -351,7 +356,9 @@ function GraphiteFallbackCard({ onFirstInteraction }: FallbackCardProps) {
 
 export function HoloPage() {
   const navigate = useNavigate();
+  const mainRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const energyReleaseRef = useRef<EnergyReleaseController | null>(null);
   const [fallback, setFallback] = useState<boolean>(() => !hasWebGpuSupport());
   const [debugError, setDebugError] = useState<string | null>(() =>
     !hasWebGpuSupport() ? 'WebGPU is not available in this browser.' : null,
@@ -360,6 +367,42 @@ export function HoloPage() {
   const [hintPhase, setHintPhase] = useState<'move' | 'charge' | 'hidden'>('move');
   const hintShownRef = useRef(false);
   const hintTimerRef = useRef<number | null>(null);
+
+  const getEnergyRelease = useCallback((): EnergyReleaseController => {
+    if (!energyReleaseRef.current) {
+      energyReleaseRef.current = createEnergyReleaseController();
+    }
+    return energyReleaseRef.current;
+  }, []);
+
+  const handleWebGpuBurstRelease = useCallback(
+    (strength: number) => {
+      const container = mainRef.current;
+      const canvas = canvasRef.current;
+      if (!container || !canvas) return;
+      getEnergyRelease().trigger({
+        element: canvas,
+        mode: 'webgpu',
+        strength,
+        container,
+      });
+    },
+    [getEnergyRelease],
+  );
+
+  const handleFallbackBurstRelease = useCallback(
+    (element: HTMLElement, strength: number) => {
+      const container = mainRef.current;
+      if (!container) return;
+      getEnergyRelease().trigger({
+        element,
+        mode: 'fallback',
+        strength,
+        container,
+      });
+    },
+    [getEnergyRelease],
+  );
 
   const handleFirstInteraction = useCallback(() => {
     if (hintShownRef.current) return;
@@ -377,6 +420,8 @@ export function HoloPage() {
         window.clearTimeout(hintTimerRef.current);
         hintTimerRef.current = null;
       }
+      energyReleaseRef.current?.dispose();
+      energyReleaseRef.current = null;
     };
   }, []);
 
@@ -428,6 +473,7 @@ export function HoloPage() {
     let mounted = true;
     const renderer = createRenderer(canvas, {
       onFirstInteraction: handleFirstInteraction,
+      onBurstRelease: handleWebGpuBurstRelease,
     });
     void renderer.ready.catch((cause: unknown) => {
       if (!mounted) return;
@@ -439,16 +485,22 @@ export function HoloPage() {
       mounted = false;
       renderer.dispose();
     };
-  }, [fallback, handleFirstInteraction]);
+  }, [fallback, handleFirstInteraction, handleWebGpuBurstRelease]);
 
   return (
-    <main className="fixed inset-0 h-dvh w-dvw overflow-hidden bg-[#090a0c] select-none">
+    <main
+      ref={mainRef}
+      className="fixed inset-0 h-dvh w-dvw overflow-hidden bg-[#090a0c] select-none"
+    >
       {fallback ? (
-        <GraphiteFallbackCard onFirstInteraction={handleFirstInteraction} />
+        <GraphiteFallbackCard
+          onFirstInteraction={handleFirstInteraction}
+          onBurstRelease={handleFallbackBurstRelease}
+        />
       ) : (
         <canvas
           ref={canvasRef}
-          className="block h-full w-full touch-none"
+          className="relative z-10 block h-full w-full touch-none"
           aria-label="Fieldr holographic graphite card with a visible Fieldr F outline; move or hold to charge and release."
         />
       )}

@@ -666,14 +666,24 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
       }
     }
 
+    let rafId: number | null = null
+    const scheduleUpdateWidth = () => {
+      if (rafId !== null) return
+      rafId = window.requestAnimationFrame(() => {
+        rafId = null
+        updateWidth()
+      })
+    }
+
     updateWidth()
-    const observer = new ResizeObserver(() => updateWidth())
+    const observer = new ResizeObserver(scheduleUpdateWidth)
     observer.observe(previewGroupRef.current)
-    window.addEventListener('resize', updateWidth)
+    window.addEventListener('resize', scheduleUpdateWidth)
 
     return () => {
+      if (rafId !== null) window.cancelAnimationFrame(rafId)
       observer.disconnect()
-      window.removeEventListener('resize', updateWidth)
+      window.removeEventListener('resize', scheduleUpdateWidth)
     }
   }, [activeTab])
 

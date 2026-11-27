@@ -39,13 +39,22 @@ export const HeroWord: React.FC<HeroWordProps> = ({ word, playIntro }) => {
         c.style.setProperty('--cx', `${c.offsetLeft}px`)
       })
     }
+    let rafId: number | null = null
+    const scheduleMeasure = () => {
+      if (rafId !== null) return
+      rafId = window.requestAnimationFrame(() => {
+        rafId = null
+        measure()
+      })
+    }
     measure()
-    void document.fonts?.ready.then(measure)
-    window.addEventListener('resize', measure)
-    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null
+    void document.fonts?.ready.then(scheduleMeasure)
+    window.addEventListener('resize', scheduleMeasure)
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(scheduleMeasure) : null
     ro?.observe(el)
     return () => {
-      window.removeEventListener('resize', measure)
+      if (rafId !== null) window.cancelAnimationFrame(rafId)
+      window.removeEventListener('resize', scheduleMeasure)
       ro?.disconnect()
     }
   }, [word])
