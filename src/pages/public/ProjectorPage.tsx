@@ -2431,39 +2431,42 @@ export const ProjectorPage: React.FC = () => {
                 ease: broadcastStripEase
               }
             }}
-            className="fixed inset-0 z-40 bg-black/95 flex flex-col items-center justify-center p-6 sm:p-10 md:p-14"
+            className="fixed inset-0 z-40 bg-bg/90 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 md:p-8"
           >
             <AnimatePresence mode="wait">
               <motion.div
                 key={broadcastImage.id}
-                initial={{ opacity: 0 }}
+                initial={{ opacity: 0, scale: shouldReduceMotion ? 1 : 0.97 }}
                 animate={{
                   opacity: 1,
+                  scale: 1,
                   transition: {
-                    duration: shouldReduceMotion ? 0.15 : 0.3,
+                    duration: shouldReduceMotion ? 0.15 : 0.32,
                     ease: broadcastStripEase
                   }
                 }}
                 exit={{
                   opacity: 0,
+                  scale: shouldReduceMotion ? 1 : 0.97,
                   transition: {
-                    duration: shouldReduceMotion ? 0.15 : 0.2,
+                    duration: shouldReduceMotion ? 0.15 : 0.22,
                     ease: broadcastStripEase
                   }
                 }}
-                className="w-full h-full flex flex-col items-center justify-center min-h-0 gap-4"
+                className="w-[min(92vw,1400px)] max-h-[88vh] rounded-[32px] bg-surface border border-border overflow-hidden shadow-2xl p-4 sm:p-6 md:p-8 flex flex-col items-center gap-4 sm:gap-6"
               >
-                <div className="relative flex-1 w-full min-h-0 flex items-center justify-center">
+                <div className="w-full min-h-0 flex items-center justify-center">
                   <img
+                    role="img"
                     src={broadcastImage.dataUrl}
-                    alt={broadcastImage.caption || 'Broadcast image'}
-                    className="max-w-full max-h-full w-full h-full object-contain"
+                    alt={broadcastImage.caption || 'Announcement image'}
+                    className="block max-w-full w-auto h-auto max-h-[70vh] object-contain rounded-2xl"
                   />
                 </div>
                 {broadcastImage.caption && (
-                  <div className="shrink-0 max-w-4xl px-6 py-3 rounded-2xl bg-black/75 border border-white/15 text-white text-center text-xl sm:text-2xl md:text-3xl font-medium tracking-tight leading-snug">
+                  <p className="w-full shrink-0 pt-4 sm:pt-5 border-t border-border text-text font-syne font-bold text-center text-2xl sm:text-4xl tracking-tight leading-snug break-words">
                     {broadcastImage.caption}
-                  </div>
+                  </p>
                 )}
               </motion.div>
             </AnimatePresence>
