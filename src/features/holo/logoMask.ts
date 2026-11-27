@@ -49,19 +49,65 @@ function drawTrackedText(
   }
 }
 
+const FIELDR_CONTOUR_POINTS: ReadonlyArray<readonly [number, number]> = [
+  [19, 16],
+  [46, 16],
+  [46, 23.5],
+  [28.5, 23.5],
+  [28.5, 29.5],
+  [41, 29.5],
+  [41, 36.5],
+  [28.5, 36.5],
+  [28.5, 48],
+  [19, 48],
+];
+
+interface ContourSegment {
+  ax: number;
+  ay: number;
+  dx: number;
+  dy: number;
+  lenSq: number;
+  len: number;
+  cumStart: number;
+}
+
+const FIELDR_CONTOUR_SEGMENTS: readonly ContourSegment[] = (() => {
+  const segs: ContourSegment[] = [];
+  let cum = 0;
+  for (let i = 0; i < FIELDR_CONTOUR_POINTS.length; i++) {
+    const [ax, ay] = FIELDR_CONTOUR_POINTS[i];
+    const [bx, by] = FIELDR_CONTOUR_POINTS[(i + 1) % FIELDR_CONTOUR_POINTS.length];
+    const dx = bx - ax;
+    const dy = by - ay;
+    const lenSq = dx * dx + dy * dy;
+    const len = Math.sqrt(lenSq);
+    segs.push({ ax, ay, dx, dy, lenSq, len, cumStart: cum });
+    cum += len;
+  }
+  return segs;
+})();
+
+const FIELDR_CONTOUR_TOTAL_LEN = FIELDR_CONTOUR_SEGMENTS.reduce((sum, s) => sum + s.len, 0);
+
 /**
  * Renders the static Fieldr "F" mark and subtle bottom caption to an offscreen
- * canvas as a white-on-transparent alpha mask and returns single-channel r8unorm bytes.
+ * canvas and packs an rgba8unorm buffer:
+ * - R: alpha mask for the F mark and bottom caption
+ * - G, B: 16-bit big-endian continuous arc-length t in [0, 1] along the F outline,
+ *   starting at the top-left corner (19, 16) and running clockwise
+ * - A: 255 inside the F outline band, 0 elsewhere
  */
 export function createFieldrLogoMask(): Uint8Array {
   const [width, height] = LOGO_MASK_SIZE;
+  const packed = new Uint8Array(width * height * 4);
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
 
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) {
-    return new Uint8Array(width * height);
+    return packed;
   }
 
   ctx.clearRect(0, 0, width, height);
@@ -94,9 +140,55 @@ export function createFieldrLogoMask(): Uint8Array {
   ctx.restore();
 
   const rgba = ctx.getImageData(0, 0, width, height).data;
-  const mask = new Uint8Array(width * height);
-  for (let i = 0; i < mask.length; i++) {
-    mask[i] = rgba[i * 4 + 3];
+  const pixelCount = width * height;
+  for (let i = 0; i < pixelCount; i++) {
+    packed[i * 4] = rgba[i * 4 + 3];
   }
-  return mask;
+
+  // Bake exact arc-length t in [0, 1] around the F outline in the padded logo bounding box.
+  const padPx = 28;
+  const minX = Math.max(0, Math.floor(originX - padPx));
+  const maxX = Math.min(width - 1, Math.ceil(originX + markWidthPx + padPx));
+  const minY = Math.max(0, Math.floor(originY - padPx));
+  const maxY = Math.min(height - 1, Math.ceil(originY + markHeightPx + padPx));
+  const invScale = 1 / scale;
+  const invTotalLen = 1 / FIELDR_CONTOUR_TOTAL_LEN;
+  const maxDistSqSvg = (padPx * invScale) * (padPx * invScale);
+
+  for (let y = minY; y <= maxY; y++) {
+    const sy = 16 + (y + 0.5 - originY) * invScale;
+    const rowOffset = y * width;
+    for (let x = minX; x <= maxX; x++) {
+      const sx = 19 + (x + 0.5 - originX) * invScale;
+      let bestDistSq = Infinity;
+      let bestArc = 0;
+
+      for (let sIdx = 0; sIdx < FIELDR_CONTOUR_SEGMENTS.length; sIdx++) {
+        const seg = FIELDR_CONTOUR_SEGMENTS[sIdx];
+        const px = sx - seg.ax;
+        const py = sy - seg.ay;
+        let u = (px * seg.dx + py * seg.dy) / seg.lenSq;
+        if (u < 0) u = 0;
+        else if (u > 1) u = 1;
+        const cx = px - seg.dx * u;
+        const cy = py - seg.dy * u;
+        const distSq = cx * cx + cy * cy;
+        if (distSq < bestDistSq) {
+          bestDistSq = distSq;
+          bestArc = seg.cumStart + u * seg.len;
+        }
+      }
+
+      if (bestDistSq <= maxDistSqSvg) {
+        const t = bestArc * invTotalLen;
+        const q = Math.max(0, Math.min(65535, Math.round(t * 65535)));
+        const base = (rowOffset + x) * 4;
+        packed[base + 1] = (q >> 8) & 255;
+        packed[base + 2] = q & 255;
+        packed[base + 3] = 255;
+      }
+    }
+  }
+
+  return packed;
 }

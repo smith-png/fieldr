@@ -9,17 +9,30 @@ function getAudioContextCtor(): AudioContextCtor | null {
   return win.AudioContext || win.webkitAudioContext || null
 }
 
+interface ActiveChargeHum {
+  oscLow: OscillatorNode
+  oscHarm: OscillatorNode
+  filter: BiquadFilterNode
+  gain: GainNode
+}
+
 /**
- * Very subtle synthesized WebAudio engine for /pack (OFF by default).
- * Starts AudioContext lazily only after an explicit user gesture.
+ * Subtle synthesized WebAudio engine for /pack (OFF by default).
+ * Lazily opens AudioContext only after an explicit user gesture and suspends cleanly when tab hides.
  */
 export class PackAudioEngine {
   private ctx: AudioContext | null = null
   private enabled = false
+  private paused = false
+  private hum: ActiveChargeHum | null = null
 
   setEnabled(next: boolean, fromUserGesture: boolean): void {
     this.enabled = next
-    if (next && fromUserGesture) {
+    if (!next) {
+      this.stopChargeHum(true)
+      return
+    }
+    if (fromUserGesture && !this.paused) {
       this.ensureContext()
     }
   }
@@ -28,13 +41,27 @@ export class PackAudioEngine {
     return this.enabled
   }
 
+  setPaused(hidden: boolean): void {
+    this.paused = hidden
+    if (hidden) {
+      this.stopChargeHum(true)
+      if (this.ctx && this.ctx.state === 'running') {
+        void this.ctx.suspend().catch(() => undefined)
+      }
+      return
+    }
+    if (this.enabled && this.ctx && this.ctx.state === 'suspended') {
+      void this.ctx.resume().catch(() => undefined)
+    }
+  }
+
   unlock(): void {
-    if (!this.enabled) return
+    if (!this.enabled || this.paused) return
     this.ensureContext()
   }
 
   private ensureContext(): AudioContext | null {
-    if (!this.enabled) return null
+    if (!this.enabled || this.paused) return null
     if (!this.ctx) {
       const Ctor = getAudioContextCtor()
       if (!Ctor) return null
@@ -60,56 +87,95 @@ export class PackAudioEngine {
     return buffer
   }
 
-  /** Subtle low filtered breath during pack anticipation */
-  playPackBuild(durationSec = 0.8): void {
+  /** Soft rising graphite hum while charging the pack seam */
+  startChargeHum(): void {
     const ctx = this.ensureContext()
     if (!ctx) return
+    if (this.hum) return
 
     const now = ctx.currentTime
-    const noise = ctx.createBufferSource()
-    noise.buffer = this.createNoiseBuffer(ctx, durationSec)
-
+    const oscLow = ctx.createOscillator()
+    const oscHarm = ctx.createOscillator()
     const filter = ctx.createBiquadFilter()
-    filter.type = 'bandpass'
-    filter.Q.setValueAtTime(3.4, now)
-    filter.frequency.setValueAtTime(220, now)
-    filter.frequency.exponentialRampToValueAtTime(920, now + durationSec)
-
     const gain = ctx.createGain()
-    gain.gain.setValueAtTime(0.0001, now)
-    gain.gain.exponentialRampToValueAtTime(0.028, now + durationSec * 0.78)
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + durationSec)
 
-    noise.connect(filter)
+    oscLow.type = 'sine'
+    oscLow.frequency.setValueAtTime(118, now)
+
+    oscHarm.type = 'triangle'
+    oscHarm.frequency.setValueAtTime(236, now)
+
+    filter.type = 'lowpass'
+    filter.frequency.setValueAtTime(320, now)
+    filter.Q.setValueAtTime(1.8, now)
+
+    gain.gain.setValueAtTime(0.0001, now)
+    gain.gain.linearRampToValueAtTime(0.018, now + 0.08)
+
+    oscLow.connect(filter)
+    oscHarm.connect(filter)
     filter.connect(gain)
     gain.connect(ctx.destination)
-    noise.start(now)
-    noise.stop(now + durationSec)
+
+    oscLow.start(now)
+    oscHarm.start(now)
+
+    this.hum = { oscLow, oscHarm, filter, gain }
   }
 
-  /** Soft foil tear along the top pack seam */
-  playPackTear(): void {
+  updateChargeHum(charge: number): void {
+    if (!this.hum || !this.ctx || !this.enabled || this.paused) return
+    const c = Math.max(0, Math.min(1, charge))
+    const now = this.ctx.currentTime
+    const baseFreq = 118 + c * 150
+    this.hum.oscLow.frequency.setTargetAtTime(baseFreq, now, 0.03)
+    this.hum.oscHarm.frequency.setTargetAtTime(baseFreq * 2.01, now, 0.03)
+    this.hum.filter.frequency.setTargetAtTime(320 + c * 1280, now, 0.04)
+    this.hum.gain.gain.setTargetAtTime(0.014 + c * 0.026, now, 0.04)
+  }
+
+  stopChargeHum(immediate = false): void {
+    const active = this.hum
+    this.hum = null
+    if (!active || !this.ctx) return
+    const now = this.ctx.currentTime
+    const fadeSec = immediate ? 0.03 : 0.14
+    try {
+      active.gain.gain.cancelScheduledValues(now)
+      active.gain.gain.setValueAtTime(Math.max(0.0001, active.gain.gain.value), now)
+      active.gain.gain.exponentialRampToValueAtTime(0.0001, now + fadeSec)
+      active.oscLow.stop(now + fadeSec + 0.02)
+      active.oscHarm.stop(now + fadeSec + 0.02)
+    } catch {
+      // Ignore stop errors if node already stopped
+    }
+  }
+
+  /** Crisp progressive foil tear across the top seam */
+  playFoilTear(): void {
+    this.stopChargeHum(false)
     const ctx = this.ensureContext()
     if (!ctx) return
 
     const now = ctx.currentTime
-    const dur = 0.34
+    const dur = 0.48
 
     const noise = ctx.createBufferSource()
     noise.buffer = this.createNoiseBuffer(ctx, dur)
 
     const hp = ctx.createBiquadFilter()
     hp.type = 'highpass'
-    hp.frequency.setValueAtTime(2000, now)
-    hp.frequency.exponentialRampToValueAtTime(4600, now + dur)
+    hp.frequency.setValueAtTime(1800, now)
+    hp.frequency.exponentialRampToValueAtTime(4800, now + dur)
 
     const lp = ctx.createBiquadFilter()
     lp.type = 'lowpass'
-    lp.frequency.setValueAtTime(7200, now)
+    lp.frequency.setValueAtTime(7600, now)
 
     const gain = ctx.createGain()
     gain.gain.setValueAtTime(0.0006, now)
-    gain.gain.linearRampToValueAtTime(0.065, now + 0.035)
+    gain.gain.linearRampToValueAtTime(0.055, now + 0.04)
+    gain.gain.linearRampToValueAtTime(0.042, now + dur * 0.65)
     gain.gain.exponentialRampToValueAtTime(0.0001, now + dur)
 
     noise.connect(hp)
@@ -120,27 +186,26 @@ export class PackAudioEngine {
     noise.stop(now + dur)
   }
 
-  /** Muted thud when a card lands on stage or in the finale spread */
+  /** Warm muted thud as stack or cards settle */
   playCardLand(): void {
     const ctx = this.ensureContext()
     if (!ctx) return
 
     const now = ctx.currentTime
 
-    // Warm, damped low-end body thump
     const osc = ctx.createOscillator()
     const filter = ctx.createBiquadFilter()
     const gain = ctx.createGain()
 
     osc.type = 'sine'
-    osc.frequency.setValueAtTime(112, now)
-    osc.frequency.exponentialRampToValueAtTime(46, now + 0.14)
+    osc.frequency.setValueAtTime(108, now)
+    osc.frequency.exponentialRampToValueAtTime(44, now + 0.14)
 
     filter.type = 'lowpass'
-    filter.frequency.setValueAtTime(190, now)
+    filter.frequency.setValueAtTime(185, now)
 
     gain.gain.setValueAtTime(0.0008, now)
-    gain.gain.linearRampToValueAtTime(0.075, now + 0.012)
+    gain.gain.linearRampToValueAtTime(0.068, now + 0.012)
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.17)
 
     osc.connect(filter)
@@ -149,7 +214,7 @@ export class PackAudioEngine {
     osc.start(now)
     osc.stop(now + 0.19)
 
-    // Tiny muted cardstock contact transient
+    // Subtle cardstock contact transient
     const dur = 0.045
     const noise = ctx.createBufferSource()
     noise.buffer = this.createNoiseBuffer(ctx, dur)
@@ -160,7 +225,7 @@ export class PackAudioEngine {
 
     const noiseGain = ctx.createGain()
     noiseGain.gain.setValueAtTime(0.0005, now)
-    noiseGain.gain.linearRampToValueAtTime(0.018, now + 0.008)
+    noiseGain.gain.linearRampToValueAtTime(0.016, now + 0.008)
     noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + dur)
 
     noise.connect(bp)
@@ -176,11 +241,10 @@ export class PackAudioEngine {
     if (!ctx) return
 
     const now = ctx.currentTime
-    // Pure fifth (E5 -> B5), very gentle envelope
     const notes = [659.25, 987.77]
 
     notes.forEach((freq, idx) => {
-      const start = now + idx * 0.14
+      const start = now + idx * 0.15
       const osc = ctx.createOscillator()
       const gain = ctx.createGain()
 
@@ -188,17 +252,18 @@ export class PackAudioEngine {
       osc.frequency.setValueAtTime(freq, start)
 
       gain.gain.setValueAtTime(0.0001, start)
-      gain.gain.linearRampToValueAtTime(0.034, start + 0.025)
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + 1.1)
+      gain.gain.linearRampToValueAtTime(0.032, start + 0.025)
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 1.15)
 
       osc.connect(gain)
       gain.connect(ctx.destination)
       osc.start(start)
-      osc.stop(start + 1.15)
+      osc.stop(start + 1.2)
     })
   }
 
   dispose(): void {
+    this.stopChargeHum(true)
     if (this.ctx) {
       void this.ctx.close().catch(() => undefined)
       this.ctx = null

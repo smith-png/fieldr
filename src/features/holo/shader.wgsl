@@ -105,6 +105,20 @@ fn sampleCaption(uv: vec2f) -> f32 {
   return textureSampleLevel(artwork, linear, uv, 0.0).r;
 }
 
+// Reads the baked 16-bit continuous clockwise arc-length parameter t in [0, 1] along the F outline
+// using nearest integer texel fetch (no bilinear interpolation across hi/lo byte carries or corner seam).
+fn sampleLogoContourT(uv: vec2f) -> f32 {
+  let dims = vec2f(textureDimensions(artwork));
+  let coord = vec2i(clamp(uv * dims, vec2f(0.0), dims - vec2f(1.0)));
+  let texel = textureLoad(artwork, coord, 0);
+  if (texel.a < 0.5) {
+    return 1.0;
+  }
+  let hi = floor(texel.g * 255.0 + 0.5);
+  let lo = floor(texel.b * 255.0 + 0.5);
+  return (hi * 256.0 + lo) / 65535.0;
+}
+
 struct LogoGapInfo {
   outside: f32,
   foilEdge: f32,
@@ -601,16 +615,26 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
     }
   }
 
-  // F outline: Stage 1 top-left fuse filament -> Stage 2 lit contour -> Stage 3 white-hot + pearl edge + heartbeat
+  // F outline: Stage 1 single-origin top-left fuse filament (baked continuous arc-length t in [0,1])
+  // -> Stage 2 lit contour -> Stage 3 white-hot + pearl edge + heartbeat
   // -> Release 180ms white flash + ~1.8s exponential afterglow.
   let outline = evaluateLogoOutline(artworkUv, logoRaw, aa);
-  let contourT = fract((atan2(fDelta.y, fDelta.x) + 2.3561945) / 6.2831853);
-  let igniteProgress = clamp(chargeAmt / 0.35, 0.0, 1.0);
-  let igniteFuseFade = 1.0 - smoothstep(0.33, 0.46, chargeAmt);
-  let arcDist = abs(fract(contourT - igniteProgress + 0.5) - 0.5);
+  let contourT = sampleLogoContourT(artworkUv);
+  let igniteHead = clamp(chargeAmt / 0.35, 0.0, 1.0);
+  let igniteHeadActive = smoothstep(0.0, 0.02, igniteHead) * (1.0 - smoothstep(0.34, 0.45, chargeAmt));
+  // Non-wrapping signed distance behind the moving head: positive behind head, negative ahead.
+  let distBehind = igniteHead - contourT;
+  // Single bright head at t = progress (never wraps or spawns a second head).
   let fuseHead = select(
     0.0,
-    exp(-arcDist * arcDist / 0.0016) * smoothstep(0.0, 0.035, igniteProgress) * igniteFuseFade,
+    exp(-sq(distBehind / 0.015)) * igniteHeadActive,
+    fullMotion && chargeActive
+  );
+  // Soft comet tail strictly behind head fading over ~12% of contour (no wrapping).
+  let tailWindow = smoothstep(-0.004, 0.009, distBehind) * (1.0 - smoothstep(0.0, 0.12, distBehind));
+  let fuseTail = select(
+    0.0,
+    tailWindow * tailWindow * igniteHeadActive,
     fullMotion && chargeActive
   );
   var outlineBoost = vec3f(0.0);
@@ -619,18 +643,16 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
       let rmBurstFade = select(0.0, sq(max(1.0 - burstP, 0.0)) * burstStr, burstActive);
       outlineBoost = vec3f(0.24, 0.27, 0.31) * (chargeAmt + rmBurstFade * 0.8);
     } else {
-      // Stage 1 Ignite (0..0.35): thin bright filament starting at top-left (-3*pi/4) and completing 1 lap by 0.35.
+      // Stage 1 Ignite (0..0.35): single filament starting at top-left (t=0) and completing 1 lap at t=1.
       if (chargeActive) {
-        let behindHead = igniteProgress - contourT;
-        let lapComplete = smoothstep(0.32, 0.37, chargeAmt);
+        let lapComplete = smoothstep(0.335, 0.365, chargeAmt);
         let fuseLit = max(
-          smoothstep(-0.025, 0.025, behindHead) * smoothstep(0.0, 0.04, igniteProgress),
+          smoothstep(-0.006, 0.012, distBehind) * smoothstep(0.0, 0.025, igniteHead),
           lapComplete
         );
-        let fuseTail = smoothstep(-0.015, 0.015, behindHead) * exp(-max(behindHead, 0.0) * 4.5) * igniteFuseFade;
 
-        let filamentColor = vec3f(0.94, 0.96, 1.0) * (fuseHead * 1.15 + fuseTail * 0.42)
-          + (vec3f(0.36, 0.40, 0.46) + innerPearl * 0.48) * fuseLit * (0.52 + 0.36 * stage2);
+        let filamentColor = vec3f(0.95, 0.97, 1.0) * (fuseHead * 1.25 + fuseTail * 0.48)
+          + (vec3f(0.30, 0.34, 0.40) + innerPearl * 0.42) * fuseLit * (0.45 + 0.42 * stage2);
 
         // Stage 3 Critical: white-hot core with pearl edge + heartbeat pulse (1.2 Hz -> 2.4 Hz).
         let criticalPulse = 0.72 + 0.36 * heartbeat + 0.14 * fullBreathing;
@@ -652,11 +674,11 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   // Pearl edge halo right along the F contour during Stage 1 fuse head, Stage 3 critical & release flash/afterglow.
   if (fullMotion) {
     let pearlEdgeDrive = stage3 * (0.45 + 0.55 * heartbeat) + fOutlineFlash * 0.95 + fAfterglow * 0.42;
-    let haloDrive = pearlEdgeDrive + fuseHead * 0.45;
+    let haloDrive = pearlEdgeDrive + fuseHead * 0.45 + fuseTail * 0.18;
     if (haloDrive > 0.001) {
       let edgeRim = smoothstep(0.04, 0.45, logoRaw) * (1.0 - smoothstep(0.55, 0.96, logoRaw));
       let haloTint = (innerPearl * 0.78 + vec3f(0.24, 0.27, 0.32)) * pearlEdgeDrive * 0.55
-        + vec3f(0.86, 0.90, 0.96) * fuseHead * 0.32;
+        + vec3f(0.88, 0.92, 0.98) * (fuseHead * 0.34 + fuseTail * 0.12);
       color += haloTint * edgeRim;
     }
   }

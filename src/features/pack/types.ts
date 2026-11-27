@@ -7,35 +7,66 @@ export interface PackCardItem {
   isPremium: boolean
 }
 
-export type PackStagePhase =
+export type PackPhase =
   | 'loading'
   | 'empty'
-  | 'sealed'
-  | 'opening'
+  | 'idle'
+  | 'charging'
+  | 'tearing'
+  | 'emerging'
   | 'stack'
-  | 'suspense'
-  | 'revealing'
-  | 'revealed'
+  | 'reveal'
   | 'finale'
+  | 'resetting'
 
-export type OpeningStep = 'idle' | 'anticipation' | 'tear' | 'release' | 'settle'
+export type RevealSubPhase = 'anticipation' | 'flipping' | 'settled'
+
+export interface PackMachineSnapshot {
+  phase: PackPhase
+  revealIndex: number
+  revealSubPhase: RevealSubPhase
+  revealedCount: number
+}
+
+/** Shared live motion state read by rAF loops without per-frame React re-renders. */
+export interface PackLiveMotion {
+  phase: PackPhase
+  revealIndex: number
+  revealSubPhase: RevealSubPhase
+  /** 0..1 continuous charge level along the top seam (relaxes smoothly on early release). */
+  charge: number
+  /** 0..1 progressive left-to-right tear progress. */
+  tear: number
+  /** 0..1 emerge sequence progress (cards slide up 40% while pack sinks & fades). */
+  emerge: number
+  /** Seconds elapsed inside the current phase or reveal sub-phase. */
+  phaseElapsedSec: number
+  /** 0..1 single-origin perimeter diffraction trace during premium anticipation. */
+  premiumEdgeTrace: number
+  /** 0..1 stage camera dolly-in & vignette deepen factor (4% dolly on premium anticipation). */
+  stageFocus: number
+  /** 0..1 reset collapse progress when R resets an open pack back to a stack. */
+  resetCollapse: number
+}
 
 export const PACK_MAX_CARDS = 5
 
-/** Single unified easing curve for the entire /pack experience */
+/** Single shared easing curve across the entire /pack experience */
 export const PACK_EASE = [0.22, 1, 0.36, 1] as const
 
-/** Opening choreography (~3.2s total): 800 + 700 + 900 + 800 */
-export const OPENING_ANTICIPATION_MS = 800
-export const OPENING_TEAR_MS = 700
-export const OPENING_RELEASE_MS = 900
-export const OPENING_SETTLE_MS = 800
-export const OPENING_TOTAL_MS =
-  OPENING_ANTICIPATION_MS + OPENING_TEAR_MS + OPENING_RELEASE_MS + OPENING_SETTLE_MS
+/** Opening & charging choreography durations (ms) */
+export const CHARGE_DURATION_MS = 1050
+export const CHARGE_RELAX_MS = 380
+export const QUICK_TAP_MAX_MS = 210
+export const TEAR_DURATION_MS = 820
+export const EMERGE_DURATION_MS = 1150
 
-/** Reveal timings */
-export const STANDARD_FLIP_MS = 900
+/** Reveal choreography durations (ms) */
+export const STANDARD_REVEAL_MS = 900
 export const PREMIUM_ANTICIPATION_MS = 900
 export const PREMIUM_FLIP_MS = 1300
-export const PREMIUM_FOIL_FADE_MS = 700
-export const CARD_SETTLE_MS = 320
+export const PREMIUM_BLOOM_MS = 700
+
+/** Finale & reset durations (ms) */
+export const FINALE_SETTLE_MS = 920
+export const RESET_COLLAPSE_MS = 520
