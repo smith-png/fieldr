@@ -85,6 +85,39 @@ export function resolveHandForPageLoad(allPlayers: PublicPlayer[], seasonId: str
   return preserved
 }
 
+export function reshuffleHand(
+  allPlayers: PublicPlayer[],
+  seasonId: string,
+  excludeCodes: string[]
+): PublicPlayer[] {
+  const byCode = new Map<string, PublicPlayer>()
+  for (const player of allPlayers) {
+    const code = getNormalizedCode(player)
+    if (code && !byCode.has(code)) byCode.set(code, player)
+  }
+
+  const excluded = new Set(excludeCodes.filter(Boolean))
+  const fresh: PublicPlayer[] = []
+  const fallback: PublicPlayer[] = []
+  for (const [code, player] of byCode.entries()) {
+    if (excluded.has(code)) fallback.push(player)
+    else fresh.push(player)
+  }
+
+  const picked =
+    fresh.length >= MAX_HAND_SIZE
+      ? fisherYatesSample(fresh, MAX_HAND_SIZE)
+      : fisherYatesSample(
+          [...fresh, ...fisherYatesSample(fallback, MAX_HAND_SIZE - fresh.length)],
+          MAX_HAND_SIZE
+        )
+
+  chosenPlayerCodes = picked.map(getNormalizedCode)
+  chosenSeasonId = seasonId
+  cachedHandPlayers = picked
+  return picked
+}
+
 export function getRelativeFanOffset(index: number, activeIndex: number, count: number): number {
   if (count <= 1) return 0
   let diff = (index - activeIndex + count) % count

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight } from '@phosphor-icons/react'
+import { ArrowLeft, ArrowRight, Shuffle } from '@phosphor-icons/react'
 import { motion, useMotionValue, useReducedMotion, useTransform, type PanInfo } from 'motion/react'
 import { getPublicPlayersBySeason } from '../../lib/data/players'
 import type { PublicPlayer } from '../../types'
@@ -12,6 +12,7 @@ import {
   getPhonePose,
   getRelativeFanOffset,
   getStackStartPose,
+  reshuffleHand,
   resolveHandForPageLoad,
   setDeckEmpty
 } from './athleteDeckUtils'
@@ -42,6 +43,8 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
   const [isInView, setIsInView] = useState<boolean>(false)
   const [isDragging, setIsDragging] = useState<boolean>(false)
   const [dismissDir, setDismissDir] = useState<number>(0)
+  const [isShuffling, setIsShuffling] = useState<boolean>(false)
+  const [dealNonce, setDealNonce] = useState<number>(0)
   const [viewportWidth, setViewportWidth] = useState<number>(() =>
     typeof window !== 'undefined' ? window.innerWidth : 1024
   )
@@ -58,6 +61,8 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
   const dealTimerRef = useRef<number | null>(null)
   const deckPressStartRef = useRef<{ x: number; y: number } | null>(null)
   const deckMovedRef = useRef<boolean>(false)
+  const isShufflingRef = useRef<boolean>(false)
+  const isMountedRef = useRef<boolean>(true)
 
   const mobileDragX = useMotionValue(0)
   const mobileDragRotate = useTransform(mobileDragX, [-200, 0, 200], [-12, 0, 12])
@@ -163,7 +168,9 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
   }, [status, players.length])
 
   useEffect(() => {
+    isMountedRef.current = true
     return () => {
+      isMountedRef.current = false
       if (dismissTimerRef.current !== null) window.clearTimeout(dismissTimerRef.current)
       if (dealTimerRef.current !== null) window.clearTimeout(dealTimerRef.current)
     }
@@ -192,6 +199,65 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
       setSheenCounter((c) => c + 1)
     }, finishMs)
   }, [deckPhase, players.length, reducedMotion, isPhone])
+
+  const handleShuffle = useCallback(async () => {
+    const targetSeasonId = activeSeasonId ?? getDeckSessionState().seasonId
+    if (isShufflingRef.current || deckPhase === 'dealing' || !targetSeasonId) return
+
+    isShufflingRef.current = true
+    setIsShuffling(true)
+
+    try {
+      const freshPlayers = await getPublicPlayersBySeason(targetSeasonId)
+      if (!isMountedRef.current) return
+
+      const usableCodes = new Set<string>()
+      for (const player of freshPlayers) {
+        const code = getNormalizedCode(player)
+        if (code) usableCodes.add(code)
+      }
+      if (usableCodes.size < 2) return
+
+      const excludeCodes = players.map(getNormalizedCode)
+      const nextHand = reshuffleHand(freshPlayers, targetSeasonId, excludeCodes)
+      if (nextHand.length < 2) return
+
+      if (dealTimerRef.current !== null) {
+        window.clearTimeout(dealTimerRef.current)
+        dealTimerRef.current = null
+      }
+      if (dismissTimerRef.current !== null) {
+        window.clearTimeout(dismissTimerRef.current)
+        dismissTimerRef.current = null
+      }
+      mobileDragX.jump(0)
+
+      setPlayers(nextHand)
+      setActiveIndex(0)
+      setOpenCode(null)
+      setDismissDir(0)
+      setDealNonce((n) => n + 1)
+
+      if (reducedMotion) {
+        setDeckPhase('open')
+        return
+      }
+
+      setDeckPhase('dealing')
+      const steps = isPhone ? Math.min(nextHand.length, 3) : nextHand.length
+      const finishMs = 560 + Math.max(steps - 1, 0) * 130
+      dealTimerRef.current = window.setTimeout(() => {
+        dealTimerRef.current = null
+        setDeckPhase('open')
+        setSheenCounter((c) => c + 1)
+      }, finishMs)
+    } catch {
+      // Keep current hand on failure
+    } finally {
+      isShufflingRef.current = false
+      if (isMountedRef.current) setIsShuffling(false)
+    }
+  }, [deckPhase, activeSeasonId, players, mobileDragX, reducedMotion, isPhone])
 
   const handleDeckPointerDown = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
     deckPressStartRef.current = { x: e.clientX, y: e.clientY }
@@ -350,6 +416,23 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
             </h2>
           </div>
         </div>
+        {status === 'ready' && players.length > 0 && (
+          <button
+            type="button"
+            onClick={() => void handleShuffle()}
+            disabled={isShuffling || isDealingPhase}
+            aria-busy={isShuffling || undefined}
+            className="self-start md:self-auto min-h-[44px] px-4 py-2 rounded-full bg-surface border border-border text-text hover:border-accent-bright font-dot uppercase tracking-[0.18em] text-[11px] inline-flex items-center gap-2 transition-[border-color,color,opacity] duration-150 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-bright focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
+          >
+            <Shuffle
+              size={14}
+              weight="bold"
+              aria-hidden="true"
+              className={isShuffling ? 'animate-spin motion-reduce:animate-none' : undefined}
+            />
+            <span>Shuffle</span>
+          </button>
+        )}
       </div>
 
       {status === 'loading' ? (
@@ -393,13 +476,16 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
               </div>
             </div>
           ) : reducedMotion ? (
-            <div className="flex gap-4 overflow-x-auto sm:overflow-visible sm:flex-wrap lg:flex-nowrap sm:justify-center pb-3 thin-scrollbar snap-x snap-mandatory">
+            <div
+              key={`reduced-${dealNonce}`}
+              className="flex gap-4 overflow-x-auto sm:overflow-visible sm:flex-wrap lg:flex-nowrap sm:justify-center pb-3 thin-scrollbar snap-x snap-mandatory"
+            >
               {players.map((player, idx) => {
                 const code = getNormalizedCode(player)
                 const isCenter = idx === safeActiveIndex
                 return (
                   <div
-                    key={player.id}
+                    key={`${dealNonce}-${player.id}`}
                     className={`w-[228px] sm:w-[210px] lg:w-[216px] shrink-0 snap-center rounded-2xl ${
                       isCenter ? 'ring-2 ring-accent-bright ring-offset-2 ring-offset-bg' : ''
                     }`}
@@ -422,7 +508,10 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
               })}
             </div>
           ) : isPhone ? (
-            <div className="relative h-[388px] flex items-center justify-center overflow-hidden touch-pan-y">
+            <div
+              key={`phone-${dealNonce}`}
+              className="relative h-[388px] flex items-center justify-center overflow-hidden touch-pan-y"
+            >
               {isDealingPhase && (
                 <div
                   aria-hidden="true"
@@ -452,7 +541,7 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
 
                 return (
                   <motion.div
-                    key={player.id}
+                    key={`${dealNonce}-${player.id}`}
                     initial={isDealingPhase ? startPose : false}
                     drag={isTop && canBrowse && openCode === null ? 'x' : false}
                     dragDirectionLock
@@ -507,6 +596,7 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
             </div>
           ) : (
             <motion.div
+              key={`fan-${dealNonce}`}
               drag={canBrowse && openCode === null ? 'x' : false}
               dragDirectionLock
               dragConstraints={{ left: 0, right: 0 }}
@@ -544,7 +634,7 @@ export const AthleteDeck: React.FC<AthleteDeckProps> = ({ activeSeasonId, season
 
                 return (
                   <motion.div
-                    key={player.id}
+                    key={`${dealNonce}-${player.id}`}
                     initial={isDealingPhase ? startPose : false}
                     animate={{ x: pose.x, y: pose.y, rotate: pose.rotate, scale: pose.scale, opacity: pose.opacity }}
                     transition={{
