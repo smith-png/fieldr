@@ -98,4 +98,4 @@ This repository is published publicly for viewing and portfolio reference only. 
 - **Restrictions:** Viewing and forking on GitHub are permitted solely under GitHub's Terms of Service. Copying, modifying, deploying, redistributing, or using any protected part of this codebase without prior written permission from the copyright holder is prohibited.
 - **Third-Party Software:** Underlying packages and dependencies remain subject to their respective open-source licenses.
 
-See the [`LICENSE`](./LICENSE) file for full terms.
+See the `LICENSE` file for full terms.
