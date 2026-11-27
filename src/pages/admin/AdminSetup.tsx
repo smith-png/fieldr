@@ -57,7 +57,6 @@ import {
 } from '../../components/ui'
 import FooterMark from '../../components/layout/FooterMark'
 import { normalizeConfettiFallSpeed } from '../../components/projector/ProjectorConfetti'
-import { AdminPremiumCardsCard } from '../../components/admin/AdminPremiumCardsCard'
 
 const SecuredSequence = lazyWithRetry(() =>
   import('../../components/projector/SecuredSequence').then((m) => ({
@@ -2171,7 +2170,6 @@ export const AdminSetup: React.FC<AdminSetupProps> = ({
           <Suspense fallback={<SkeletonBlock className="h-40 w-full rounded-3xl" />}>
             <PhotoOptimizerCard />
           </Suspense>
-          <AdminPremiumCardsCard activeSeason={effectiveSeason} />
         </div>
       )}
 
