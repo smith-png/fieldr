@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Broadcast,
+  ImageSquare,
   MagnifyingGlass,
   Minus,
   Plus,
@@ -42,6 +43,8 @@ import {
 } from '../../hooks/useAutoSlideshow'
 import { useToast } from '../../lib/ToastContext'
 import { CONFLICT_TOAST_MESSAGE, isStaleConflictError } from '../../lib/errors'
+import { validateImageFile } from '../../lib/imageCompression'
+import { clearProjectorImage, sendProjectorImage } from '../../lib/data/projectorImage'
 import { Button, Dialog, Spinner } from '../../components/ui'
 import {
   ADMIN_CARD_HEADER,
@@ -77,6 +80,86 @@ const AUTO_FILTER_OPTIONS: readonly { value: ProjectorAutoFilter; label: string 
 function clampInterval(val: number): number {
   const rounded = Math.round(Number(val) || PROJECTOR_AUTO_INTERVAL.DEFAULT)
   return Math.min(PROJECTOR_AUTO_INTERVAL.MAX, Math.max(PROJECTOR_AUTO_INTERVAL.MIN, rounded))
+}
+
+const PROJECTOR_IMAGE_MAX_DIM = 1280
+const PROJECTOR_IMAGE_MAX_CHARS = 180_000
+const PROJECTOR_IMAGE_CAPTION_MAX = 80
+const PROJECTOR_IMAGE_QUALITY_STEPS = [0.75, 0.68, 0.6, 0.52, 0.44, 0.36, 0.28, 0.2, 0.14] as const
+
+type BroadcastImageDurationKey = '10' | '20' | '30' | '60' | 'until_cleared'
+
+const PROJECTOR_IMAGE_DURATION_OPTIONS: readonly {
+  value: BroadcastImageDurationKey
+  label: string
+  seconds: number | null
+}[] = [
+  { value: '10', label: '10s', seconds: 10 },
+  { value: '20', label: '20s', seconds: 20 },
+  { value: '30', label: '30s', seconds: 30 },
+  { value: '60', label: '60s', seconds: 60 },
+  { value: 'until_cleared', label: 'Until cleared', seconds: null }
+]
+
+function createClientBroadcastImageId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `img_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
+}
+
+async function compressProjectorImage(file: File): Promise<string> {
+  validateImageFile(file)
+
+  const objectUrl = URL.createObjectURL(file)
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const el = new Image()
+    el.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+      resolve(el)
+    }
+    el.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error('Could not decode the selected image.'))
+    }
+    el.src = objectUrl
+  })
+
+  const srcWidth = img.naturalWidth || img.width
+  const srcHeight = img.naturalHeight || img.height
+  if (!srcWidth || !srcHeight) {
+    throw new Error('Selected image has invalid dimensions.')
+  }
+
+  const longest = Math.max(srcWidth, srcHeight)
+  const scale = longest > PROJECTOR_IMAGE_MAX_DIM ? PROJECTOR_IMAGE_MAX_DIM / longest : 1
+  const targetWidth = Math.max(1, Math.round(srcWidth * scale))
+  const targetHeight = Math.max(1, Math.round(srcHeight * scale))
+
+  const canvas = document.createElement('canvas')
+  canvas.width = targetWidth
+  canvas.height = targetHeight
+  const ctx = canvas.getContext('2d')
+  if (!ctx) {
+    throw new Error('Image compression is not supported in this browser.')
+  }
+
+  ctx.fillStyle = '#000000'
+  ctx.fillRect(0, 0, targetWidth, targetHeight)
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(img, 0, 0, targetWidth, targetHeight)
+
+  for (const quality of PROJECTOR_IMAGE_QUALITY_STEPS) {
+    const dataUrl = canvas.toDataURL('image/jpeg', quality)
+    if (dataUrl.length < PROJECTOR_IMAGE_MAX_CHARS) {
+      return dataUrl
+    }
+  }
+
+  throw new Error(
+    'Image could not be compressed below the 180 KB broadcast limit. Please choose a smaller or simpler image.'
+  )
 }
 
 interface PillRadioGroupProps<T extends string> {
@@ -236,6 +319,119 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
     } finally {
       broadcastInFlightRef.current = false
       setIsBroadcastPending(false)
+    }
+  }
+
+  // Card 1 (Ephemeral Idle Broadcast Image) state — memory only, never persisted
+  const isSelectedSeasonActive = Boolean(activeSeason?.is_active)
+  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null)
+  const [imageFileName, setImageFileName] = useState<string | null>(null)
+  const [imageCaption, setImageCaption] = useState('')
+  const [imageDuration, setImageDuration] = useState<BroadcastImageDurationKey>('30')
+  const [isImageCompressing, setIsImageCompressing] = useState(false)
+  const [isImageSending, setIsImageSending] = useState(false)
+  const [isImageClearing, setIsImageClearing] = useState(false)
+  const [imageError, setImageError] = useState<string | null>(null)
+  const imageInputRef = useRef<HTMLInputElement | null>(null)
+  const imageInFlightRef = useRef(false)
+  const lastSentImageIdRef = useRef<string | null>(null)
+  const isImageBusy = isImageCompressing || isImageSending || isImageClearing
+
+  const handleSelectProjectorImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!isSelectedSeasonActive) {
+      setImageError('Select an active season to broadcast images.')
+      e.target.value = ''
+      return
+    }
+
+    setImageError(null)
+    setIsImageCompressing(true)
+    try {
+      const compressedDataUrl = await compressProjectorImage(file)
+      setImageDataUrl(compressedDataUrl)
+      setImageFileName(file.name)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to process image'
+      setImageDataUrl(null)
+      setImageFileName(null)
+      setImageError(msg)
+      e.target.value = ''
+    } finally {
+      setIsImageCompressing(false)
+    }
+  }
+
+  const handleSendProjectorImage = async () => {
+    if (!activeSeason || !isSelectedSeasonActive) {
+      setImageError('Only an active season can broadcast images.')
+      return
+    }
+    if (!imageDataUrl || isImageBusy || imageInFlightRef.current) return
+    if (imageDataUrl.length >= PROJECTOR_IMAGE_MAX_CHARS) {
+      setImageError(
+        'Image exceeds the 180 KB broadcast limit. Please choose a smaller or simpler image.'
+      )
+      return
+    }
+
+    const durationOption = PROJECTOR_IMAGE_DURATION_OPTIONS.find(
+      (opt) => opt.value === imageDuration
+    )
+    const id = createClientBroadcastImageId()
+
+    imageInFlightRef.current = true
+    setIsImageSending(true)
+    setImageError(null)
+    try {
+      await sendProjectorImage(activeSeason.id, {
+        id,
+        dataUrl: imageDataUrl,
+        caption: imageCaption.trim().slice(0, PROJECTOR_IMAGE_CAPTION_MAX) || null,
+        durationSec: durationOption ? durationOption.seconds : 30,
+        sentAt: new Date().toISOString()
+      })
+      lastSentImageIdRef.current = id
+      success('Image sent to projector')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to send image to projector'
+      setImageError(msg)
+      error(msg)
+    } finally {
+      imageInFlightRef.current = false
+      setIsImageSending(false)
+    }
+  }
+
+  const handleClearProjectorImage = async () => {
+    if (!activeSeason || !isSelectedSeasonActive) {
+      setImageError('Only an active season can clear projector images.')
+      return
+    }
+    if (isImageBusy || imageInFlightRef.current) return
+
+    imageInFlightRef.current = true
+    setIsImageClearing(true)
+    setImageError(null)
+    try {
+      await clearProjectorImage(activeSeason.id, lastSentImageIdRef.current ?? undefined)
+      lastSentImageIdRef.current = null
+      setImageDataUrl(null)
+      setImageFileName(null)
+      setImageCaption('')
+      setImageError(null)
+      if (imageInputRef.current) {
+        imageInputRef.current.value = ''
+      }
+      success('Projector image cleared')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to clear projector image'
+      setImageError(msg)
+      error(msg)
+    } finally {
+      imageInFlightRef.current = false
+      setIsImageClearing(false)
     }
   }
 
@@ -829,6 +1025,149 @@ export const AdminProjectorControl: React.FC<AdminProjectorControlProps> = ({
             >
               {activeBroadcastMessage || 'No broadcast active'}
             </span>
+          </div>
+        </div>
+
+        {/* Broadcast Image Well (ephemeral, idle scene only) */}
+        <div className={`${ADMIN_WELL} p-4 sm:p-5 space-y-4`}>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <ImageSquare size={16} weight="regular" className="text-muted shrink-0" />
+              <label htmlFor="idle-broadcast-image-input" className={ADMIN_LABEL}>
+                Broadcast Image
+              </label>
+            </div>
+            <span className="text-xs font-mono text-muted">
+              {isSelectedSeasonActive
+                ? 'Idle screen only · Not saved'
+                : 'Available only for the active season'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_180px] gap-3">
+            <div className="space-y-3 min-w-0">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                <input
+                  ref={imageInputRef}
+                  id="idle-broadcast-image-input"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  disabled={!isSelectedSeasonActive || isImageBusy}
+                  onChange={(e) => void handleSelectProjectorImage(e)}
+                  className={`${ADMIN_INPUT} flex-1 bg-surface file:mr-3 file:py-1 file:px-3 file:rounded-full file:border file:border-border file:bg-surface-2 file:text-xs file:font-medium file:text-text hover:file:border-accent-bright disabled:opacity-50 disabled:cursor-not-allowed`}
+                />
+                <div className="sm:w-40 shrink-0">
+                  <label htmlFor="idle-broadcast-image-duration" className="sr-only">
+                    Display duration
+                  </label>
+                  <select
+                    id="idle-broadcast-image-duration"
+                    value={imageDuration}
+                    disabled={!isSelectedSeasonActive || isImageBusy}
+                    onChange={(e) => setImageDuration(e.target.value as BroadcastImageDurationKey)}
+                    className={`${ADMIN_SELECT} bg-surface disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    {PROJECTOR_IMAGE_DURATION_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <label
+                    htmlFor="idle-broadcast-image-caption"
+                    className="text-xs font-mono uppercase tracking-wider text-muted"
+                  >
+                    Caption (optional)
+                  </label>
+                  <span className="text-xs font-mono text-muted tabular-nums">
+                    {imageCaption.length}/{PROJECTOR_IMAGE_CAPTION_MAX}
+                  </span>
+                </div>
+                <input
+                  id="idle-broadcast-image-caption"
+                  type="text"
+                  maxLength={PROJECTOR_IMAGE_CAPTION_MAX}
+                  value={imageCaption}
+                  disabled={!isSelectedSeasonActive || isImageBusy}
+                  onChange={(e) => {
+                    setImageCaption(e.target.value.slice(0, PROJECTOR_IMAGE_CAPTION_MAX))
+                    if (imageError) setImageError(null)
+                  }}
+                  placeholder="Optional caption shown below the image..."
+                  className={`${ADMIN_INPUT} bg-surface disabled:opacity-50 disabled:cursor-not-allowed`}
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-surface p-2 min-h-[104px]">
+              {isImageCompressing ? (
+                <div className="flex items-center gap-2 text-xs font-mono text-muted">
+                  <Spinner size="sm" />
+                  <span>Compressing...</span>
+                </div>
+              ) : imageDataUrl ? (
+                <div className="w-full space-y-1.5">
+                  <div className="w-full h-24 rounded-lg bg-black/90 border border-border/60 overflow-hidden flex items-center justify-center">
+                    <img
+                      src={imageDataUrl}
+                      alt={imageCaption.trim() || imageFileName || 'Selected broadcast preview'}
+                      className="max-w-full max-h-full object-contain"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-2 text-[11px] font-mono text-muted px-0.5">
+                    <span className="truncate">{imageFileName || 'Compressed JPEG'}</span>
+                    <span className="shrink-0 tabular-nums">
+                      {Math.round(imageDataUrl.length / 1024)} KB
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <span className="text-xs font-mono text-muted text-center px-2">
+                  JPG, PNG, or WebP preview
+                </span>
+              )}
+            </div>
+          </div>
+
+          {imageError && (
+            <div role="alert" className="text-xs font-mono text-error">
+              {imageError}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-border">
+            <span className="text-xs text-muted">
+              Compressed in browser before sending. Hidden automatically when leaving Idle.
+            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                type="button"
+                variant={isIdleLive ? 'primary' : 'secondary'}
+                size="md"
+                isLoading={isImageSending}
+                disabled={!isSelectedSeasonActive || !imageDataUrl || isImageBusy}
+                onClick={() => void handleSendProjectorImage()}
+                className="rounded-full px-5"
+              >
+                Send to projector
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="md"
+                isLoading={isImageClearing}
+                disabled={!isSelectedSeasonActive || isImageBusy}
+                onClick={() => void handleClearProjectorImage()}
+                className="rounded-full"
+              >
+                Clear from projector
+              </Button>
+            </div>
           </div>
         </div>
       </section>

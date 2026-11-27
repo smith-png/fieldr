@@ -23,6 +23,10 @@ import {
 } from '../../lib/data/auction'
 import { getPlayers, subscribeToPlayers } from '../../lib/data/players'
 import { getProjectorState, subscribeToProjector } from '../../lib/data/projector'
+import {
+  subscribeProjectorImage,
+  type ProjectorImagePayload
+} from '../../lib/data/projectorImage'
 import { getSeasons } from '../../lib/data/seasons'
 import { getConfettiFallSpeedSetting } from '../../lib/data/site'
 import { getTeams, subscribeToTeams } from '../../lib/data/teams'
@@ -855,6 +859,26 @@ export const ProjectorPage: React.FC = () => {
   const [teams, setTeams] = useState<Team[]>([])
   const [players, setPlayers] = useState<Player[]>([])
 
+  // Ephemeral idle broadcast image — memory only, never persisted or cached
+  const [broadcastImage, setBroadcastImage] = useState<ProjectorImagePayload | null>(null)
+  const broadcastImageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const projectorModeRef = useRef(projectorState.mode)
+  projectorModeRef.current = projectorState.mode
+
+  const clearBroadcastImage = useCallback(() => {
+    if (broadcastImageTimerRef.current) {
+      clearTimeout(broadcastImageTimerRef.current)
+      broadcastImageTimerRef.current = null
+    }
+    setBroadcastImage(null)
+  }, [])
+
+  useEffect(() => {
+    if (projectorState.mode !== PROJECTOR_MODES.IDLE) {
+      clearBroadcastImage()
+    }
+  }, [projectorState.mode, clearBroadcastImage])
+
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showControls, setShowControls] = useState(false)
   const hideControlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1063,10 +1087,35 @@ export const ProjectorPage: React.FC = () => {
   const handleIncomingProjectorStateRef = useRef(handleIncomingProjectorState)
   handleIncomingProjectorStateRef.current = handleIncomingProjectorState
 
+  const showBroadcastImage = useCallback((payload: ProjectorImagePayload) => {
+    if (!isMountedRef.current) return
+    if (projectorModeRef.current !== PROJECTOR_MODES.IDLE) return
+
+    if (broadcastImageTimerRef.current) {
+      clearTimeout(broadcastImageTimerRef.current)
+      broadcastImageTimerRef.current = null
+    }
+
+    setBroadcastImage(payload)
+
+    if (payload.durationSec !== null && payload.durationSec > 0) {
+      broadcastImageTimerRef.current = setTimeout(() => {
+        broadcastImageTimerRef.current = null
+        if (isMountedRef.current) {
+          setBroadcastImage(null)
+        }
+      }, payload.durationSec * 1000)
+    }
+  }, [])
+
+  const showBroadcastImageRef = useRef(showBroadcastImage)
+  showBroadcastImageRef.current = showBroadcastImage
+
   const teardownSeasonChannels = useCallback(() => {
     const unsubs = channelUnsubsRef.current
     channelUnsubsRef.current = []
     subscribedSeasonIdRef.current = null
+    clearBroadcastImage()
     for (const unsub of unsubs) {
       try {
         unsub()
@@ -1074,7 +1123,7 @@ export const ProjectorPage: React.FC = () => {
         // ignore cleanup error
       }
     }
-  }, [])
+  }, [clearBroadcastImage])
 
   const subscribeSeasonChannels = useCallback(
     (seasonId: string) => {
@@ -1109,9 +1158,29 @@ export const ProjectorPage: React.FC = () => {
         }
       })
 
-      channelUnsubsRef.current = [unsubProjector, unsubSettings, unsubTeams, unsubPlayers]
+      const unsubBroadcastImage = subscribeProjectorImage(
+        seasonId,
+        (payload) => {
+          if (isMountedRef.current && activeSeasonIdRef.current === seasonId) {
+            showBroadcastImageRef.current(payload)
+          }
+        },
+        () => {
+          if (isMountedRef.current && activeSeasonIdRef.current === seasonId) {
+            clearBroadcastImage()
+          }
+        }
+      )
+
+      channelUnsubsRef.current = [
+        unsubProjector,
+        unsubSettings,
+        unsubTeams,
+        unsubPlayers,
+        unsubBroadcastImage
+      ]
     },
-    [teardownSeasonChannels]
+    [clearBroadcastImage, teardownSeasonChannels]
   )
 
   // Helper to fetch all projector data for a season without repeating getSeasons or public_teams
@@ -2341,6 +2410,66 @@ export const ProjectorPage: React.FC = () => {
 
         </AnimatePresence>
       </main>
+
+      {/* Ephemeral Idle Broadcast Image Overlay */}
+      <AnimatePresence>
+        {projectorState.mode === PROJECTOR_MODES.IDLE && broadcastImage && (
+          <motion.div
+            key="projector-broadcast-image-overlay"
+            initial={{ opacity: 0 }}
+            animate={{
+              opacity: 1,
+              transition: {
+                duration: shouldReduceMotion ? 0.15 : 0.35,
+                ease: broadcastStripEase
+              }
+            }}
+            exit={{
+              opacity: 0,
+              transition: {
+                duration: shouldReduceMotion ? 0.15 : 0.25,
+                ease: broadcastStripEase
+              }
+            }}
+            className="fixed inset-0 z-40 bg-black/95 flex flex-col items-center justify-center p-6 sm:p-10 md:p-14"
+          >
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={broadcastImage.id}
+                initial={{ opacity: 0 }}
+                animate={{
+                  opacity: 1,
+                  transition: {
+                    duration: shouldReduceMotion ? 0.15 : 0.3,
+                    ease: broadcastStripEase
+                  }
+                }}
+                exit={{
+                  opacity: 0,
+                  transition: {
+                    duration: shouldReduceMotion ? 0.15 : 0.2,
+                    ease: broadcastStripEase
+                  }
+                }}
+                className="w-full h-full flex flex-col items-center justify-center min-h-0 gap-4"
+              >
+                <div className="relative flex-1 w-full min-h-0 flex items-center justify-center">
+                  <img
+                    src={broadcastImage.dataUrl}
+                    alt={broadcastImage.caption || 'Broadcast image'}
+                    className="max-w-full max-h-full w-full h-full object-contain"
+                  />
+                </div>
+                {broadcastImage.caption && (
+                  <div className="shrink-0 max-w-4xl px-6 py-3 rounded-2xl bg-black/75 border border-white/15 text-white text-center text-xl sm:text-2xl md:text-3xl font-medium tracking-tight leading-snug">
+                    {broadcastImage.caption}
+                  </div>
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
