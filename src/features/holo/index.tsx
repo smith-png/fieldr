@@ -9,9 +9,31 @@ const FALLBACK_DRAIN_DURATION_MS = 400;
 const FALLBACK_BURST_THRESHOLD = 0.15;
 const FALLBACK_BURST_DURATION_MS = 900;
 const HOLD_HINT_DURATION_MS = 3000;
+const DEBUG_ERROR_MAX_CHARS = 600;
 
 function hasWebGpuSupport(): boolean {
   return typeof navigator !== 'undefined' && 'gpu' in navigator && Boolean(navigator.gpu);
+}
+
+function isDebugEnabled(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return new URLSearchParams(window.location.search).get('debug') === '1';
+  } catch {
+    return false;
+  }
+}
+
+function formatDebugError(cause: unknown): string {
+  if (cause instanceof Error) {
+    const text = cause.stack
+      ? cause.stack.includes(cause.message)
+        ? cause.stack
+        : `${cause.message}\n${cause.stack}`
+      : cause.message;
+    return text.slice(0, DEBUG_ERROR_MAX_CHARS);
+  }
+  return String(cause).slice(0, DEBUG_ERROR_MAX_CHARS);
 }
 
 function prefersReducedMotion(): boolean {
@@ -331,6 +353,10 @@ export function HoloPage() {
   const navigate = useNavigate();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [fallback, setFallback] = useState<boolean>(() => !hasWebGpuSupport());
+  const [debugError, setDebugError] = useState<string | null>(() =>
+    !hasWebGpuSupport() ? 'WebGPU is not available in this browser.' : null,
+  );
+  const [debugMode] = useState<boolean>(() => isDebugEnabled());
   const [hintPhase, setHintPhase] = useState<'move' | 'charge' | 'hidden'>('move');
   const hintShownRef = useRef(false);
   const hintTimerRef = useRef<number | null>(null);
@@ -406,6 +432,7 @@ export function HoloPage() {
     void renderer.ready.catch((cause: unknown) => {
       if (!mounted) return;
       console.error('Holographic card initialization failed:', cause);
+      setDebugError(formatDebugError(cause));
       setFallback(true);
     });
     return () => {
@@ -424,6 +451,19 @@ export function HoloPage() {
           className="block h-full w-full touch-none"
           aria-label="Fieldr holographic graphite card with a visible Fieldr F outline; move or hold to charge and release."
         />
+      )}
+
+      {fallback && debugMode && debugError && (
+        <pre
+          style={{
+            top: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+            left: 'calc(env(safe-area-inset-left, 0px) + 4rem)',
+            right: 'calc(env(safe-area-inset-right, 0px) + 1rem)',
+          }}
+          className="fixed z-30 max-h-44 overflow-auto rounded-lg border border-white/15 bg-black/80 p-2.5 font-mono text-[10px] leading-snug text-white/80 whitespace-pre-wrap break-words select-text"
+        >
+          {debugError}
+        </pre>
       )}
 
       <button

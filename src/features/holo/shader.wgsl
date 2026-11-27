@@ -6,6 +6,11 @@ struct Params {
   hover: f32,
   rippleTime: f32,
   idleGlow: f32,
+  charge: f32,
+  burst: f32,
+  burstStrength: f32,
+  chargeTime: f32,
+  reducedMotion: f32,
 }
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var artwork: texture_2d<f32>;
@@ -226,6 +231,17 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   let resolution = max(params.resolution, vec2f(1));
   let scale = min(resolution.y, resolution.x * 1.35);
   let screen = (uv - 0.5) * resolution / scale * 2.5;
+  let chargeAmt = clamp(params.charge, 0.0, 1.0);
+  let burstP = clamp(params.burst, 0.0, 1.0);
+  let burstStr = clamp(params.burstStrength, 0.0, 1.0);
+  let reducedFlag = params.reducedMotion;
+  // Subtle 1-2 px tremble in shader space while charging (disabled under prefers-reduced-motion).
+  let jitterPx = select(0.0, min(1.85 * chargeAmt * chargeAmt, 2.0), reducedFlag < 0.5 && chargeAmt > 0.001);
+  let jitterOffset = vec2f(
+    sin(params.chargeTime * 53.0) * 0.65 + cos(params.chargeTime * 89.0) * 0.35,
+    cos(params.chargeTime * 61.0) * 0.65 + sin(params.chargeTime * 97.0) * 0.35
+  ) * (jitterPx * 2.5 / scale);
+  let cardScreen = screen + jitterOffset;
   let sx = sin(params.tilt.y);
   let cx = cos(params.tilt.y);
   let sy = sin(params.tilt.x);
@@ -234,7 +250,7 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   let down = vec3f(sy * sx, cx, cy * sx);
   let normal = cross(right, down);
   let eye = vec3f(0, 0, 4.5);
-  let ray = normalize(vec3f(screen, -4.5));
+  let ray = normalize(vec3f(cardScreen, -4.5));
   let hit = eye - ray * (dot(eye, normal) / dot(ray, normal));
   let p = vec2f(dot(hit, right), dot(hit, down));
   let aa = max(length(fwidth(p)), 0.0006);
@@ -243,7 +259,7 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
 
   let halo = exp(-dot(screen, screen) * 0.8);
   var background = vec3f(0.027, 0.031, 0.038) + 0.009 * halo;
-  let shadow = exp(-max(roundedBox(screen - vec2f(0.025, 0.06), vec2f(0.63, 0.9), 0.055), 0.0) * 22.0);
+  let shadow = exp(-max(roundedBox(cardScreen - vec2f(0.025, 0.06), vec2f(0.63, 0.9), 0.055), 0.0) * 22.0);
   background *= 1.0 - 0.7 * shadow;
 
   // Matte graphite remains dark; only the cursor's grazing light reveals the foil.
@@ -350,8 +366,88 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
     color += waveColor * ring * fade * surfaceCatch * 0.62;
   }
 
+  // Hold-to-charge: ramp foil diffraction, steady full-charge pulse, and contracting light ring toward F.
+  let fCenter = vec2f(0.015, -0.025);
+  let fDelta = p - fCenter;
+  let fDist = length(fDelta);
+  let fullChargePulse = select(
+    0.0,
+    smoothstep(0.92, 1.0, chargeAmt) * (0.5 + 0.5 * sin(params.chargeTime * 4.2)),
+    reducedFlag < 0.5
+  );
+  if (chargeAmt > 0.001) {
+    if (reducedFlag >= 0.5) {
+      // Reduced motion: gentle brightness lift only (no jitter, no contracting ring).
+      color += (vec3f(0.045, 0.05, 0.058) + innerPearl * inside * 0.12) * chargeAmt;
+    } else {
+      let chargeDrive = chargeAmt * (0.55 + 0.45 * chargeAmt) + fullChargePulse * 0.24;
+      color += (contours * 0.65 * outside * (outerFoil + outerDiffraction * 0.38)
+        + innerMark.coverage * inside * (innerFoil + innerDiffraction * 0.48)
+        + gapInfo.foilEdge * foilTint * 0.55) * chargeDrive * 0.58;
+      color += inside * (innerPearl * 0.14 + vec3f(0.055, 0.06, 0.07)) * (chargeAmt + fullChargePulse * 0.32);
+
+      // Fine ring of light contracting from card edges toward the F mark.
+      let contractRadius = mix(1.04, 0.20, chargeAmt);
+      let contractWidth = mix(0.024, 0.011, chargeAmt);
+      let contractDelta = (fDist - contractRadius) / contractWidth;
+      let contractRing = exp(-contractDelta * contractDelta);
+      let contractFade = smoothstep(0.02, 0.14, chargeAmt) * (0.28 + 0.36 * chargeAmt + 0.18 * fullChargePulse);
+      let contractTint = mix(
+        vec3f(0.76, 0.80, 0.86),
+        pearlColor(fDist * 1.45 - chargeAmt * 0.85 + pearlPhase * 0.35),
+        0.48
+      );
+      let contractCatch = 0.55 + contours * 0.45 * outside + innerMark.coverage * 0.55 * inside + gapInfo.foilEdge * 0.5;
+      color += contractTint * contractRing * contractFade * contractCatch;
+    }
+  }
+
+  // Release-to-burst: 900ms shockwave ring from F centre (burst 0..0.4286) + 1.2s foil settle (0.4286..1.0).
+  var burstSettle = 0.0;
+  if (burstP > 0.0001 && burstStr > 0.001) {
+    let oneMinusBurst = max(1.0 - burstP, 0.0);
+    burstSettle = oneMinusBurst * oneMinusBurst * burstStr;
+    if (reducedFlag >= 0.5) {
+      // Reduced motion: gentle fading brightness lift only (no shockwave ring).
+      color += (vec3f(0.065, 0.07, 0.08) + innerPearl * inside * 0.14) * burstSettle;
+    } else {
+      let ringPhase = burstP / 0.4285714;
+      if (ringPhase < 1.0) {
+        let oneMinusRing = max(1.0 - ringPhase, 0.0001);
+        let ringEase = 1.0 - pow(oneMinusRing, 2.35);
+        let maxRadius = mix(0.95, 1.44, burstStr);
+        let burstRadius = mix(0.06, maxRadius, ringEase);
+        let ringWidth = mix(0.026, 0.095, ringEase);
+        let ringDelta = (fDist - burstRadius) / ringWidth;
+        let ring = exp(-ringDelta * ringDelta);
+        let ringFade = smoothstep(0.0, 0.05, ringPhase) * pow(oneMinusRing, 1.4);
+        let radialDir = fDelta / max(fDist, 0.0001);
+        let burstDiff = diffraction(radialDir, lightAndView + radialDir * 0.45, 1.45) * (0.45 + 0.55 * illumination);
+        let burstPearl = pearlColor(fDist * 1.6 - ringPhase * 1.35 + pearlPhase * 0.45);
+        let ringColor = vec3f(0.42, 0.46, 0.52) + burstPearl * 0.68 + burstDiff * 0.58;
+        let burstCatch = 0.42 + contours * 0.72 * outside + innerMark.coverage * 1.0 * inside + gapInfo.foilEdge * 0.9;
+        color += ringColor * ring * ringFade * burstCatch * (0.45 + 0.95 * burstStr);
+      }
+
+      // Foil diffraction settles back to normal over ~1.2s after the ring passes.
+      color += (contours * 0.65 * outside * (outerFoil + outerDiffraction * 0.28)
+        + innerMark.coverage * inside * (innerFoil + innerDiffraction * 0.36)
+        + gapInfo.foilEdge * foilTint * 0.55) * burstSettle * 0.72;
+    }
+  }
+
   let outline = evaluateLogoOutline(artworkUv, logoRaw, aa);
-  color = mix(color, vec3f(0.29, 0.32, 0.36) + tint * light * 0.16 + innerPearl * idleGlow * 0.32, outline);
+  let outlineChargeBoost = select(
+    (vec3f(0.36, 0.40, 0.46) + innerPearl * 0.52) * (chargeAmt * 0.92 + fullChargePulse * 0.38)
+      + (vec3f(0.32, 0.36, 0.42) + innerPearl * 0.46) * burstSettle * 0.75,
+    vec3f(0.24, 0.27, 0.31) * (chargeAmt + burstSettle * 0.8),
+    reducedFlag >= 0.5
+  );
+  color = mix(
+    color,
+    vec3f(0.29, 0.32, 0.36) + tint * light * 0.16 + innerPearl * idleGlow * 0.32 + outlineChargeBoost,
+    outline
+  );
 
   // Subtle FIELDR / AUCTIONS caption sampled from the bottom of the same r8unorm mask texture.
   let caption = sampleCaption(artworkUv);

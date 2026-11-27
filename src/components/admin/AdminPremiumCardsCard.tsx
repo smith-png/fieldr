@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { MagnifyingGlass, Star, Trash, X } from '@phosphor-icons/react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { MagnifyingGlass, Plus, Star, Trash, X } from '@phosphor-icons/react'
 import { getActiveSeason, getPlayers } from '../../lib/data'
 import { getPremiumPlayerIds, setPlayerPremium } from '../../lib/data/premiumCards'
 import { getErrorMessage } from '../../lib/errors'
@@ -16,6 +16,8 @@ import {
   ADMIN_TABLE_SHELL
 } from './adminStyles'
 
+const MAX_DROPDOWN_RESULTS = 8
+
 interface AdminPremiumCardsCardProps {
   activeSeason?: Season | null
 }
@@ -25,6 +27,10 @@ export const AdminPremiumCardsCard: React.FC<AdminPremiumCardsCardProps> = ({
 }) => {
   const { showToast } = useToast()
 
+  const pickerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
+
   const [resolvedSeason, setResolvedSeason] = useState<Season | null>(activeSeason ?? null)
   const [players, setPlayers] = useState<Player[]>([])
   const [premiumIds, setPremiumIds] = useState<Set<string>>(() => new Set())
@@ -33,7 +39,8 @@ export const AdminPremiumCardsCard: React.FC<AdminPremiumCardsCardProps> = ({
   const [isClearing, setIsClearing] = useState(false)
   const [isClearDialogOpen, setIsClearDialogOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedSport, setSelectedSport] = useState<string>('all')
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [highlightedIndex, setHighlightedIndex] = useState(0)
 
   // Sync season prop or fall back to getActiveSeason() if prop is omitted
   useEffect(() => {
@@ -86,89 +93,170 @@ export const AdminPremiumCardsCard: React.FC<AdminPremiumCardsCardProps> = ({
   }, [seasonId, showToast])
 
   useEffect(() => {
-    setSelectedSport('all')
     setSearchQuery('')
+    setIsDropdownOpen(false)
+    setHighlightedIndex(0)
     void loadData()
   }, [loadData])
 
-  const sports = useMemo(() => {
-    const unique = new Set<string>()
-    for (const player of players) {
-      if (player.sport) unique.add(player.sport)
-    }
-    return Array.from(unique).sort((a, b) =>
-      a.localeCompare(b, undefined, { sensitivity: 'base' })
-    )
-  }, [players])
-
-  const filteredPlayers = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase()
-    return players.filter((player) => {
-      if (selectedSport !== 'all' && player.sport !== selectedSport) {
-        return false
+  // Close dropdown when tapping/clicking outside the picker
+  useEffect(() => {
+    if (!isDropdownOpen) return
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      if (!pickerRef.current) return
+      if (!pickerRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false)
       }
-      if (!q) return true
-      return (
-        player.name.toLowerCase().includes(q) ||
-        player.sport.toLowerCase().includes(q) ||
-        player.playing_role.toLowerCase().includes(q) ||
-        player.player_code.toLowerCase().includes(q)
-      )
-    })
-  }, [players, searchQuery, selectedSport])
-
-  const activePremiumCount = useMemo(() => {
-    if (players.length === 0) return premiumIds.size
-    let count = 0
-    for (const player of players) {
-      if (premiumIds.has(player.id)) count += 1
     }
-    return count
-  }, [players, premiumIds])
+    document.addEventListener('pointerdown', handleOutsidePointerDown)
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsidePointerDown)
+    }
+  }, [isDropdownOpen])
 
-  const handleTogglePremium = async (player: Player) => {
-    if (!seasonId || isClearing || pendingIds.has(player.id)) return
+  const premiumPlayers = useMemo(
+    () => players.filter((player) => premiumIds.has(player.id)),
+    [players, premiumIds]
+  )
 
-    const wasPremium = premiumIds.has(player.id)
-    const nextIsPremium = !wasPremium
+  const trimmedQuery = searchQuery.trim().toLowerCase()
 
-    setPendingIds((prev) => {
-      const next = new Set(prev)
-      next.add(player.id)
-      return next
-    })
-    setPremiumIds((prev) => {
-      const next = new Set(prev)
-      if (nextIsPremium) {
-        next.add(player.id)
-      } else {
-        next.delete(player.id)
+  const searchResults = useMemo(() => {
+    if (!trimmedQuery) return []
+    const matches: Player[] = []
+    for (const player of players) {
+      if (premiumIds.has(player.id)) continue
+      const matchesQuery =
+        player.name.toLowerCase().includes(trimmedQuery) ||
+        player.sport.toLowerCase().includes(trimmedQuery) ||
+        player.playing_role.toLowerCase().includes(trimmedQuery)
+      if (matchesQuery) {
+        matches.push(player)
+        if (matches.length >= MAX_DROPDOWN_RESULTS) break
       }
-      return next
-    })
+    }
+    return matches
+  }, [players, premiumIds, trimmedQuery])
 
-    try {
-      await setPlayerPremium(seasonId, player.id, nextIsPremium)
-    } catch (err) {
-      setPremiumIds((prev) => {
-        const rollback = new Set(prev)
-        if (wasPremium) {
-          rollback.add(player.id)
-        } else {
-          rollback.delete(player.id)
-        }
-        return rollback
-      })
-      showToast(
-        getErrorMessage(err, `Failed to update premium status for ${player.name}`),
-        'error'
-      )
-    } finally {
+  // Keep highlighted index valid whenever result list changes
+  useEffect(() => {
+    setHighlightedIndex(0)
+    optionRefs.current = optionRefs.current.slice(0, searchResults.length)
+  }, [trimmedQuery, searchResults.length])
+
+  // Scroll highlighted option into view during keyboard navigation
+  useEffect(() => {
+    if (!isDropdownOpen) return
+    const el = optionRefs.current[highlightedIndex]
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ block: 'nearest' })
+    }
+  }, [highlightedIndex, isDropdownOpen])
+
+  const activePremiumCount = premiumPlayers.length
+  const showDropdown = isDropdownOpen && trimmedQuery.length > 0
+
+  const handleSetPremium = useCallback(
+    async (player: Player, nextIsPremium: boolean) => {
+      if (!seasonId || isClearing || pendingIds.has(player.id)) return
+
+      const wasPremium = premiumIds.has(player.id)
+      if (wasPremium === nextIsPremium) return
+
       setPendingIds((prev) => {
         const next = new Set(prev)
-        next.delete(player.id)
+        next.add(player.id)
         return next
       })
+      setPremiumIds((prev) => {
+        const next = new Set(prev)
+        if (nextIsPremium) {
+          next.add(player.id)
+        } else {
+          next.delete(player.id)
+        }
+        return next
+      })
+
+      try {
+        await setPlayerPremium(seasonId, player.id, nextIsPremium)
+      } catch (err) {
+        setPremiumIds((prev) => {
+          const rollback = new Set(prev)
+          if (wasPremium) {
+            rollback.add(player.id)
+          } else {
+            rollback.delete(player.id)
+          }
+          return rollback
+        })
+        showToast(
+          getErrorMessage(err, `Failed to update premium status for ${player.name}`),
+          'error'
+        )
+      } finally {
+        setPendingIds((prev) => {
+          const next = new Set(prev)
+          next.delete(player.id)
+          return next
+        })
+      }
+    },
+    [seasonId, isClearing, pendingIds, premiumIds, showToast]
+  )
+
+  const handleAddFromPicker = useCallback(
+    (player: Player) => {
+      void handleSetPremium(player, true)
+      setSearchQuery('')
+      setIsDropdownOpen(false)
+      setHighlightedIndex(0)
+      inputRef.current?.focus()
+    },
+    [handleSetPremium]
+  )
+
+  const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') {
+      if (isDropdownOpen) {
+        event.preventDefault()
+        setIsDropdownOpen(false)
+      }
+      return
+    }
+
+    if (!trimmedQuery) return
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      if (!isDropdownOpen) {
+        setIsDropdownOpen(true)
+        setHighlightedIndex(0)
+      } else if (searchResults.length > 0) {
+        setHighlightedIndex((prev) => (prev + 1) % searchResults.length)
+      }
+      return
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      if (!isDropdownOpen) {
+        setIsDropdownOpen(true)
+        setHighlightedIndex(Math.max(0, searchResults.length - 1))
+      } else if (searchResults.length > 0) {
+        setHighlightedIndex((prev) => (prev - 1 + searchResults.length) % searchResults.length)
+      }
+      return
+    }
+
+    if (event.key === 'Enter') {
+      if (showDropdown && searchResults.length > 0) {
+        event.preventDefault()
+        const selected = searchResults[highlightedIndex] ?? searchResults[0]
+        if (selected) {
+          handleAddFromPicker(selected)
+        }
+      }
     }
   }
 
@@ -252,12 +340,7 @@ export const AdminPremiumCardsCard: React.FC<AdminPremiumCardsCardProps> = ({
       ) : isLoading ? (
         <div className="space-y-3">
           <SkeletonBlock className="h-11 w-full rounded-xl" />
-          <div className="flex gap-2">
-            <SkeletonBlock className="h-9 w-16 rounded-full" />
-            <SkeletonBlock className="h-9 w-24 rounded-full" />
-            <SkeletonBlock className="h-9 w-24 rounded-full" />
-          </div>
-          <SkeletonBlock className="h-64 w-full rounded-2xl" />
+          <SkeletonBlock className="h-44 w-full rounded-2xl" />
         </div>
       ) : players.length === 0 ? (
         <EmptyState
@@ -267,8 +350,8 @@ export const AdminPremiumCardsCard: React.FC<AdminPremiumCardsCardProps> = ({
         />
       ) : (
         <div className="space-y-4">
-          {/* Search box */}
-          <div className="relative">
+          {/* Add-athlete picker search bar + dropdown */}
+          <div ref={pickerRef} className="relative">
             <MagnifyingGlass
               size={16}
               weight="bold"
@@ -276,75 +359,120 @@ export const AdminPremiumCardsCard: React.FC<AdminPremiumCardsCardProps> = ({
               className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted"
             />
             <input
+              ref={inputRef}
               type="text"
+              role="combobox"
+              aria-expanded={showDropdown}
+              aria-controls="premium-athlete-picker-listbox"
+              aria-autocomplete="list"
+              aria-activedescendant={
+                showDropdown && searchResults[highlightedIndex]
+                  ? `premium-picker-option-${searchResults[highlightedIndex].id}`
+                  : undefined
+              }
+              aria-label="Search athletes to add as premium"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search athletes by name, sport, or role..."
-              aria-label="Search athletes"
-              className={`${ADMIN_INPUT} pl-10 pr-10`}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                setIsDropdownOpen(e.target.value.trim().length > 0)
+              }}
+              onFocus={() => {
+                if (searchQuery.trim().length > 0) {
+                  setIsDropdownOpen(true)
+                }
+              }}
+              onKeyDown={handleSearchKeyDown}
+              placeholder="Search athletes to add as premium..."
+              className={`${ADMIN_INPUT} min-h-[44px] pl-10 pr-11`}
             />
             {searchQuery && (
               <button
                 type="button"
-                onClick={() => setSearchQuery('')}
+                onClick={() => {
+                  setSearchQuery('')
+                  setIsDropdownOpen(false)
+                  inputRef.current?.focus()
+                }}
                 aria-label="Clear search"
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:text-text hover:bg-surface-2 transition-colors cursor-pointer"
+                className="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-10 w-10 items-center justify-center rounded-lg text-muted hover:text-text hover:bg-surface-2 transition-colors cursor-pointer"
               >
-                <X size={15} weight="bold" aria-hidden="true" />
+                <X size={16} weight="bold" aria-hidden="true" />
               </button>
+            )}
+
+            {showDropdown && (
+              <div
+                id="premium-athlete-picker-listbox"
+                role="listbox"
+                aria-label="Matching athletes"
+                className="absolute left-0 right-0 top-full mt-2 z-30 rounded-2xl border border-border bg-surface shadow-xl overflow-hidden max-h-[min(360px,50vh)] overflow-y-auto overscroll-contain"
+              >
+                {searchResults.length === 0 ? (
+                  <div className="px-4 py-4 text-center text-sm text-muted">
+                    No matching athletes
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-border">
+                    {searchResults.map((player, index) => {
+                      const isHighlighted = index === highlightedIndex
+                      const isPending = pendingIds.has(player.id)
+                      return (
+                        <li key={player.id} role="presentation">
+                          <button
+                            ref={(el) => {
+                              optionRefs.current[index] = el
+                            }}
+                            id={`premium-picker-option-${player.id}`}
+                            type="button"
+                            role="option"
+                            aria-selected={isHighlighted}
+                            disabled={isPending || isClearing}
+                            onMouseEnter={() => setHighlightedIndex(index)}
+                            onClick={() => handleAddFromPicker(player)}
+                            className={`w-full min-h-[48px] px-4 py-2 text-left flex items-center justify-between gap-3 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                              isHighlighted ? 'bg-surface-2' : 'bg-surface hover:bg-surface-2/70'
+                            }`}
+                          >
+                            <div className="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center sm:gap-3">
+                              <span className="text-sm font-medium text-text truncate">
+                                {player.name}
+                              </span>
+                              <div className="flex items-center gap-1.5 text-xs text-muted min-w-0">
+                                <span className="truncate">{player.sport}</span>
+                                {player.playing_role && (
+                                  <>
+                                    <span aria-hidden="true" className="text-border">
+                                      /
+                                    </span>
+                                    <span className="truncate">{player.playing_role}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+
+                            <span className="inline-flex items-center gap-1 min-h-[34px] px-3 rounded-full border border-border bg-bg text-xs font-medium text-text shrink-0">
+                              <Plus size={13} weight="bold" aria-hidden="true" />
+                              Add
+                            </span>
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </div>
             )}
           </div>
 
-          {/* Sport filter chips */}
-          {sports.length > 1 && (
-            <div
-              role="group"
-              aria-label="Filter by sport"
-              className="flex flex-wrap items-center gap-2"
-            >
-              <button
-                type="button"
-                onClick={() => setSelectedSport('all')}
-                aria-pressed={selectedSport === 'all'}
-                className={`min-h-[36px] px-3.5 rounded-full border text-xs font-medium transition-colors cursor-pointer ${
-                  selectedSport === 'all'
-                    ? 'bg-text text-bg border-text'
-                    : 'bg-bg text-muted border-border hover:text-text hover:bg-surface-2'
-                }`}
-              >
-                All
-              </button>
-              {sports.map((sport) => {
-                const isSelected = selectedSport === sport
-                return (
-                  <button
-                    key={sport}
-                    type="button"
-                    onClick={() => setSelectedSport(sport)}
-                    aria-pressed={isSelected}
-                    className={`min-h-[36px] px-3.5 rounded-full border text-xs font-medium transition-colors cursor-pointer ${
-                      isSelected
-                        ? 'bg-text text-bg border-text'
-                        : 'bg-bg text-muted border-border hover:text-text hover:bg-surface-2'
-                    }`}
-                  >
-                    {sport}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-
-          {/* Player rows (44px touch targets) */}
-          {filteredPlayers.length === 0 ? (
+          {/* Premium-only athlete list (44px minimum touch rows) */}
+          {premiumPlayers.length === 0 ? (
             <div className={`${ADMIN_TABLE_SHELL} px-4 py-8 text-center text-sm text-muted`}>
-              No athletes match your current filter.
+              No premium athletes yet. Search above to add some.
             </div>
           ) : (
             <div className={`${ADMIN_TABLE_SHELL} max-h-[420px] overflow-y-auto`}>
-              <ul className="divide-y divide-border" aria-label="Season players">
-                {filteredPlayers.map((player) => {
-                  const isPremium = premiumIds.has(player.id)
+              <ul className="divide-y divide-border" aria-label="Premium athletes">
+                {premiumPlayers.map((player) => {
                   const isPending = pendingIds.has(player.id)
                   return (
                     <li
@@ -355,7 +483,7 @@ export const AdminPremiumCardsCard: React.FC<AdminPremiumCardsCardProps> = ({
                         <span className="text-sm font-medium text-text truncate">
                           {player.name}
                         </span>
-                        <div className="flex items-center gap-2 text-xs text-muted min-w-0">
+                        <div className="flex items-center gap-1.5 text-xs text-muted min-w-0">
                           <span className="truncate">{player.sport}</span>
                           {player.playing_role && (
                             <>
@@ -370,25 +498,13 @@ export const AdminPremiumCardsCard: React.FC<AdminPremiumCardsCardProps> = ({
 
                       <button
                         type="button"
-                        onClick={() => void handleTogglePremium(player)}
+                        onClick={() => void handleSetPremium(player, false)}
                         disabled={isPending || isClearing}
-                        aria-pressed={isPremium}
-                        aria-label={
-                          isPremium
-                            ? `Remove ${player.name} from premium cards`
-                            : `Mark ${player.name} as premium card`
-                        }
-                        className={`inline-flex h-[44px] w-[44px] -mr-2 items-center justify-center rounded-full transition-colors cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
-                          isPremium
-                            ? 'text-accent-bright hover:bg-accent-bright/10'
-                            : 'text-muted hover:text-text hover:bg-surface-2'
-                        }`}
+                        aria-label={`Remove ${player.name} from premium cards`}
+                        title={`Remove ${player.name} from premium cards`}
+                        className="inline-flex h-[44px] w-[44px] -mr-2 items-center justify-center rounded-full text-accent-bright hover:bg-accent-bright/10 transition-colors cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <Star
-                          size={19}
-                          weight={isPremium ? 'fill' : 'regular'}
-                          aria-hidden="true"
-                        />
+                        <Star size={19} weight="fill" aria-hidden="true" />
                       </button>
                     </li>
                   )
