@@ -5,6 +5,7 @@ import { createScene } from './scene';
 export interface CreateRendererOptions {
   onFirstInteraction?: () => void;
   onBurstRelease?: (strength: number) => void;
+  onChargeChange?: (charge: number) => void;
 }
 
 const IDLE_DELAY_MS = 1500;
@@ -125,6 +126,17 @@ export function createRenderer(
     let hapticTickAccumSec = 0;
     let echo1HapticFired = false;
     let echo2HapticFired = false;
+    let lastReportedCharge = 0;
+
+    const reportCharge = (nextCharge: number) => {
+      if (
+        Math.abs(nextCharge - lastReportedCharge) > 0.0005 ||
+        (nextCharge === 0 && lastReportedCharge !== 0)
+      ) {
+        lastReportedCharge = nextCharge;
+        options?.onChargeChange?.(nextCharge);
+      }
+    };
 
     const markInteracted = () => {
       if (!interacted) {
@@ -230,6 +242,7 @@ export function createRenderer(
         rawCharge = 0;
         charge = 0;
         hapticTickAccumSec = 0;
+        reportCharge(0);
 
         if (storedCharge >= BURST_THRESHOLD) {
           burstElapsed = 0;
@@ -389,6 +402,7 @@ export function createRenderer(
           isDraining = false;
         }
       }
+      reportCharge(charge);
 
       let burstProgress = 0;
       let currentBurstTime = 0;
