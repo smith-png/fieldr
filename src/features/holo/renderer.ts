@@ -11,13 +11,21 @@ const RIPPLE_DURATION_SEC = 0.9;
 const CHARGE_DURATION_SEC = 1.6;
 const CHARGE_DRAIN_SEC = 0.4;
 const BURST_THRESHOLD = 0.15;
-const BURST_TOTAL_SEC = 2.1; // 900ms shockwave ring + 1.2s foil settle
+const BURST_INHALE_SEC = 0.12;
+const BURST_ECHO1_AT_SEC = BURST_INHALE_SEC + 0.14;
+const BURST_ECHO2_AT_SEC = BURST_INHALE_SEC + 0.3;
+const BURST_TOTAL_SEC = 2.2; // 120ms inhale + 1100ms wave + echo rings + ~1.8s F afterglow
 const ACTIVE_FPS = 60;
 const IDLE_FPS = 30;
 const FRAME_INTERVAL_SLACK_MS = 1;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
+}
+
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * (3 - 2 * t);
 }
 
 function easeInCharge(t: number): number {
@@ -29,7 +37,7 @@ function isAndroidDevice(): boolean {
   return typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent);
 }
 
-function vibrateAndroid(durationMs: number): void {
+function vibrateAndroid(pattern: number | number[]): void {
   if (
     !isAndroidDevice() ||
     typeof navigator === 'undefined' ||
@@ -38,7 +46,7 @@ function vibrateAndroid(durationMs: number): void {
     return;
   }
   try {
-    navigator.vibrate(durationMs);
+    navigator.vibrate(pattern);
   } catch {
     // Ignore vibration errors if blocked by browser policy.
   }
@@ -108,9 +116,14 @@ export function createRenderer(
     let rawCharge = 0;
     let charge = 0;
     let chargeTime = 0;
+    let heartbeatPhase = 0;
+    let ripplePhase = 0;
+    let shimmerTime = 0;
     let burstElapsed = -1;
     let burstStrength = 0;
     let hapticTickAccumSec = 0;
+    let echo1HapticFired = false;
+    let echo2HapticFired = false;
 
     const markInteracted = () => {
       if (!interacted) {
@@ -220,8 +233,10 @@ export function createRenderer(
         if (storedCharge >= BURST_THRESHOLD) {
           burstElapsed = 0;
           burstStrength = storedCharge;
-          if (!motion.matches && storedCharge >= 0.99) {
-            vibrateAndroid(30);
+          echo1HapticFired = false;
+          echo2HapticFired = false;
+          if (!motion.matches) {
+            vibrateAndroid(40);
           }
         }
       }
@@ -335,25 +350,37 @@ export function createRenderer(
         idleBlend += (targetIdleBlend - idleBlend) * (1 - Math.exp(-idleBlendRate * dt));
       }
 
-      // Update hold-to-charge, cancel-drain, Android charge haptics, and release burst progression
+      // Update hold-to-charge, cancel-drain, integrated shader phases, Android haptics, and release burst
       if (isCharging) {
         lastInputMs = now;
         rawCharge = clamp(rawCharge + dt / CHARGE_DURATION_SEC, 0, 1);
         charge = easeInCharge(rawCharge);
         if (!reduced) {
           chargeTime += dt;
+          shimmerTime += dt;
+          const stage3Blend = smoothstep(0.7, 1, charge);
+          const hbHz = 1.2 + 1.2 * stage3Blend;
+          heartbeatPhase += dt * hbHz;
+          const rippleHz = 0.85 + 1.95 * smoothstep(0.25, 1, charge);
+          ripplePhase += dt * rippleHz;
           if (charge > 0.08) {
             hapticTickAccumSec += dt;
-            const tickIntervalSec = 0.2 - 0.1 * charge;
+            const hapticHz = 1.15 + 1.25 * charge;
+            const tickIntervalSec = 1 / hapticHz;
             if (hapticTickAccumSec >= tickIntervalSec) {
               hapticTickAccumSec = 0;
-              vibrateAndroid(10);
+              vibrateAndroid([10, 70, 10]);
             }
           }
         }
       } else if (isDraining) {
         charge = Math.max(0, charge - dt / CHARGE_DRAIN_SEC);
         rawCharge = charge;
+        if (!reduced && charge > 0.001) {
+          shimmerTime += dt;
+          heartbeatPhase += dt * (1.2 + 1.2 * smoothstep(0.7, 1, charge));
+          ripplePhase += dt * (0.85 + 1.95 * smoothstep(0.25, 1, charge));
+        }
         if (charge <= 0.0001) {
           charge = 0;
           rawCharge = 0;
@@ -362,14 +389,29 @@ export function createRenderer(
       }
 
       let burstProgress = 0;
+      let currentBurstTime = 0;
       if (burstElapsed >= 0) {
         burstElapsed += dt;
+        if (!reduced) {
+          if (!echo1HapticFired && burstElapsed >= BURST_ECHO1_AT_SEC) {
+            echo1HapticFired = true;
+            vibrateAndroid(15);
+          }
+          if (!echo2HapticFired && burstElapsed >= BURST_ECHO2_AT_SEC) {
+            echo2HapticFired = true;
+            vibrateAndroid(15);
+          }
+        }
         if (burstElapsed >= BURST_TOTAL_SEC) {
           burstElapsed = -1;
           burstStrength = 0;
           burstProgress = 0;
+          currentBurstTime = 0;
+          echo1HapticFired = false;
+          echo2HapticFired = false;
         } else {
           burstProgress = clamp(burstElapsed / BURST_TOTAL_SEC, 0, 1);
+          currentBurstTime = burstElapsed;
         }
       }
 
@@ -430,6 +472,10 @@ export function createRenderer(
               burstStrength,
               chargeTime,
               reducedMotion: reduced ? 1 : 0,
+              heartbeatPhase,
+              burstTime: currentBurstTime,
+              ripplePhase,
+              shimmerTime,
             },
           });
           currentFrame.pass(output, shader);

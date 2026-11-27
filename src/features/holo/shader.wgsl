@@ -11,6 +11,10 @@ struct Params {
   burstStrength: f32,
   chargeTime: f32,
   reducedMotion: f32,
+  heartbeatPhase: f32,
+  burstTime: f32,
+  ripplePhase: f32,
+  shimmerTime: f32,
 }
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var artwork: texture_2d<f32>;
@@ -34,6 +38,10 @@ fn segment(p: vec2f, a: vec2f, b: vec2f) -> f32 {
 
 fn stroke(distance: f32, width: f32, aa: f32) -> f32 {
   return 1.0 - smoothstep(width, width + aa, abs(distance));
+}
+
+fn sq(x: f32) -> f32 {
+  return x * x;
 }
 
 // Approximate visible wavelengths in micrometers with smooth display RGB responses.
@@ -235,12 +243,24 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   let burstP = clamp(params.burst, 0.0, 1.0);
   let burstStr = clamp(params.burstStrength, 0.0, 1.0);
   let reducedFlag = params.reducedMotion;
-  // Subtle 1-2 px tremble in shader space while charging (disabled under prefers-reduced-motion).
-  let jitterPx = select(0.0, min(1.85 * chargeAmt * chargeAmt, 2.0), reducedFlag < 0.5 && chargeAmt > 0.001);
+  let fullMotion = reducedFlag < 0.5;
+  let pxToCard = 2.5 / scale;
+
+  // Smoothstep-blended charge stages (no hard switches):
+  // Stage 1 Ignite (0..0.35), Stage 2 Pull (0.25..0.75), Stage 3 Critical (0.7..1.0).
+  let stage2 = smoothstep(0.25, 0.75, chargeAmt);
+  let stage3 = smoothstep(0.7, 1.0, chargeAmt);
+  let chargeActive = chargeAmt > 0.001;
+  let burstActive = burstP > 0.0001 && burstStr > 0.001;
+  let bTime = max(params.burstTime, 0.0);
+
+  // Subtle 1-2 px tremble in shader space during late charge (disabled under reduced motion).
+  let trembleDrive = smoothstep(0.45, 1.0, chargeAmt);
+  let jitterPx = select(0.0, min(1.8 * trembleDrive * (0.65 + 0.35 * stage3), 2.0), fullMotion && chargeActive);
   let jitterOffset = vec2f(
     sin(params.chargeTime * 53.0) * 0.65 + cos(params.chargeTime * 89.0) * 0.35,
     cos(params.chargeTime * 61.0) * 0.65 + sin(params.chargeTime * 97.0) * 0.35
-  ) * (jitterPx * 2.5 / scale);
+  ) * (jitterPx * pxToCard);
   let cardScreen = screen + jitterOffset;
   let sx = sin(params.tilt.y);
   let cx = cos(params.tilt.y);
@@ -257,10 +277,116 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   let edge = roundedBox(p, vec2f(0.64, 0.91), 0.055);
   let silhouette = 1.0 - smoothstep(-aa, aa, edge);
 
+  // Radial geometry centred on the Fieldr F mark.
+  let fCenter = vec2f(0.015, -0.025);
+  let fDelta = p - fCenter;
+  let fDist = length(fDelta);
+  let radialDir = fDelta / max(fDist, 0.0001);
+  let midRadiusMask = smoothstep(0.05, 0.30, fDist) * (1.0 - smoothstep(0.45, 1.05, fDist));
+  let waveOriginMask = smoothstep(0.02, 0.12, fDist);
+
+  // Release timeline: 120ms inhale -> 1100ms main shockwave + echo rings at +140ms (55%) & +300ms (30%).
+  var inhaleFactor = 0.0;
+  var preReleasePull = 0.0;
+  var mainWave = 0.0;
+  var echo1Wave = 0.0;
+  var echo2Wave = 0.0;
+  var waveBandEnergy = 0.0;
+  var waveFringePeak = 0.0;
+  var fOutlineFlash = 0.0;
+  var fAfterglow = 0.0;
+  var foilSettle = 0.0;
+  var inhaleCarryOutline = 0.0;
+
+  if (burstActive) {
+    inhaleFactor = smoothstep(0.0, 0.055, bTime) * (1.0 - smoothstep(0.095, 0.135, bTime));
+    let releaseFadeOut = 1.0 - smoothstep(0.095, 0.14, bTime);
+    preReleasePull = smoothstep(0.25, 0.75, burstStr) * releaseFadeOut;
+    inhaleCarryOutline = smoothstep(0.15, 1.0, burstStr) * releaseFadeOut;
+
+    let waveT = bTime - 0.12;
+    if (waveT > 0.0) {
+      let maxRadius = mix(0.68, 1.48, burstStr);
+
+      // Main shockwave (1100ms, ease-out)
+      if (waveT < 1.10 && fullMotion) {
+        let u0 = clamp(waveT / 1.10, 0.0, 1.0);
+        let oneMinus0 = 1.0 - u0;
+        let ease0 = 1.0 - oneMinus0 * oneMinus0 * oneMinus0;
+        let r0 = mix(0.05, maxRadius, ease0);
+        let w0 = mix(0.028, 0.086, ease0);
+        let g0 = exp(-sq((fDist - r0) / w0));
+        let fade0 = smoothstep(0.0, 0.045, u0) * sq(oneMinus0);
+        mainWave = g0 * fade0 * burstStr;
+      }
+
+      // Echo ring 1 (+140ms behind main wave, 55% strength)
+      let e1T = waveT - 0.14;
+      if (e1T > 0.0 && e1T < 1.00 && fullMotion) {
+        let u1 = clamp(e1T / 1.00, 0.0, 1.0);
+        let oneMinus1 = 1.0 - u1;
+        let ease1 = 1.0 - oneMinus1 * oneMinus1 * oneMinus1;
+        let r1 = mix(0.05, maxRadius * 0.96, ease1);
+        let w1 = mix(0.022, 0.076, ease1);
+        let g1 = exp(-sq((fDist - r1) / w1));
+        let fade1 = smoothstep(0.0, 0.05, u1) * sq(oneMinus1);
+        echo1Wave = g1 * fade1 * 0.55 * burstStr;
+      }
+
+      // Echo ring 2 (+300ms behind main wave, 30% strength)
+      let e2T = waveT - 0.30;
+      if (e2T > 0.0 && e2T < 0.95 && fullMotion) {
+        let u2 = clamp(e2T / 0.95, 0.0, 1.0);
+        let oneMinus2 = 1.0 - u2;
+        let ease2 = 1.0 - oneMinus2 * oneMinus2 * oneMinus2;
+        let r2 = mix(0.05, maxRadius * 0.92, ease2);
+        let w2 = mix(0.018, 0.070, ease2);
+        let g2 = exp(-sq((fDist - r2) / w2));
+        let fade2 = smoothstep(0.0, 0.05, u2) * sq(oneMinus2);
+        echo2Wave = g2 * fade2 * 0.30 * burstStr;
+      }
+
+      waveBandEnergy = mainWave + echo1Wave + echo2Wave;
+      waveFringePeak = mainWave + echo1Wave * 0.65 + echo2Wave * 0.40;
+
+      // F outline white flash (180ms as wave leaves F) + soft exponential afterglow (~1.8s)
+      fOutlineFlash = smoothstep(0.0, 0.025, waveT) * (1.0 - smoothstep(0.045, 0.18, waveT)) * burstStr;
+      fAfterglow = smoothstep(0.0, 0.04, waveT)
+        * exp(-waveT / 0.58)
+        * (1.0 - smoothstep(1.65, 2.05, waveT))
+        * burstStr;
+      // Foil diffraction settles back exponentially over ~1.2s
+      foilSettle = smoothstep(0.0, 0.04, waveT)
+        * exp(-waveT / 0.38)
+        * (1.0 - smoothstep(1.10, 1.38, waveT))
+        * burstStr;
+    }
+  }
+
+  // Heartbeat pulse for Stage 3 critical state (1.2 Hz speeding up to 2.4 Hz via integrated phase).
+  let hbCycle = fract(params.heartbeatPhase);
+  let hbPrimary = exp(-sq((hbCycle - 0.14) / 0.085));
+  let hbSecondary = exp(-sq((hbCycle - 0.34) / 0.105)) * 0.52;
+  let heartbeat = select(0.0, clamp(hbPrimary + hbSecondary, 0.0, 1.0), fullMotion);
+  let fullBreathing = select(
+    0.0,
+    smoothstep(0.94, 1.0, chargeAmt) * (0.5 + 0.5 * sin(params.heartbeatPhase * 6.2831853)),
+    fullMotion
+  );
+
+  // Radial lens pull (Stage 2 + release inhale) and outward refraction displacement (shockwave + echoes).
+  let pullWarp = (stage2 * 0.072 + preReleasePull * 0.072 + inhaleFactor * 0.026 * burstStr) * midRadiusMask;
+  let pushWarp = (mainWave * 0.085 + echo1Wave * 0.062 + echo2Wave * 0.045) * waveOriginMask;
+  let radialDisp = select(0.0, pullWarp - pushWarp, fullMotion);
+  let warpedP = p + radialDir * radialDisp;
+
   let halo = exp(-dot(screen, screen) * 0.8);
   var background = vec3f(0.027, 0.031, 0.038) + 0.009 * halo;
   let shadow = exp(-max(roundedBox(cardScreen - vec2f(0.025, 0.06), vec2f(0.63, 0.9), 0.055), 0.0) * 22.0);
   background *= 1.0 - 0.7 * shadow;
+  // Subtle stage-2 vignette darkening on surrounding backdrop (max 18%).
+  let bgDarken = select(0.0, min(0.18 * stage2 + 0.10 * inhaleFactor * burstStr, 0.18), fullMotion);
+  background *= 1.0 - bgDarken;
 
   // Matte graphite remains dark; only the cursor's grazing light reveals the foil.
   let hover = clamp(params.hover, 0.0, 1.0);
@@ -291,40 +417,57 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   let outside = gapInfo.outside;
 
   // Separate engravings leave a clear graphite gap between the logo and surrounding contours.
-  let contour = etchedPhase(p);
-  // Transform screen derivatives back into the card plane: microscopic grooves
-  // follow the visible contours, but their 1.65um spacing is independent of zoom.
-  let dx = dpdx(p);
-  let dy = dpdy(p);
+  // All screen-space derivatives remain in top-level uniform control flow.
+  let contour = etchedPhase(warpedP);
+  let dx = dpdx(warpedP);
+  let dy = dpdy(warpedP);
   let gradient = vec2f(dpdx(contour) * dy.y - dpdy(contour) * dx.y, dpdy(contour) * dx.x - dpdx(contour) * dy.x);
   let across = gradient / max(length(gradient), 0.00000001);
+  let contourWidth = min(fwidth(contour), 1.0);
   let outerDiffraction = diffraction(across, lightAndView, 1.65) * illumination;
-  let contours = stroke(sin(contour), 0.06, min(fwidth(contour), 1.0));
+  let contours = stroke(sin(contour), 0.06, contourWidth);
+
+  // Radial chromatic fringe (Stage 3 critical + shockwave peak): separate R/G/B by a few shader pixels.
+  let fringePx = select(0.0, 4.2 * stage3 + 6.5 * waveFringePeak, fullMotion);
+  let fringeShift = fringePx * pxToCard;
+  let contourR = etchedPhase(warpedP + radialDir * fringeShift);
+  let contourB = etchedPhase(warpedP - radialDir * fringeShift);
+  let contoursR = stroke(sin(contourR), 0.06, contourWidth);
+  let contoursB = stroke(sin(contourB), 0.06, contourWidth);
+  let chromaticContours = vec3f(contoursR, contours, contoursB);
+
   let reveal = hover * (0.06 + 0.24 * spotlight + light * 1.15);
   let innerMark = logoEngraving(p, aa);
   let innerDiffraction = diffraction(innerMark.across, lightAndView, 1.35) * illumination;
   let pearlPhase = dot(lightAndView, vec2f(0.48, -0.32)) + p.y * 0.32 + contour * 0.003;
   let outerPearl = pearlColor(pearlPhase);
   let innerPearl = pearlColor(pearlPhase + dot(innerMark.across, lightAndView) * 0.32 + 0.12);
+  let chromaticPhaseShift = fringePx * 0.011;
+  let chromaticPearl = vec3f(
+    pearlColor(pearlPhase + chromaticPhaseShift).r,
+    outerPearl.g,
+    pearlColor(pearlPhase - chromaticPhaseShift).b
+  );
+
   // Color washes over the material between etched lines, with a narrower silver
   // flash moving through it. Both layers respect the empty gap between outlines.
   let pearl = outerPearl * outside + innerPearl * inside;
   color += pearl * light * 0.24;
   color += (pearl * 0.5 + vec3f(0.5) * (inside + outside)) * glint * spotlight * hover * 0.12;
-  let sparkle = pow(max(noise + 0.5, 0.0), 24.0) * glint * spotlight * hover;
+  let sparkle = pow(max(noise + 0.5, 0.0001), 24.0) * glint * spotlight * hover;
   color += pearl * sparkle * 0.22;
-  let outerFoil = vec3f(0.12, 0.14, 0.18) + outerPearl * 0.65 + outerDiffraction * 0.12;
+  let outerFoil = vec3f(0.12, 0.14, 0.18) + chromaticPearl * 0.65 + outerDiffraction * 0.12;
   let innerFoil = vec3f(0.12, 0.14, 0.18) + innerPearl * 0.65 + innerDiffraction * 0.12;
-  color += (contours * 0.65 * outside * outerFoil + innerMark.coverage * inside * innerFoil) * reveal;
+  color += (chromaticContours * 0.65 * outside * outerFoil + innerMark.coverage * inside * innerFoil) * reveal;
 
   // A delicate spectral echo stays clipped to the same engraving regions.
   let foilOffset = vec2f(0.007, -0.004) + params.tilt * 0.012;
-  let foilPoint = p - foilOffset;
+  let foilPoint = warpedP - foilOffset;
   let foilPhase = etchedPhase(foilPoint);
   let foilLines = stroke(sin(foilPhase), 0.025, min(fwidth(foilPhase), 1.0));
-  let foilInner = logoEngraving(foilPoint, aa);
+  let foilInner = logoEngraving(p - foilOffset, aa);
   let echoDiffraction = diffraction(foilInner.across, lightAndView, 1.35) * illumination;
-  color += (foilLines * 0.65 * outside * (outerPearl + outerDiffraction * 0.2)
+  color += (foilLines * 0.65 * outside * (chromaticPearl + outerDiffraction * 0.2)
     + foilInner.coverage * inside * (innerPearl + echoDiffraction * 0.2)) * reveal * 0.22;
 
   // Outer foil rim framing the clear graphite gap around the Fieldr mark.
@@ -354,98 +497,173 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
     let rippleProgress = rippleT / 0.9;
     let rippleCenter = params.rippleOrigin * vec2f(0.64, 0.91);
     let rippleDist = length(p - rippleCenter);
-    let eased = 1.0 - (1.0 - rippleProgress) * (1.0 - rippleProgress);
+    let eased = 1.0 - sq(1.0 - rippleProgress);
     let waveRadius = eased * 1.85;
     let ringWidth = mix(0.055, 0.18, eased);
     let ringDelta = (rippleDist - waveRadius) / ringWidth;
     let ring = exp(-ringDelta * ringDelta);
-    let fade = smoothstep(0.0, 0.06, rippleProgress) * pow(1.0 - rippleProgress, 1.6);
+    let fade = smoothstep(0.0, 0.06, rippleProgress) * pow(max(1.0 - rippleProgress, 0.0001), 1.6);
     let wavePhase = rippleDist * 1.35 - rippleProgress * 1.1 + dot(lightAndView, vec2f(0.25, -0.18));
     let waveColor = pearlColor(wavePhase) * 0.85 + vec3f(0.18, 0.22, 0.28);
     let surfaceCatch = 0.28 + contours * 0.65 * outside + innerMark.coverage * 0.95 * inside + gapInfo.foilEdge * 0.85;
     color += waveColor * ring * fade * surfaceCatch * 0.62;
   }
 
-  // Hold-to-charge: ramp foil diffraction, steady full-charge pulse, and contracting light ring toward F.
-  let fCenter = vec2f(0.015, -0.025);
-  let fDelta = p - fCenter;
-  let fDist = length(fDelta);
-  let fullChargePulse = select(
-    0.0,
-    smoothstep(0.92, 1.0, chargeAmt) * (0.5 + 0.5 * sin(params.chargeTime * 4.2)),
-    reducedFlag < 0.5
-  );
-  if (chargeAmt > 0.001) {
-    if (reducedFlag >= 0.5) {
-      // Reduced motion: gentle brightness lift only (no jitter, no contracting ring).
+  // Stage 2 background vignette darkening on card surface (max 18%) so the foil pops.
+  if (fullMotion && stage2 > 0.001) {
+    let cardEdgeDist = length(p * vec2f(1.0 / 0.64, 1.0 / 0.91));
+    let vignetteMask = smoothstep(0.22, 1.12, cardEdgeDist);
+    color *= 1.0 - min(0.18 * stage2 * (0.35 + 0.65 * vignetteMask), 0.18);
+  }
+
+  // Hold-to-charge: Stage 1 stays calm on the foil; Stage 2 adds inward concentric ripples + foil lift;
+  // Stage 3 adds chromatic fringe, fine contour shimmer, and breathing critical state.
+  if (chargeActive) {
+    if (!fullMotion) {
+      // Reduced motion: gentle brightness lift only (no warp, no tremble, no rings).
       color += (vec3f(0.045, 0.05, 0.058) + innerPearl * inside * 0.12) * chargeAmt;
     } else {
-      let chargeDrive = chargeAmt * (0.55 + 0.45 * chargeAmt) + fullChargePulse * 0.24;
-      color += (contours * 0.65 * outside * (outerFoil + outerDiffraction * 0.38)
-        + innerMark.coverage * inside * (innerFoil + innerDiffraction * 0.48)
-        + gapInfo.foilEdge * foilTint * 0.55) * chargeDrive * 0.58;
-      color += inside * (innerPearl * 0.14 + vec3f(0.055, 0.06, 0.07)) * (chargeAmt + fullChargePulse * 0.32);
-
-      // Fine ring of light contracting from card edges toward the F mark.
-      let contractRadius = mix(1.04, 0.20, chargeAmt);
-      let contractWidth = mix(0.024, 0.011, chargeAmt);
-      let contractDelta = (fDist - contractRadius) / contractWidth;
-      let contractRing = exp(-contractDelta * contractDelta);
-      let contractFade = smoothstep(0.02, 0.14, chargeAmt) * (0.28 + 0.36 * chargeAmt + 0.18 * fullChargePulse);
-      let contractTint = mix(
-        vec3f(0.76, 0.80, 0.86),
-        pearlColor(fDist * 1.45 - chargeAmt * 0.85 + pearlPhase * 0.35),
-        0.48
-      );
-      let contractCatch = 0.55 + contours * 0.45 * outside + innerMark.coverage * 0.55 * inside + gapInfo.foilEdge * 0.5;
-      color += contractTint * contractRing * contractFade * contractCatch;
-    }
-  }
-
-  // Release-to-burst: 900ms shockwave ring from F centre (burst 0..0.4286) + 1.2s foil settle (0.4286..1.0).
-  var burstSettle = 0.0;
-  if (burstP > 0.0001 && burstStr > 0.001) {
-    let oneMinusBurst = max(1.0 - burstP, 0.0);
-    burstSettle = oneMinusBurst * oneMinusBurst * burstStr;
-    if (reducedFlag >= 0.5) {
-      // Reduced motion: gentle fading brightness lift only (no shockwave ring).
-      color += (vec3f(0.065, 0.07, 0.08) + innerPearl * inside * 0.14) * burstSettle;
-    } else {
-      let ringPhase = burstP / 0.4285714;
-      if (ringPhase < 1.0) {
-        let oneMinusRing = max(1.0 - ringPhase, 0.0001);
-        let ringEase = 1.0 - pow(oneMinusRing, 2.35);
-        let maxRadius = mix(0.95, 1.44, burstStr);
-        let burstRadius = mix(0.06, maxRadius, ringEase);
-        let ringWidth = mix(0.026, 0.095, ringEase);
-        let ringDelta = (fDist - burstRadius) / ringWidth;
-        let ring = exp(-ringDelta * ringDelta);
-        let ringFade = smoothstep(0.0, 0.05, ringPhase) * pow(oneMinusRing, 1.4);
-        let radialDir = fDelta / max(fDist, 0.0001);
-        let burstDiff = diffraction(radialDir, lightAndView + radialDir * 0.45, 1.45) * (0.45 + 0.55 * illumination);
-        let burstPearl = pearlColor(fDist * 1.6 - ringPhase * 1.35 + pearlPhase * 0.45);
-        let ringColor = vec3f(0.42, 0.46, 0.52) + burstPearl * 0.68 + burstDiff * 0.58;
-        let burstCatch = 0.42 + contours * 0.72 * outside + innerMark.coverage * 1.0 * inside + gapInfo.foilEdge * 0.9;
-        color += ringColor * ring * ringFade * burstCatch * (0.45 + 0.95 * burstStr);
+      // Stage 2 & 3 foil diffraction lift (stays calm during Stage 1 Ignite 0..0.25).
+      let foilChargeDrive = stage2 * 0.58 + stage3 * (0.48 + 0.24 * heartbeat + 0.16 * fullBreathing);
+      if (foilChargeDrive > 0.001) {
+        color += (chromaticContours * 0.68 * outside * (outerFoil + outerDiffraction * 0.42)
+          + innerMark.coverage * inside * (innerFoil + innerDiffraction * 0.52)
+          + gapInfo.foilEdge * foilTint * (0.52 + 0.48 * stage3 * (0.65 + 0.35 * heartbeat))) * foilChargeDrive * 0.52;
+        color += inside * (innerPearl * 0.12 + vec3f(0.04, 0.045, 0.055)) * (stage2 * 0.5 + stage3 * (0.6 + 0.35 * heartbeat));
       }
 
-      // Foil diffraction settles back to normal over ~1.2s after the ring passes.
-      color += (contours * 0.65 * outside * (outerFoil + outerDiffraction * 0.28)
-        + innerMark.coverage * inside * (innerFoil + innerDiffraction * 0.36)
-        + gapInfo.foilEdge * foilTint * 0.55) * burstSettle * 0.72;
+      // Stage 2 (0.25..0.75): 2-3 faint concentric diffraction ripples travelling inward toward the F.
+      if (stage2 > 0.001) {
+        let inwardMask = smoothstep(0.14, 0.30, fDist) * (1.0 - smoothstep(0.76, 1.06, fDist));
+        let crestBase = 0.5 + 0.5 * cos(fDist * 19.5 + params.ripplePhase * 6.2831853);
+        let crest2 = crestBase * crestBase;
+        let inwardRipples = crest2 * crest2 * inwardMask * stage2 * (1.0 + 0.22 * stage3);
+        let inwardDiff = diffraction(radialDir, lightAndView - radialDir * 0.35, 1.55) * (0.4 + 0.6 * illumination);
+        let inwardPearl = pearlColor(fDist * 1.45 + params.ripplePhase * 0.75 + pearlPhase * 0.35);
+        let inwardTint = vec3f(0.32, 0.35, 0.40) + inwardPearl * 0.58 + inwardDiff * 0.45;
+        let inwardCatch = 0.32 + contours * 0.62 * outside + gapInfo.foilEdge * 0.45;
+        color += inwardTint * inwardRipples * inwardCatch * 0.26;
+      }
+
+      // Stage 3 (0.7..1.0): very fine shimmer running along the engraved lines.
+      if (stage3 > 0.001) {
+        let theta = atan2(fDelta.y, fDelta.x);
+        let shimmerWave = 0.5 + 0.5 * sin(contour * 1.15 - params.shimmerTime * 11.0 + theta * 4.0);
+        let shimmerGlint = shimmerWave * shimmerWave * shimmerWave;
+        let shimmerTint = vec3f(0.76, 0.80, 0.86) + chromaticPearl * 0.35;
+        color += shimmerTint * (chromaticContours * outside * 0.62 + vec3f(innerMark.coverage * inside * 0.85))
+          * shimmerGlint * stage3 * (0.42 + 0.22 * heartbeat);
+      }
     }
   }
 
+  // Release-to-burst: 120ms inhale dim, main shockwave + 2 echo rings, exponential foil settle & F afterglow.
+  if (burstActive) {
+    if (!fullMotion) {
+      // Reduced motion: gentle fading brightness change only (no inhale warp, no rings).
+      let rmFade = max(1.0 - burstP, 0.0);
+      color += (vec3f(0.065, 0.07, 0.08) + innerPearl * inside * 0.14) * rmFade * rmFade * burstStr;
+    } else {
+      // 120ms inhale: everything dims by 12% scaled by burstStrength right before the wave fires.
+      if (inhaleFactor > 0.001) {
+        color *= 1.0 - 0.12 * inhaleFactor * burstStr;
+      }
+
+      // Bright diffraction band riding the shockwave & echo ring edges.
+      if (waveBandEnergy > 0.001) {
+        let burstDiff = diffraction(radialDir, lightAndView + radialDir * 0.52, 1.48) * (0.45 + 0.55 * illumination);
+        let wavePhaseR = fDist * 1.65 - bTime * 1.35 + pearlPhase * 0.45 + 0.075;
+        let wavePhaseG = fDist * 1.65 - bTime * 1.35 + pearlPhase * 0.45;
+        let wavePhaseB = fDist * 1.65 - bTime * 1.35 + pearlPhase * 0.45 - 0.075;
+        let wavePearl = vec3f(
+          pearlColor(wavePhaseR).r,
+          pearlColor(wavePhaseG).g,
+          pearlColor(wavePhaseB).b
+        );
+        let ringColor = vec3f(0.46, 0.50, 0.56) + wavePearl * 0.72 + burstDiff * 0.62;
+        let burstCatch = vec3f(0.38) + chromaticContours * 0.78 * outside
+          + vec3f(innerMark.coverage * 1.0 * inside + gapInfo.foilEdge * 0.92);
+        color += ringColor * waveBandEnergy * burstCatch * (0.55 + 0.85 * burstStr);
+      }
+
+      // Exponential foil diffraction settle (~1.2s).
+      if (foilSettle > 0.001) {
+        color += (chromaticContours * 0.65 * outside * (outerFoil + outerDiffraction * 0.30)
+          + innerMark.coverage * inside * (innerFoil + innerDiffraction * 0.38)
+          + gapInfo.foilEdge * foilTint * 0.58) * foilSettle * 0.68;
+      }
+
+      // Soft F interior afterglow decaying slowly (~1.8s).
+      if (fAfterglow > 0.001) {
+        color += (inside * (innerPearl * 0.18 + vec3f(0.06, 0.068, 0.08))
+          + gapInfo.foilEdge * (outerPearl * 0.42 + vec3f(0.18, 0.20, 0.24))) * fAfterglow * 0.75;
+      }
+    }
+  }
+
+  // F outline: Stage 1 top-left fuse filament -> Stage 2 lit contour -> Stage 3 white-hot + pearl edge + heartbeat
+  // -> Release 180ms white flash + ~1.8s exponential afterglow.
   let outline = evaluateLogoOutline(artworkUv, logoRaw, aa);
-  let outlineChargeBoost = select(
-    (vec3f(0.36, 0.40, 0.46) + innerPearl * 0.52) * (chargeAmt * 0.92 + fullChargePulse * 0.38)
-      + (vec3f(0.32, 0.36, 0.42) + innerPearl * 0.46) * burstSettle * 0.75,
-    vec3f(0.24, 0.27, 0.31) * (chargeAmt + burstSettle * 0.8),
-    reducedFlag >= 0.5
+  let contourT = fract((atan2(fDelta.y, fDelta.x) + 2.3561945) / 6.2831853);
+  let igniteProgress = clamp(chargeAmt / 0.35, 0.0, 1.0);
+  let igniteFuseFade = 1.0 - smoothstep(0.33, 0.46, chargeAmt);
+  let arcDist = abs(fract(contourT - igniteProgress + 0.5) - 0.5);
+  let fuseHead = select(
+    0.0,
+    exp(-arcDist * arcDist / 0.0016) * smoothstep(0.0, 0.035, igniteProgress) * igniteFuseFade,
+    fullMotion && chargeActive
   );
+  var outlineBoost = vec3f(0.0);
+  if (outline > 0.001) {
+    if (!fullMotion) {
+      let rmBurstFade = select(0.0, sq(max(1.0 - burstP, 0.0)) * burstStr, burstActive);
+      outlineBoost = vec3f(0.24, 0.27, 0.31) * (chargeAmt + rmBurstFade * 0.8);
+    } else {
+      // Stage 1 Ignite (0..0.35): thin bright filament starting at top-left (-3*pi/4) and completing 1 lap by 0.35.
+      if (chargeActive) {
+        let behindHead = igniteProgress - contourT;
+        let lapComplete = smoothstep(0.32, 0.37, chargeAmt);
+        let fuseLit = max(
+          smoothstep(-0.025, 0.025, behindHead) * smoothstep(0.0, 0.04, igniteProgress),
+          lapComplete
+        );
+        let fuseTail = smoothstep(-0.015, 0.015, behindHead) * exp(-max(behindHead, 0.0) * 4.5) * igniteFuseFade;
+
+        let filamentColor = vec3f(0.94, 0.96, 1.0) * (fuseHead * 1.15 + fuseTail * 0.42)
+          + (vec3f(0.36, 0.40, 0.46) + innerPearl * 0.48) * fuseLit * (0.52 + 0.36 * stage2);
+
+        // Stage 3 Critical: white-hot core with pearl edge + heartbeat pulse (1.2 Hz -> 2.4 Hz).
+        let criticalPulse = 0.72 + 0.36 * heartbeat + 0.14 * fullBreathing;
+        let whiteHot = (vec3f(0.88, 0.92, 0.98) + innerPearl * 0.28) * stage3 * criticalPulse;
+
+        outlineBoost += filamentColor + whiteHot;
+      }
+
+      if (burstActive) {
+        // Carry outline smoothly through the 120ms inhale, then flash white (180ms) + slow afterglow (~1.8s).
+        let inhaleGlow = (vec3f(0.46, 0.50, 0.56) + innerPearl * 0.42) * inhaleCarryOutline * (1.0 - 0.18 * inhaleFactor);
+        let flashColor = (vec3f(1.05, 1.08, 1.12) + innerPearl * 0.24) * fOutlineFlash * 1.15;
+        let afterglowColor = (vec3f(0.44, 0.48, 0.54) + innerPearl * 0.52) * fAfterglow * 0.92;
+        outlineBoost += inhaleGlow + flashColor + afterglowColor;
+      }
+    }
+  }
+
+  // Pearl edge halo right along the F contour during Stage 1 fuse head, Stage 3 critical & release flash/afterglow.
+  if (fullMotion) {
+    let pearlEdgeDrive = stage3 * (0.45 + 0.55 * heartbeat) + fOutlineFlash * 0.95 + fAfterglow * 0.42;
+    let haloDrive = pearlEdgeDrive + fuseHead * 0.45;
+    if (haloDrive > 0.001) {
+      let edgeRim = smoothstep(0.04, 0.45, logoRaw) * (1.0 - smoothstep(0.55, 0.96, logoRaw));
+      let haloTint = (innerPearl * 0.78 + vec3f(0.24, 0.27, 0.32)) * pearlEdgeDrive * 0.55
+        + vec3f(0.86, 0.90, 0.96) * fuseHead * 0.32;
+      color += haloTint * edgeRim;
+    }
+  }
+
   color = mix(
     color,
-    vec3f(0.29, 0.32, 0.36) + tint * light * 0.16 + innerPearl * idleGlow * 0.32 + outlineChargeBoost,
+    vec3f(0.29, 0.32, 0.36) + tint * light * 0.16 + innerPearl * idleGlow * 0.32 + outlineBoost,
     outline
   );
 
@@ -457,7 +675,8 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   color = mix(color, vec3f(0.48, 0.51, 0.55), stroke(crossMark, 0.0007, aa * 0.65));
 
   let rim = stroke(edge + 0.002, 0.0008, aa * 0.7);
-  let rimLight = pow(max(0.0, 1.0 - length(delta) * 0.65), 3.0) * hover;
+  let rimFalloff = max(0.0, 1.0 - length(delta) * 0.65);
+  let rimLight = rimFalloff * rimFalloff * rimFalloff * hover;
   color = mix(color, vec3f(0.25, 0.28, 0.32) + (outerPearl * 0.7 + tint * 0.3) * rimLight * 0.6, rim);
   return vec4f(mix(background, color, silhouette), 1);
 }
