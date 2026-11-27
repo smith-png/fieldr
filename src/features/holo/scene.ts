@@ -21,7 +21,20 @@ export function createScene(gpu: Gpu, output: Target) {
   const shader = effect(gpu, fragment, {
     label: 'fieldr-holographic-card',
     set: {
-      params: { resolution: output.size, tilt: [0, 0], pointer: [0.2, -0.25], hover: 0 },
+      params: {
+        resolution: output.size,
+        tilt: [0, 0],
+        pointer: [0.2, -0.25],
+        rippleOrigin: [0, 0],
+        hover: 0,
+        rippleTime: -1,
+        idleGlow: 0,
+        charge: 0,
+        burst: 0,
+        burstStrength: 0,
+        chargeTime: 0,
+        reducedMotion: 0,
+      },
       artwork,
       linear: sampler(gpu, { minFilter: 'linear', magFilter: 'linear' }),
     },

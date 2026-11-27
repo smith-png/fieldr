@@ -2,7 +2,10 @@ struct Params {
   resolution: vec2f,
   tilt: vec2f,
   pointer: vec2f,
+  rippleOrigin: vec2f,
   hover: f32,
+  rippleTime: f32,
+  idleGlow: f32,
 }
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var artwork: texture_2d<f32>;
@@ -322,8 +325,33 @@ fn fs_main(@location(0) uv: vec2f) -> @location(0) vec4f {
   color += max(horizontal, vertical) * hover * (0.12 + light * 0.22);
 
   // Always-visible outline of the Fieldr logo: baseline contrast does not depend on hover or light.
+  let idleGlow = clamp(params.idleGlow, 0.0, 1.0);
+  if (idleGlow > 0.001) {
+    color += (innerMark.coverage * inside * innerPearl * 0.22
+      + gapInfo.foilEdge * outerPearl * 0.18
+      + inside * innerPearl * 0.055) * idleGlow;
+  }
+
+  // Expanding chromatic shockwave ripple from pointer-down origin (~900ms fade).
+  let rippleT = params.rippleTime;
+  if (rippleT >= 0.0 && rippleT < 0.9) {
+    let rippleProgress = rippleT / 0.9;
+    let rippleCenter = params.rippleOrigin * vec2f(0.64, 0.91);
+    let rippleDist = length(p - rippleCenter);
+    let eased = 1.0 - (1.0 - rippleProgress) * (1.0 - rippleProgress);
+    let waveRadius = eased * 1.85;
+    let ringWidth = mix(0.055, 0.18, eased);
+    let ringDelta = (rippleDist - waveRadius) / ringWidth;
+    let ring = exp(-ringDelta * ringDelta);
+    let fade = smoothstep(0.0, 0.06, rippleProgress) * pow(1.0 - rippleProgress, 1.6);
+    let wavePhase = rippleDist * 1.35 - rippleProgress * 1.1 + dot(lightAndView, vec2f(0.25, -0.18));
+    let waveColor = pearlColor(wavePhase) * 0.85 + vec3f(0.18, 0.22, 0.28);
+    let surfaceCatch = 0.28 + contours * 0.65 * outside + innerMark.coverage * 0.95 * inside + gapInfo.foilEdge * 0.85;
+    color += waveColor * ring * fade * surfaceCatch * 0.62;
+  }
+
   let outline = evaluateLogoOutline(artworkUv, logoRaw, aa);
-  color = mix(color, vec3f(0.29, 0.32, 0.36) + tint * light * 0.16, outline);
+  color = mix(color, vec3f(0.29, 0.32, 0.36) + tint * light * 0.16 + innerPearl * idleGlow * 0.32, outline);
 
   // Subtle FIELDR / AUCTIONS caption sampled from the bottom of the same r8unorm mask texture.
   let caption = sampleCaption(artworkUv);

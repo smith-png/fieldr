@@ -1,9 +1,47 @@
-import { clock, frameLoop, init, surface, type Gpu } from 'vgpu';
+import { frame, init, surface, type Gpu } from 'vgpu';
 import { waitForBrandFonts } from './logoMask';
 import { createScene } from './scene';
 
 export interface CreateRendererOptions {
   onFirstInteraction?: () => void;
+}
+
+const IDLE_DELAY_MS = 1500;
+const RIPPLE_DURATION_SEC = 0.9;
+const CHARGE_DURATION_SEC = 1.6;
+const CHARGE_DRAIN_SEC = 0.4;
+const BURST_THRESHOLD = 0.15;
+const BURST_TOTAL_SEC = 2.1; // 900ms shockwave ring + 1.2s foil settle
+const ACTIVE_FPS = 60;
+const IDLE_FPS = 30;
+const FRAME_INTERVAL_SLACK_MS = 1;
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function easeInCharge(t: number): number {
+  const c = clamp(t, 0, 1);
+  return c * (0.45 + 0.55 * c);
+}
+
+function isAndroidDevice(): boolean {
+  return typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent);
+}
+
+function vibrateAndroid(durationMs: number): void {
+  if (
+    !isAndroidDevice() ||
+    typeof navigator === 'undefined' ||
+    typeof navigator.vibrate !== 'function'
+  ) {
+    return;
+  }
+  try {
+    navigator.vibrate(durationMs);
+  } catch {
+    // Ignore vibration errors if blocked by browser policy.
+  }
 }
 
 export function createRenderer(
@@ -32,14 +70,19 @@ export function createRenderer(
       return;
     }
     gpu = context;
-    const output = surface(context, canvas, { dpr: [1, 2] });
+
+    const maxDpr = typeof window !== 'undefined' && window.innerWidth < 640 ? 1.5 : 2;
+    const output = surface(context, canvas, { dpr: [1, maxDpr] });
     const shader = createScene(context, output);
     await shader.compile({ colors: [output.format] });
     if (disposed) return;
 
     const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
     let interacted = false;
-    let targetHover = 0;
+    let isPointerDown = false;
+    let activePointerId: number | null = null;
+    let isMouseHovering = false;
+    let pointerTargetHover = 0;
     let pointerX = 0;
     let pointerY = 0;
     let tiltX = 0;
@@ -48,12 +91,60 @@ export function createRenderer(
     let lightX = 0.2;
     let lightY = -0.25;
 
-    const move = (event: PointerEvent) => {
-      if (!event.isPrimary) return;
+    // Idle Lissajous + F glow state
+    let lastInputMs = performance.now();
+    let idleBlend = 0;
+    let idleTime = 0;
+    let idleGlow = 0;
+
+    // Expanding pointer-down ripple state
+    let rippleOriginX = 0;
+    let rippleOriginY = 0;
+    let rippleElapsed = -1;
+
+    // Hold-to-charge & release-to-burst state
+    let isCharging = false;
+    let isDraining = false;
+    let rawCharge = 0;
+    let charge = 0;
+    let chargeTime = 0;
+    let burstElapsed = -1;
+    let burstStrength = 0;
+    let hapticTickAccumSec = 0;
+
+    const markInteracted = () => {
       if (!interacted) {
         interacted = true;
         options?.onFirstInteraction?.();
       }
+    };
+
+    const releaseCapture = (pointerId: number | null) => {
+      if (pointerId === null) return;
+      try {
+        if (typeof canvas.hasPointerCapture === 'function' && canvas.hasPointerCapture(pointerId)) {
+          canvas.releasePointerCapture(pointerId);
+        }
+      } catch {
+        // Ignore if pointer capture is already released or unsupported.
+      }
+    };
+
+    const startChargeDrain = () => {
+      isCharging = false;
+      hapticTickAccumSec = 0;
+      if (charge > 0.001) {
+        isDraining = true;
+      } else {
+        rawCharge = 0;
+        charge = 0;
+        isDraining = false;
+      }
+    };
+
+    const updatePointerFromEvent = (event: PointerEvent) => {
+      markInteracted();
+      lastInputMs = performance.now();
       const rect = canvas.getBoundingClientRect();
       const scale = Math.min(rect.height, rect.width * 1.35);
       // Match the shader's card coordinates and reveal the foil as the pointer approaches.
@@ -66,54 +157,340 @@ export function createRenderer(
       // Begin revealing one full rendered card width beyond its edges.
       const approachDistance = (Math.max(1, scale) * 1.28) / 2.5;
       const proximity = Math.max(0, 1 - Math.hypot(distanceX, distanceY) / approachDistance);
-      targetHover = proximity * proximity * (3 - 2 * proximity);
+      pointerTargetHover = proximity * proximity * (3 - 2 * proximity);
     };
-    const leave = () => {
-      targetHover = 0;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (!event.isPrimary) return;
+      isPointerDown = true;
+      activePointerId = event.pointerId;
+      if (event.pointerType === 'mouse') {
+        isMouseHovering = true;
+      }
+      updatePointerFromEvent(event);
+
+      try {
+        canvas.setPointerCapture(event.pointerId);
+      } catch {
+        // Ignore if pointer capture is unavailable (e.g. synthetic pointer event).
+      }
+
+      const onCard = Math.abs(pointerX) <= 1.15 && Math.abs(pointerY) <= 1.15;
+      if (onCard) {
+        isCharging = true;
+        isDraining = false;
+        rawCharge = 0;
+        charge = 0;
+        hapticTickAccumSec = 0;
+      }
+
+      if (!motion.matches) {
+        rippleOriginX = pointerX;
+        rippleOriginY = pointerY;
+        rippleElapsed = 0;
+        vibrateAndroid(8);
+      }
     };
-    const up = (event: PointerEvent) => {
-      if (event.pointerType !== 'mouse') leave();
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (!event.isPrimary) return;
+      if (event.pointerType === 'mouse') {
+        isMouseHovering = true;
+      }
+      updatePointerFromEvent(event);
     };
-    canvas.addEventListener('pointermove', move, { passive: true });
-    canvas.addEventListener('pointerdown', move, { passive: true });
-    canvas.addEventListener('pointerleave', leave);
-    canvas.addEventListener('pointercancel', leave);
-    canvas.addEventListener('pointerup', up);
+
+    const onPointerUp = (event: PointerEvent) => {
+      if (!event.isPrimary) return;
+      if (activePointerId !== null && event.pointerId !== activePointerId) return;
+
+      releaseCapture(activePointerId);
+      activePointerId = null;
+      isPointerDown = false;
+      lastInputMs = performance.now();
+
+      if (isCharging) {
+        const storedCharge = charge;
+        isCharging = false;
+        isDraining = false;
+        rawCharge = 0;
+        charge = 0;
+        hapticTickAccumSec = 0;
+
+        if (storedCharge >= BURST_THRESHOLD) {
+          burstElapsed = 0;
+          burstStrength = storedCharge;
+          if (!motion.matches && storedCharge >= 0.99) {
+            vibrateAndroid(30);
+          }
+        }
+      }
+
+      if (event.pointerType !== 'mouse') {
+        isMouseHovering = false;
+        pointerTargetHover = 0;
+      }
+    };
+
+    const onPointerCancel = (event: PointerEvent) => {
+      if (!event.isPrimary) return;
+      releaseCapture(activePointerId);
+      activePointerId = null;
+      isPointerDown = false;
+      isMouseHovering = false;
+      pointerTargetHover = 0;
+      startChargeDrain();
+    };
+
+    const onPointerLeave = () => {
+      // While captured, dragging outside the canvas keeps charging until pointerup.
+      if (
+        activePointerId !== null &&
+        typeof canvas.hasPointerCapture === 'function' &&
+        canvas.hasPointerCapture(activePointerId)
+      ) {
+        return;
+      }
+      isPointerDown = false;
+      isMouseHovering = false;
+      pointerTargetHover = 0;
+      if (isCharging) {
+        startChargeDrain();
+      }
+    };
+
+    const onLostPointerCapture = () => {
+      activePointerId = null;
+      if (isCharging) {
+        isPointerDown = false;
+        startChargeDrain();
+      }
+    };
+
+    canvas.addEventListener('pointermove', onPointerMove, { passive: true });
+    canvas.addEventListener('pointerdown', onPointerDown, { passive: true });
+    canvas.addEventListener('pointerup', onPointerUp);
+    canvas.addEventListener('pointercancel', onPointerCancel);
+    canvas.addEventListener('pointerleave', onPointerLeave);
+    canvas.addEventListener('lostpointercapture', onLostPointerCapture);
+
     const unsubscribeResize = output.onResize(() => {
       shader.set({ params: { resolution: output.size } });
     });
+
+    // Visibility & off-screen pausing with dynamic 60fps active / ~30fps idle rate
+    let isDocumentVisible = typeof document === 'undefined' ? true : !document.hidden;
+    let isCanvasVisible = true;
+    let rafId: number | null = null;
+    let lastRenderMs: number | undefined;
+
+    const stopLoop = () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    };
+
+    const tick = (now: number) => {
+      rafId = null;
+      if (disposed || !isDocumentVisible || !isCanvasVisible) return;
+
+      const reduced = motion.matches;
+      const isPointerActive = isPointerDown || (isMouseHovering && pointerTargetHover > 0.001);
+      const isChargeOrBurstActive =
+        isCharging || isDraining || charge > 0.001 || burstElapsed >= 0;
+      const isIdle =
+        !reduced &&
+        !isPointerActive &&
+        !isChargeOrBurstActive &&
+        now - lastInputMs >= IDLE_DELAY_MS;
+
+      const isLowPowerIdle =
+        !isPointerActive && !isChargeOrBurstActive && rippleElapsed < 0 && (isIdle || reduced);
+      const targetFps = isLowPowerIdle ? IDLE_FPS : ACTIVE_FPS;
+      const minIntervalMs = 1000 / targetFps;
+
+      if (
+        lastRenderMs !== undefined &&
+        now - lastRenderMs < minIntervalMs - FRAME_INTERVAL_SLACK_MS
+      ) {
+        rafId = window.requestAnimationFrame(tick);
+        return;
+      }
+
+      const dt =
+        lastRenderMs === undefined
+          ? 1 / ACTIVE_FPS
+          : Math.min(Math.max(0, now - lastRenderMs) / 1000, 0.1);
+      lastRenderMs = now;
+
+      if (reduced) {
+        idleBlend = 0;
+        idleGlow = 0;
+        rippleElapsed = -1;
+      } else {
+        idleTime += dt;
+        const targetIdleBlend = isIdle ? 1 : 0;
+        const idleBlendRate = isIdle ? 3.2 : 10;
+        idleBlend += (targetIdleBlend - idleBlend) * (1 - Math.exp(-idleBlendRate * dt));
+      }
+
+      // Update hold-to-charge, cancel-drain, Android charge haptics, and release burst progression
+      if (isCharging) {
+        lastInputMs = now;
+        rawCharge = clamp(rawCharge + dt / CHARGE_DURATION_SEC, 0, 1);
+        charge = easeInCharge(rawCharge);
+        if (!reduced) {
+          chargeTime += dt;
+          if (charge > 0.08) {
+            hapticTickAccumSec += dt;
+            const tickIntervalSec = 0.2 - 0.1 * charge;
+            if (hapticTickAccumSec >= tickIntervalSec) {
+              hapticTickAccumSec = 0;
+              vibrateAndroid(10);
+            }
+          }
+        }
+      } else if (isDraining) {
+        charge = Math.max(0, charge - dt / CHARGE_DRAIN_SEC);
+        rawCharge = charge;
+        if (charge <= 0.0001) {
+          charge = 0;
+          rawCharge = 0;
+          isDraining = false;
+        }
+      }
+
+      let burstProgress = 0;
+      if (burstElapsed >= 0) {
+        burstElapsed += dt;
+        if (burstElapsed >= BURST_TOTAL_SEC) {
+          burstElapsed = -1;
+          burstStrength = 0;
+          burstProgress = 0;
+        } else {
+          burstProgress = clamp(burstElapsed / BURST_TOTAL_SEC, 0, 1);
+        }
+      }
+
+      const idleLightX = Math.sin(idleTime * 0.55) * 0.78;
+      const idleLightY = Math.sin(idleTime * 0.85 + 0.7) * 0.72;
+      const pulse = 0.5 + 0.5 * Math.sin(idleTime * 1.45 - Math.PI / 2);
+      const targetIdleGlow = reduced ? 0 : idleBlend * (0.28 + 0.72 * pulse);
+
+      const activeX = pointerX;
+      const activeY = pointerY;
+      const activeHover = isPointerActive ? pointerTargetHover : 0;
+
+      const desiredHover = Math.max(activeHover, idleBlend * 0.72);
+      const desiredTiltX = reduced
+        ? 0
+        : clamp(activeX, -1, 1) * 0.16 * activeHover * (1 - idleBlend) +
+          idleLightX * 0.075 * idleBlend;
+      const desiredTiltY = reduced
+        ? 0
+        : -clamp(activeY, -1, 1) * 0.12 * activeHover * (1 - idleBlend) +
+          -idleLightY * 0.055 * idleBlend;
+
+      const blend = reduced ? 1 : 1 - Math.exp(-10 * dt);
+      tiltX += (desiredTiltX - tiltX) * blend;
+      tiltY += (desiredTiltY - tiltY) * blend;
+      hover += (desiredHover - hover) * blend;
+      idleGlow += (targetIdleGlow - idleGlow) * blend;
+
+      if (isPointerActive) {
+        lightX += (activeX - lightX) * blend;
+        lightY += (activeY - lightY) * blend;
+      } else if (idleBlend > 0.001) {
+        const idleFollow = 1 - Math.exp(-4.5 * dt);
+        lightX += (idleLightX - lightX) * idleFollow;
+        lightY += (idleLightY - lightY) * idleFollow;
+      }
+
+      const currentRippleTime = !reduced && rippleElapsed >= 0 ? rippleElapsed : -1;
+      if (!reduced && rippleElapsed >= 0) {
+        rippleElapsed += dt;
+        if (rippleElapsed >= RIPPLE_DURATION_SEC) {
+          rippleElapsed = -1;
+        }
+      }
+
+      try {
+        frame(context, (currentFrame) => {
+          shader.set({
+            params: {
+              tilt: [tiltX, tiltY],
+              pointer: [lightX, lightY],
+              rippleOrigin: [rippleOriginX, rippleOriginY],
+              hover,
+              rippleTime: currentRippleTime,
+              idleGlow,
+              charge,
+              burst: burstProgress,
+              burstStrength,
+              chargeTime,
+              reducedMotion: reduced ? 1 : 0,
+            },
+          });
+          currentFrame.pass(output, shader);
+        });
+      } catch {
+        stopLoop();
+        return;
+      }
+
+      if (!disposed && isDocumentVisible && isCanvasVisible) {
+        rafId = window.requestAnimationFrame(tick);
+      }
+    };
+
+    const syncLoop = () => {
+      if (disposed || !isDocumentVisible || !isCanvasVisible) {
+        stopLoop();
+        return;
+      }
+      if (rafId === null) {
+        lastRenderMs = undefined;
+        rafId = window.requestAnimationFrame(tick);
+      }
+    };
+
+    const onVisibilityChange = () => {
+      isDocumentVisible = !document.hidden;
+      syncLoop();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    let observer: IntersectionObserver | null = null;
+    if (typeof IntersectionObserver !== 'undefined') {
+      observer = new IntersectionObserver(
+        (entries) => {
+          const entry = entries[0];
+          if (!entry) return;
+          isCanvasVisible = entry.isIntersecting;
+          syncLoop();
+        },
+        { threshold: 0.01 },
+      );
+      observer.observe(canvas);
+    }
+
     removeInput = () => {
-      canvas.removeEventListener('pointermove', move);
-      canvas.removeEventListener('pointerdown', move);
-      canvas.removeEventListener('pointerleave', leave);
-      canvas.removeEventListener('pointercancel', leave);
-      canvas.removeEventListener('pointerup', up);
+      stopLoop();
+      releaseCapture(activePointerId);
+      activePointerId = null;
+      canvas.removeEventListener('pointermove', onPointerMove);
+      canvas.removeEventListener('pointerdown', onPointerDown);
+      canvas.removeEventListener('pointerup', onPointerUp);
+      canvas.removeEventListener('pointercancel', onPointerCancel);
+      canvas.removeEventListener('pointerleave', onPointerLeave);
+      canvas.removeEventListener('lostpointercapture', onLostPointerCapture);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      observer?.disconnect();
       unsubscribeResize();
     };
 
-    const time = clock(context);
-    frameLoop(
-      context,
-      (currentFrame) => {
-        const targetX = motion.matches
-          ? 0
-          : Math.max(-1, Math.min(1, pointerX)) * 0.16 * targetHover;
-        const targetY = motion.matches
-          ? 0
-          : -Math.max(-1, Math.min(1, pointerY)) * 0.12 * targetHover;
-        const blend = motion.matches ? 1 : 1 - Math.exp(-10 * Math.min(time.deltaTime, 0.1));
-        tiltX += (targetX - tiltX) * blend;
-        tiltY += (targetY - tiltY) * blend;
-        hover += (targetHover - hover) * blend;
-        if (targetHover > 0) {
-          lightX += (pointerX - lightX) * blend;
-          lightY += (pointerY - lightY) * blend;
-        }
-        shader.set({ params: { tilt: [tiltX, tiltY], pointer: [lightX, lightY], hover } });
-        currentFrame.pass(output, shader);
-      },
-      { fps: 60 },
-    );
+    syncLoop();
   })().catch((error: unknown) => {
     if (disposed) return;
     dispose();
